@@ -147,7 +147,7 @@ public final class MediaCodecUtil {
       return cachedDecoderInfos;
     }
     MediaCodecListCompat mediaCodecList = Util.SDK_INT >= 21
-        ? new MediaCodecListCompatV21(secure) : new MediaCodecListCompatV16();
+        ? new MediaCodecListCompatV21(true) : new MediaCodecListCompatV16();
     ArrayList<MediaCodecInfo> decoderInfos = getDecoderInfosInternal(key, mediaCodecList, mimeType);
     if (secure && decoderInfos.isEmpty() && 21 <= Util.SDK_INT && Util.SDK_INT <= 23) {
       // Some devices don't list secure decoders on API level 21 [Internal: b/18678462]. Try the

@@ -51,6 +51,7 @@ public class DefaultRenderersFactory implements RenderersFactory {
    * ongoing playback.
    */
   public static final long DEFAULT_ALLOWED_VIDEO_JOINING_TIME_MS = 5000;
+  protected MediaCodecSelector videoMediaCodecSelector;
 
   /**
    * Modes for using extension renderers. One of {@link #EXTENSION_RENDERER_MODE_OFF}, {@link
@@ -138,13 +139,30 @@ public class DefaultRenderersFactory implements RenderersFactory {
    *     seamlessly join an ongoing playback.
    */
   public DefaultRenderersFactory(
-      Context context,
-      @ExtensionRendererMode int extensionRendererMode,
-      long allowedVideoJoiningTimeMs) {
+          Context context,
+          @ExtensionRendererMode int extensionRendererMode,
+          long allowedVideoJoiningTimeMs) {
+    this(context, extensionRendererMode, allowedVideoJoiningTimeMs, MediaCodecSelector.DEFAULT);
+  }
+
+  /**
+   * @param context A {@link Context}.
+   * @param extensionRendererMode The extension renderer mode, which determines if and how available
+   *     extension renderers are used. Note that extensions must be included in the application
+   *     build for them to be considered available.
+   * @param allowedVideoJoiningTimeMs The maximum duration for which video renderers can attempt to
+   *     seamlessly join an ongoing playback.
+   * @param videoMediaCodecSelector
+   */
+  public DefaultRenderersFactory(
+          Context context,
+          @ExtensionRendererMode int extensionRendererMode,
+          long allowedVideoJoiningTimeMs, MediaCodecSelector videoMediaCodecSelector) {
     this.context = context;
     this.extensionRendererMode = extensionRendererMode;
     this.allowedVideoJoiningTimeMs = allowedVideoJoiningTimeMs;
     this.drmSessionManager = null;
+    this.videoMediaCodecSelector = videoMediaCodecSelector;
   }
 
   /**
@@ -161,6 +179,7 @@ public class DefaultRenderersFactory implements RenderersFactory {
     this.extensionRendererMode = extensionRendererMode;
     this.allowedVideoJoiningTimeMs = allowedVideoJoiningTimeMs;
     this.drmSessionManager = drmSessionManager;
+    videoMediaCodecSelector = MediaCodecSelector.DEFAULT;
   }
 
   @Override
@@ -208,8 +227,7 @@ public class DefaultRenderersFactory implements RenderersFactory {
       ArrayList<Renderer> out) {
     out.add(
         new MediaCodecVideoRenderer(
-            context,
-            MediaCodecSelector.DEFAULT,
+            context, videoMediaCodecSelector,
             allowedVideoJoiningTimeMs,
             drmSessionManager,
             /* playClearSamplesWithoutKeys= */ false,

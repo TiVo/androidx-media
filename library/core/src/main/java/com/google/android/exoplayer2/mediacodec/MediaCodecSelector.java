@@ -15,11 +15,14 @@
  */
 package com.google.android.exoplayer2.mediacodec;
 
+import android.annotation.TargetApi;
 import android.media.MediaCodec;
+import android.os.Build;
 import android.support.annotation.Nullable;
 import com.google.android.exoplayer2.mediacodec.MediaCodecUtil.DecoderQueryException;
 import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 
 /**
  * Selector of {@link MediaCodec} instances.
@@ -33,7 +36,8 @@ public interface MediaCodecSelector {
   MediaCodecSelector DEFAULT =
       new MediaCodecSelector() {
         @Override
-        public List<MediaCodecInfo> getDecoderInfos(String mimeType, boolean requiresSecureDecoder)
+        public List<MediaCodecInfo>
+        getDecoderInfos(String mimeType, boolean requiresSecureDecoder)
             throws DecoderQueryException {
           List<MediaCodecInfo> decoderInfos =
               MediaCodecUtil.getDecoderInfos(mimeType, requiresSecureDecoder);
@@ -47,6 +51,30 @@ public interface MediaCodecSelector {
           return MediaCodecUtil.getPassthroughDecoderInfo();
         }
       };
+    /**
+     * Default implementation of {@link MediaCodecSelector}, which returns the preferred decoder for
+     * the given format.
+     */
+    MediaCodecSelector TUNNELING =
+        new MediaCodecSelector() {
+          @TargetApi(Build.VERSION_CODES.N)
+          @Override
+          public List<MediaCodecInfo> getDecoderInfos(String mimeType, boolean requiresSecureDecoder)
+              throws DecoderQueryException {
+            List<MediaCodecInfo> decoderInfos =
+                MediaCodecUtil.getDecoderInfos(mimeType, requiresSecureDecoder);
+
+            Optional<MediaCodecInfo> matchingInfo = decoderInfos.stream()
+                    .filter(mediaCodecInfo -> mediaCodecInfo.tunneling)
+                    .findFirst();
+            return matchingInfo.isPresent() ? Collections.singletonList(matchingInfo.get()) : Collections.emptyList();
+          }
+
+          @Override
+          public @Nullable MediaCodecInfo getPassthroughDecoderInfo() throws DecoderQueryException {
+            return MediaCodecUtil.getPassthroughDecoderInfo();
+          }
+        };
 
   /**
    * A {@link MediaCodecSelector} that returns a list of decoders in priority order, allowing
