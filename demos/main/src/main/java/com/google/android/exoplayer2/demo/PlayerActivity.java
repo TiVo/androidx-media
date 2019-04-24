@@ -17,12 +17,17 @@ package com.google.android.exoplayer2.demo;
 
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.media.AudioAttributes;
+import android.media.AudioFocusRequest;
+import android.media.AudioManager;
 import android.net.Uri;
 import android.os.Bundle;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
+import android.util.Log;
 import android.util.Pair;
 import android.view.KeyEvent;
 import android.view.View;
@@ -47,6 +52,7 @@ import com.google.android.exoplayer2.drm.FrameworkMediaDrm;
 import com.google.android.exoplayer2.drm.HttpMediaDrmCallback;
 import com.google.android.exoplayer2.drm.UnsupportedDrmException;
 import com.google.android.exoplayer2.mediacodec.MediaCodecRenderer.DecoderInitializationException;
+import com.google.android.exoplayer2.mediacodec.MediaCodecSelector;
 import com.google.android.exoplayer2.mediacodec.MediaCodecUtil.DecoderQueryException;
 import com.google.android.exoplayer2.offline.FilteringManifestParser;
 import com.google.android.exoplayer2.offline.StreamKey;
@@ -95,6 +101,7 @@ public class PlayerActivity extends Activity
   public static final String DRM_KEY_REQUEST_PROPERTIES_EXTRA = "drm_key_request_properties";
   public static final String DRM_MULTI_SESSION_EXTRA = "drm_multi_session";
   public static final String PREFER_EXTENSION_DECODERS_EXTRA = "prefer_extension_decoders";
+  public static final String ENABLE_TUNNELED_PLAYBACK = "enable_tunneled_playback";
 
   public static final String ACTION_VIEW = "com.google.android.exoplayer.demo.action.VIEW";
   public static final String EXTENSION_EXTRA = "extension";
@@ -152,6 +159,64 @@ public class PlayerActivity extends Activity
   private AdsLoader adsLoader;
   private Uri loadedAdTagUri;
   private ViewGroup adUiViewGroup;
+  private AudioFocusRequest audioFocusRequest;
+  private AudioManager.OnAudioFocusChangeListener audioFocusChangeListener;
+  private AudioFocusHandler audioFocusHandler;
+
+
+  /**
+   * AudioFocus event handler.  This is a static class to be explicit (passed in the contructor
+   * only) about dependence on object context of the VisualOnPlayer as it's methods are called from
+   * a {@android.os.Handler} message queue
+   *
+   * Basic idea of Audio Focus playing nice is detailed really nicely here:
+   *   https://android-developers.googleblog.com/2013/08/respecting-audio-focus.html
+   *
+   * TODO - implement the balance of what UX wants this to do
+   *
+   */
+  private class AudioFocusHandler implements AudioManager.OnAudioFocusChangeListener {
+
+    private Context appContext;
+    private Player player;
+
+    AudioFocusHandler(Context appContext) {
+      this.appContext = appContext;
+    }
+
+
+    /**
+     * Called here when our focus request is granted or lost.  This is a handler (this is a noop except if we are
+     * returning from focus lost) or we loose focus when annother app request it (either
+     * because of overt user action (apps menu launch another app) or because an app
+     * interrupted with an audio message.
+     *
+     * Proper behavior (subject to UX interpretation) would be to 'duck' audio if we loose
+     * focus for a short time and restore it when we return, or pause the video playback for
+     * a longer focus loss and restore it when we return.
+     *
+     * TODO - implement logic for this
+     *
+     * @param focusChange - indicate if we gained or lost focus and expected time
+     */
+    @Override
+    public void onAudioFocusChange(int focusChange) {
+      switch (focusChange) {
+        case AudioManager.AUDIOFOCUS_GAIN:
+          Toast.makeText(appContext, "Audio focus gained", Toast.LENGTH_LONG).show();
+          break;
+        case AudioManager.AUDIOFOCUS_LOSS:
+        case AudioManager.AUDIOFOCUS_LOSS_TRANSIENT:
+        case AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK:
+          // TODO - we should reduce our volume but not completely mute
+          break;
+      }
+    }
+
+    public void setPlayer(Player player) {
+      this.player = player;
+    }
+  }
 
   // Activity lifecycle
 
@@ -192,6 +257,27 @@ public class PlayerActivity extends Activity
       }
       ((SphericalSurfaceView) playerView.getVideoSurfaceView()).setDefaultStereoMode(stereoMode);
     }
+
+    Context context = getApplicationContext();
+    AudioManager audioManager = (AudioManager) context.getSystemService(Context.AUDIO_SERVICE);
+
+    // Indicate we want Audio Focus in order to play video content.
+    AudioAttributes audioAttributes = new AudioAttributes.Builder()
+            .setUsage(AudioAttributes.USAGE_MEDIA)
+            .setContentType(AudioAttributes.CONTENT_TYPE_MOVIE)
+            .build();
+
+    audioFocusHandler = new AudioFocusHandler(context);
+    audioFocusRequest = new AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
+            .setWillPauseWhenDucked(true)
+            .setAcceptsDelayedFocusGain(true)
+            .setAudioAttributes(audioAttributes)
+            .setOnAudioFocusChangeListener(audioFocusHandler)
+            .build();
+
+    int res = audioManager.requestAudioFocus(audioFocusRequest);
+    Log.i("ExoPlayer", "Audio Focus request: " + res);
+
 
     if (savedInstanceState != null) {
       trackSelectorParameters = savedInstanceState.getParcelable(KEY_TRACK_SELECTOR_PARAMETERS);
@@ -414,6 +500,7 @@ public class PlayerActivity extends Activity
         return;
       }
 
+      boolean enableTunneling = intent.getBooleanExtra(ENABLE_TUNNELED_PLAYBACK, false);
       boolean preferExtensionDecoders =
           intent.getBooleanExtra(PREFER_EXTENSION_DECODERS_EXTRA, false);
       @DefaultRenderersFactory.ExtensionRendererMode int extensionRendererMode =
@@ -421,10 +508,24 @@ public class PlayerActivity extends Activity
               ? (preferExtensionDecoders ? DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER
               : DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON)
               : DefaultRenderersFactory.EXTENSION_RENDERER_MODE_OFF;
+      MediaCodecSelector codecSelector = enableTunneling ? MediaCodecSelector.TUNNELING : MediaCodecSelector.DEFAULT;
       DefaultRenderersFactory renderersFactory =
-          new DefaultRenderersFactory(this, extensionRendererMode);
+          new DefaultRenderersFactory(this, extensionRendererMode, DefaultRenderersFactory.DEFAULT_ALLOWED_VIDEO_JOINING_TIME_MS, codecSelector);
 
       trackSelector = new DefaultTrackSelector(trackSelectionFactory);
+
+
+      // Get a builder with current parameters then set/clear tunnling based on the intent
+      //
+      Context context = getApplicationContext();
+      int tunnelingSessionId = enableTunneling
+              ? C.generateAudioSessionIdV21(context) : C.AUDIO_SESSION_ID_UNSET;
+
+      trackSelectorParameters = trackSelectorParameters.buildUpon()
+              .setTunnelingAudioSessionId(tunnelingSessionId)
+              .build();
+
+      // set the updated parameters for the trackSelector
       trackSelector.setParameters(trackSelectorParameters);
       lastSeenTrackGroupArray = null;
 
@@ -434,6 +535,7 @@ public class PlayerActivity extends Activity
       player.addListener(new PlayerEventListener());
       player.setPlayWhenReady(startAutoPlay);
       player.addAnalyticsListener(new EventLogger(trackSelector));
+      audioFocusHandler.setPlayer(player);
       playerView.setPlayer(player);
       playerView.setPlaybackPreparer(this);
       debugViewHelper = new DebugTextViewHelper(player, debugTextView);
@@ -530,6 +632,7 @@ public class PlayerActivity extends Activity
       debugViewHelper.stop();
       debugViewHelper = null;
       player.release();
+      audioFocusHandler.setPlayer(null);
       player = null;
       mediaSource = null;
       trackSelector = null;

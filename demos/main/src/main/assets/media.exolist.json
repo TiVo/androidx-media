@@ -1,4 +1,59 @@
 [
+
+  {
+    "name": "TiVo Test Assets",
+    "samples": [
+      {
+        "name": "Test CNBC S3",
+          "uri": "https://s3.amazonaws.com/hls-demos/cnbchd/index.m3u8"
+      },
+      {
+        "name": "CNBC RCN Live",
+        "uri": "http://edge3.il.vod.rcn.net/rolling-buffer/cnbchd/cnbchd/transmux/index.m3u8"
+      },
+      {
+        "name": "Test CNN Snap",
+        "uri": "https://s3.amazonaws.com/hls-demos/cnnhd/index.m3u8"
+      },
+      {
+        "name": "Test CNN Snap Higest BR",
+        "uri": "https://s3.amazonaws.com/hls-demos/cnnhd/index_high.m3u8"
+      },
+      {
+        "name": "CNN RCN Live",
+        "uri": "http://edge3.il.vod.rcn.net/rolling-buffer/cnnhd/cnnhd/transmux/index.m3u88"
+      },
+      {
+        "name": "TiVo 60fps w/AC3",
+        "uri": "http://frumos.tivo.com/media/49265349-0795-4588-881c-88f5dbc40a43/49265349-0795-4588-881c-88f5dbc40a43.smil/transmux/index.m3u8"
+      },
+      {
+        "name": "Frumos",
+        "uri": "http://frumos01.tivo.com/rolling-buffer/media/stc-kqed01/stc-kqed01/transmux/index.m3u8?ccur_et=0"
+      },
+      {
+        "name": "Modern Family (15m, rencoded)",
+        "uri":"https://s3.amazonaws.com/hls-demos/regenerated/prog_index.m3u8"
+      }
+    ]
+  },
+  {
+    "name": "VisualOn Test Assets",
+    "samples": [
+      {
+        "name": "with AC3",
+        "uri": "http://www.desproges.us/Dolby/Dolby-ac3.m3u8"
+      },
+      {
+        "name": "just AC3",
+        "uri": "http://www.desproges.us/Dolby/audio_dd_51_eng/prog_index.m3u8"
+      },
+      {
+        "name": "just Video",
+        "uri": "http://www.desproges.us/Dolby/Dolby-ac3.m3u8"
+      }
+    ]
+  },
   {
     "name": "YouTube DASH",
     "samples": [
@@ -340,6 +395,19 @@
     ]
   },
   {
+    "name": "Dolby Test Streams",
+    "samples": [
+      {
+        "name": "5.1 Sound - DDP (eac3)",
+        "uri": "http://d9zmmjtv72w5o.cloudfront.net/developer_portal/Dolby_Digital_Plus51_AVC/HLS/Living-Room_51_30p.m3u8"
+      },
+      {
+        "name": "Spheres trailer 7.1 (ac3)",
+        "uri": "https://s3.amazonaws.com/hls-videojs-test/spheres/index.m3u8"
+      }
+    ]
+  },
+  {
     "name": "HLS",
     "samples": [
       {
@@ -365,6 +433,14 @@
       {
         "name": "Apple AAC media playlist",
         "uri": "https://devstreaming-cdn.apple.com/videos/streaming/examples/bipbop_4x3/gear0/prog_index.m3u8"
+      },
+      {
+        "name": "Apple Advanced (Multiple Audio) media playlist",
+        "uri": "https://devstreaming-cdn.apple.com/videos/streaming/examples/img_bipbop_adv_example_ts/master.m3u8"
+      },
+      {
+        "name": "Apple ID3 metadata",
+        "uri": "http://devimages.apple.com/samplecode/adDemo/ad.m3u8"
       }
     ]
   },
