@@ -508,7 +508,7 @@ public class PlayerActivity extends Activity
               ? (preferExtensionDecoders ? DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER
               : DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON)
               : DefaultRenderersFactory.EXTENSION_RENDERER_MODE_OFF;
-      MediaCodecSelector codecSelector = enableTunneling ? MediaCodecSelector.TUNNELING : MediaCodecSelector.DEFAULT;
+      MediaCodecSelector codecSelector = enableTunneling ? MediaCodecSelector.BRIANS : MediaCodecSelector.DEFAULT;
       DefaultRenderersFactory renderersFactory =
           new DefaultRenderersFactory(this, extensionRendererMode, DefaultRenderersFactory.DEFAULT_ALLOWED_VIDEO_JOINING_TIME_MS, codecSelector);
 

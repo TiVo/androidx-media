@@ -20,6 +20,8 @@ import android.media.MediaCodec;
 import android.os.Build;
 import android.support.annotation.Nullable;
 import com.google.android.exoplayer2.mediacodec.MediaCodecUtil.DecoderQueryException;
+import com.google.android.exoplayer2.util.Log;
+
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
@@ -97,6 +99,65 @@ public interface MediaCodecSelector {
           return MediaCodecUtil.getPassthroughDecoderInfo();
         }
       };
+
+  MediaCodecSelector BRIANS = new MediaCodecSelector() {
+      // This will be returned as a list sorted with tunneling supporting
+      // codecs first, so that ExoPlayer's fairly dumb codec selection will
+      // just happen to get a tunneling version when selecting the first
+      // element, which it does
+      public List<MediaCodecInfo> getDecoderInfos(String mimeType, boolean requiresSecureDecoder)
+              throws MediaCodecUtil.DecoderQueryException {
+          Log.i("TAG", "Asked for mimeType=" + mimeType +
+                  ", requresSecureDecoder=" + requiresSecureDecoder);
+
+          java.util.ArrayList<MediaCodecInfo> ret =
+                  new java.util.ArrayList<MediaCodecInfo>();
+
+          List<MediaCodecInfo> decoderInfos = MediaCodecUtil.getDecoderInfos
+                  (mimeType, requiresSecureDecoder);
+
+          if (false || !mimeType.startsWith("video/")) {
+              Log.i("TAG", "gDisableTunneling=" + false +
+                      ", mimeType.startsWith(\"video\")=" +
+                      mimeType.startsWith("video/"));
+              if (!decoderInfos.isEmpty()) {
+                  Log.i("TAG", "Found a decoder for it: " +
+                          decoderInfos.get(0).name);
+                  ret.add(decoderInfos.get(0));
+              }
+              return ret;
+          }
+
+          for (int i = 0; i < decoderInfos.size(); i++) {
+              MediaCodecInfo codecInfo = decoderInfos.get(i);
+              if (codecInfo.tunneling &&
+                      (!requiresSecureDecoder || codecInfo.secure)) {
+                  Log.i("TAG", "Found tunneling codec: " + codecInfo.name);
+                  ret.add(codecInfo);
+                  return ret;
+              }
+          }
+
+          // Add non-tunneling codecs now
+          for (int i = 0; i < decoderInfos.size(); i++) {
+              MediaCodecInfo codecInfo = decoderInfos.get(i);
+              if (!requiresSecureDecoder || codecInfo.secure) {
+                  Log.i("TAG", "Found non-tunneling codec: " + codecInfo.name);
+                  ret.add(codecInfo);
+                  return ret;
+              }
+          }
+
+          // Nothing matches, return empty list
+          return ret;
+      }
+
+      @Nullable
+      @Override
+      public MediaCodecInfo getPassthroughDecoderInfo() throws DecoderQueryException {
+          return null;
+      }
+  };
 
   /**
    * Returns a list of decoders that can decode media in the specified MIME type, in priority order.

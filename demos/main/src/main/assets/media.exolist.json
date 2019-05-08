@@ -12,6 +12,10 @@
         "uri": "http://edge3.il.vod.rcn.net/rolling-buffer/cnbchd/cnbchd/transmux/index.m3u8"
       },
       {
+        "name": "ESPN RCN (AAC)",
+        "uri": "http://rr.vod.rcn.net:8080/rolling-buffer/espnhddc/espnhddc/transmux/index.m3u8"
+      },
+      {
         "name": "Test CNN Snap",
         "uri": "https://s3.amazonaws.com/hls-demos/cnnhd/index.m3u8"
       },
@@ -21,7 +25,7 @@
       },
       {
         "name": "CNN RCN Live",
-        "uri": "http://edge3.il.vod.rcn.net/rolling-buffer/cnnhd/cnnhd/transmux/index.m3u88"
+        "uri": "http://edge2.il.vod.rcn.net/rolling-buffer/cnnhd/cnnhd/transmux/index.m3u8"
       },
       {
         "name": "TiVo 60fps w/AC3",
