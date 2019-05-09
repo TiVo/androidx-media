@@ -42,6 +42,7 @@ import com.google.android.exoplayer2.Timeline;
 import com.google.android.exoplayer2.util.Assertions;
 import com.google.android.exoplayer2.util.NotificationUtil;
 import com.google.android.exoplayer2.util.Util;
+import java.lang.annotation.Documented;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.util.ArrayList;
@@ -123,6 +124,18 @@ public class PlayerNotificationManager {
      */
     @Nullable
     String getCurrentContentText(Player player);
+
+    /**
+     * Gets the content sub text for the current media item.
+     *
+     * <p>See {@link NotificationCompat.Builder#setSubText(CharSequence)}.
+     *
+     * @param player The {@link Player} for which a notification is being built.
+     */
+    @Nullable
+    default String getCurrentSubText(Player player) {
+      return null;
+    }
 
     /**
      * Gets the large icon for the current media item.
@@ -250,6 +263,7 @@ public class PlayerNotificationManager {
    * NotificationCompat#VISIBILITY_PRIVATE}, {@link NotificationCompat#VISIBILITY_PUBLIC} or {@link
    * NotificationCompat#VISIBILITY_SECRET}.
    */
+  @Documented
   @Retention(RetentionPolicy.SOURCE)
   @IntDef({
     NotificationCompat.VISIBILITY_PRIVATE,
@@ -264,6 +278,7 @@ public class PlayerNotificationManager {
    * NotificationCompat#PRIORITY_HIGH}, {@link NotificationCompat#PRIORITY_LOW }or {@link
    * NotificationCompat#PRIORITY_MIN}.
    */
+  @Documented
   @Retention(RetentionPolicy.SOURCE)
   @IntDef({
     NotificationCompat.PRIORITY_DEFAULT,
@@ -829,6 +844,7 @@ public class PlayerNotificationManager {
     // Set media specific notification properties from MediaDescriptionAdapter.
     builder.setContentTitle(mediaDescriptionAdapter.getCurrentContentTitle(player));
     builder.setContentText(mediaDescriptionAdapter.getCurrentContentText(player));
+    builder.setSubText(mediaDescriptionAdapter.getCurrentSubText(player));
     if (largeIcon == null) {
       largeIcon =
           mediaDescriptionAdapter.getCurrentLargeIcon(

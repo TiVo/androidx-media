@@ -19,7 +19,6 @@ import android.net.Uri;
 import android.os.Handler;
 import android.support.annotation.Nullable;
 import com.google.android.exoplayer2.C;
-import com.google.android.exoplayer2.ExoPlayer;
 import com.google.android.exoplayer2.Player;
 import com.google.android.exoplayer2.extractor.DefaultExtractorsFactory;
 import com.google.android.exoplayer2.extractor.Extractor;
@@ -359,12 +358,15 @@ public final class ExtractorMediaSource extends BaseMediaSource
   }
 
   @Override
-  public void prepareSourceInternal(
-      ExoPlayer player,
-      boolean isTopLevelSource,
-      @Nullable TransferListener mediaTransferListener) {
+  @Nullable
+  public Object getTag() {
+    return tag;
+  }
+
+  @Override
+  public void prepareSourceInternal(@Nullable TransferListener mediaTransferListener) {
     transferListener = mediaTransferListener;
-    notifySourceInfoRefreshed(timelineDurationUs, /* isSeekable= */ false);
+    notifySourceInfoRefreshed(timelineDurationUs, timelineIsSeekable);
   }
 
   @Override
@@ -373,7 +375,7 @@ public final class ExtractorMediaSource extends BaseMediaSource
   }
 
   @Override
-  public MediaPeriod createPeriod(MediaPeriodId id, Allocator allocator) {
+  public MediaPeriod createPeriod(MediaPeriodId id, Allocator allocator, long startPositionUs) {
     DataSource dataSource = dataSourceFactory.createDataSource();
     if (transferListener != null) {
       dataSource.addTransferListener(transferListener);

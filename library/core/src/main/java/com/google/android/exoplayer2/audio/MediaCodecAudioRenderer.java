@@ -24,6 +24,7 @@ import android.media.MediaCrypto;
 import android.media.MediaFormat;
 import android.media.audiofx.Virtualizer;
 import android.os.Handler;
+import android.support.annotation.CallSuper;
 import android.support.annotation.Nullable;
 import com.google.android.exoplayer2.C;
 import com.google.android.exoplayer2.ExoPlaybackException;
@@ -86,6 +87,7 @@ public class MediaCodecAudioRenderer extends MediaCodecRenderer implements Media
   private int codecMaxInputSize;
   private boolean passthroughEnabled;
   private boolean codecNeedsDiscardChannelsWorkaround;
+  private boolean codecNeedsEosBufferTimestampWorkaround;
   private android.media.MediaFormat passthroughMediaFormat;
   private @C.Encoding int pcmEncoding;
   private int channelCount;
@@ -270,12 +272,14 @@ public class MediaCodecAudioRenderer extends MediaCodecRenderer implements Media
     }
     int tunnelingSupport = Util.SDK_INT >= 21 ? TUNNELING_SUPPORTED : TUNNELING_NOT_SUPPORTED;
     boolean supportsFormatDrm = supportsFormatDrm(drmSessionManager, format.drmInitData);
-    if (supportsFormatDrm && allowPassthrough(mimeType)
+    if (supportsFormatDrm
+        && allowPassthrough(format.channelCount, mimeType)
         && mediaCodecSelector.getPassthroughDecoderInfo() != null) {
       return ADAPTIVE_NOT_SEAMLESS | tunnelingSupport | FORMAT_HANDLED;
     }
-    if ((MimeTypes.AUDIO_RAW.equals(mimeType) && !audioSink.isEncodingSupported(format.pcmEncoding))
-        || !audioSink.isEncodingSupported(C.ENCODING_PCM_16BIT)) {
+    if ((MimeTypes.AUDIO_RAW.equals(mimeType)
+            && !audioSink.supportsOutput(format.channelCount, format.pcmEncoding))
+        || !audioSink.supportsOutput(format.channelCount, C.ENCODING_PCM_16BIT)) {
       // Assume the decoder outputs 16-bit PCM, unless the input is raw.
       return FORMAT_UNSUPPORTED_SUBTYPE;
     }
@@ -314,7 +318,7 @@ public class MediaCodecAudioRenderer extends MediaCodecRenderer implements Media
   protected List<MediaCodecInfo> getDecoderInfos(
       MediaCodecSelector mediaCodecSelector, Format format, boolean requiresSecureDecoder)
       throws DecoderQueryException {
-    if (allowPassthrough(format.sampleMimeType)) {
+    if (allowPassthrough(format.channelCount, format.sampleMimeType)) {
       MediaCodecInfo passthroughDecoderInfo = mediaCodecSelector.getPassthroughDecoderInfo();
       if (passthroughDecoderInfo != null) {
         return Collections.singletonList(passthroughDecoderInfo);
@@ -328,12 +332,13 @@ public class MediaCodecAudioRenderer extends MediaCodecRenderer implements Media
    * This implementation returns true if the {@link AudioSink} indicates that encoded audio output
    * is supported.
    *
+   * @param channelCount The number of channels in the input media, or {@link Format#NO_VALUE} if
+   *     not known.
    * @param mimeType The type of input media.
    * @return Whether passthrough playback is supported.
    */
-  protected boolean allowPassthrough(String mimeType) {
-    @C.Encoding int encoding = MimeTypes.getEncoding(mimeType);
-    return encoding != C.ENCODING_INVALID && audioSink.isEncodingSupported(encoding);
+  protected boolean allowPassthrough(int channelCount, String mimeType) {
+    return audioSink.supportsOutput(channelCount, MimeTypes.getEncoding(mimeType));
   }
 
   @Override
@@ -345,6 +350,7 @@ public class MediaCodecAudioRenderer extends MediaCodecRenderer implements Media
       float codecOperatingRate) {
     codecMaxInputSize = getCodecMaxInputSize(codecInfo, format, getStreamFormats());
     codecNeedsDiscardChannelsWorkaround = codecNeedsDiscardChannelsWorkaround(codecInfo.name);
+    codecNeedsEosBufferTimestampWorkaround = codecNeedsEosBufferTimestampWorkaround(codecInfo.name);
     passthroughEnabled = codecInfo.passthrough;
     String codecMimeType = codecInfo.mimeType == null ? MimeTypes.AUDIO_RAW : codecInfo.mimeType;
     MediaFormat mediaFormat =
@@ -583,9 +589,9 @@ public class MediaCodecAudioRenderer extends MediaCodecRenderer implements Media
     lastInputTimeUs = Math.max(buffer.timeUs, lastInputTimeUs);
   }
 
+  @CallSuper
   @Override
   protected void onProcessedOutputBuffer(long presentationTimeUs) {
-    super.onProcessedOutputBuffer(presentationTimeUs);
     while (pendingStreamChangeCount != 0 && presentationTimeUs >= pendingStreamChangeTimesUs[0]) {
       audioSink.handleDiscontinuity();
       pendingStreamChangeCount--;
@@ -610,6 +616,13 @@ public class MediaCodecAudioRenderer extends MediaCodecRenderer implements Media
       boolean shouldSkip,
       Format format)
       throws ExoPlaybackException {
+    if (codecNeedsEosBufferTimestampWorkaround
+        && bufferPresentationTimeUs == 0
+        && (bufferFlags & MediaCodec.BUFFER_FLAG_END_OF_STREAM) != 0
+        && lastInputTimeUs != C.TIME_UNSET) {
+      bufferPresentationTimeUs = lastInputTimeUs;
+    }
+
     if (passthroughEnabled && (bufferFlags & MediaCodec.BUFFER_FLAG_CODEC_CONFIG) != 0) {
       // Discard output buffers from the passthrough (raw) decoder containing codec specific data.
       codec.releaseOutputBuffer(bufferIndex, false);
@@ -775,6 +788,24 @@ public class MediaCodecAudioRenderer extends MediaCodecRenderer implements Media
         && "samsung".equals(Util.MANUFACTURER)
         && (Util.DEVICE.startsWith("zeroflte") || Util.DEVICE.startsWith("herolte")
         || Util.DEVICE.startsWith("heroqlte"));
+  }
+
+  /**
+   * Returns whether the decoder may output a non-empty buffer with timestamp 0 as the end of stream
+   * buffer.
+   *
+   * <p>See <a href="https://github.com/google/ExoPlayer/issues/5045">GitHub issue #5045</a>.
+   */
+  private static boolean codecNeedsEosBufferTimestampWorkaround(String codecName) {
+    return Util.SDK_INT < 21
+        && "OMX.SEC.mp3.dec".equals(codecName)
+        && "samsung".equals(Util.MANUFACTURER)
+        && (Util.DEVICE.startsWith("baffin")
+            || Util.DEVICE.startsWith("grand")
+            || Util.DEVICE.startsWith("fortuna")
+            || Util.DEVICE.startsWith("gprimelte")
+            || Util.DEVICE.startsWith("j2y18lte")
+            || Util.DEVICE.startsWith("ms01"));
   }
 
   private final class AudioSinkListener implements AudioSink.Listener {

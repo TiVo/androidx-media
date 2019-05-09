@@ -43,6 +43,7 @@ import com.google.android.exoplayer2.util.MediaClock;
 import com.google.android.exoplayer2.util.MimeTypes;
 import com.google.android.exoplayer2.util.TraceUtil;
 import com.google.android.exoplayer2.util.Util;
+import java.lang.annotation.Documented;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 
@@ -65,9 +66,13 @@ import java.lang.annotation.RetentionPolicy;
  */
 public abstract class SimpleDecoderAudioRenderer extends BaseRenderer implements MediaClock {
 
+  @Documented
   @Retention(RetentionPolicy.SOURCE)
-  @IntDef({REINITIALIZATION_STATE_NONE, REINITIALIZATION_STATE_SIGNAL_END_OF_STREAM,
-      REINITIALIZATION_STATE_WAIT_END_OF_STREAM})
+  @IntDef({
+    REINITIALIZATION_STATE_NONE,
+    REINITIALIZATION_STATE_SIGNAL_END_OF_STREAM,
+    REINITIALIZATION_STATE_WAIT_END_OF_STREAM
+  })
   private @interface ReinitializationState {}
   /**
    * The decoder does not need to be re-initialized.
@@ -244,13 +249,12 @@ public abstract class SimpleDecoderAudioRenderer extends BaseRenderer implements
       DrmSessionManager<ExoMediaCrypto> drmSessionManager, Format format);
 
   /**
-   * Returns whether the audio sink can accept audio in the specified encoding.
+   * Returns whether the sink supports the audio format.
    *
-   * @param encoding The audio encoding.
-   * @return Whether the audio sink can accept audio in the specified encoding.
+   * @see AudioSink#supportsOutput(int, int)
    */
-  protected final boolean supportsOutputEncoding(@C.Encoding int encoding) {
-    return audioSink.isEncodingSupported(encoding);
+  protected final boolean supportsOutput(int channelCount, @C.Encoding int encoding) {
+    return audioSink.supportsOutput(channelCount, encoding);
   }
 
   @Override
@@ -362,7 +366,10 @@ public abstract class SimpleDecoderAudioRenderer extends BaseRenderer implements
       if (outputBuffer == null) {
         return false;
       }
-      decoderCounters.skippedOutputBufferCount += outputBuffer.skippedOutputBufferCount;
+      if (outputBuffer.skippedOutputBufferCount > 0) {
+        decoderCounters.skippedOutputBufferCount += outputBuffer.skippedOutputBufferCount;
+        audioSink.handleDiscontinuity();
+      }
     }
 
     if (outputBuffer.isEndOfStream()) {

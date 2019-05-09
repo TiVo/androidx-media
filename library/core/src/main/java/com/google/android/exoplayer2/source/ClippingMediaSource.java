@@ -18,12 +18,12 @@ package com.google.android.exoplayer2.source;
 import android.support.annotation.IntDef;
 import android.support.annotation.Nullable;
 import com.google.android.exoplayer2.C;
-import com.google.android.exoplayer2.ExoPlayer;
 import com.google.android.exoplayer2.Timeline;
 import com.google.android.exoplayer2.upstream.Allocator;
 import com.google.android.exoplayer2.upstream.TransferListener;
 import com.google.android.exoplayer2.util.Assertions;
 import java.io.IOException;
+import java.lang.annotation.Documented;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.util.ArrayList;
@@ -41,6 +41,7 @@ public final class ClippingMediaSource extends CompositeMediaSource<Void> {
      * The reason clipping failed. One of {@link #REASON_INVALID_PERIOD_COUNT}, {@link
      * #REASON_NOT_SEEKABLE_TO_START} or {@link #REASON_START_EXCEEDS_END}.
      */
+    @Documented
     @Retention(RetentionPolicy.SOURCE)
     @IntDef({REASON_INVALID_PERIOD_COUNT, REASON_NOT_SEEKABLE_TO_START, REASON_START_EXCEEDS_END})
     public @interface Reason {}
@@ -215,11 +216,14 @@ public final class ClippingMediaSource extends CompositeMediaSource<Void> {
   }
 
   @Override
-  public void prepareSourceInternal(
-      ExoPlayer player,
-      boolean isTopLevelSource,
-      @Nullable TransferListener mediaTransferListener) {
-    super.prepareSourceInternal(player, isTopLevelSource, mediaTransferListener);
+  @Nullable
+  public Object getTag() {
+    return mediaSource.getTag();
+  }
+
+  @Override
+  public void prepareSourceInternal(@Nullable TransferListener mediaTransferListener) {
+    super.prepareSourceInternal(mediaTransferListener);
     prepareChildSource(/* id= */ null, mediaSource);
   }
 
@@ -232,10 +236,10 @@ public final class ClippingMediaSource extends CompositeMediaSource<Void> {
   }
 
   @Override
-  public MediaPeriod createPeriod(MediaPeriodId id, Allocator allocator) {
+  public MediaPeriod createPeriod(MediaPeriodId id, Allocator allocator, long startPositionUs) {
     ClippingMediaPeriod mediaPeriod =
         new ClippingMediaPeriod(
-            mediaSource.createPeriod(id, allocator),
+            mediaSource.createPeriod(id, allocator, startPositionUs),
             enableInitialDiscontinuity,
             periodStartUs,
             periodEndUs);
@@ -346,7 +350,7 @@ public final class ClippingMediaSource extends CompositeMediaSource<Void> {
       if (timeline.getPeriodCount() != 1) {
         throw new IllegalClippingException(IllegalClippingException.REASON_INVALID_PERIOD_COUNT);
       }
-      Window window = timeline.getWindow(0, new Window(), false);
+      Window window = timeline.getWindow(0, new Window());
       startUs = Math.max(0, startUs);
       long resolvedEndUs = endUs == C.TIME_END_OF_SOURCE ? window.durationUs : Math.max(0, endUs);
       if (window.durationUs != C.TIME_UNSET) {

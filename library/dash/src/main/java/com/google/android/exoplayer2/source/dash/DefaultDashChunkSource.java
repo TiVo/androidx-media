@@ -318,9 +318,12 @@ public class DefaultDashChunkSource implements DashChunkSource {
       }
     }
 
+    long periodDurationUs = representationHolder.periodDurationUs;
+    boolean periodEnded = periodDurationUs != C.TIME_UNSET;
+
     if (representationHolder.getSegmentCount() == 0) {
       // The index doesn't define any segments.
-      out.endOfStream = !manifest.dynamic || (periodIndex < manifest.getPeriodCount() - 1);
+      out.endOfStream = periodEnded;
       return;
     }
 
@@ -343,17 +346,15 @@ public class DefaultDashChunkSource implements DashChunkSource {
       fatalError = new BehindLiveWindowException();
       return;
     }
+
     if (segmentNum > lastAvailableSegmentNum
         || (missingLastSegment && segmentNum >= lastAvailableSegmentNum)) {
-      // The segment is beyond the end of the period. We know the period will not be extended if the
-      // manifest is static, or if there's a period after this one.
-      out.endOfStream = !manifest.dynamic || (periodIndex < manifest.getPeriodCount() - 1);
+      // The segment is beyond the end of the period.
+      out.endOfStream = periodEnded;
       return;
     }
 
-    long periodDurationUs = representationHolder.periodDurationUs;
-    if (periodDurationUs != C.TIME_UNSET
-        && representationHolder.getSegmentStartTimeUs(segmentNum) >= periodDurationUs) {
+    if (periodEnded && representationHolder.getSegmentStartTimeUs(segmentNum) >= periodDurationUs) {
       // The period duration clips the period to a position before the segment.
       out.endOfStream = true;
       return;
@@ -456,10 +457,10 @@ public class DefaultDashChunkSource implements DashChunkSource {
   }
 
   private ArrayList<Representation> getRepresentations() {
-    List<AdaptationSet> manifestAdapationSets = manifest.getPeriod(periodIndex).adaptationSets;
+    List<AdaptationSet> manifestAdaptationSets = manifest.getPeriod(periodIndex).adaptationSets;
     ArrayList<Representation> representations = new ArrayList<>();
     for (int adaptationSetIndex : adaptationSetIndices) {
-      representations.addAll(manifestAdapationSets.get(adaptationSetIndex).representations);
+      representations.addAll(manifestAdaptationSets.get(adaptationSetIndex).representations);
     }
     return representations;
   }
@@ -544,7 +545,7 @@ public class DefaultDashChunkSource implements DashChunkSource {
       long endTimeUs = representationHolder.getSegmentEndTimeUs(firstSegmentNum + segmentCount - 1);
       long periodDurationUs = representationHolder.periodDurationUs;
       long clippedEndTimeUs =
-          periodDurationUs != C.TIME_UNSET && periodDurationUs < endTimeUs
+          periodDurationUs != C.TIME_UNSET && periodDurationUs <= endTimeUs
               ? periodDurationUs
               : C.TIME_UNSET;
       DataSpec dataSpec = new DataSpec(segmentUri.resolveUri(baseUrl),

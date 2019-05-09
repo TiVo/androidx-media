@@ -16,6 +16,7 @@
 package com.google.android.exoplayer2.ext.cronet;
 
 import android.net.Uri;
+import android.support.annotation.Nullable;
 import android.text.TextUtils;
 import com.google.android.exoplayer2.C;
 import com.google.android.exoplayer2.ExoPlayerLibraryInfo;
@@ -326,8 +327,12 @@ public class CronetDataSource extends BaseDataSource implements HttpDataSource {
     // Check for a valid response code.
     int responseCode = responseInfo.getHttpStatusCode();
     if (responseCode < 200 || responseCode > 299) {
-      InvalidResponseCodeException exception = new InvalidResponseCodeException(responseCode,
-          responseInfo.getAllHeaders(), currentDataSpec);
+      InvalidResponseCodeException exception =
+          new InvalidResponseCodeException(
+              responseCode,
+              responseInfo.getHttpStatusText(),
+              responseInfo.getAllHeaders(),
+              currentDataSpec);
       if (responseCode == 416) {
         exception.initCause(new DataSourceException(DataSourceException.POSITION_OUT_OF_RANGE));
       }
@@ -449,6 +454,18 @@ public class CronetDataSource extends BaseDataSource implements HttpDataSource {
       opened = false;
       transferEnded();
     }
+  }
+
+  /** Returns current {@link UrlRequest}. May be null if the data source is not opened. */
+  @Nullable
+  protected UrlRequest getCurrentUrlRequest() {
+    return currentUrlRequest;
+  }
+
+  /** Returns current {@link UrlResponseInfo}. May be null if the data source is not opened. */
+  @Nullable
+  protected UrlResponseInfo getCurrentUrlResponseInfo() {
+    return responseInfo;
   }
 
   // Internal methods.
@@ -611,7 +628,8 @@ public class CronetDataSource extends BaseDataSource implements HttpDataSource {
         // The industry standard is to disregard POST redirects when the status code is 307 or 308.
         if (responseCode == 307 || responseCode == 308) {
           exception =
-              new InvalidResponseCodeException(responseCode, info.getAllHeaders(), currentDataSpec);
+              new InvalidResponseCodeException(
+                  responseCode, info.getHttpStatusText(), info.getAllHeaders(), currentDataSpec);
           operation.open();
           return;
         }

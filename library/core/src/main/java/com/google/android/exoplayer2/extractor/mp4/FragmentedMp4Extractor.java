@@ -43,6 +43,7 @@ import com.google.android.exoplayer2.util.ParsableByteArray;
 import com.google.android.exoplayer2.util.TimestampAdjuster;
 import com.google.android.exoplayer2.util.Util;
 import java.io.IOException;
+import java.lang.annotation.Documented;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.util.ArrayDeque;
@@ -67,6 +68,7 @@ public final class FragmentedMp4Extractor implements Extractor {
    * {@link #FLAG_ENABLE_EMSG_TRACK}, {@link #FLAG_SIDELOADED} and {@link
    * #FLAG_WORKAROUND_IGNORE_EDIT_LISTS}.
    */
+  @Documented
   @Retention(RetentionPolicy.SOURCE)
   @IntDef(
       flag = true,
@@ -588,6 +590,14 @@ public final class FragmentedMp4Extractor implements Extractor {
     long timescale = atom.readUnsignedInt();
     long presentationTimeDeltaUs =
         Util.scaleLargeTimestamp(atom.readUnsignedInt(), C.MICROS_PER_SECOND, timescale);
+
+    // The presentation_time_delta is accounted for by adjusting the sample timestamp, so we zero it
+    // in the sample data before writing it to the track outputs.
+    int position = atom.getPosition();
+    atom.data[position - 4] = 0;
+    atom.data[position - 3] = 0;
+    atom.data[position - 2] = 0;
+    atom.data[position - 1] = 0;
 
     // Output the sample data.
     for (TrackOutput emsgTrackOutput : emsgTrackOutputs) {

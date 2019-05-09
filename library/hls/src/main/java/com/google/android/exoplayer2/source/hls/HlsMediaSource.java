@@ -19,7 +19,6 @@ import android.net.Uri;
 import android.os.Handler;
 import android.support.annotation.Nullable;
 import com.google.android.exoplayer2.C;
-import com.google.android.exoplayer2.ExoPlayer;
 import com.google.android.exoplayer2.ExoPlayerLibraryInfo;
 import com.google.android.exoplayer2.extractor.Extractor;
 import com.google.android.exoplayer2.source.BaseMediaSource;
@@ -391,10 +390,13 @@ public final class HlsMediaSource extends BaseMediaSource
   }
 
   @Override
-  public void prepareSourceInternal(
-      ExoPlayer player,
-      boolean isTopLevelSource,
-      @Nullable TransferListener mediaTransferListener) {
+  @Nullable
+  public Object getTag() {
+    return tag;
+  }
+
+  @Override
+  public void prepareSourceInternal(@Nullable TransferListener mediaTransferListener) {
     this.mediaTransferListener = mediaTransferListener;
     EventDispatcher eventDispatcher = createEventDispatcher(/* mediaPeriodId= */ null);
     playlistTracker.start(manifestUri, eventDispatcher, /* listener= */ this);
@@ -406,7 +408,7 @@ public final class HlsMediaSource extends BaseMediaSource
   }
 
   @Override
-  public MediaPeriod createPeriod(MediaPeriodId id, Allocator allocator) {
+  public MediaPeriod createPeriod(MediaPeriodId id, Allocator allocator, long startPositionUs) {
     EventDispatcher eventDispatcher = createEventDispatcher(id);
     return new HlsMediaPeriod(
         extractorFactory,
