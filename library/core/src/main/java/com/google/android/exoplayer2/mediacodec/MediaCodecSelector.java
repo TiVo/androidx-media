@@ -38,8 +38,7 @@ public interface MediaCodecSelector {
   MediaCodecSelector DEFAULT =
       new MediaCodecSelector() {
         @Override
-        public List<MediaCodecInfo>
-        getDecoderInfos(String mimeType, boolean requiresSecureDecoder)
+        public List<MediaCodecInfo> getDecoderInfos(String mimeType, boolean requiresSecureDecoder)
             throws DecoderQueryException {
           List<MediaCodecInfo> decoderInfos =
               MediaCodecUtil.getDecoderInfos(mimeType, requiresSecureDecoder);
@@ -100,7 +99,7 @@ public interface MediaCodecSelector {
         }
       };
 
-  MediaCodecSelector BRIANS = new MediaCodecSelector() {
+  MediaCodecSelector TUNNELING_VIDEO_AND_AUDIO_ALL = new MediaCodecSelector() {
       // This will be returned as a list sorted with tunneling supporting
       // codecs first, so that ExoPlayer's fairly dumb codec selection will
       // just happen to get a tunneling version when selecting the first

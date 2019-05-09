@@ -156,7 +156,6 @@ public class PlayerActivity extends Activity
 
   private AdsLoader adsLoader;
   private Uri loadedAdTagUri;
-  private ViewGroup adUiViewGroup;
   private AudioFocusRequest audioFocusRequest;
   private AudioManager.OnAudioFocusChangeListener audioFocusChangeListener;
   private AudioFocusHandler audioFocusHandler;
@@ -256,6 +255,21 @@ public class PlayerActivity extends Activity
       ((SphericalSurfaceView) playerView.getVideoSurfaceView()).setDefaultStereoMode(stereoMode);
     }
 
+    requestAudioFocus();
+
+
+    if (savedInstanceState != null) {
+      trackSelectorParameters = savedInstanceState.getParcelable(KEY_TRACK_SELECTOR_PARAMETERS);
+      startAutoPlay = savedInstanceState.getBoolean(KEY_AUTO_PLAY);
+      startWindow = savedInstanceState.getInt(KEY_WINDOW);
+      startPosition = savedInstanceState.getLong(KEY_POSITION);
+    } else {
+      trackSelectorParameters = new DefaultTrackSelector.ParametersBuilder().build();
+      clearStartPosition();
+    }
+  }
+
+  private void requestAudioFocus() {
     Context context = getApplicationContext();
     AudioManager audioManager = (AudioManager) context.getSystemService(Context.AUDIO_SERVICE);
 
@@ -275,17 +289,6 @@ public class PlayerActivity extends Activity
 
     int res = audioManager.requestAudioFocus(audioFocusRequest);
     Log.i("ExoPlayer", "Audio Focus request: " + res);
-
-
-    if (savedInstanceState != null) {
-      trackSelectorParameters = savedInstanceState.getParcelable(KEY_TRACK_SELECTOR_PARAMETERS);
-      startAutoPlay = savedInstanceState.getBoolean(KEY_AUTO_PLAY);
-      startWindow = savedInstanceState.getInt(KEY_WINDOW);
-      startPosition = savedInstanceState.getLong(KEY_POSITION);
-    } else {
-      trackSelectorParameters = new DefaultTrackSelector.ParametersBuilder().build();
-      clearStartPosition();
-    }
   }
 
   @Override
@@ -506,9 +509,10 @@ public class PlayerActivity extends Activity
               ? (preferExtensionDecoders ? DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER
               : DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON)
               : DefaultRenderersFactory.EXTENSION_RENDERER_MODE_OFF;
-      MediaCodecSelector codecSelector = enableTunneling ? MediaCodecSelector.BRIANS : MediaCodecSelector.DEFAULT;
-      DefaultRenderersFactory renderersFactory =
-          new DefaultRenderersFactory(this, extensionRendererMode, DefaultRenderersFactory.DEFAULT_ALLOWED_VIDEO_JOINING_TIME_MS, codecSelector);
+      DefaultRenderersFactory renderersFactory = new DefaultRenderersFactory(getApplicationContext());
+
+      MediaCodecSelector codecSelector = enableTunneling ? MediaCodecSelector.TUNNELING : MediaCodecSelector.DEFAULT;
+      renderersFactory.setMediaCodecSelector(codecSelector);
 
       trackSelector = new DefaultTrackSelector(trackSelectionFactory);
 
