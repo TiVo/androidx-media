@@ -2,7 +2,7 @@
 name: Bug report
 about: Issue template for a bug report.
 title: ''
-labels: bug, 'needs triage'
+labels: bug, needs triage
 assignees: ''
 ---
 
@@ -10,11 +10,11 @@ Before filing a bug:
 -----------------------
 - Search existing issues, including issues that are closed.
 - Consult our FAQs, supported devices and supported formats pages. These can be
-  found at https://google.github.io/ExoPlayer/.
+  found at https://exoplayer.dev/.
 - Rule out issues in your own code. A good way to do this is to try and
   reproduce the issue in the ExoPlayer demo app. Information about the ExoPlayer
   demo app can be found here:
-  http://google.github.io/ExoPlayer/demo-application.html.
+  http://exoplayer.dev/demo-application.html.
 
 When reporting a bug:
 -----------------------
@@ -52,3 +52,7 @@ Specify the devices and versions of Android on which the issue can be
 reproduced, and how easily it reproduces. If possible, please test on multiple
 devices and Android versions.
 
+<!-- DO NOT DELETE
+validate_template=true
+template_path=.github/ISSUE_TEMPLATE/bug.md
+-->

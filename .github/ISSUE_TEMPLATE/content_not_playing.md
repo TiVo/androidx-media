@@ -2,7 +2,7 @@
 name: Content not playing correctly
 about: Issue template for a content not playing issue.
 title: ''
-labels: 'content not playing', 'needs triage'
+labels: content not playing, needs triage
 assignees: ''
 ---
 
@@ -10,10 +10,10 @@ Before filing a content issue:
 ------------------------------
 - Search existing issues, including issues that are closed.
 - Consult our supported formats page, which can be found at
-  https://google.github.io/ExoPlayer/supported-formats.html.
+  https://exoplayer.dev/supported-formats.html.
 - Try playing your content in the ExoPlayer demo app. Information about the
   ExoPlayer demo app can be found here:
-  http://google.github.io/ExoPlayer/demo-application.html.
+  http://exoplayer.dev/demo-application.html.
 
 When reporting a content issue:
 -----------------------------
@@ -41,4 +41,7 @@ Specify the absolute version number. Avoid using terms such as "latest".
 Specify the devices and versions of Android on which you expect the content to
 play. If possible, please test on multiple devices and Android versions.
 
-
+<!-- DO NOT DELETE
+validate_template=true
+template_path=.github/ISSUE_TEMPLATE/content_not_playing.md
+-->

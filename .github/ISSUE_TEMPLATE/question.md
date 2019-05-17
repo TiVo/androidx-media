@@ -2,7 +2,7 @@
 name: Question
 about: Issue template for a question.
 title: ''
-labels: question, 'needs triage'
+labels: question, needs triage
 assignees: ''
 ---
 
@@ -13,7 +13,7 @@ Before filing a question:
 - Search existing issues, including issues that are closed. It’s often the
   quickest way to get an answer!
 - Consult our FAQs, developer guide and the class reference of ExoPlayer. These
-  can be found at https://google.github.io/ExoPlayer/.
+  can be found at https://exoplayer.dev/.
 
 When filing a question:
 -----------------------
@@ -28,4 +28,7 @@ important for us to know this so that we can improve our documentation.
 ### [REQUIRED] Question
 Describe your question in detail.
 
-
+<!-- DO NOT DELETE
+validate_template=true
+template_path=.github/ISSUE_TEMPLATE/question.md
+-->

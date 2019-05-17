@@ -2,7 +2,7 @@
 name: Feature request
 about: Issue template for a feature request.
 title: ''
-labels: enhancement, 'needs triage'
+labels: enhancement, needs triage
 assignees: ''
 ---
 
@@ -28,4 +28,7 @@ A clear and concise description of your proposed solution, if you have one.
 A clear and concise description of any alternative solutions you considered,
 if applicable.
 
-
+<!-- DO NOT DELETE
+validate_template=true
+template_path=.github/ISSUE_TEMPLATE/feature_request.md
+-->

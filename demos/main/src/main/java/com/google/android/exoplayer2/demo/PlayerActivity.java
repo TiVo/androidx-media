@@ -15,8 +15,7 @@
  */
 package com.google.android.exoplayer2.demo;
 
-import android.app.Activity;
-import android.app.AlertDialog;
+import android.annotation.TargetApi;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
@@ -24,9 +23,8 @@ import android.media.AudioAttributes;
 import android.media.AudioFocusRequest;
 import android.media.AudioManager;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
-import android.support.annotation.NonNull;
-import android.support.annotation.Nullable;
 import android.util.Log;
 import android.util.Pair;
 import android.view.KeyEvent;
@@ -36,13 +34,17 @@ import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+import androidx.appcompat.app.AppCompatActivity;
+
 import com.google.android.exoplayer2.C;
 import com.google.android.exoplayer2.C.ContentType;
-import com.google.android.exoplayer2.DefaultRenderersFactory;
 import com.google.android.exoplayer2.ExoPlaybackException;
 import com.google.android.exoplayer2.ExoPlayerFactory;
 import com.google.android.exoplayer2.PlaybackPreparer;
 import com.google.android.exoplayer2.Player;
+import com.google.android.exoplayer2.RenderersFactory;
 import com.google.android.exoplayer2.SimpleExoPlayer;
 import com.google.android.exoplayer2.drm.DefaultDrmSessionManager;
 import com.google.android.exoplayer2.drm.FrameworkMediaCrypto;
@@ -52,21 +54,17 @@ import com.google.android.exoplayer2.drm.UnsupportedDrmException;
 import com.google.android.exoplayer2.mediacodec.MediaCodecRenderer.DecoderInitializationException;
 import com.google.android.exoplayer2.mediacodec.MediaCodecSelector;
 import com.google.android.exoplayer2.mediacodec.MediaCodecUtil.DecoderQueryException;
-import com.google.android.exoplayer2.offline.FilteringManifestParser;
 import com.google.android.exoplayer2.offline.StreamKey;
 import com.google.android.exoplayer2.source.BehindLiveWindowException;
 import com.google.android.exoplayer2.source.ConcatenatingMediaSource;
-import com.google.android.exoplayer2.source.ExtractorMediaSource;
 import com.google.android.exoplayer2.source.MediaSource;
+import com.google.android.exoplayer2.source.ProgressiveMediaSource;
 import com.google.android.exoplayer2.source.TrackGroupArray;
 import com.google.android.exoplayer2.source.ads.AdsLoader;
 import com.google.android.exoplayer2.source.ads.AdsMediaSource;
 import com.google.android.exoplayer2.source.dash.DashMediaSource;
-import com.google.android.exoplayer2.source.dash.manifest.DashManifestParser;
 import com.google.android.exoplayer2.source.hls.HlsMediaSource;
-import com.google.android.exoplayer2.source.hls.playlist.DefaultHlsPlaylistParserFactory;
 import com.google.android.exoplayer2.source.smoothstreaming.SsMediaSource;
-import com.google.android.exoplayer2.source.smoothstreaming.manifest.SsManifestParser;
 import com.google.android.exoplayer2.trackselection.AdaptiveTrackSelection;
 import com.google.android.exoplayer2.trackselection.DefaultTrackSelector;
 import com.google.android.exoplayer2.trackselection.MappingTrackSelector.MappedTrackInfo;
@@ -76,7 +74,6 @@ import com.google.android.exoplayer2.trackselection.TrackSelectionArray;
 import com.google.android.exoplayer2.ui.DebugTextViewHelper;
 import com.google.android.exoplayer2.ui.PlayerControlView;
 import com.google.android.exoplayer2.ui.PlayerView;
-import com.google.android.exoplayer2.ui.TrackSelectionView;
 import com.google.android.exoplayer2.ui.spherical.SphericalSurfaceView;
 import com.google.android.exoplayer2.upstream.DataSource;
 import com.google.android.exoplayer2.upstream.HttpDataSource;
@@ -91,7 +88,7 @@ import java.util.List;
 import java.util.UUID;
 
 /** An activity that plays media using {@link SimpleExoPlayer}. */
-public class PlayerActivity extends Activity
+public class PlayerActivity extends AppCompatActivity
     implements OnClickListener, PlaybackPreparer, PlayerControlView.VisibilityListener {
 
   public static final String DRM_SCHEME_EXTRA = "drm_scheme";
@@ -137,7 +134,9 @@ public class PlayerActivity extends Activity
 
   private PlayerView playerView;
   private LinearLayout debugRootView;
+  private Button selectTracksButton;
   private TextView debugTextView;
+  private boolean isShowingTrackSelectionDialog;
 
   private DataSource.Factory dataSourceFactory;
   private SimpleExoPlayer player;
@@ -230,10 +229,10 @@ public class PlayerActivity extends Activity
     }
 
     setContentView(R.layout.player_activity);
-    View rootView = findViewById(R.id.root);
-    rootView.setOnClickListener(this);
     debugRootView = findViewById(R.id.controls_root);
     debugTextView = findViewById(R.id.debug_text_view);
+    selectTracksButton = findViewById(R.id.select_tracks_button);
+    selectTracksButton.setOnClickListener(this);
 
     playerView = findViewById(R.id.player_view);
     playerView.setControllerVisibilityListener(this);
@@ -269,15 +268,19 @@ public class PlayerActivity extends Activity
     }
   }
 
+  @TargetApi(Build.VERSION_CODES.O)
   private void requestAudioFocus() {
     Context context = getApplicationContext();
     AudioManager audioManager = (AudioManager) context.getSystemService(Context.AUDIO_SERVICE);
 
     // Indicate we want Audio Focus in order to play video content.
-    AudioAttributes audioAttributes = new AudioAttributes.Builder()
-            .setUsage(AudioAttributes.USAGE_MEDIA)
-            .setContentType(AudioAttributes.CONTENT_TYPE_MOVIE)
-            .build();
+    AudioAttributes audioAttributes = null;
+    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.LOLLIPOP) {
+      audioAttributes = new AudioAttributes.Builder()
+              .setUsage(AudioAttributes.USAGE_MEDIA)
+              .setContentType(AudioAttributes.CONTENT_TYPE_MOVIE)
+              .build();
+    }
 
     audioFocusHandler = new AudioFocusHandler(context);
     audioFocusRequest = new AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
@@ -293,6 +296,7 @@ public class PlayerActivity extends Activity
 
   @Override
   public void onNewIntent(Intent intent) {
+    super.onNewIntent(intent);
     releasePlayer();
     releaseAdsLoader();
     clearStartPosition();
@@ -367,6 +371,7 @@ public class PlayerActivity extends Activity
 
   @Override
   public void onSaveInstanceState(Bundle outState) {
+    super.onSaveInstanceState(outState);
     updateTrackSelectorParameters();
     updateStartPosition();
     outState.putParcelable(KEY_TRACK_SELECTOR_PARAMETERS, trackSelectorParameters);
@@ -387,23 +392,15 @@ public class PlayerActivity extends Activity
 
   @Override
   public void onClick(View view) {
-    if (view.getParent() == debugRootView) {
-      MappedTrackInfo mappedTrackInfo = trackSelector.getCurrentMappedTrackInfo();
-      if (mappedTrackInfo != null) {
-        CharSequence title = ((Button) view).getText();
-        int rendererIndex = (int) view.getTag();
-        int rendererType = mappedTrackInfo.getRendererType(rendererIndex);
-        boolean allowAdaptiveSelections =
-            rendererType == C.TRACK_TYPE_VIDEO
-                || (rendererType == C.TRACK_TYPE_AUDIO
-                    && mappedTrackInfo.getTypeSupport(C.TRACK_TYPE_VIDEO)
-                        == MappedTrackInfo.RENDERER_SUPPORT_NO_TRACKS);
-        Pair<AlertDialog, TrackSelectionView> dialogPair =
-            TrackSelectionView.getDialog(this, title, trackSelector, rendererIndex);
-        dialogPair.second.setShowDisableOption(true);
-        dialogPair.second.setAllowAdaptiveSelections(allowAdaptiveSelections);
-        dialogPair.first.show();
-      }
+    if (view == selectTracksButton
+        && !isShowingTrackSelectionDialog
+        && TrackSelectionDialog.willHaveContent(trackSelector)) {
+      isShowingTrackSelectionDialog = true;
+      TrackSelectionDialog trackSelectionDialog =
+          TrackSelectionDialog.createForTrackSelector(
+              trackSelector,
+              /* onDismissListener= */ dismissedDialog -> isShowingTrackSelectionDialog = false);
+      trackSelectionDialog.show(getSupportFragmentManager(), /* tag= */ null);
     }
   }
 
@@ -411,7 +408,7 @@ public class PlayerActivity extends Activity
 
   @Override
   public void preparePlayback() {
-    initializePlayer();
+    player.retry();
   }
 
   // PlaybackControlView.VisibilityListener implementation
@@ -504,15 +501,11 @@ public class PlayerActivity extends Activity
       boolean enableTunneling = intent.getBooleanExtra(ENABLE_TUNNELED_PLAYBACK, false);
       boolean preferExtensionDecoders =
           intent.getBooleanExtra(PREFER_EXTENSION_DECODERS_EXTRA, false);
-      @DefaultRenderersFactory.ExtensionRendererMode int extensionRendererMode =
-          ((DemoApplication) getApplication()).useExtensionRenderers()
-              ? (preferExtensionDecoders ? DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER
-              : DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON)
-              : DefaultRenderersFactory.EXTENSION_RENDERER_MODE_OFF;
-      DefaultRenderersFactory renderersFactory = new DefaultRenderersFactory(getApplicationContext());
+      RenderersFactory renderersFactory =
+          ((DemoApplication) getApplication()).buildRenderersFactory(preferExtensionDecoders);
 
-      MediaCodecSelector codecSelector = enableTunneling ? MediaCodecSelector.TUNNELING : MediaCodecSelector.DEFAULT;
-      renderersFactory.setMediaCodecSelector(codecSelector);
+//      MediaCodecSelector codecSelector = enableTunneling ? MediaCodecSelector.TUNNELING : MediaCodecSelector.DEFAULT;
+//      renderersFactory.setMediaCodecSelector(codecSelector);
 
       trackSelector = new DefaultTrackSelector(trackSelectionFactory);
 
@@ -571,7 +564,7 @@ public class PlayerActivity extends Activity
       player.seekTo(startWindow, startPosition);
     }
     player.prepare(mediaSource, !haveStartPosition, false);
-    updateButtonVisibilities();
+    updateButtonVisibility();
   }
 
   private MediaSource buildMediaSource(Uri uri) {
@@ -580,24 +573,22 @@ public class PlayerActivity extends Activity
 
   private MediaSource buildMediaSource(Uri uri, @Nullable String overrideExtension) {
     @ContentType int type = Util.inferContentType(uri, overrideExtension);
+    List<StreamKey> offlineStreamKeys = getOfflineStreamKeys(uri);
     switch (type) {
       case C.TYPE_DASH:
         return new DashMediaSource.Factory(dataSourceFactory)
-            .setManifestParser(
-                new FilteringManifestParser<>(new DashManifestParser(), getOfflineStreamKeys(uri)))
+            .setStreamKeys(offlineStreamKeys)
             .createMediaSource(uri);
       case C.TYPE_SS:
         return new SsMediaSource.Factory(dataSourceFactory)
-            .setManifestParser(
-                new FilteringManifestParser<>(new SsManifestParser(), getOfflineStreamKeys(uri)))
+            .setStreamKeys(offlineStreamKeys)
             .createMediaSource(uri);
       case C.TYPE_HLS:
         return new HlsMediaSource.Factory(dataSourceFactory)
-            .setPlaylistParserFactory(
-                new DefaultHlsPlaylistParserFactory(getOfflineStreamKeys(uri)))
+            .setStreamKeys(offlineStreamKeys)
             .createMediaSource(uri);
       case C.TYPE_OTHER:
-        return new ExtractorMediaSource.Factory(dataSourceFactory).createMediaSource(uri);
+        return new ProgressiveMediaSource.Factory(dataSourceFactory).createMediaSource(uri);
       default: {
         throw new IllegalStateException("Unsupported type: " + type);
       }
@@ -725,41 +716,9 @@ public class PlayerActivity extends Activity
 
   // User controls
 
-  private void updateButtonVisibilities() {
-    debugRootView.removeAllViews();
-    if (player == null) {
-      return;
-    }
-
-    MappedTrackInfo mappedTrackInfo = trackSelector.getCurrentMappedTrackInfo();
-    if (mappedTrackInfo == null) {
-      return;
-    }
-
-    for (int i = 0; i < mappedTrackInfo.getRendererCount(); i++) {
-      TrackGroupArray trackGroups = mappedTrackInfo.getTrackGroups(i);
-      if (trackGroups.length != 0) {
-        Button button = new Button(this);
-        int label;
-        switch (player.getRendererType(i)) {
-          case C.TRACK_TYPE_AUDIO:
-            label = R.string.exo_track_selection_title_audio;
-            break;
-          case C.TRACK_TYPE_VIDEO:
-            label = R.string.exo_track_selection_title_video;
-            break;
-          case C.TRACK_TYPE_TEXT:
-            label = R.string.exo_track_selection_title_text;
-            break;
-          default:
-            continue;
-        }
-        button.setText(label);
-        button.setTag(i);
-        button.setOnClickListener(this);
-        debugRootView.addView(button);
-      }
-    }
+  private void updateButtonVisibility() {
+    selectTracksButton.setEnabled(
+        player != null && TrackSelectionDialog.willHaveContent(trackSelector));
   }
 
   private void showControls() {
@@ -795,16 +754,7 @@ public class PlayerActivity extends Activity
       if (playbackState == Player.STATE_ENDED) {
         showControls();
       }
-      updateButtonVisibilities();
-    }
-
-    @Override
-    public void onPositionDiscontinuity(@Player.DiscontinuityReason int reason) {
-      if (player.getPlaybackError() != null) {
-        // The user has performed a seek whilst in the error state. Update the resume position so
-        // that if the user then retries, playback resumes from the position to which they seeked.
-        updateStartPosition();
-      }
+      updateButtonVisibility();
     }
 
     @Override
@@ -813,8 +763,7 @@ public class PlayerActivity extends Activity
         clearStartPosition();
         initializePlayer();
       } else {
-        updateStartPosition();
-        updateButtonVisibilities();
+        updateButtonVisibility();
         showControls();
       }
     }
@@ -822,7 +771,7 @@ public class PlayerActivity extends Activity
     @Override
     @SuppressWarnings("ReferenceEquality")
     public void onTracksChanged(TrackGroupArray trackGroups, TrackSelectionArray trackSelections) {
-      updateButtonVisibilities();
+      updateButtonVisibility();
       if (trackGroups != lastSeenTrackGroupArray) {
         MappedTrackInfo mappedTrackInfo = trackSelector.getCurrentMappedTrackInfo();
         if (mappedTrackInfo != null) {
