@@ -27,7 +27,9 @@ import android.graphics.Matrix;
 import android.graphics.RectF;
 import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
+import android.os.Handler;
 import android.os.Looper;
+import android.os.Message;
 import androidx.annotation.IntDef;
 import androidx.annotation.Nullable;
 import androidx.core.content.ContextCompat;
@@ -64,6 +66,8 @@ import com.google.android.exoplayer2.ui.spherical.SingleTapListener;
 import com.google.android.exoplayer2.ui.spherical.SphericalSurfaceView;
 import com.google.android.exoplayer2.util.Assertions;
 import com.google.android.exoplayer2.util.ErrorMessageProvider;
+import com.google.android.exoplayer2.util.HandlerWrapper;
+import com.google.android.exoplayer2.util.Log;
 import com.google.android.exoplayer2.util.RepeatModeUtil;
 import com.google.android.exoplayer2.util.Util;
 import com.google.android.exoplayer2.video.VideoListener;
@@ -246,7 +250,7 @@ import java.util.List;
  * PlayerView. This will cause the specified layout to be inflated instead of {@code
  * exo_player_view.xml} for only the instance on which the attribute is set.
  */
-public class PlayerView extends FrameLayout implements AdsLoader.AdViewProvider {
+public class PlayerView extends FrameLayout implements AdsLoader.AdViewProvider, Handler.Callback {
 
   // LINT.IfChange
   /**
@@ -766,6 +770,41 @@ public class PlayerView extends FrameLayout implements AdsLoader.AdViewProvider 
     updateErrorMessage();
   }
 
+  enum TrickMode {
+    FF, FR, NOMRAL
+  }
+  private TrickMode currentMode = TrickMode.NOMRAL;
+
+  private long startSeekPosition;
+  private Handler messageHandler;
+
+  @Override
+  public boolean handleMessage(Message msg) {
+
+    if (msg.what == 1) {
+      switch (currentMode) {
+        case FF:
+          startSeekPosition += 10000;
+          break;
+
+        case FR:
+          startSeekPosition -= 10000;
+          break;
+      }
+
+      if (currentMode != TrickMode.NOMRAL) {
+        long contentPosition = player.getContentPosition();
+
+        Log.d("SEEK", "handleMessage - mode " + currentMode + " position: " + contentPosition + " request position " + startSeekPosition);
+
+        player.seekTo(startSeekPosition);
+
+        messageHandler.sendEmptyMessageDelayed(1, 1000);
+      }
+    }
+    return false;
+  }
+
   @Override
   public boolean dispatchKeyEvent(KeyEvent event) {
     if (player != null && player.isPlayingAd()) {
@@ -778,8 +817,71 @@ public class PlayerView extends FrameLayout implements AdsLoader.AdViewProvider 
     if (handled) {
       maybeShowController(true);
     }
+
+    TrickMode nextmode = currentMode;
+
+    Log.d("SEEK", "KeyEvent: " + event);
+    if (event.getAction() == KeyEvent.ACTION_UP) {
+      switch (event.getKeyCode()) {
+        case KeyEvent.KEYCODE_1:
+          handled = true;
+          switch (currentMode) {
+            case FF:
+            case NOMRAL:
+              nextmode = TrickMode.FR;
+              break;
+
+            case FR:
+              nextmode = TrickMode.NOMRAL;
+              break;
+          }
+          break;
+
+        case KeyEvent.KEYCODE_2:
+          handled = true;
+          nextmode = TrickMode.NOMRAL;
+          break;
+
+        case KeyEvent.KEYCODE_3:
+          handled = true;
+          switch (currentMode) {
+            case FR:
+            case NOMRAL:
+              nextmode = TrickMode.FF;
+              break;
+
+            case FF:
+              nextmode = TrickMode.NOMRAL;
+              break;
+          }
+          break;
+      }
+    }
+
+    if (currentMode != nextmode) {
+      currentMode = nextmode;
+      switch (nextmode) {
+        case FF:
+        case FR:
+          startSeekPosition = player.getContentPosition();
+          Log.d("SEEK", "starting fast play - position: " + startSeekPosition);
+          showController(true);
+          player.setPlayWhenReady(false);
+          messageHandler = new Handler(this);
+          messageHandler.sendEmptyMessage(1);
+          break;
+
+        case NOMRAL:
+          Log.d("SEEK", "end fast play - position: " + player.getContentPosition());
+
+          player.setPlayWhenReady(true);
+          messageHandler = null;
+          break;
+      }
+    }
     return handled;
   }
+
 
   /**
    * Called to process media key events. Any {@link KeyEvent} can be passed but only media key

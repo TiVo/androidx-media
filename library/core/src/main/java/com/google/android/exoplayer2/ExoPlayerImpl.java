@@ -301,6 +301,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
     }
     hasPendingSeek = true;
     pendingOperationAcks++;
+    Log.d("SEEK", "Seek issued to position " + positionMs + " pending " + pendingOperationAcks);
     if (isPlayingAd()) {
       // TODO: Investigate adding support for seeking during ads. This is complicated to do in
       // general because the midroll ad preceding the seek destination must be played before the

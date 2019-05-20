@@ -85,6 +85,11 @@ public interface MediaSourceEventListener {
       this.loadDurationMs = loadDurationMs;
       this.bytesLoaded = bytesLoaded;
     }
+
+    @Override
+    public String toString() {
+      return "LoadEventInfo(url="+uri+" loaded: "+bytesLoaded+ " duration: "+loadDurationMs+")";
+    }
   }
 
   /** Descriptor for data being loaded or selected by a media source. */

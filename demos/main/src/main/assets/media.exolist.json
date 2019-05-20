@@ -8,6 +8,10 @@
           "uri": "https://s3.amazonaws.com/hls-demos/cnbchd/index.m3u8"
       },
       {
+        "name": "Test KQED Live - Velocix",
+          "uri": "http://live1.nokia.tivo.com/kqedplus/vxfmt=dp/playlist.m3u8?device_profile=hlsclr"
+      },
+      {
         "name": "CNBC RCN Live",
         "uri": "http://edge3.il.vod.rcn.net/rolling-buffer/cnbchd/cnbchd/transmux/index.m3u8"
       },
