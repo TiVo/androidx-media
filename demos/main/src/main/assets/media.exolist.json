@@ -1,8 +1,49 @@
 [
 
   {
+    "name" : "Velocix Playlists",
+    "samples" :  [
+      {
+      "name": "Test In-Progress asset",
+      "uri" : "http://live1.nokia.tivo.com/kqedplus/vxfmt=dp/playlist.m3u8?device_profile=hlsclr&start_time=2019-06-02T23:00:00Z"
+      },
+      {
+      "name": "Test Completed asset",
+      "uri" : "http://live1.nokia.tivo.com/kqedplus/vxfmt=dp/playlist.m3u8?device_profile=hlsclr&start_time=2019-06-02T23:00:00Z&end_time=2019-06-02T23:30:00Z"
+      },
+      {
+        "name" : "Music Choice",
+        "uri" : "http://live1.nokia.tivo.com/mcrock/vxfmt=dp/playlist.m3u8?device_profile=hlsclr"
+      },
+      {
+        "name": "Test Trickplay",
+        "uri": "http://stevemayhewsmacbook/video/velocix/kqed-may17/index-validated-audio.m3u8"
+      }
+    ]
+  },
+
+  {
+    "name" : "Concurrent Headend",
+    "samples" : [
+      {
+        "name" : "Music Choice Rock",
+        "uri" : "http://frumos.tivo.com/rolling-buffer/mcrock/mcrock/transmux/index.m3u8"
+      },
+
+      {
+        "name" : "CBS NCIS AC3",
+        "uri" : "http://frumos01.tivo.com/media/97b349da-b335-4e42-b508-8792ab9bce7b/97b349da-b335-4e42-b508-8792ab9bce7b.smil/transmux/index.m3u8"
+      }
+    ]
+  },
+  {
     "name": "TiVo Test Assets",
     "samples": [
+
+      {
+        "name": "Audio Only EAS",
+        "uri" : "http://stevemayhewsmacbook//video/tivo/eas/index.m3u8"
+      },
       {
         "name": "Test CNBC S3",
           "uri": "https://s3.amazonaws.com/hls-demos/cnbchd/index.m3u8"

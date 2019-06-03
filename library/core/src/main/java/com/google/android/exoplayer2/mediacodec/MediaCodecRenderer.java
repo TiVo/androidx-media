@@ -1465,6 +1465,10 @@ public abstract class MediaCodecRenderer extends BaseRenderer {
       updateOutputFormatForTime(outputBufferInfo.presentationTimeUs);
     }
 
+    if ((outputBufferInfo.flags & C.BUFFER_FLAG_KEY_FRAME) == C.BUFFER_FLAG_KEY_FRAME) {
+      Log.d("RENDER", "process PTS: " + outputBufferInfo.presentationTimeUs + " flag:"+outputBufferInfo.flags);
+    }
+
     boolean processedOutputBuffer;
     if (codecNeedsEosOutputExceptionWorkaround && codecReceivedEos) {
       try {
