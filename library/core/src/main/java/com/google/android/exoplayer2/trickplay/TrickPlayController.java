@@ -213,7 +213,7 @@ class TrickPlayController implements TrickPlayControl {
         switch (mode) {
             case FF1:
             case FR1:
-                speed = 10.0f;
+                speed = 7.0f;
                 break;
 
             case FF2:

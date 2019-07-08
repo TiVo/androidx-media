@@ -225,7 +225,6 @@ class TrickPlayRendererFactory extends DefaultRenderersFactory {
             boolean shouldUse;
 
             switch (trickPlay.getCurrentTrickMode()) {
-                case FF1:
                 case FF2:
                 case FF3:
                     shouldUse = true;
