@@ -1060,6 +1060,8 @@ public abstract class MediaCodecRenderer extends BaseRenderer {
       }
       return false;
     }
+//    Log.d("TRICK-PLAY", buffer.timeUs + " frame queued, isKey: " + buffer.isKeyFrame());
+
     if (waitingForFirstSyncSample && !buffer.isKeyFrame()) {
       buffer.clear();
       if (codecReconfigurationState == RECONFIGURATION_STATE_QUEUE_PENDING) {
@@ -1465,10 +1467,6 @@ public abstract class MediaCodecRenderer extends BaseRenderer {
       updateOutputFormatForTime(outputBufferInfo.presentationTimeUs);
     }
 
-    if ((outputBufferInfo.flags & C.BUFFER_FLAG_KEY_FRAME) == C.BUFFER_FLAG_KEY_FRAME) {
-      Log.d("RENDER", "process PTS: " + outputBufferInfo.presentationTimeUs + " flag:"+outputBufferInfo.flags);
-    }
-
     boolean processedOutputBuffer;
     if (codecNeedsEosOutputExceptionWorkaround && codecReceivedEos) {
       try {
@@ -1504,6 +1502,8 @@ public abstract class MediaCodecRenderer extends BaseRenderer {
               shouldSkipOutputBuffer,
               outputFormat);
     }
+
+//    Log.d("TRICK-PLAY", positionUs + " frame output PTS " + outputBufferInfo.presentationTimeUs + " flags: " + outputBufferInfo.flags);
 
     if (processedOutputBuffer) {
       onProcessedOutputBuffer(outputBufferInfo.presentationTimeUs);

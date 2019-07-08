@@ -182,8 +182,8 @@ public class DebugTextViewHelper implements AnalyticsListener, Runnable {
     long timeSinceStart = Clock.DEFAULT.elapsedRealtime() - startTime;
     double percentNet = ((double) networkActiveTime / (double) timeSinceStart) * 100.0;
 
-    return String.format(Locale.getDefault(),"playWhenReady:%s bw:%d (%d KBps) totalBw: %d netu: %3.2f window:%s playbackState:%s",
-        player.getPlayWhenReady(), bitrateEstimate, bitrateEstimate / 8000, bandwidthUsed, percentNet, player.getCurrentWindowIndex(), playbackStateString);
+    return String.format(Locale.getDefault(),"playWhenReady:%s bw:%d (%d KBps) totalBw: %d netu: %3.2f window:%s playbackState:%s cp:%d",
+        player.getPlayWhenReady(), bitrateEstimate, bitrateEstimate / 8000, bandwidthUsed, percentNet, player.getCurrentWindowIndex(), playbackStateString, player.getCurrentPosition());
   }
 
   /** Returns a string containing video debugging information. */
@@ -231,7 +231,8 @@ public class DebugTextViewHelper implements AnalyticsListener, Runnable {
       return "";
     }
     counters.ensureUpdated();
-    return " sib:" + counters.skippedInputBufferCount
+    return " qib:" + counters.inputBufferCount
+        + " sib:" + counters.skippedInputBufferCount
         + " sb:" + counters.skippedOutputBufferCount
         + " rb:" + counters.renderedOutputBufferCount
         + " db:" + counters.droppedBufferCount

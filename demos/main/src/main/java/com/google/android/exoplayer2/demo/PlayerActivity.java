@@ -15,15 +15,10 @@
  */
 package com.google.android.exoplayer2.demo;
 
-import android.annotation.TargetApi;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
-import android.media.AudioAttributes;
-import android.media.AudioFocusRequest;
-import android.media.AudioManager;
 import android.net.Uri;
-import android.os.Build;
 import android.os.Bundle;
 import android.util.Log;
 import android.util.Pair;
@@ -65,6 +60,7 @@ import com.google.android.exoplayer2.source.TrackGroupArray;
 import com.google.android.exoplayer2.source.ads.AdsLoader;
 import com.google.android.exoplayer2.source.ads.AdsMediaSource;
 import com.google.android.exoplayer2.source.dash.DashMediaSource;
+import com.google.android.exoplayer2.source.hls.DefaultHlsExtractorFactory;
 import com.google.android.exoplayer2.source.hls.HlsMediaSource;
 import com.google.android.exoplayer2.source.smoothstreaming.SsMediaSource;
 import com.google.android.exoplayer2.trackselection.AdaptiveTrackSelection;
@@ -73,7 +69,8 @@ import com.google.android.exoplayer2.trackselection.MappingTrackSelector.MappedT
 import com.google.android.exoplayer2.trackselection.RandomTrackSelection;
 import com.google.android.exoplayer2.trackselection.TrackSelection;
 import com.google.android.exoplayer2.trackselection.TrackSelectionArray;
-import com.google.android.exoplayer2.trickplay.SimpleTrickPlay;
+import com.google.android.exoplayer2.trickplay.TrickPlayControl;
+import com.google.android.exoplayer2.trickplay.TrickPlayControlFactory;
 import com.google.android.exoplayer2.ui.DebugTextViewHelper;
 import com.google.android.exoplayer2.ui.PlayerControlView;
 import com.google.android.exoplayer2.ui.PlayerView;
@@ -167,8 +164,7 @@ public class PlayerActivity extends AppCompatActivity
 
   private AdsLoader adsLoader;
   private Uri loadedAdTagUri;
-  private SimpleTrickPlay simpleTrickPlay;
-
+  private TrickPlayControl trickPlayControl;
 
   private class AudioHotplugListener implements AudioCapabilitiesReceiver.Listener {
 
@@ -232,6 +228,7 @@ public class PlayerActivity extends AppCompatActivity
       clearStartPosition();
     }
 
+//    playerView.setControllerShowTimeoutMs(0);
     audioChangeReceiver = new AudioCapabilitiesReceiver(getApplicationContext(), new AudioHotplugListener());
     audioChangeReceiver.register();
   }
@@ -329,36 +326,46 @@ public class PlayerActivity extends AppCompatActivity
     // See whether the player view wants to handle media or DPAD keys events.
     boolean handled = false;
 
-    if (event.getAction() == KeyEvent.ACTION_DOWN && simpleTrickPlay != null) {
+    if (event.getAction() == KeyEvent.ACTION_DOWN && trickPlayControl != null) {
       Uri nextChannel = null;
 
       switch (event.getKeyCode()) {
 
         case KeyEvent.KEYCODE_MEDIA_FAST_FORWARD:
         case KeyEvent.KEYCODE_3:
-          simpleTrickPlay.setTrickMode(SimpleTrickPlay.TrickMode.FF1);
+          trickPlayControl.setTrickMode(TrickPlayControl.TrickMode.FF1);
           handled = true;
           break;
 
         case KeyEvent.KEYCODE_MEDIA_REWIND:
         case KeyEvent.KEYCODE_1:
-          simpleTrickPlay.setTrickMode(SimpleTrickPlay.TrickMode.FR1);
+          trickPlayControl.setTrickMode(TrickPlayControl.TrickMode.FR1);
           handled = true;
           break;
 
         case KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE:
         case KeyEvent.KEYCODE_2:
-          simpleTrickPlay.setTrickMode(SimpleTrickPlay.TrickMode.NORMAL);
+          trickPlayControl.setTrickMode(TrickPlayControl.TrickMode.NORMAL);
           handled = true;
           break;
 
         case KeyEvent.KEYCODE_6:
-          simpleTrickPlay.setTrickMode(SimpleTrickPlay.TrickMode.FF2);
+          trickPlayControl.setTrickMode(TrickPlayControl.TrickMode.FF2);
           handled = true;
           break;
 
         case KeyEvent.KEYCODE_4:
-          simpleTrickPlay.setTrickMode(SimpleTrickPlay.TrickMode.FR2);
+          trickPlayControl.setTrickMode(TrickPlayControl.TrickMode.FR2);
+          handled = true;
+          break;
+
+        case KeyEvent.KEYCODE_9:
+          trickPlayControl.setTrickMode(TrickPlayControl.TrickMode.FF3);
+          handled = true;
+          break;
+
+        case KeyEvent.KEYCODE_7:
+          trickPlayControl.setTrickMode(TrickPlayControl.TrickMode.FR3);
           handled = true;
           break;
 
@@ -594,18 +601,24 @@ public class PlayerActivity extends AppCompatActivity
     trackSelector.setParameters(trackSelectorParameters);
     lastSeenTrackGroupArray = null;
 
+    TrickPlayControlFactory trickPlayControlFactory = new TrickPlayControlFactory();
+    trickPlayControl = trickPlayControlFactory.createTrickPlayControl(trackSelector);
+    renderersFactory = trickPlayControl.createRenderersFactory(context);
+
     player =
         ExoPlayerFactory.newSimpleInstance(
             /* context= */ this, renderersFactory, trackSelector, drmSessionManager);
+    trickPlayControl.setPlayer(player);
     player.addListener(new PlayerEventListener());
     player.setPlayWhenReady(startAutoPlay);
     player.addAnalyticsListener(new EventLogger(trackSelector));
+
     playerView.setPlayer(player);
     playerView.setPlaybackPreparer(this);
+
     debugViewHelper = new DebugTextViewHelper(player, debugTextView);
     debugViewHelper.start();
 
-    simpleTrickPlay = new SimpleTrickPlay(player, trackSelector);
   }
 
   private MediaSource buildMediaSource(Uri uri) {
@@ -627,6 +640,8 @@ public class PlayerActivity extends AppCompatActivity
       case C.TYPE_HLS:
         return new HlsMediaSource.Factory(dataSourceFactory)
             .setStreamKeys(offlineStreamKeys)
+                .setAllowChunklessPreparation(false)
+            .setExtractorFactory(new DefaultHlsExtractorFactory())
             .createMediaSource(uri);
       case C.TYPE_OTHER:
         return new ProgressiveMediaSource.Factory(dataSourceFactory).createMediaSource(uri);
@@ -665,8 +680,8 @@ public class PlayerActivity extends AppCompatActivity
       debugViewHelper.stop();
       debugViewHelper = null;
       player.release();
-      if (simpleTrickPlay != null) {
-        simpleTrickPlay.setPlayer(null);
+      if (trickPlayControl != null) {
+        trickPlayControl.setPlayer(null);
       }
       player = null;
       trackSelector = null;

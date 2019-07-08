@@ -4,6 +4,10 @@
     "name" : "Velocix Playlists",
     "samples" :  [
       {
+      "name": "Test Live",
+      "uri" : "http://live1.nokia.tivo.com/kqedplus/vxfmt=dp/playlist.m3u8?device_profile=hlsclr"
+      },
+      {
       "name": "Test In-Progress asset",
       "uri" : "http://live1.nokia.tivo.com/kqedplus/vxfmt=dp/playlist.m3u8?device_profile=hlsclr&start_time=2019-06-02T23:00:00Z"
       },
@@ -18,6 +22,10 @@
       {
         "name": "Test Trickplay",
         "uri": "http://stevemayhewsmacbook/video/velocix/kqed-may17/index-validated-audio.m3u8"
+      },
+      {
+        "name" : "Local Blender",
+        "uri" : "http://stevemayhewsmacbook/video/velocix/blender_vod/index.m3u8"
       }
     ]
   },
