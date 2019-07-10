@@ -65,7 +65,7 @@ class TrickPlayRendererFactory extends DefaultRenderersFactory {
 
         private TrickPlayControl.TrickMode previousTrickMode;
 
-        public static final int TARGET_FRAME_RATE = 10;        // Target 4 frames per second.
+        public static final int TARGET_FRAME_RATE = 1;        // Target 4 frames per second.
 
         private int targetInterFrameTimeUs = 1000000 / TARGET_FRAME_RATE;
         private long lastRenderTimeUs = C.TIME_UNSET;

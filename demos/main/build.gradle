@@ -70,6 +70,7 @@ dependencies {
     implementation project(modulePrefix + 'library-dash')
     implementation project(modulePrefix + 'library-hls')
     implementation project(modulePrefix + 'library-smoothstreaming')
+    implementation project(modulePrefix + 'library-trickplay')
     implementation project(modulePrefix + 'library-ui')
     withExtensionsImplementation project(path: modulePrefix + 'extension-ffmpeg')
     withExtensionsImplementation project(path: modulePrefix + 'extension-flac')

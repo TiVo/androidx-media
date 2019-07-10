@@ -22,6 +22,7 @@ include modulePrefix + 'library-core'
 include modulePrefix + 'library-dash'
 include modulePrefix + 'library-hls'
 include modulePrefix + 'library-smoothstreaming'
+include modulePrefix + 'library-trickplay'
 include modulePrefix + 'library-ui'
 include modulePrefix + 'testutils'
 include modulePrefix + 'testutils-robolectric'
@@ -45,6 +46,7 @@ project(modulePrefix + 'library-dash').projectDir = new File(rootDir, 'library/d
 project(modulePrefix + 'library-hls').projectDir = new File(rootDir, 'library/hls')
 project(modulePrefix + 'library-smoothstreaming').projectDir = new File(rootDir, 'library/smoothstreaming')
 project(modulePrefix + 'library-ui').projectDir = new File(rootDir, 'library/ui')
+project(modulePrefix + 'library-trickplay').projectDir = new File(rootDir, 'library/trickplay')
 project(modulePrefix + 'testutils').projectDir = new File(rootDir, 'testutils')
 project(modulePrefix + 'testutils-robolectric').projectDir = new File(rootDir, 'testutils_robolectric')
 project(modulePrefix + 'extension-ffmpeg').projectDir = new File(rootDir, 'extensions/ffmpeg')
