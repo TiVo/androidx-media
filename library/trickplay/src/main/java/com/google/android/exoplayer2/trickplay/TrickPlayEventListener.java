@@ -1,15 +1,17 @@
 package com.google.android.exoplayer2.trickplay;
 
 /**
- * Event callbacks from the TrickPlayControl
+ * Event callbacks for various interesting state changes to trick play.
  */
 public interface TrickPlayEventListener {
 
     /**
-     * Called when trickplay TrickMode changes.
+     * Called when the playback state changes such that the underlying
+     * {@link com.google.android.exoplayer2.source.MediaSource} will support high speed playback
      *
-     * @param previous
-     * @param current
+     * The updated playback speeds supported are returned via {@link TrickPlayControl#}
+     *
+     * @param isSmoothPlaySupported
      */
-    void onTrickModeChange(TrickPlayControl.TrickMode previous, TrickPlayControl.TrickMode current);
+    void smoothPlayStateChanged(boolean isSmoothPlaySupported);
 }
