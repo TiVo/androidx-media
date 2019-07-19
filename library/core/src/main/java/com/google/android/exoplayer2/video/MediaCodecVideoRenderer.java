@@ -712,8 +712,6 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer {
       long releaseTimeNs = System.nanoTime();
       notifyFrameMetadataListener(presentationTimeUs, releaseTimeNs, format);
       if (Util.SDK_INT >= 21) {
-        Log.d("TRICK-PLAY", bufferPresentationTimeUs + " frame force rendered " + bufferPresentationTimeUs + " releaseTime: " + releaseTimeNs + " earlyUs: " + earlyUs + " sinceLastRenderUs: " + (elapsedRealtimeNowUs - lastRenderTimeUs));
-
         renderOutputBufferV21(codec, bufferIndex, presentationTimeUs, releaseTimeNs);
       } else {
         renderOutputBuffer(codec, bufferIndex, presentationTimeUs);
@@ -750,12 +748,9 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer {
     if (Util.SDK_INT >= 21) {
       // Let the underlying framework time the release.
       if (earlyUs < 50000) {
-        Log.d("TRICK-PLAY", bufferPresentationTimeUs + " frame normal rendered " + bufferPresentationTimeUs + " adjustedReleaseTimeNs: " + adjustedReleaseTimeNs + " earlyUs: " + earlyUs + " sinceLastRenderUs: " + (elapsedRealtimeNowUs - lastRenderTimeUs));
         notifyFrameMetadataListener(presentationTimeUs, adjustedReleaseTimeNs, format);
         renderOutputBufferV21(codec, bufferIndex, presentationTimeUs, adjustedReleaseTimeNs);
         return true;
-      } else {
-        Log.d("TRICK-PLAY", bufferPresentationTimeUs + " holding frame " + bufferPresentationTimeUs + " earlyUs: " + earlyUs + " lastRenderTimeUs: " + lastRenderTimeUs);
       }
     } else {
       // We need to time the release ourselves.

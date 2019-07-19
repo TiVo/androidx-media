@@ -8,28 +8,26 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
 
+import com.google.android.exoplayer2.DefaultRenderersFactory;
+import java.util.Collections;
+import java.util.EnumMap;
+import java.util.Map;
 import java.util.concurrent.CopyOnWriteArraySet;
 
 import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
 
 import com.google.android.exoplayer2.C;
-import com.google.android.exoplayer2.ExoPlaybackException;
 import com.google.android.exoplayer2.PlaybackParameters;
 import com.google.android.exoplayer2.RenderersFactory;
 import com.google.android.exoplayer2.SeekParameters;
 import com.google.android.exoplayer2.SimpleExoPlayer;
 import com.google.android.exoplayer2.analytics.AnalyticsListener;
-import com.google.android.exoplayer2.drm.DrmSessionManager;
-import com.google.android.exoplayer2.drm.FrameworkMediaCrypto;
-import com.google.android.exoplayer2.mediacodec.MediaCodecSelector;
 import com.google.android.exoplayer2.source.TrackGroupArray;
 import com.google.android.exoplayer2.trackselection.DefaultTrackSelector;
 import com.google.android.exoplayer2.trackselection.TrackSelectionArray;
 import com.google.android.exoplayer2.util.Clock;
 import com.google.android.exoplayer2.util.Log;
 import com.google.android.exoplayer2.util.MediaClock;
-import com.google.android.exoplayer2.video.MediaCodecVideoRenderer;
-import com.google.android.exoplayer2.video.VideoRendererEventListener;
 
 /**
  * Implements simple trick-play for video fast forward / reverse without sound.
@@ -52,12 +50,28 @@ class TrickPlayController implements TrickPlayControl {
     private TrickPlayMessageHandler currentHandler = null;
     private ReversibleMediaClock currentMediaClock = null;
 
+    private Map<TrickMode, Float> speedsForMode;
 
     TrickPlayController(DefaultTrackSelector trackSelector) {
         this.trackSelector = trackSelector;
         this.listeners = new CopyOnWriteArraySet<>();
+
+        // Keep a seperate map defining the mapping from TrickMode enum to speed (to keep it a pure enum)
+        //
+        EnumMap<TrickMode, Float> initialSpeedsForMode = new EnumMap<TrickMode, Float>(TrickMode.class);
+        for (TrickMode trickMode : TrickMode.values()) {
+            initialSpeedsForMode.put(trickMode, getDefaultSpeedForMode(trickMode));
+        }
+
+        this.speedsForMode = Collections.synchronizedMap(initialSpeedsForMode);
     }
 
+    /**
+     * Keeps track of render position based on the existing ExoPlayer {@link MediaClock}
+     * this interface is used by the renderers, so using it will facilite
+     * using either seek based of IDR sample flow based hig speed playback.
+     *
+     */
     private class ReversibleMediaClock implements MediaClock {
 
         private boolean isForward;
@@ -66,6 +80,14 @@ class TrickPlayController implements TrickPlayControl {
         private PlaybackParameters playbackParameters;
         private long baseUs;
 
+        /**
+         * Construct the clock source with the current position to start and the
+         * intended playback direction (as PlaybackParameters does not support speed < 0)
+         *
+         * @param isForward - true if playback is forward else false.
+         * @param positionUs - current position at start of clock
+         * @param clock - source of time
+         */
         ReversibleMediaClock(boolean isForward, long positionUs, Clock clock) {
             this.isForward = isForward;
             this.clock = clock;
@@ -207,23 +229,36 @@ class TrickPlayController implements TrickPlayControl {
         }
     }
 
-    private Float getSpeedFor(TrickMode mode) {
-        float speed = 0.0f;
+    /**
+     * Default speeds used to initialize the map.  These are the speeds that
+     * are used until it is known that smooth fast play is possible
+     *
+     * @param mode
+     * @return
+     */
+    private Float getDefaultSpeedForMode(TrickMode mode) {
+        Float speed = 0.0f;
 
         switch (mode) {
             case FF1:
+                speed = 2.0f;
+                break;
             case FR1:
-                speed = 7.0f;
+                speed = -2.0f;
                 break;
 
             case FF2:
+                speed = 6.0f;
+                break;
             case FR2:
-                speed = 30.0f;
+                speed = -6.0f;
                 break;
 
             case FF3:
+                speed = 8.0f;
+                break;
             case FR3:
-                speed = 60.0f;
+                speed = -8.0f;
                 break;
 
             case NORMAL:
@@ -231,14 +266,11 @@ class TrickPlayController implements TrickPlayControl {
                 break;
         }
 
-        switch (mode) {
-            case FR1:
-            case FR2:
-            case FR3:
-                speed = - speed;
-                break;
-        }
         return speed;
+    }
+
+    private Float getSpeedFor(TrickMode mode) {
+        return speedsForMode.get(mode);
     }
 
     private void setAudioTracksDisabled() {
@@ -276,7 +308,7 @@ class TrickPlayController implements TrickPlayControl {
 
     @Override
     public RenderersFactory createRenderersFactory(Context context) {
-        return new TrickPlayRendererFactory(context, this);
+        return new DefaultRenderersFactory(context);
     }
 
     @Override

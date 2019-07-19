@@ -5,13 +5,16 @@ import android.content.Context;
 import com.google.android.exoplayer2.ExoPlayerFactory;
 import com.google.android.exoplayer2.RenderersFactory;
 import com.google.android.exoplayer2.SimpleExoPlayer;
+import com.google.android.exoplayer2.trackselection.DefaultTrackSelector;
 import com.google.android.exoplayer2.trackselection.TrackSelector;
 import com.google.android.exoplayer2.util.MediaClock;
 
 /**
- * The trick-play control interface.  T
+ * Control interface for entering/leaving high speed playback mode using the {{@link #setTrickMode(TrickMode)}}
+ * call.
  *
- * An implementation of this is created by the TrickPlayControlFactory.
+ * To use trick play, create the implementation using the {@link TrickPlayControlFactory#createTrickPlayControl(DefaultTrackSelector)}
+ * call.
  */
 public interface TrickPlayControl {
 
