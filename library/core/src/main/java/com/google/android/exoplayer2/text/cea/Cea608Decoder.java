@@ -80,6 +80,11 @@ public final class Cea608Decoder extends CeaDecoder {
    * at which point the non-displayed memory becomes the displayed memory (and vice versa).
    */
   private static final byte CTRL_RESUME_CAPTION_LOADING = 0x20;
+
+  private static final byte CTRL_BACKSPACE = 0x21;
+
+  private static final byte CTRL_DELETE_TO_END_OF_ROW = 0x24;
+
   /**
    * Command initiating roll-up style captioning, with the maximum of 2 rows displayed
    * simultaneously.
@@ -95,25 +100,31 @@ public final class Cea608Decoder extends CeaDecoder {
    * simultaneously.
    */
   private static final byte CTRL_ROLL_UP_CAPTIONS_4_ROWS = 0x27;
+
   /**
    * Command initiating paint-on style captioning. Subsequent data should be addressed immediately
    * to displayed memory without need for the {@link #CTRL_RESUME_CAPTION_LOADING} command.
    */
   private static final byte CTRL_RESUME_DIRECT_CAPTIONING = 0x29;
   /**
-   * Command indicating the end of a pop-on style caption. At this point the caption loaded in
-   * non-displayed memory should be swapped with the one in displayed memory. If no
-   * {@link #CTRL_RESUME_CAPTION_LOADING} command has been received, this command forces the
-   * receiver into pop-on style.
+   * TEXT commands are switching to TEXT service. All consecutive incoming data must be filtered out
+   * until a command is received that switches back to the CAPTION service.
    */
-  private static final byte CTRL_END_OF_CAPTION = 0x2F;
+  private static final byte CTRL_TEXT_RESTART = 0x2A;
+
+  private static final byte CTRL_RESUME_TEXT_DISPLAY = 0x2B;
 
   private static final byte CTRL_ERASE_DISPLAYED_MEMORY = 0x2C;
   private static final byte CTRL_CARRIAGE_RETURN = 0x2D;
   private static final byte CTRL_ERASE_NON_DISPLAYED_MEMORY = 0x2E;
-  private static final byte CTRL_DELETE_TO_END_OF_ROW = 0x24;
 
-  private static final byte CTRL_BACKSPACE = 0x21;
+  /**
+   * Command indicating the end of a pop-on style caption. At this point the caption loaded in
+   * non-displayed memory should be swapped with the one in displayed memory. If no {@link
+   * #CTRL_RESUME_CAPTION_LOADING} command has been received, this command forces the receiver into
+   * pop-on style.
+   */
+  private static final byte CTRL_END_OF_CAPTION = 0x2F;
 
   // Basic North American 608 CC char set, mostly ASCII. Indexed by (char-0x20).
   private static final int[] BASIC_CHARACTER_SET = new int[] {
@@ -231,11 +242,16 @@ public final class Cea608Decoder extends CeaDecoder {
   private int captionMode;
   private int captionRowCount;
 
-  private boolean captionValid;
+  private boolean isCaptionValid;
   private boolean repeatableControlSet;
   private byte repeatableControlCc1;
   private byte repeatableControlCc2;
   private int currentChannel;
+
+  // The incoming characters may belong to 3 different services based on the last received control
+  // codes. The 3 services are Captioning, Text and XDS. The decoder only processes Captioning
+  // service bytes and drops the rest.
+  private boolean isInCaptionService;
 
   public Cea608Decoder(String mimeType, int accessibilityChannel) {
     ccData = new ParsableByteArray();
@@ -268,6 +284,7 @@ public final class Cea608Decoder extends CeaDecoder {
 
     setCaptionMode(CC_MODE_UNKNOWN);
     resetCueBuilders();
+    isInCaptionService = true;
   }
 
   @Override
@@ -283,11 +300,12 @@ public final class Cea608Decoder extends CeaDecoder {
     setCaptionMode(CC_MODE_UNKNOWN);
     setCaptionRowCount(DEFAULT_CAPTIONS_ROW_COUNT);
     resetCueBuilders();
-    captionValid = false;
+    isCaptionValid = false;
     repeatableControlSet = false;
     repeatableControlCc1 = 0;
     repeatableControlCc2 = 0;
     currentChannel = NTSC_CC_CHANNEL_1;
+    isInCaptionService = true;
   }
 
   @Override
@@ -340,13 +358,19 @@ public final class Cea608Decoder extends CeaDecoder {
         continue;
       }
 
-      boolean repeatedControlPossible = repeatableControlSet;
-      repeatableControlSet = false;
+      boolean previousIsCaptionValid = isCaptionValid;
+      isCaptionValid =
+          (ccHeader & CC_VALID_FLAG) == CC_VALID_FLAG
+              && ODD_PARITY_BYTE_TABLE[ccByte1]
+              && ODD_PARITY_BYTE_TABLE[ccByte2];
 
-      boolean previousCaptionValid = captionValid;
-      captionValid = (ccHeader & CC_VALID_FLAG) == CC_VALID_FLAG;
-      if (!captionValid) {
-        if (previousCaptionValid) {
+      if (isRepeatedCommand(isCaptionValid, ccData1, ccData2)) {
+        // Ignore repeated valid commands.
+        continue;
+      }
+
+      if (!isCaptionValid) {
+        if (previousIsCaptionValid) {
           // The encoder has flipped the validity bit to indicate captions are being turned off.
           resetCueBuilders();
           captionDataProcessed = true;
@@ -354,59 +378,41 @@ public final class Cea608Decoder extends CeaDecoder {
         continue;
       }
 
-      // If we've reached this point then there is data to process; flag that work has been done.
-      captionDataProcessed = true;
-
-      if (!ODD_PARITY_BYTE_TABLE[ccByte1] || !ODD_PARITY_BYTE_TABLE[ccByte2]) {
-        // The data is invalid.
-        resetCueBuilders();
+      maybeUpdateIsInCaptionService(ccData1, ccData2);
+      if (!isInCaptionService) {
+        // Only the Captioning service is supported. Drop all other bytes.
         continue;
       }
 
-      // Special North American character set.
-      // ccData1 - 0|0|0|1|C|0|0|1
-      // ccData2 - 0|0|1|1|X|X|X|X
-      if (((ccData1 & 0xF7) == 0x11) && ((ccData2 & 0xF0) == 0x30)) {
-        if (getChannel(ccData1) == selectedChannel) {
-          currentCueBuilder.append(getSpecialChar(ccData2));
-        }
+      if (!updateAndVerifyCurrentChannel(ccData1)) {
+        // Wrong channel.
         continue;
       }
 
-      // Extended Western European character set.
-      // ccData1 - 0|0|0|1|C|0|1|S
-      // ccData2 - 0|0|1|X|X|X|X|X
-      if (((ccData1 & 0xF6) == 0x12) && (ccData2 & 0xE0) == 0x20) {
-        if (getChannel(ccData1) == selectedChannel) {
-          // Remove standard equivalent of the special extended char before appending new one
+      if (isCtrlCode(ccData1)) {
+        if (isSpecialNorthAmericanChar(ccData1, ccData2)) {
+          currentCueBuilder.append(getSpecialNorthAmericanChar(ccData2));
+        } else if (isExtendedWestEuropeanChar(ccData1, ccData2)) {
+          // Remove standard equivalent of the special extended char before appending new one.
           currentCueBuilder.backspace();
-          if ((ccData1 & 0x01) == 0x00) {
-            // Extended Spanish/Miscellaneous and French character set (S = 0).
-            currentCueBuilder.append(getExtendedEsFrChar(ccData2));
-          } else {
-            // Extended Portuguese and German/Danish character set (S = 1).
-            currentCueBuilder.append(getExtendedPtDeChar(ccData2));
-          }
+          currentCueBuilder.append(getExtendedWestEuropeanChar(ccData1, ccData2));
+        } else if (isMidrowCtrlCode(ccData1, ccData2)) {
+          handleMidrowCtrl(ccData2);
+        } else if (isPreambleAddressCode(ccData1, ccData2)) {
+          handlePreambleAddressCode(ccData1, ccData2);
+        } else if (isTabCtrlCode(ccData1, ccData2)) {
+          currentCueBuilder.tabOffset = ccData2 - 0x20;
+        } else if (isMiscCode(ccData1, ccData2)) {
+          handleMiscCode(ccData2);
         }
-        continue;
+      } else {
+        // Basic North American character set.
+        currentCueBuilder.append(getBasicChar(ccData1));
+        if ((ccData2 & 0xE0) != 0x00) {
+          currentCueBuilder.append(getBasicChar(ccData2));
+        }
       }
-
-      // Control character.
-      // ccData1 - 0|0|0|X|X|X|X|X
-      if ((ccData1 & 0xE0) == 0x00) {
-        handleCtrl(ccData1, ccData2, repeatedControlPossible);
-        continue;
-      }
-
-      if (currentChannel != selectedChannel) {
-        continue;
-      }
-
-      // Basic North American character set.
-      currentCueBuilder.append(getChar(ccData1));
-      if ((ccData2 & 0xE0) != 0x00) {
-        currentCueBuilder.append(getChar(ccData2));
-      }
+      captionDataProcessed = true;
     }
 
     if (captionDataProcessed) {
@@ -416,15 +422,22 @@ public final class Cea608Decoder extends CeaDecoder {
     }
   }
 
-  private void handleCtrl(byte cc1, byte cc2, boolean repeatedControlPossible) {
-    currentChannel = getChannel(cc1);
+  private boolean updateAndVerifyCurrentChannel(byte cc1) {
+    if (isCtrlCode(cc1)) {
+      currentChannel = getChannel(cc1);
+    }
+    return currentChannel == selectedChannel;
+  }
+
+  private boolean isRepeatedCommand(boolean captionValid, byte cc1, byte cc2) {
     // Most control commands are sent twice in succession to ensure they are received properly. We
     // don't want to process duplicate commands, so if we see the same repeatable command twice in a
     // row then we ignore the second one.
-    if (isRepeatable(cc1)) {
-      if (repeatedControlPossible && repeatableControlCc1 == cc1 && repeatableControlCc2 == cc2) {
+    if (captionValid && isRepeatable(cc1)) {
+      if (repeatableControlSet && repeatableControlCc1 == cc1 && repeatableControlCc2 == cc2) {
         // This is a repeated command, so we ignore it.
-        return;
+        repeatableControlSet = false;
+        return true;
       } else {
         // This is the first occurrence of a repeatable command. Set the repeatable control
         // variables so that we can recognize and ignore a duplicate (if there is one), and then
@@ -433,21 +446,11 @@ public final class Cea608Decoder extends CeaDecoder {
         repeatableControlCc1 = cc1;
         repeatableControlCc2 = cc2;
       }
+    } else {
+      // This command is not repeatable.
+      repeatableControlSet = false;
     }
-
-    if (currentChannel != selectedChannel) {
-      return;
-    }
-
-    if (isMidrowCtrlCode(cc1, cc2)) {
-      handleMidrowCtrl(cc2);
-    } else if (isPreambleAddressCode(cc1, cc2)) {
-      handlePreambleAddressCode(cc1, cc2);
-    } else if (isTabCtrlCode(cc1, cc2)) {
-      currentCueBuilder.tabOffset = cc2 - 0x20;
-    } else if (isMiscCode(cc1, cc2)) {
-      handleMiscCode(cc2);
-    }
+    return false;
   }
 
   private void handleMidrowCtrl(byte cc2) {
@@ -629,14 +632,59 @@ public final class Cea608Decoder extends CeaDecoder {
     cueBuilders.add(currentCueBuilder);
   }
 
-  private static char getChar(byte ccData) {
+  private void maybeUpdateIsInCaptionService(byte cc1, byte cc2) {
+    if (isXdsControlCode(cc1)) {
+      isInCaptionService = false;
+    } else if (isServiceSwitchCommand(cc1)) {
+      switch (cc2) {
+        case CTRL_TEXT_RESTART:
+        case CTRL_RESUME_TEXT_DISPLAY:
+          isInCaptionService = false;
+          break;
+        case CTRL_END_OF_CAPTION:
+        case CTRL_RESUME_CAPTION_LOADING:
+        case CTRL_RESUME_DIRECT_CAPTIONING:
+        case CTRL_ROLL_UP_CAPTIONS_2_ROWS:
+        case CTRL_ROLL_UP_CAPTIONS_3_ROWS:
+        case CTRL_ROLL_UP_CAPTIONS_4_ROWS:
+          isInCaptionService = true;
+          break;
+        default:
+          // No update.
+      }
+    }
+  }
+
+  private static char getBasicChar(byte ccData) {
     int index = (ccData & 0x7F) - 0x20;
     return (char) BASIC_CHARACTER_SET[index];
   }
 
-  private static char getSpecialChar(byte ccData) {
+  private static boolean isSpecialNorthAmericanChar(byte cc1, byte cc2) {
+    // cc1 - 0|0|0|1|C|0|0|1
+    // cc2 - 0|0|1|1|X|X|X|X
+    return ((cc1 & 0xF7) == 0x11) && ((cc2 & 0xF0) == 0x30);
+  }
+
+  private static char getSpecialNorthAmericanChar(byte ccData) {
     int index = ccData & 0x0F;
     return (char) SPECIAL_CHARACTER_SET[index];
+  }
+
+  private static boolean isExtendedWestEuropeanChar(byte cc1, byte cc2) {
+    // cc1 - 0|0|0|1|C|0|1|S
+    // cc2 - 0|0|1|X|X|X|X|X
+    return ((cc1 & 0xF6) == 0x12) && ((cc2 & 0xE0) == 0x20);
+  }
+
+  private static char getExtendedWestEuropeanChar(byte cc1, byte cc2) {
+    if ((cc1 & 0x01) == 0x00) {
+      // Extended Spanish/Miscellaneous and French character set (S = 0).
+      return getExtendedEsFrChar(cc2);
+    } else {
+      // Extended Portuguese and German/Danish character set (S = 1).
+      return getExtendedPtDeChar(cc2);
+    }
   }
 
   private static char getExtendedEsFrChar(byte ccData) {
@@ -647,6 +695,11 @@ public final class Cea608Decoder extends CeaDecoder {
   private static char getExtendedPtDeChar(byte ccData) {
     int index = ccData & 0x1F;
     return (char) SPECIAL_PT_DE_CHARACTER_SET[index];
+  }
+
+  private static boolean isCtrlCode(byte cc1) {
+    // cc1 - 0|0|0|X|X|X|X|X
+    return (cc1 & 0xE0) == 0x00;
   }
 
   private static int getChannel(byte cc1) {
@@ -681,6 +734,15 @@ public final class Cea608Decoder extends CeaDecoder {
   private static boolean isRepeatable(byte cc1) {
     // cc1 - 0|0|0|1|X|X|X|X
     return (cc1 & 0xF0) == 0x10;
+  }
+
+  private static boolean isXdsControlCode(byte cc1) {
+    return 0x01 <= cc1 && cc1 <= 0x0F;
+  }
+
+  private static boolean isServiceSwitchCommand(byte cc1) {
+    // cc1 - 0|0|0|1|C|1|0|0
+    return (cc1 & 0xF7) == 0x14;
   }
 
   private static class CueBuilder {

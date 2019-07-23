@@ -272,6 +272,7 @@ public final class DefaultAudioSink implements AudioSink {
   private int preV21OutputBufferOffset;
   private int drainingAudioProcessorIndex;
   private boolean handledEndOfStream;
+  private boolean stoppedAudioTrack;
 
   private boolean playing;
   private int audioSessionId;
@@ -465,19 +466,15 @@ public final class DefaultAudioSink implements AudioSink {
             processingEnabled,
             canApplyPlaybackParameters,
             availableAudioProcessors);
-    if (isInitialized()) {
-      if (!pendingConfiguration.canReuseAudioTrack(configuration)) {
-        // We need a new AudioTrack before we can handle more input. We should first stop() the
-        // track and wait for audio to play out (tracked by [Internal: b/33161961]), but for now we
-        // discard the audio track immediately.
-        flush();
-      } else if (flushAudioProcessors) {
-        // We don't need a new AudioTrack but audio processors need to be drained and flushed.
-        this.pendingConfiguration = pendingConfiguration;
-        return;
-      }
+    // If we have a pending configuration already, we always drain audio processors as the preceding
+    // configuration may have required it (even if this one doesn't).
+    boolean drainAudioProcessors = flushAudioProcessors || this.pendingConfiguration != null;
+    if (isInitialized()
+        && (!pendingConfiguration.canReuseAudioTrack(configuration) || drainAudioProcessors)) {
+      this.pendingConfiguration = pendingConfiguration;
+    } else {
+      configuration = pendingConfiguration;
     }
-    configuration = pendingConfiguration;
   }
 
   private void setupAudioProcessors() {
@@ -504,7 +501,7 @@ public final class DefaultAudioSink implements AudioSink {
     }
   }
 
-  private void initialize() throws InitializationException {
+  private void initialize(long presentationTimeUs) throws InitializationException {
     // If we're asynchronously releasing a previous audio track then we block until it has been
     // released. This guarantees that we cannot end up in a state where we have multiple audio
     // track instances. Without this guarantee it would be possible, in extreme cases, to exhaust
@@ -536,11 +533,7 @@ public final class DefaultAudioSink implements AudioSink {
       }
     }
 
-    playbackParameters =
-        configuration.canApplyPlaybackParameters
-            ? audioProcessorChain.applyPlaybackParameters(playbackParameters)
-            : PlaybackParameters.DEFAULT;
-    setupAudioProcessors();
+    applyPlaybackParameters(playbackParameters, presentationTimeUs);
 
     audioTrackPositionTracker.setAudioTrack(
         audioTrack,
@@ -579,21 +572,27 @@ public final class DefaultAudioSink implements AudioSink {
     Assertions.checkArgument(inputBuffer == null || buffer == inputBuffer);
 
     if (pendingConfiguration != null) {
-      // We are waiting for audio processors to drain before applying a the new configuration.
       if (!drainAudioProcessorsToEndOfStream()) {
+        // There's still pending data in audio processors to write to the track.
         return false;
+      } else if (!pendingConfiguration.canReuseAudioTrack(configuration)) {
+        playPendingData();
+        if (hasPendingData()) {
+          // We're waiting for playout on the current audio track to finish.
+          return false;
+        }
+        flush();
+      } else {
+        // The current audio track can be reused for the new configuration.
+        configuration = pendingConfiguration;
+        pendingConfiguration = null;
       }
-      configuration = pendingConfiguration;
-      pendingConfiguration = null;
-      playbackParameters =
-          configuration.canApplyPlaybackParameters
-              ? audioProcessorChain.applyPlaybackParameters(playbackParameters)
-              : PlaybackParameters.DEFAULT;
-      setupAudioProcessors();
+      // Re-apply playback parameters.
+      applyPlaybackParameters(playbackParameters, presentationTimeUs);
     }
 
     if (!isInitialized()) {
-      initialize();
+      initialize(presentationTimeUs);
       if (playing) {
         play();
       }
@@ -629,15 +628,7 @@ public final class DefaultAudioSink implements AudioSink {
         }
         PlaybackParameters newPlaybackParameters = afterDrainPlaybackParameters;
         afterDrainPlaybackParameters = null;
-        newPlaybackParameters = audioProcessorChain.applyPlaybackParameters(newPlaybackParameters);
-        // Store the position and corresponding media time from which the parameters will apply.
-        playbackParametersCheckpoints.add(
-            new PlaybackParametersCheckpoint(
-                newPlaybackParameters,
-                Math.max(0, presentationTimeUs),
-                configuration.framesToDurationUs(getWrittenFrames())));
-        // Update the set of active audio processors to take into account the new parameters.
-        setupAudioProcessors();
+        applyPlaybackParameters(newPlaybackParameters, presentationTimeUs);
       }
 
       if (startMediaTimeState == START_NOT_SET) {
@@ -786,15 +777,8 @@ public final class DefaultAudioSink implements AudioSink {
 
   @Override
   public void playToEndOfStream() throws WriteException {
-    if (handledEndOfStream || !isInitialized()) {
-      return;
-    }
-
-    if (drainAudioProcessorsToEndOfStream()) {
-      // The audio processors have drained, so drain the underlying audio track.
-      audioTrackPositionTracker.handleEndOfStream(getWrittenFrames());
-      audioTrack.stop();
-      bytesUntilNextAvSync = 0;
+    if (!handledEndOfStream && isInitialized() && drainAudioProcessorsToEndOfStream()) {
+      playPendingData();
       handledEndOfStream = true;
     }
   }
@@ -858,8 +842,9 @@ public final class DefaultAudioSink implements AudioSink {
         // parameters apply.
         afterDrainPlaybackParameters = playbackParameters;
       } else {
-        // Update the playback parameters now.
-        this.playbackParameters = audioProcessorChain.applyPlaybackParameters(playbackParameters);
+        // Update the playback parameters now. They will be applied to the audio processors during
+        // initialization.
+        this.playbackParameters = playbackParameters;
       }
     }
     return this.playbackParameters;
@@ -976,6 +961,7 @@ public final class DefaultAudioSink implements AudioSink {
       flushAudioProcessors();
       inputBuffer = null;
       outputBuffer = null;
+      stoppedAudioTrack = false;
       handledEndOfStream = false;
       drainingAudioProcessorIndex = C.INDEX_UNSET;
       avSyncHeader = null;
@@ -1038,6 +1024,21 @@ public final class DefaultAudioSink implements AudioSink {
         toRelease.release();
       }
     }.start();
+  }
+
+  private void applyPlaybackParameters(
+      PlaybackParameters playbackParameters, long presentationTimeUs) {
+    PlaybackParameters newPlaybackParameters =
+        configuration.canApplyPlaybackParameters
+            ? audioProcessorChain.applyPlaybackParameters(playbackParameters)
+            : PlaybackParameters.DEFAULT;
+    // Store the position and corresponding media time from which the parameters will apply.
+    playbackParametersCheckpoints.add(
+        new PlaybackParametersCheckpoint(
+            newPlaybackParameters,
+            /* mediaTimeUs= */ Math.max(0, presentationTimeUs),
+            /* positionUs= */ configuration.framesToDurationUs(getWrittenFrames())));
+    setupAudioProcessors();
   }
 
   private long applySpeedup(long positionUs) {
@@ -1125,6 +1126,7 @@ public final class DefaultAudioSink implements AudioSink {
       case C.ENCODING_AC3:
         return 640 * 1000 / 8;
       case C.ENCODING_E_AC3:
+      case C.ENCODING_E_AC3_JOC:
         return 6144 * 1000 / 8;
       case C.ENCODING_AC4:
         return 2688 * 1000 / 8;
@@ -1154,7 +1156,7 @@ public final class DefaultAudioSink implements AudioSink {
       return DtsUtil.parseDtsAudioSampleCount(buffer);
     } else if (encoding == C.ENCODING_AC3) {
       return Ac3Util.getAc3SyncframeAudioSampleCount();
-    } else if (encoding == C.ENCODING_E_AC3) {
+    } else if (encoding == C.ENCODING_E_AC3 || encoding == C.ENCODING_E_AC3_JOC) {
       return Ac3Util.parseEAc3SyncframeAudioSampleCount(buffer);
     } else if (encoding == C.ENCODING_AC4) {
       return Ac4Util.parseAc4SyncframeAudioSampleCount(buffer);
@@ -1177,11 +1179,10 @@ public final class DefaultAudioSink implements AudioSink {
   @TargetApi(21)
   private int writeNonBlockingWithAvSyncV21(AudioTrack audioTrack, ByteBuffer buffer, int size,
       long presentationTimeUs) {
-    // TODO: Uncomment this when [Internal ref: b/33627517] is clarified or fixed.
-    // if (Util.SDK_INT >= 23) {
-    //   // The underlying platform AudioTrack writes AV sync headers directly.
-    //   return audioTrack.write(buffer, size, WRITE_NON_BLOCKING, presentationTimeUs * 1000);
-    // }
+    if (Util.SDK_INT >= 26) {
+      // The underlying platform AudioTrack writes AV sync headers directly.
+      return audioTrack.write(buffer, size, WRITE_NON_BLOCKING, presentationTimeUs * 1000);
+    }
     if (avSyncHeader == null) {
       avSyncHeader = ByteBuffer.allocate(16);
       avSyncHeader.order(ByteOrder.BIG_ENDIAN);
@@ -1221,6 +1222,15 @@ public final class DefaultAudioSink implements AudioSink {
   @SuppressWarnings("deprecation")
   private static void setVolumeInternalV3(AudioTrack audioTrack, float volume) {
     audioTrack.setStereoVolume(volume, volume);
+  }
+
+  private void playPendingData() {
+    if (!stoppedAudioTrack) {
+      stoppedAudioTrack = true;
+      audioTrackPositionTracker.handleEndOfStream(getWrittenFrames());
+      audioTrack.stop();
+      bytesUntilNextAvSync = 0;
+    }
   }
 
   /** Stores playback parameters with the position and media time at which they apply. */
