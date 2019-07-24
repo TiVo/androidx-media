@@ -54,7 +54,6 @@ public class DefaultRenderersFactory implements RenderersFactory {
    * ongoing playback.
    */
   public static final long DEFAULT_ALLOWED_VIDEO_JOINING_TIME_MS = 5000;
-  protected MediaCodecSelector videoMediaCodecSelector;
 
   /**
    * Modes for using extension renderers. One of {@link #EXTENSION_RENDERER_MODE_OFF}, {@link

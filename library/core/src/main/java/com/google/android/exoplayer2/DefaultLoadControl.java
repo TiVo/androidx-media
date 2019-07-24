@@ -50,7 +50,7 @@ public class DefaultLoadControl implements LoadControl {
    * The default duration of media that must be buffered for playback to resume after a rebuffer, in
    * milliseconds. A rebuffer is defined to be caused by buffer depletion rather than a user action.
    */
-  public static final int DEFAULT_BUFFER_FOR_PLAYBACK_AFTER_REBUFFER_MS = 200;
+  public static final int DEFAULT_BUFFER_FOR_PLAYBACK_AFTER_REBUFFER_MS = 5000;
 
   /**
    * The default target buffer size in bytes. The value ({@link C#LENGTH_UNSET}) means that the load
