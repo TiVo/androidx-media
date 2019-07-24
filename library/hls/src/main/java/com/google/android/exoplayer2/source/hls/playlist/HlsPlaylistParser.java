@@ -29,6 +29,7 @@ import com.google.android.exoplayer2.metadata.Metadata;
 import com.google.android.exoplayer2.source.UnrecognizedInputFormatException;
 import com.google.android.exoplayer2.source.hls.HlsTrackMetadataEntry;
 import com.google.android.exoplayer2.source.hls.HlsTrackMetadataEntry.VariantInfo;
+import com.google.android.exoplayer2.source.hls.playlist.HlsMasterPlaylist.IFrameVariant;
 import com.google.android.exoplayer2.source.hls.playlist.HlsMasterPlaylist.Rendition;
 import com.google.android.exoplayer2.source.hls.playlist.HlsMasterPlaylist.Variant;
 import com.google.android.exoplayer2.source.hls.playlist.HlsMediaPlaylist.Segment;
@@ -67,6 +68,7 @@ public final class HlsPlaylistParser implements ParsingLoadable.Parser<HlsPlayli
   private static final String TAG_PLAYLIST_TYPE = "#EXT-X-PLAYLIST-TYPE";
   private static final String TAG_DEFINE = "#EXT-X-DEFINE";
   private static final String TAG_STREAM_INF = "#EXT-X-STREAM-INF";
+  private static final String TAG_STREAM_IFRAME = "#EXT-X-I-FRAME-STREAM-INF";
   private static final String TAG_MEDIA = "#EXT-X-MEDIA";
   private static final String TAG_TARGET_DURATION = "#EXT-X-TARGETDURATION";
   private static final String TAG_DISCONTINUITY = "#EXT-X-DISCONTINUITY";
@@ -259,6 +261,7 @@ public final class HlsPlaylistParser implements ParsingLoadable.Parser<HlsPlayli
     HashMap<Uri, ArrayList<VariantInfo>> urlToVariantInfos = new HashMap<>();
     HashMap<String, String> variableDefinitions = new HashMap<>();
     ArrayList<Variant> variants = new ArrayList<>();
+    ArrayList<IFrameVariant> iFrameVariants = new ArrayList<>();
     ArrayList<Rendition> videos = new ArrayList<>();
     ArrayList<Rendition> audios = new ArrayList<>();
     ArrayList<Rendition> subtitles = new ArrayList<>();
@@ -300,38 +303,11 @@ public final class HlsPlaylistParser implements ParsingLoadable.Parser<HlsPlayli
           sessionKeyDrmInitData.add(new DrmInitData(scheme, schemeData));
         }
       } else if (line.startsWith(TAG_STREAM_INF)) {
+        String formatId = Integer.toString(variants.size());
+
         noClosedCaptions |= line.contains(ATTR_CLOSED_CAPTIONS_NONE);
-        int bitrate = parseIntAttr(line, REGEX_BANDWIDTH);
-        String averageBandwidthString =
-            parseOptionalStringAttr(line, REGEX_AVERAGE_BANDWIDTH, variableDefinitions);
-        if (averageBandwidthString != null) {
-          // If available, the average bandwidth attribute is used as the variant's bitrate.
-          bitrate = Integer.parseInt(averageBandwidthString);
-        }
-        String codecs = parseOptionalStringAttr(line, REGEX_CODECS, variableDefinitions);
-        String resolutionString =
-            parseOptionalStringAttr(line, REGEX_RESOLUTION, variableDefinitions);
-        int width;
-        int height;
-        if (resolutionString != null) {
-          String[] widthAndHeight = resolutionString.split("x");
-          width = Integer.parseInt(widthAndHeight[0]);
-          height = Integer.parseInt(widthAndHeight[1]);
-          if (width <= 0 || height <= 0) {
-            // Resolution string is invalid.
-            width = Format.NO_VALUE;
-            height = Format.NO_VALUE;
-          }
-        } else {
-          width = Format.NO_VALUE;
-          height = Format.NO_VALUE;
-        }
-        float frameRate = Format.NO_VALUE;
-        String frameRateString =
-            parseOptionalStringAttr(line, REGEX_FRAME_RATE, variableDefinitions);
-        if (frameRateString != null) {
-          frameRate = Float.parseFloat(frameRateString);
-        }
+        int bitrate = parseStreamBitrate(variableDefinitions, line);
+        Format format = parseVideoContainerFormat(variableDefinitions, line, formatId, bitrate);
         String videoGroupId = parseOptionalStringAttr(line, REGEX_VIDEO, variableDefinitions);
         String audioGroupId = parseOptionalStringAttr(line, REGEX_AUDIO, variableDefinitions);
         String subtitlesGroupId =
@@ -342,20 +318,7 @@ public final class HlsPlaylistParser implements ParsingLoadable.Parser<HlsPlayli
             replaceVariableReferences(
                 iterator.next(), variableDefinitions); // #EXT-X-STREAM-INF's URI.
         Uri uri = UriUtil.resolveToUri(baseUri, line);
-        Format format =
-            Format.createVideoContainerFormat(
-                /* id= */ Integer.toString(variants.size()),
-                /* label= */ null,
-                /* containerMimeType= */ MimeTypes.APPLICATION_M3U8,
-                /* sampleMimeType= */ null,
-                codecs,
-                bitrate,
-                width,
-                height,
-                frameRate,
-                /* initializationData= */ null,
-                /* selectionFlags= */ 0,
-                /* roleFlags= */ 0);
+
         Variant variant =
             new Variant(
                 uri, format, videoGroupId, audioGroupId, subtitlesGroupId, closedCaptionsGroupId);
@@ -368,6 +331,16 @@ public final class HlsPlaylistParser implements ParsingLoadable.Parser<HlsPlayli
         variantInfosForUrl.add(
             new VariantInfo(
                 bitrate, videoGroupId, audioGroupId, subtitlesGroupId, closedCaptionsGroupId));
+      } else if (line.startsWith(TAG_STREAM_IFRAME)) {
+        String formatId = "iframe...";    // TODO, use this maybe to identify the iFrame Format?
+
+        int bitrate = parseStreamBitrate(variableDefinitions, line);
+        Format format = parseVideoContainerFormat(variableDefinitions, line, formatId, bitrate);
+
+        String iframeUri = parseStringAttr(line, REGEX_URI, variableDefinitions);
+        Uri uri = UriUtil.resolveToUri(baseUri, iframeUri);
+
+        iFrameVariants.add(new IFrameVariant(uri, format));
       }
     }
 
@@ -522,6 +495,7 @@ public final class HlsPlaylistParser implements ParsingLoadable.Parser<HlsPlayli
         baseUri,
         tags,
         deduplicatedVariants,
+        iFrameVariants,
         videos,
         audios,
         subtitles,
@@ -531,6 +505,59 @@ public final class HlsPlaylistParser implements ParsingLoadable.Parser<HlsPlayli
         hasIndependentSegmentsTag,
         variableDefinitions,
         sessionKeyDrmInitData);
+  }
+
+  private static int parseStreamBitrate(HashMap<String, String> variableDefinitions, String line)
+      throws ParserException {
+    int bitrate = parseIntAttr(line, REGEX_BANDWIDTH);
+    String averageBandwidthString =
+        parseOptionalStringAttr(line, REGEX_AVERAGE_BANDWIDTH, variableDefinitions);
+    if (averageBandwidthString != null) {
+      // If available, the average bandwidth attribute is used as the variant's bitrate.
+      bitrate = Integer.parseInt(averageBandwidthString);
+    }
+    return bitrate;
+  }
+
+  private static Format parseVideoContainerFormat(HashMap<String, String> variableDefinitions,
+      String line, String formatId, int bitrate) {
+    String codecs = parseOptionalStringAttr(line, REGEX_CODECS, variableDefinitions);
+    String resolutionString =
+        parseOptionalStringAttr(line, REGEX_RESOLUTION, variableDefinitions);
+    int width;
+    int height;
+    if (resolutionString != null) {
+      String[] widthAndHeight = resolutionString.split("x");
+      width = Integer.parseInt(widthAndHeight[0]);
+      height = Integer.parseInt(widthAndHeight[1]);
+      if (width <= 0 || height <= 0) {
+        // Resolution string is invalid.
+        width = Format.NO_VALUE;
+        height = Format.NO_VALUE;
+      }
+    } else {
+      width = Format.NO_VALUE;
+      height = Format.NO_VALUE;
+    }
+    float frameRate = Format.NO_VALUE;
+    String frameRateString =
+        parseOptionalStringAttr(line, REGEX_FRAME_RATE, variableDefinitions);
+    if (frameRateString != null) {
+      frameRate = Float.parseFloat(frameRateString);
+    }
+    return Format.createVideoContainerFormat(
+        /* id= */ formatId,
+        /* label= */ null,
+        /* containerMimeType= */ MimeTypes.APPLICATION_M3U8,
+        /* sampleMimeType= */ null,
+        codecs,
+        bitrate,
+        width,
+        height,
+        frameRate,
+        /* initializationData= */ null,
+        /* selectionFlags= */ 0,
+        /* roleFlags= */ 0);
   }
 
   private static Variant getVariantWithAudioGroup(ArrayList<Variant> variants, String groupId) {

@@ -32,6 +32,7 @@ import com.google.android.exoplayer2.source.SequenceableLoader;
 import com.google.android.exoplayer2.source.TrackGroup;
 import com.google.android.exoplayer2.source.TrackGroupArray;
 import com.google.android.exoplayer2.source.hls.playlist.HlsMasterPlaylist;
+import com.google.android.exoplayer2.source.hls.playlist.HlsMasterPlaylist.IFrameVariant;
 import com.google.android.exoplayer2.source.hls.playlist.HlsMasterPlaylist.Rendition;
 import com.google.android.exoplayer2.source.hls.playlist.HlsMasterPlaylist.Variant;
 import com.google.android.exoplayer2.source.hls.playlist.HlsPlaylistTracker;
@@ -447,6 +448,7 @@ public final class HlsMediaPeriod implements MediaPeriod, HlsSampleStreamWrapper
             : Collections.emptyMap();
 
     boolean hasVariants = !masterPlaylist.variants.isEmpty();
+    boolean hasIFrameVariants = !masterPlaylist.iFrameVariants.isEmpty();
     List<Rendition> audioRenditions = masterPlaylist.audios;
     List<Rendition> subtitleRenditions = masterPlaylist.subtitles;
 
@@ -461,6 +463,15 @@ public final class HlsMediaPeriod implements MediaPeriod, HlsSampleStreamWrapper
           sampleStreamWrappers,
           manifestUrlIndicesPerWrapper,
           overridingDrmInitData);
+    }
+
+    if (hasIFrameVariants) {
+      buildAndPrepareIFrameSampleStreamWrappers(
+          masterPlaylist,
+          positionUs,
+          sampleStreamWrappers,
+          overridingDrmInitData
+      );
     }
 
     // TODO: Build video stream wrappers here.
@@ -649,6 +660,45 @@ public final class HlsMediaPeriod implements MediaPeriod, HlsSampleStreamWrapper
           0,
           new TrackGroupArray(id3TrackGroup));
     }
+  }
+
+  /**
+   * Build a set of SampleStream wrappers around the IFrame (IDR) only variants found
+   * for the MediaPeriod at positionUS.
+   *
+   * @param masterPlaylist - master playlist with the IFrame variants
+   * @param positionUs - position to begin loading samples from
+   * @param sampleStreamWrappers - [output] list is filled.
+   */
+  private void buildAndPrepareIFrameSampleStreamWrappers(
+      HlsMasterPlaylist masterPlaylist,
+      long positionUs,
+      List<HlsSampleStreamWrapper> sampleStreamWrappers,
+      Map<String, DrmInitData> overridingDrmInitData) {
+
+    int selectedVariantsCount = masterPlaylist.iFrameVariants.size();
+    Uri[] selectedPlaylistUrls = new Uri[selectedVariantsCount];
+    Format[] selectedPlaylistFormats = new Format[selectedVariantsCount];
+    int[] selectedVariantIndices = new int[selectedVariantsCount];
+
+    int outIndex = 0;
+    for (IFrameVariant iFrameVariant : masterPlaylist.iFrameVariants) {
+      selectedPlaylistUrls[outIndex] = iFrameVariant.url;
+      selectedPlaylistFormats[outIndex] = iFrameVariant.format;
+      selectedVariantIndices[outIndex] = outIndex++;
+    }
+
+    HlsSampleStreamWrapper sampleStreamWrapper =
+        buildSampleStreamWrapper(
+            C.TRACK_TYPE_VIDEO,
+            selectedPlaylistUrls,
+            selectedPlaylistFormats,
+            /* muxedAudioFormat= */ null,
+            /* muxedCaptionFormats= */ Collections.emptyList(),
+            overridingDrmInitData,
+            positionUs);
+    sampleStreamWrappers.add(sampleStreamWrapper);
+
   }
 
   private void buildAndPrepareAudioSampleStreamWrappers(
