@@ -108,6 +108,7 @@ public final class HlsMediaPeriodTest {
         "http://baseUri",
         /* tags= */ Collections.emptyList(),
         variants,
+        /* iframes= */ Collections.emptyList(),
         /* videos= */ Collections.emptyList(),
         audios,
         subtitles,
