@@ -248,17 +248,17 @@ class TrickPlayController implements TrickPlayControl {
                 break;
 
             case FF2:
-                speed = 6.0f;
+                speed = 15.0f;
                 break;
             case FR2:
-                speed = -6.0f;
+                speed = -15.0f;
                 break;
 
             case FF3:
-                speed = 8.0f;
+                speed = 30.0f;
                 break;
             case FR3:
-                speed = -8.0f;
+                speed = -30.0f;
                 break;
 
             case NORMAL:
@@ -273,7 +273,7 @@ class TrickPlayController implements TrickPlayControl {
         return speedsForMode.get(mode);
     }
 
-    private void setAudioTracksDisabled() {
+    private void switchToTrickPlayTracks() {
         DefaultTrackSelector.Parameters trackSelectorParameters = trackSelector.getParameters();
         DefaultTrackSelector.ParametersBuilder builder = trackSelectorParameters.buildUpon();
 
@@ -308,7 +308,8 @@ class TrickPlayController implements TrickPlayControl {
 
     @Override
     public RenderersFactory createRenderersFactory(Context context) {
-        return new TrickPlayRendererFactory(context, this);
+//        return new TrickPlayRendererFactory(context, this);
+        return new DefaultRenderersFactory(context);
     }
 
     @Override
@@ -363,7 +364,7 @@ class TrickPlayController implements TrickPlayControl {
                 case FF3:
                     Log.d(TAG, "Start trickplay " + newMode + " at media time " + player.getCurrentPosition());
                     destroyTrickPlayMessageHandler();
-                    setAudioTracksDisabled();
+                    switchToTrickPlayTracks();
                     player.setPlayWhenReady(true);
                     player.setPlaybackParameters(new PlaybackParameters(speed));
                     break;
@@ -389,7 +390,7 @@ class TrickPlayController implements TrickPlayControl {
                 default:
                     Log.d(TAG, "Start trickplay " + newMode + " at media time " + player.getCurrentPosition());
 
-                    setAudioTracksDisabled();
+                    switchToTrickPlayTracks();
                     player.setPlayWhenReady(false);
                     startTrickPlayMessageHandler();
                     break;

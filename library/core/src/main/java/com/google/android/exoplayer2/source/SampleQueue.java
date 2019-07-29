@@ -25,7 +25,6 @@ import com.google.android.exoplayer2.extractor.TrackOutput;
 import com.google.android.exoplayer2.source.SampleMetadataQueue.SampleExtrasHolder;
 import com.google.android.exoplayer2.upstream.Allocation;
 import com.google.android.exoplayer2.upstream.Allocator;
-import com.google.android.exoplayer2.util.Log;
 import com.google.android.exoplayer2.util.ParsableByteArray;
 import java.io.EOFException;
 import java.io.IOException;
@@ -601,8 +600,6 @@ public class SampleQueue implements TrackOutput {
       pendingSplice = false;
     }
     long absoluteOffset = totalBytesWritten - size - offset;
-    Log.d("TS", "commit sample: timeUs: " + timeUs + " format: " + metadataQueue.getUpstreamFormat().sampleMimeType + " offset:" + offset + " size:" + size + " flags: " + flags);
-
     metadataQueue.commitSample(timeUs, flags, absoluteOffset, size, cryptoData);
   }
 

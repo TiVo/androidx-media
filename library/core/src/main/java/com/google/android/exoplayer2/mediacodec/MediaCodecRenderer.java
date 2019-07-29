@@ -1070,8 +1070,6 @@ public abstract class MediaCodecRenderer extends BaseRenderer {
       }
       return false;
     }
-//    Log.d("TRICK-PLAY", buffer.timeUs + " frame queued, isKey: " + buffer.isKeyFrame());
-
     if (waitingForFirstSyncSample && !buffer.isKeyFrame()) {
       buffer.clear();
       if (codecReconfigurationState == RECONFIGURATION_STATE_QUEUE_PENDING) {
@@ -1518,8 +1516,6 @@ public abstract class MediaCodecRenderer extends BaseRenderer {
               isLastOutputBuffer,
               outputFormat);
     }
-
-//    Log.d("TRICK-PLAY", positionUs + " frame output PTS " + outputBufferInfo.presentationTimeUs + " flags: " + outputBufferInfo.flags);
 
     if (processedOutputBuffer) {
       onProcessedOutputBuffer(outputBufferInfo.presentationTimeUs);

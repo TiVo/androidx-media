@@ -21,6 +21,7 @@ import com.google.android.exoplayer2.drm.DrmInitData;
 import com.google.android.exoplayer2.drm.DrmSessionManager;
 import com.google.android.exoplayer2.source.SampleStream;
 import com.google.android.exoplayer2.util.Assertions;
+import com.google.android.exoplayer2.util.Log;
 import com.google.android.exoplayer2.util.MediaClock;
 import java.io.IOException;
 
@@ -305,12 +306,16 @@ public abstract class BaseRenderer implements Renderer, RendererCapabilities {
    */
   protected final int readSource(FormatHolder formatHolder, DecoderInputBuffer buffer,
       boolean formatRequired) {
+
     int result = stream.readData(formatHolder, buffer, formatRequired);
+    Log.d("TRICK-PLAY", readingPositionUs + " readSource() - returns: " + result);
     if (result == C.RESULT_BUFFER_READ) {
       if (buffer.isEndOfStream()) {
         readingPositionUs = C.TIME_END_OF_SOURCE;
         return streamIsFinal ? C.RESULT_BUFFER_READ : C.RESULT_NOTHING_READ;
       }
+      Log.d("TRICK-PLAY", readingPositionUs + " readSource() - buffer.timeUs: " + buffer.timeUs);
+
       buffer.timeUs += streamOffsetUs;
       readingPositionUs = Math.max(readingPositionUs, buffer.timeUs);
     } else if (result == C.RESULT_FORMAT_READ) {
