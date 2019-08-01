@@ -96,6 +96,28 @@ public final class HlsMasterPlaylist extends HlsPlaylist {
     }
 
     /**
+     * Construct a Variant with only an (optional) video Rendition (for example, EXT-X-I-FRAME-STREAM-INF
+     * only allows alternate VIDEO Renditions, these are suggested if the non-Iframe Variant includes
+     * alternate video Rendition but not required)
+     *
+     * @param url See {@link #url}.
+     * @param format See {@link #format}.
+     * @param videoGroupId See {@link #videoGroupId}.
+     */
+    public Variant(
+        Uri url,
+        Format format,
+        @Nullable String videoGroupId) {
+      this(
+          url,
+          format,
+          videoGroupId,
+          /* audioGroupId */null,
+          /* subtitleGroupId */null,
+          /* captionGroupId */null);
+    }
+
+    /**
      * Creates a variant for a given media playlist url.
      *
      * @param url The media playlist url.
@@ -125,49 +147,6 @@ public final class HlsMasterPlaylist extends HlsPlaylist {
     /** Returns a copy of this instance with the given {@link Format}. */
     public Variant copyWithFormat(Format format) {
       return new Variant(url, format, videoGroupId, audioGroupId, subtitleGroupId, captionGroupId);
-    }
-  }
-
-  /** An I-Frame only variant (i.e. an #EXT-X-I-FRAME-STREAM-INF tag) in a master playlist. */
-  public static final class IFrameVariant {
-
-    /** The variant's url. */
-    public final Uri url;
-
-    /** Format information associated with this variant. */
-    public final @Nullable Format format;
-
-    /**
-     * @param url See {@link #url}.
-     * @param format See {@link #format}.
-     */
-    public IFrameVariant(
-        Uri url,
-        Format format) {
-      this.url = url;
-      this.format = format;
-    }
-
-    /**
-     * Creates an I-Frame Only variant for a given iframe only media playlist url.
-     *
-     * @param url The iframe only playlist url.
-     * @return The IFrameVariant instance.
-     */
-    public static IFrameVariant createIFrameOnlyMediaPlaylistVariantUrl(Uri url) {
-      Format format = null;
-      return new IFrameVariant(
-          url,
-          format
-          /* videoGroupId= */
-          /* audioGroupId= */
-          /* subtitleGroupId= */
-          /* captionGroupId= */);
-    }
-
-    /** Returns a copy of this instance with the given {@link Format}. */
-    public IFrameVariant copyWithFormat(Format format) {
-      return new IFrameVariant(url, format);
     }
   }
 
@@ -206,7 +185,7 @@ public final class HlsMasterPlaylist extends HlsPlaylist {
   /** The variants declared by the playlist. */
   public final List<Variant> variants;
   /** The IFrame only playlist declared by the playlist, if any. */
-  public final List<IFrameVariant> iFrameVariants;
+  public final List<Variant> iFrameVariants;
   /** The video renditions declared by the playlist. */
   public final List<Rendition> videos;
   /** The audio renditions declared by the playlist. */
@@ -251,7 +230,7 @@ public final class HlsMasterPlaylist extends HlsPlaylist {
           String baseUri,
           List<String> tags,
           List<Variant> variants,
-          List<IFrameVariant> iFrameVariants,
+          List<Variant> iFrameVariants,
           List<Rendition> videos,
           List<Rendition> audios,
           List<Rendition> subtitles,
@@ -325,7 +304,7 @@ public final class HlsMasterPlaylist extends HlsPlaylist {
 
   private static List<Uri> getMediaPlaylistUrls(
       List<Variant> variants,
-      List<IFrameVariant> iFrameVariants,
+      List<Variant> iFrameVariants,
       List<Rendition> videos,
       List<Rendition> audios,
       List<Rendition> subtitles,
@@ -337,7 +316,7 @@ public final class HlsMasterPlaylist extends HlsPlaylist {
         mediaPlaylistUrls.add(uri);
       }
     }
-    for (IFrameVariant iFrameVariant : iFrameVariants) {
+    for (Variant iFrameVariant : iFrameVariants) {
       mediaPlaylistUrls.add(iFrameVariant.url);
     }
     addMediaPlaylistUrls(videos, mediaPlaylistUrls);
