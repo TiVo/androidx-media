@@ -270,32 +270,14 @@ import java.util.Map;
       SampleStream[] streams, boolean[] streamResetFlags, long positionUs, boolean forceReset) {
     Assertions.checkState(prepared);
     int oldEnabledTrackGroupCount = enabledTrackGroupCount;
-
-    // Get the old (i.e. current before the loop below executes) primary track selection. The new
-    // primary selection will equal the old one unless it's changed in the loop.
-    TrackSelection oldPrimaryTrackSelection = chunkSource.getTrackSelection();
-    TrackSelection primaryTrackSelection = oldPrimaryTrackSelection;
-
+    // Deselect old tracks.
     for (int i = 0; i < selections.length; i++) {
-      TrackSelection selection = selections[i];
-
-      // Deselect old tracks, discarding the sample stream unless mayRetainStream is set
-      if (streams[i] != null && (selection == null || !mayRetainStreamFlags[i])) {
+      if (streams[i] != null && (selections[i] == null || !mayRetainStreamFlags[i])) {
         enabledTrackGroupCount--;
         ((HlsSampleStream) streams[i]).unbindSampleQueue();
         streams[i] = null;
       }
-
-      // update the possibly changed reference to the track selection for the primary track group
-      if (selection != null) {
-        int trackGroupIndex = trackGroups.indexOf(selection.getTrackGroup());
-        if (trackGroupIndex == primaryTrackGroupIndex) {
-          primaryTrackSelection = selection;
-          chunkSource.selectTracks(selection);
-        }
-      }
     }
-
     // We'll always need to seek if we're being forced to reset, or if this is a first selection to
     // a position other than the one we started preparing with, or if we're making a selection
     // having previously disabled all tracks.
@@ -304,12 +286,23 @@ import java.util.Map;
             || (seenFirstTrackSelection
                 ? oldEnabledTrackGroupCount == 0
                 : positionUs != lastSeekPositionUs);
-
+    // Get the old (i.e. current before the loop below executes) primary track selection. The new
+    // primary selection will equal the old one unless it's changed in the loop.
+    TrackSelection oldPrimaryTrackSelection = chunkSource.getTrackSelection();
+    TrackSelection primaryTrackSelection = oldPrimaryTrackSelection;
     // Select new tracks.
     for (int i = 0; i < selections.length; i++) {
-      if (streams[i] == null && selections[i] != null) {
+      TrackSelection selection = selections[i];
+      if (selection == null) {
+        continue;
+      }
+      int trackGroupIndex = trackGroups.indexOf(selection.getTrackGroup());
+      if (trackGroupIndex == primaryTrackGroupIndex) {
+        primaryTrackSelection = selection;
+        chunkSource.setTrackSelection(selection);
+      }
+      if (streams[i] == null) {
         enabledTrackGroupCount++;
-        int trackGroupIndex = trackGroups.indexOf(selections[i].getTrackGroup());
         streams[i] = new HlsSampleStream(this, trackGroupIndex);
         streamResetFlags[i] = true;
         if (trackGroupToSampleQueueIndex != null) {
