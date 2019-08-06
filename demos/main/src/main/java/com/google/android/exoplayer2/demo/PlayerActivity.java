@@ -618,7 +618,7 @@ public class PlayerActivity extends AppCompatActivity
     playerView.setPlayer(player);
     playerView.setPlaybackPreparer(this);
 
-    debugViewHelper = new DebugTextViewHelper(player, debugTextView);
+    debugViewHelper = new DebugTextViewHelper(player, debugTextView, trickPlayControl);
     debugViewHelper.start();
 
   }

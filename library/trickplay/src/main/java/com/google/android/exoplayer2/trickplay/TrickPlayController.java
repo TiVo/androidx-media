@@ -241,24 +241,24 @@ class TrickPlayController implements TrickPlayControl {
 
         switch (mode) {
             case FF1:
-                speed = 2.0f;
-                break;
-            case FR1:
-                speed = -2.0f;
-                break;
-
-            case FF2:
                 speed = 15.0f;
                 break;
-            case FR2:
+            case FR1:
                 speed = -15.0f;
                 break;
 
-            case FF3:
+            case FF2:
                 speed = 30.0f;
                 break;
-            case FR3:
+            case FR2:
                 speed = -30.0f;
+                break;
+
+            case FF3:
+                speed = 60.0f;
+                break;
+            case FR3:
+                speed = -60.0f;
                 break;
 
             case NORMAL:
@@ -269,7 +269,8 @@ class TrickPlayController implements TrickPlayControl {
         return speed;
     }
 
-    private Float getSpeedFor(TrickMode mode) {
+    @Override
+    public Float getSpeedFor(TrickMode mode) {
         return speedsForMode.get(mode);
     }
 

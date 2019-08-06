@@ -18,7 +18,6 @@ import com.google.android.exoplayer2.util.MediaClock;
  */
 public interface TrickPlayControl {
 
-
     /**
      * Create factory for Renderers that are suitable for use with trick-play.
      *
@@ -51,6 +50,20 @@ public interface TrickPlayControl {
      * @return previous TrickMode
      */
     TrickMode setTrickMode(TrickMode newMode);
+
+
+    /**
+     * Get the acutal playback speed represented by the {@see TrickMode}, mode.
+     *
+     * This will reflect the availability of high speed playback support (eg via IFrame only playlist)
+     * once the {@see TrickPlayEventListener} signals that high speed support was enabled.  Prior
+     * to this default speeds are returned.
+     *
+     *
+     * @param mode
+     * @return
+     */
+    Float getSpeedFor(TrickMode mode);
 
     /**
      * Add event listener for changes to trickplay state
