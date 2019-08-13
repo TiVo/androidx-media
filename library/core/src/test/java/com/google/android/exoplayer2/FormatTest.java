@@ -49,7 +49,8 @@ public final class FormatTest {
     initData = Collections.unmodifiableList(initDataList);
   }
 
-  @Test void testCopyWithContainerData() {
+  @Test
+  public void testCopyWithContainerData() {
     Format testManifestFormat =
         Format.createAudioContainerFormat(
             /* id= */ "0",
