@@ -1065,17 +1065,20 @@ public final class Format implements Parcelable {
       int height,
       int channelCount,
       @C.SelectionFlags int selectionFlags,
+      @C.RoleFlags int roleFlags,
       @Nullable String language) {
 
     if (this.metadata != null) {
       metadata = this.metadata.copyWithAppendedEntriesFrom(metadata);
     }
 
+    @C.RoleFlags int mergedRoleFlags = this.roleFlags | roleFlags;
+
     return new Format(
         id,
         label,
         selectionFlags,
-        roleFlags,
+        mergedRoleFlags,
         bitrate,
         codecs,
         metadata,

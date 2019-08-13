@@ -23,6 +23,7 @@ import static com.google.common.truth.Truth.assertThat;
 import android.os.Parcel;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import com.google.android.exoplayer2.drm.DrmInitData;
+import com.google.android.exoplayer2.extractor.MpegAudioHeader;
 import com.google.android.exoplayer2.metadata.Metadata;
 import com.google.android.exoplayer2.metadata.id3.TextInformationFrame;
 import com.google.android.exoplayer2.testutil.TestUtil;
@@ -46,6 +47,43 @@ public final class FormatTest {
     initDataList.add(initData1);
     initDataList.add(initData2);
     initData = Collections.unmodifiableList(initDataList);
+  }
+
+  @Test void testCopyWithContainerData() {
+    Format testManifestFormat =
+        Format.createAudioContainerFormat(
+            /* id= */ "0",
+            /* label= */ null,
+            /* containerMimeType= */ MimeTypes.APPLICATION_M3U8,
+            MimeTypes.AUDIO_AAC,
+            null,
+            /* bitrate= */ Format.NO_VALUE,
+            1,
+            /* sampleRate= */ Format.NO_VALUE,
+            /* initializationData= */ null,
+            0,
+            C.ROLE_FLAG_DESCRIBES_VIDEO,
+            null);
+
+    Format sampleFormat = Format.createAudioSampleFormat("1", null, null,
+        Format.NO_VALUE, MpegAudioHeader.MAX_FRAME_SIZE_BYTES, 2, 44000,
+        null, null, 0, null);
+
+    Format merged = sampleFormat.copyWithContainerInfo(
+        testManifestFormat.id,
+        testManifestFormat.label,
+        sampleFormat.sampleMimeType,
+            null,
+        testManifestFormat.metadata,
+            1,
+        testManifestFormat.width,
+        testManifestFormat.height,
+            1,
+        testManifestFormat.selectionFlags,
+        testManifestFormat.roleFlags,
+        testManifestFormat.language);
+
+    assertThat(merged.roleFlags).isEqualTo(C.ROLE_FLAG_DESCRIBES_VIDEO);
   }
 
   @Test

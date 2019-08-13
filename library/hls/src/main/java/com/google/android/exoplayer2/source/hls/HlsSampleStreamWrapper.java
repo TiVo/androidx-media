@@ -1136,6 +1136,7 @@ import java.util.Map;
         playlistFormat.height,
         channelCount,
         playlistFormat.selectionFlags,
+        playlistFormat.roleFlags,
         playlistFormat.language);
   }
 
