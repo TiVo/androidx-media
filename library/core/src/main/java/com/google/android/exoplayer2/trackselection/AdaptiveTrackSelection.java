@@ -25,6 +25,7 @@ import com.google.android.exoplayer2.source.chunk.MediaChunkIterator;
 import com.google.android.exoplayer2.upstream.BandwidthMeter;
 import com.google.android.exoplayer2.util.Assertions;
 import com.google.android.exoplayer2.util.Clock;
+import com.google.android.exoplayer2.util.Log;
 import com.google.android.exoplayer2.util.Util;
 import java.util.ArrayList;
 import java.util.List;
@@ -304,6 +305,7 @@ public class AdaptiveTrackSelection extends BaseTrackSelection {
           clock);
     }
   }
+  public static final String TAG = "EXO-ATS";
 
   public static final int DEFAULT_MIN_DURATION_FOR_QUALITY_INCREASE_MS = 10000;
   public static final int DEFAULT_MAX_DURATION_FOR_QUALITY_DECREASE_MS = 25000;
@@ -494,6 +496,7 @@ public class AdaptiveTrackSelection extends BaseTrackSelection {
     if (reason == C.SELECTION_REASON_UNKNOWN) {
       reason = C.SELECTION_REASON_INITIAL;
       selectedIndex = determineIdealSelectedIndex(nowMs, trackBitrates);
+      Log.d(TAG, "Initial selection - indx: " + selectedIndex + " format: "+ getFormat(selectedIndex));
       return;
     }
 
@@ -512,6 +515,8 @@ public class AdaptiveTrackSelection extends BaseTrackSelection {
           && bufferedDurationUs < minDurationForQualityIncreaseUs(availableDurationUs)) {
         // The selected track is a higher quality, but we have insufficient buffer to safely switch
         // up. Defer switching up for now.
+        Log.d(TAG, "Adaptive selection - check min failed: " + selectedIndex + " avail: " + availableDurationUs + " buffered: "+bufferedDurationUs);
+
         selectedIndex = currentSelectedIndex;
       } else if (selectedFormat.bitrate < currentFormat.bitrate
           && bufferedDurationUs >= maxDurationForQualityDecreaseUs) {
@@ -523,6 +528,9 @@ public class AdaptiveTrackSelection extends BaseTrackSelection {
     // If we adapted, update the trigger.
     if (selectedIndex != currentSelectedIndex) {
       reason = C.SELECTION_REASON_ADAPTIVE;
+      Log.d(TAG, "Adaptive selection - old/new idx: " + selectedIndex + "/" + currentSelectedIndex + " format: "+ getFormat(selectedIndex));
+      Log.d(TAG, "Pos: " + playbackPositionUs + " buffered " + bufferedDurationUs + " available " + availableDurationUs + " queue len: " + queue.size());
+
     }
   }
 
