@@ -9,6 +9,7 @@ import androidx.annotation.Nullable;
 
 
 import com.google.android.exoplayer2.DefaultRenderersFactory;
+import com.google.android.exoplayer2.LoadControl;
 import java.util.Collections;
 import java.util.EnumMap;
 import java.util.Map;
@@ -163,6 +164,10 @@ class TrickPlayController implements TrickPlayControl {
         }
     }
 
+    /**
+     * Handles messages in the callers thread (thread that created the {@see TrickPlayController} and called
+     * {@see #setTrickMode}.
+     */
     private class TrickPlayMessageHandler extends Handler {
 
         public static final int MSG_TRICKPLAY_STARTSEEK = 1;
@@ -311,6 +316,11 @@ class TrickPlayController implements TrickPlayControl {
     public RenderersFactory createRenderersFactory(Context context) {
 //        return new TrickPlayRendererFactory(context, this);
         return new DefaultRenderersFactory(context);
+    }
+
+    @Override
+    public LoadControl createLoadControl(LoadControl delegate) {
+        return new AdaptiveLoadControl(this, delegate);
     }
 
     @Override

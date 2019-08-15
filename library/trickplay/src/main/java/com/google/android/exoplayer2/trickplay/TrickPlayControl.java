@@ -3,6 +3,7 @@ package com.google.android.exoplayer2.trickplay;// Copyright 2010 TiVo Inc.  All
 import android.content.Context;
 
 import com.google.android.exoplayer2.ExoPlayerFactory;
+import com.google.android.exoplayer2.LoadControl;
 import com.google.android.exoplayer2.RenderersFactory;
 import com.google.android.exoplayer2.SimpleExoPlayer;
 import com.google.android.exoplayer2.trackselection.DefaultTrackSelector;
@@ -28,6 +29,15 @@ public interface TrickPlayControl {
      * @return RenderersFactory you can pass to {@link ExoPlayerFactory#newSimpleInstance(Context, RenderersFactory, TrackSelector)}
      */
     RenderersFactory createRenderersFactory(Context context);
+
+    /**
+     * Create a LoadControl instance that wraps the 'delegate' LoadControl by adding support
+     * for behaviors required for trick play
+     *
+     * @param delegate
+     * @return
+     */
+    LoadControl createLoadControl(LoadControl delegate);
 
     /**
      * Before the trickplay control can be used it must be bound to a player instance.

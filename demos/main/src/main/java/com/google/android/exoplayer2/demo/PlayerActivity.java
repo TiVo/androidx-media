@@ -35,6 +35,7 @@ import androidx.appcompat.app.AppCompatActivity;
 
 import com.google.android.exoplayer2.C;
 import com.google.android.exoplayer2.C.ContentType;
+import com.google.android.exoplayer2.DefaultLoadControl;
 import com.google.android.exoplayer2.ExoPlaybackException;
 import com.google.android.exoplayer2.ExoPlayerFactory;
 import com.google.android.exoplayer2.PlaybackPreparer;
@@ -607,9 +608,12 @@ public class PlayerActivity extends AppCompatActivity
     trickPlayControl = trickPlayControlFactory.createTrickPlayControl(trackSelector);
     renderersFactory = trickPlayControl.createRenderersFactory(context);
 
+//    player =
+//        ExoPlayerFactory.newSimpleInstance(
+//            /* context= */ this, renderersFactory, trackSelector, drmSessionManager);
     player =
-        ExoPlayerFactory.newSimpleInstance(
-            /* context= */ this, renderersFactory, trackSelector, drmSessionManager);
+        ExoPlayerFactory.newSimpleInstance(context, renderersFactory, trackSelector, trickPlayControl.createLoadControl(new DefaultLoadControl()), drmSessionManager);
+
     trickPlayControl.setPlayer(player);
     player.addListener(new PlayerEventListener());
     player.setPlayWhenReady(startAutoPlay);
