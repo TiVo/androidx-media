@@ -633,7 +633,15 @@ import java.util.Map;
 
   @Override
   public void reevaluateBuffer(long positionUs) {
-    // Do nothing.
+    if (loader.isLoading() || isPendingReset()) {
+      return;
+    }
+
+    int currentQueueSize = mediaChunks.size();
+    int preferredQueueSize = chunkSource.getPreferredQueueSize(positionUs, readOnlyMediaChunks);
+    if (currentQueueSize <= preferredQueueSize) {
+      return;
+    }
   }
 
   // Loader.Callback implementation.
