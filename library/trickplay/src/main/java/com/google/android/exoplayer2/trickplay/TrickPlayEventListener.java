@@ -14,4 +14,14 @@ public interface TrickPlayEventListener {
      * @param isSmoothPlaySupported
      */
     void smoothPlayStateChanged(boolean isSmoothPlaySupported);
+
+    /**
+     * Triggered by the call to change the speed {@see TrickPlayControl#setTrickMode(TrickMode)}.
+     *
+     * Dispatched on the listeners Looper, so it will not re-entrantly call the caller of setTrickMode()
+     *
+     * @param newMode
+     * @param prevMode
+     */
+    void trickPlayModeChanged(TrickPlayControl.TrickMode newMode, TrickPlayControl.TrickMode prevMode);
 }

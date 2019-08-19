@@ -2,6 +2,7 @@ package com.google.android.exoplayer2.trickplay;// Copyright 2010 TiVo Inc.  All
 
 import android.content.Context;
 
+import com.google.android.exoplayer2.ExoPlayer;
 import com.google.android.exoplayer2.ExoPlayerFactory;
 import com.google.android.exoplayer2.LoadControl;
 import com.google.android.exoplayer2.RenderersFactory;
@@ -76,13 +77,18 @@ public interface TrickPlayControl {
     Float getSpeedFor(TrickMode mode);
 
     /**
-     * Add event listener for changes to trickplay state
+     * Add event listener for changes to trickplay state.  Called back with Handler for the
+     * application thread (that started the Player, {@link ExoPlayer#getApplicationLooper()})
+     *
+     * @param eventListener - listener to call back.
      */
     void addEventListener(TrickPlayEventListener eventListener);
 
     /**
      * Remove previously added event listener.  Note, setting a new player ({@link #setPlayer(SimpleExoPlayer)} clears
      * all previously added listeners automatically.
+     *
+     * @param eventListener - listener instance previously added.
      */
     void removeEventListener(TrickPlayEventListener eventListener);
 

@@ -308,18 +308,19 @@ public abstract class BaseRenderer implements Renderer, RendererCapabilities {
       boolean formatRequired) {
 
     int result = stream.readData(formatHolder, buffer, formatRequired);
-    Log.d("TRICK-PLAY", readingPositionUs + " readSource() - returns: " + result);
     if (result == C.RESULT_BUFFER_READ) {
       if (buffer.isEndOfStream()) {
         readingPositionUs = C.TIME_END_OF_SOURCE;
         return streamIsFinal ? C.RESULT_BUFFER_READ : C.RESULT_NOTHING_READ;
       }
-      Log.d("TRICK-PLAY", readingPositionUs + " readSource() - buffer.timeUs: " + buffer.timeUs);
+//      Log.d("TRICK-PLAY", readingPositionUs + " readSource() - buffer.timeUs: " + buffer.timeUs);
 
       buffer.timeUs += streamOffsetUs;
       readingPositionUs = Math.max(readingPositionUs, buffer.timeUs);
     } else if (result == C.RESULT_FORMAT_READ) {
       Format format = formatHolder.format;
+      Log.d("TRICK-PLAY", readingPositionUs + " readSource() - format read: " + format);
+
       if (format.subsampleOffsetUs != Format.OFFSET_SAMPLE_RELATIVE) {
         format = format.copyWithSubsampleOffsetUs(format.subsampleOffsetUs + streamOffsetUs);
         formatHolder.format = format;

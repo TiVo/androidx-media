@@ -8,14 +8,15 @@ import com.google.android.exoplayer2.trackselection.TrackSelectionArray;
 import com.google.android.exoplayer2.upstream.Allocator;
 import com.google.android.exoplayer2.util.Log;
 
-public class AdaptiveLoadControl implements LoadControl {
+public class AdaptiveLoadControl implements LoadControl, TrickPlayEventListener {
 
-  private final TrickPlayController trickPlayController;
+  private final TrickPlayControlInternal trickPlayController;
   private final LoadControl delegate;
 
-  public AdaptiveLoadControl(TrickPlayController controller, LoadControl delegate) {
+  public AdaptiveLoadControl(TrickPlayControlInternal controller, LoadControl delegate) {
     trickPlayController = controller;
     this.delegate = delegate;
+    trickPlayController.addEventListenerInternal(this);
   }
 
   @Override
@@ -74,6 +75,22 @@ public class AdaptiveLoadControl implements LoadControl {
 
   @Override
   public boolean shouldStartPlayback(long bufferedDurationUs, float playbackSpeed, boolean rebuffering) {
-    return delegate.shouldStartPlayback(bufferedDurationUs, playbackSpeed, rebuffering);
+    boolean defaultShouldStart = delegate.shouldStartPlayback(bufferedDurationUs, 1.0f, rebuffering);
+
+    if (! defaultShouldStart) {
+      Log.d("TRICK-PLAY", "shouldStartPlayback false - speed: " + playbackSpeed + " buffered: " + bufferedDurationUs + " rebuffer: " + rebuffering);
+    }
+
+    return defaultShouldStart;
+  }
+
+  @Override
+  public void smoothPlayStateChanged(boolean isSmoothPlaySupported) {
+
+  }
+
+  @Override
+  public void trickPlayModeChanged(TrickPlayControl.TrickMode newMode, TrickPlayControl.TrickMode prevMode) {
+
   }
 }

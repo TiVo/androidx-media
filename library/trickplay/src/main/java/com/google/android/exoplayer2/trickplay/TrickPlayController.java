@@ -35,14 +35,14 @@ import com.google.android.exoplayer2.util.MediaClock;
  *
  * Fast modes are three different rates in each direction including normal playback (which re-enables sound)
  */
-class TrickPlayController implements TrickPlayControl {
+class TrickPlayController implements TrickPlayControlInternal {
 
     private static final String TAG = "TRICK-PLAY";
 
     private @MonotonicNonNull SimpleExoPlayer player;
     private final DefaultTrackSelector trackSelector;
 
-    private final CopyOnWriteArraySet<TrickPlayEventListener> listeners;
+    private final CopyOnWriteArraySet<ListenerRef> listeners;
 
     private TrickMode currentTrickMode = TrickMode.NORMAL;
     private AnalyticsListener playerEventListener;
@@ -52,6 +52,14 @@ class TrickPlayController implements TrickPlayControl {
     private ReversibleMediaClock currentMediaClock = null;
 
     private Map<TrickMode, Float> speedsForMode;
+
+    /** To dispatch events on the Players main handler thread
+     */
+    private Handler playbackHandler;
+
+    /** To dispatch events on the appliation thread that created the ExoPlayer and TrickPlayControl
+     */
+    private Handler applicatonHandler;
 
     TrickPlayController(DefaultTrackSelector trackSelector) {
         this.trackSelector = trackSelector;
@@ -65,6 +73,22 @@ class TrickPlayController implements TrickPlayControl {
         }
 
         this.speedsForMode = Collections.synchronizedMap(initialSpeedsForMode);
+    }
+
+
+    /**
+     * Keeps trick play event listener and context to call it with
+     */
+    private static final class ListenerRef {
+        enum CallType {PLAYER, APPLICATION};
+
+        final CallType callType;
+        final TrickPlayEventListener listener;
+
+        ListenerRef(CallType callType, TrickPlayEventListener listener) {
+            this.callType = callType;
+            this.listener = listener;
+        }
     }
 
     /**
@@ -330,6 +354,8 @@ class TrickPlayController implements TrickPlayControl {
             removePlayerReference();
         }
         this.player = player;
+        playbackHandler = new Handler(player.getPlaybackLooper());
+        applicatonHandler = new Handler(player.getApplicationLooper());
         playerEventListener = new PlayerEventListener();
         this.player.addAnalyticsListener(playerEventListener);
     }
@@ -339,6 +365,19 @@ class TrickPlayController implements TrickPlayControl {
         this.listeners.clear();
         this.player.removeAnalyticsListener(playerEventListener);
         this.player = null;
+    }
+
+    private boolean canUsePlaybackSpeed(TrickMode mode) {
+        boolean canUse = false;
+
+        switch (mode) {
+            case FF1:
+            case FF2:
+            case FF3:
+                canUse = true;
+                break;
+        }
+        return  canUse;
     }
 
     @Override
@@ -352,8 +391,11 @@ class TrickPlayController implements TrickPlayControl {
 
     @Override
     public TrickMode setTrickMode(TrickMode newMode) {
+        TrickMode previousMode = getCurrentTrickMode();
 
-        if (newMode != getCurrentTrickMode()) {
+        // TODO disallow transition from forward to reverse without first normal
+
+        if (newMode != previousMode) {
             float speed = getSpeedFor(newMode);
 
             // Pause playback
@@ -369,57 +411,76 @@ class TrickPlayController implements TrickPlayControl {
              * otherwise use seek based.
              *
              */
-            switch (newMode) {
-                case FF1:
-                case FF2:
-                case FF3:
+            if (newMode == TrickMode.NORMAL) {
+                destroyTrickPlayMessageHandler();
+                player.setPlaybackParameters(PlaybackParameters.DEFAULT);
+
+                long currentPosition = player.getCurrentPosition();
+
+                Log.d(TAG, "Stop trickplay at media time " + currentPosition);
+
+                enableLastSelectedAudioTrack();
+
+                // Seek 1us off from the current position, forces a discontinuity which empties the decoder
+                // which may only have i-frames buffered.
+                //
+//                    player.seekTo(currentPosition > 0 ? currentPosition - 1 : currentPosition + 1);
+
+                player.setPlayWhenReady(true);
+            } else {
+                if (canUsePlaybackSpeed(newMode)) {
                     Log.d(TAG, "Start trickplay " + newMode + " at media time " + player.getCurrentPosition());
                     destroyTrickPlayMessageHandler();
                     switchToTrickPlayTracks();
                     player.setPlayWhenReady(true);
                     player.setPlaybackParameters(new PlaybackParameters(speed));
-                    break;
-
-                case NORMAL:
-                    destroyTrickPlayMessageHandler();
-                    player.setPlaybackParameters(PlaybackParameters.DEFAULT);
-
-                    long currentPosition = player.getCurrentPosition();
-
-                    Log.d(TAG, "Stop trickplay at media time " + currentPosition);
-
-                    enableLastSelectedAudioTrack();
-
-                    // Seek 1us off from the current position, forces a discontinuity which empties the decoder
-                    // which may only have i-frames buffered.
-                    //
-                    player.seekTo(currentPosition > 0 ? currentPosition - 1 : currentPosition + 1);
-
-                    player.setPlayWhenReady(true);
-                    break;
-
-                default:
+                } else {
                     Log.d(TAG, "Start trickplay " + newMode + " at media time " + player.getCurrentPosition());
 
                     switchToTrickPlayTracks();
                     player.setPlayWhenReady(false);
                     startTrickPlayMessageHandler();
-                    break;
-
+                }
             }
 
-
+            dispatchTrickModeChanged(newMode, previousMode);
         }
         return newMode;
     }
 
+    private void dispatchTrickModeChanged(TrickMode newMode, TrickMode prevMode) {
+        for (ListenerRef listenerRef : listeners) {
+            Handler handler = listenerRef.callType == ListenerRef.CallType.APPLICATION ?
+                applicatonHandler : playbackHandler;
+            handler.post(() -> listenerRef.listener.trickPlayModeChanged(newMode, prevMode));
+        }
+    }
+
     @Override
     public void addEventListener(TrickPlayEventListener eventListener) {
-        listeners.add(eventListener);
+        listeners.add(new ListenerRef(ListenerRef.CallType.APPLICATION, eventListener));
     }
 
     @Override
     public void removeEventListener(TrickPlayEventListener eventListener) {
-        listeners.remove(eventListener);
+        removeListenerWithType(eventListener, ListenerRef.CallType.APPLICATION);
+    }
+
+    @Override
+    public void addEventListenerInternal(TrickPlayEventListener eventListener) {
+        listeners.add(new ListenerRef(ListenerRef.CallType.PLAYER, eventListener));
+    }
+
+    @Override
+    public void removeEventListenerInternal(TrickPlayEventListener eventListener) {
+        removeListenerWithType(eventListener, ListenerRef.CallType.PLAYER);
+    }
+
+    private void removeListenerWithType(TrickPlayEventListener eventListener, ListenerRef.CallType callType) {
+        for (ListenerRef listener : listeners) {
+            if (listener.listener == eventListener && listener.callType == callType) {
+                listeners.remove(listener);
+            }
+        }
     }
 }
