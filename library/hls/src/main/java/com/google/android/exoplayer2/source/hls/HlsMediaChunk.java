@@ -26,6 +26,7 @@ import com.google.android.exoplayer2.extractor.ExtractorInput;
 import com.google.android.exoplayer2.metadata.Metadata;
 import com.google.android.exoplayer2.metadata.id3.Id3Decoder;
 import com.google.android.exoplayer2.metadata.id3.PrivFrame;
+import com.google.android.exoplayer2.source.SampleQueue;
 import com.google.android.exoplayer2.source.chunk.MediaChunk;
 import com.google.android.exoplayer2.source.hls.playlist.HlsMediaPlaylist;
 import com.google.android.exoplayer2.upstream.DataSource;
@@ -211,6 +212,12 @@ import java.util.concurrent.atomic.AtomicInteger;
   private volatile boolean loadCanceled;
   private boolean loadCompleted;
 
+  /**
+   * Index of first sample written to the SampleQueue for the primary track from
+   * this segment.
+   */
+  private int firstSampleIndex = C.INDEX_UNSET;
+
   private HlsMediaChunk(
       HlsExtractorFactory extractorFactory,
       DataSource mediaDataSource,
@@ -280,6 +287,15 @@ import java.util.concurrent.atomic.AtomicInteger;
     return loadCompleted;
   }
 
+  /**
+   * Return the index of the first sample from the primary sample stream for this media chunk
+   *
+   * @return sample index {@link SampleQueue#getWriteIndex()}
+   */
+  public int getFirstPrimarySampleIndex() {
+    return firstSampleIndex;
+  }
+
   // Loadable implementation
 
   @Override
@@ -295,6 +311,7 @@ import java.util.concurrent.atomic.AtomicInteger;
       initDataLoadRequired = false;
       output.init(uid, shouldSpliceIn, /* reusingExtractor= */ true);
     }
+    firstSampleIndex = output.getPrimaryTrackWritePosition();
     maybeLoadInitData();
     if (!loadCanceled) {
       if (!hasGapTag) {

@@ -639,38 +639,59 @@ import java.util.Map;
 
     int currentQueueSize = mediaChunks.size();
     int preferredQueueSize = chunkSource.getPreferredQueueSize(positionUs, readOnlyMediaChunks);
-    int chunksToDiscard = currentQueueSize - preferredQueueSize;
-    if (chunksToDiscard > 0) {
-      int removeRangeStart = currentQueueSize - chunksToDiscard;
-      long firstRemovedStartTimeUs = discardMediaChunks(removeRangeStart);
+    if (currentQueueSize > preferredQueueSize) {
+      Log.d(TAG, "reevaluateBuffer() -  position: " + positionUs + " preferredQueueSize: "
+          + preferredQueueSize + " current size: "+ currentQueueSize);
+
+      long firstRemovedStartTimeUs = discardMediaChunks(preferredQueueSize);
       long endTimeUs = getLastMediaChunk().endTimeUs;
       eventDispatcher.upstreamDiscarded(primarySampleQueueType, firstRemovedStartTimeUs, endTimeUs);
     }
-
   }
 
 
   /**
-   * Discards, chunksToDiscard, HlsMediaChunks for the start of the list of mediaChunks.
+   * Discards HlsMediaChunks, after currently playing chunk {@see #haveReadFromMediaChunk}, that have
+   * not yet started to play to allow (hopefully) higher quality chunks to replace them
    *
-   *
-   * @param chunksToDiscard - Count of chunks to discard
-   * @return endTimeUs of last discarded chunk
+   * @param preferredQueueSize - desired media chunk queue size (always < mediaChunks.size())
+   * @return endTimeUs of first chunk removed
    */
-  private long discardMediaChunks(int chunksToDiscard) {
-    long lastDiscardEndTimeUs = mediaChunks.get(chunksToDiscard - 1).endTimeUs;
-
-    Log.d(TAG, "discardChunksToIndex() -  chunksToDiscard " + chunksToDiscard + " count " + mediaChunks.size());
-    for (HlsMediaChunk chunk : mediaChunks) {
-      Log.d(TAG, "chunk " + chunk.uid + " start/end: " + chunk.startTimeUs + "/" + chunk.endTimeUs + " format: "+chunk.trackFormat);
+  private long discardMediaChunks(int preferredQueueSize) {
+    Log.d(TAG, "discardChunksToIndex() -  preferredQueueSize " + preferredQueueSize
+        + " currentSize " + mediaChunks.size()
+        + " write: "+sampleQueues[primarySampleQueueIndex].getWriteIndex()
+        + " read: "+sampleQueues[primarySampleQueueIndex].getReadIndex()
+    );
+    for (int i=0; i<mediaChunks.size(); i++) {
+      HlsMediaChunk chunk = mediaChunks.get(i);
+      Log.d(TAG, "chunk " + chunk.uid + " reading: " + haveReadFromMediaChunk(i)
+          + " start/end: " + chunk.startTimeUs + "/" + chunk.endTimeUs + " sample index: "
+          + chunk.getFirstPrimarySampleIndex() + " format: "+chunk.trackFormat);
     }
 
-    // TODO - need a way to discard just the samples owned by the discarded chunks
-    sampleQueues[primarySampleQueueIndex].discardToRead();
-    Util.removeRange(mediaChunks, 0, chunksToDiscard  - 1);
-    return lastDiscardEndTimeUs;
+    // Preserve current playing chunk and/or enough following it to reach the desired queue size
+    int firstRemovedChunkIndex = 0;
+    while (haveReadFromMediaChunk(firstRemovedChunkIndex) || preferredQueueSize > 0) {
+      firstRemovedChunkIndex++;
+      preferredQueueSize--;
+    }
+
+    HlsMediaChunk firstRemovedChunk = mediaChunks.get(firstRemovedChunkIndex);
+    Util.removeRange(mediaChunks, firstRemovedChunkIndex, mediaChunks.size() - 1);
+    Log.d(TAG, "discardChunksToIndex() -  discard from: " + firstRemovedChunk.getFirstPrimarySampleIndex());
+
+    sampleQueues[primarySampleQueueIndex].discardUpstreamSamples(firstRemovedChunk.getFirstPrimarySampleIndex());
+
+    return firstRemovedChunk.endTimeUs;
   }
 
+
+  /** Returns whether samples have been read from primary sample queue of the indicated chunk */
+  private boolean haveReadFromMediaChunk(int mediaChunkIndex) {
+    HlsMediaChunk mediaChunk = mediaChunks.get(mediaChunkIndex);
+    return sampleQueues[primarySampleQueueIndex].getReadIndex() > mediaChunk.getFirstPrimarySampleIndex();
+  }
   // Loader.Callback implementation.
 
   @Override
@@ -909,6 +930,22 @@ import java.util.Map;
     for (SampleQueue sampleQueue : sampleQueues) {
       sampleQueue.setSampleOffsetUs(sampleOffsetUs);
     }
+  }
+
+  /**
+   * Get the SampleQueue write position index.  Used to associate group of
+   * samples with a MediaChunk.
+   *
+   * @return write position {@link SampleQueue#getWriteIndex()}, or 0 (safe bet) if sample queues not created
+   */
+  int getPrimaryTrackWritePosition() {
+    int indexValue = 0;
+
+    if (primaryTrackGroupIndex != C.INDEX_UNSET && prepared) {
+      int sampleQueueIndex = trackGroupToSampleQueueIndex[primaryTrackGroupIndex];
+      indexValue = sampleQueues[sampleQueueIndex].getWriteIndex();
+    }
+    return indexValue;
   }
 
   // Internal methods.
