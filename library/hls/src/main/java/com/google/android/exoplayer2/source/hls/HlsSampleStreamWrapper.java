@@ -639,9 +639,36 @@ import java.util.Map;
 
     int currentQueueSize = mediaChunks.size();
     int preferredQueueSize = chunkSource.getPreferredQueueSize(positionUs, readOnlyMediaChunks);
-    if (currentQueueSize <= preferredQueueSize) {
-      return;
+    int chunksToDiscard = currentQueueSize - preferredQueueSize;
+    if (chunksToDiscard > 0) {
+      int removeRangeStart = currentQueueSize - chunksToDiscard;
+      long firstRemovedStartTimeUs = discardMediaChunks(removeRangeStart);
+      long endTimeUs = getLastMediaChunk().endTimeUs;
+      eventDispatcher.upstreamDiscarded(primarySampleQueueType, firstRemovedStartTimeUs, endTimeUs);
     }
+
+  }
+
+
+  /**
+   * Discards, chunksToDiscard, HlsMediaChunks for the start of the list of mediaChunks.
+   *
+   *
+   * @param chunksToDiscard - Count of chunks to discard
+   * @return endTimeUs of last discarded chunk
+   */
+  private long discardMediaChunks(int chunksToDiscard) {
+    long lastDiscardEndTimeUs = mediaChunks.get(chunksToDiscard - 1).endTimeUs;
+
+    Log.d(TAG, "discardChunksToIndex() -  chunksToDiscard " + chunksToDiscard + " count " + mediaChunks.size());
+    for (HlsMediaChunk chunk : mediaChunks) {
+      Log.d(TAG, "chunk " + chunk.uid + " start/end: " + chunk.startTimeUs + "/" + chunk.endTimeUs + " format: "+chunk.trackFormat);
+    }
+
+    // TODO - need a way to discard just the samples owned by the discarded chunks
+    sampleQueues[primarySampleQueueIndex].discardToRead();
+    Util.removeRange(mediaChunks, 0, chunksToDiscard  - 1);
+    return lastDiscardEndTimeUs;
   }
 
   // Loader.Callback implementation.
