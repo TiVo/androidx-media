@@ -16,6 +16,7 @@
 package com.google.android.exoplayer2.source.hls;
 
 import android.net.Uri;
+import androidx.annotation.Nullable;
 import com.google.android.exoplayer2.upstream.DataSource;
 
 
@@ -48,5 +49,5 @@ public interface HlsDecryptingDataSource extends DataSource
      * @return The {@link DataSource} instance which will provide the
      *   decrypted Media Segment data
      **/
-    DataSource getDecryptingDataSource(Uri keyUri, String iv);
+    DataSource getDecryptingDataSource(Uri keyUri, @Nullable  String iv);
 }

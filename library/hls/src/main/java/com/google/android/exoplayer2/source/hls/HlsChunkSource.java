@@ -315,14 +315,21 @@ import java.util.Map;
 
     // Check if the segment or its initialization segment are fully encrypted.
     Uri initSegmentKeyUri = getFullEncryptionKeyUri(mediaPlaylist, segment.initializationSegment);
-    out.chunk = maybeCreateEncryptionChunkFor(initSegmentKeyUri, selectedTrackIndex);
-    if (out.chunk != null) {
-      return;
-    }
     Uri mediaSegmentKeyUri = getFullEncryptionKeyUri(mediaPlaylist, segment);
-    out.chunk = maybeCreateEncryptionChunkFor(mediaSegmentKeyUri, selectedTrackIndex);
-    if (out.chunk != null) {
-      return;
+    // If the media data source is an HlsDecryptingDataSource, then it will
+    // take care of the decryption and so this HlsChunkSource will read
+    // decrypted data from it. Key fetch is not required (or even possible),
+    // so don't create chunks for the keys
+    if (!(mediaDataSource instanceof HlsDecryptingDataSource)){
+
+      out.chunk = maybeCreateEncryptionChunkFor(initSegmentKeyUri, selectedTrackIndex);
+      if (out.chunk != null) {
+        return;
+      }
+      out.chunk = maybeCreateEncryptionChunkFor(mediaSegmentKeyUri, selectedTrackIndex);
+      if (out.chunk != null) {
+        return;
+      }
     }
 
     out.chunk =
@@ -340,6 +347,7 @@ import java.util.Map;
             isTimestampMaster,
             timestampAdjusterProvider,
             previous,
+            mediaSegmentKeyUri,
             /* mediaSegmentKey= */ keyCache.get(mediaSegmentKeyUri),
             /* initSegmentKey= */ keyCache.get(initSegmentKeyUri));
   }
