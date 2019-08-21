@@ -29,7 +29,6 @@ import com.google.android.exoplayer2.decoder.DecoderCounters;
 import com.google.android.exoplayer2.source.MediaSourceEventListener;
 import com.google.android.exoplayer2.source.TrackGroupArray;
 import com.google.android.exoplayer2.trackselection.TrackSelectionArray;
-import com.google.android.exoplayer2.trickplay.TrickPlayControl;
 import com.google.android.exoplayer2.util.Assertions;
 import com.google.android.exoplayer2.util.Clock;
 import com.google.android.exoplayer2.util.Log;
@@ -49,7 +48,6 @@ public class DebugTextViewHelper implements AnalyticsListener, Runnable {
 
   private final SimpleExoPlayer player;
   private final TextView textView;
-  private final TrickPlayControl trickPlayControl;
 
   private boolean started;
   private long bitrateEstimate;
@@ -67,8 +65,7 @@ public class DebugTextViewHelper implements AnalyticsListener, Runnable {
    *     player.getApplicationLooper() == Looper.getMainLooper()}).
    * @param textView The {@link TextView} that should be updated to display the information.
    */
-  public DebugTextViewHelper(SimpleExoPlayer player, TextView textView, TrickPlayControl trickPlayControl) {
-    this.trickPlayControl = trickPlayControl;
+  public DebugTextViewHelper(SimpleExoPlayer player, TextView textView) {
     Assertions.checkArgument(player.getApplicationLooper() == Looper.getMainLooper());
     this.player = player;
     this.textView = textView;
@@ -167,7 +164,7 @@ public class DebugTextViewHelper implements AnalyticsListener, Runnable {
 
   /** Returns the debugging information string to be shown by the target {@link TextView}. */
   protected String getDebugString() {
-    return getPlayerStateString() + getVideoString() + getAudioString() + getPlaybackRateString();
+    return getPlayerStateString() + getVideoString() + getAudioString();
   }
 
   /** Returns a string containing player state debugging information. */
@@ -199,35 +196,11 @@ public class DebugTextViewHelper implements AnalyticsListener, Runnable {
         player.getPlayWhenReady(), bitrateEstimate, bitrateEstimate / 8000, bandwidthUsed, percentNet, player.getCurrentWindowIndex(), playbackStateString, player.getCurrentPosition());
   }
 
-  protected String getPlaybackRateString() {
-    float playbackRate = 0.0f;
-    String rateString = "";
-
-    if (lastTimeUpdate == Long.MAX_VALUE) {
-        lastTimeUpdate = System.currentTimeMillis();
-    } else {
-        long currentPosition = player.getCurrentPosition();
-        long positionChange = Math.abs(lastPositionReport - currentPosition);
-        long timeChange = System.currentTimeMillis() - lastTimeUpdate;
-        lastTimeUpdate = System.currentTimeMillis();
-        lastPositionReport = currentPosition;
-        playbackRate = (float)positionChange / (float)timeChange;
-        float trickSpeed = trickPlayControl.getSpeedFor(trickPlayControl.getCurrentTrickMode());
-        rateString = "\n"
-            + String.format("%.3f", trickSpeed)
-            + "("
-            + String.format("%.3f", playbackRate)
-            + ") - "
-            + currentPosition;
-    }
-    return rateString;
-  }
-
   /** Returns a string containing video debugging information. */
   protected String getVideoString() {
     Format format = player.getVideoFormat();
     DecoderCounters decoderCounters = player.getVideoDecoderCounters();
-    if (format == null || decoderCounters == null || loadingVideoFormat == null) {
+    if (format == null || decoderCounters == null) {
       return "";
     }
     return "\n"
