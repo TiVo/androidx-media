@@ -1,10 +1,12 @@
 package com.google.android.exoplayer2.trickplay.com.google.android.exoplayer2.trickplay.trackselection;
 
+import androidx.annotation.Nullable;
 import com.google.android.exoplayer2.C;
 import com.google.android.exoplayer2.Format;
 import com.google.android.exoplayer2.source.TrackGroup;
 import com.google.android.exoplayer2.trackselection.AdaptiveTrackSelection;
 import com.google.android.exoplayer2.trackselection.FixedTrackSelection;
+import com.google.android.exoplayer2.trackselection.TrackBitrateEstimator;
 import com.google.android.exoplayer2.trackselection.TrackSelection;
 import com.google.android.exoplayer2.upstream.BandwidthMeter;
 import com.google.android.exoplayer2.util.Clock;
@@ -27,6 +29,47 @@ public class IFrameAwareAdaptiveTrackSelection extends AdaptiveTrackSelection {
   private float iframeSpeedThreshold  = 6.0f;
 
   public static class Factory implements TrackSelection.Factory {
+    private final int minDurationForQualityIncreaseMs;
+    private final int maxDurationForQualityDecreaseMs;
+    private final int minDurationToRetainAfterDiscardMs;
+    private final float bandwidthFraction;
+    private final float bufferedFractionToLiveEdgeForQualityIncrease;
+    private final long minTimeBetweenBufferReevaluationMs;
+    private final Clock clock;
+
+    private TrackBitrateEstimator trackBitrateEstimator;
+    private boolean blockFixedTrackSelectionBandwidth;
+
+    /** Creates an adaptive track selection factory with default parameters. */
+    public Factory() {
+      this(
+          DEFAULT_MIN_DURATION_FOR_QUALITY_INCREASE_MS,
+          DEFAULT_MAX_DURATION_FOR_QUALITY_DECREASE_MS,
+          DEFAULT_MIN_DURATION_TO_RETAIN_AFTER_DISCARD_MS,
+          DEFAULT_BANDWIDTH_FRACTION,
+          DEFAULT_BUFFERED_FRACTION_TO_LIVE_EDGE_FOR_QUALITY_INCREASE,
+          DEFAULT_MIN_TIME_BETWEEN_BUFFER_REEVALUTATION_MS,
+          Clock.DEFAULT);
+    }
+
+    public Factory(
+        int minDurationForQualityIncreaseMs,
+        int maxDurationForQualityDecreaseMs,
+        int minDurationToRetainAfterDiscardMs,
+        float bandwidthFraction,
+        float bufferedFractionToLiveEdgeForQualityIncrease,
+        long minTimeBetweenBufferReevaluationMs,
+        Clock clock) {
+      this.minDurationForQualityIncreaseMs = minDurationForQualityIncreaseMs;
+      this.maxDurationForQualityDecreaseMs = maxDurationForQualityDecreaseMs;
+      this.minDurationToRetainAfterDiscardMs = minDurationToRetainAfterDiscardMs;
+      this.bandwidthFraction = bandwidthFraction;
+      this.bufferedFractionToLiveEdgeForQualityIncrease =
+          bufferedFractionToLiveEdgeForQualityIncrease;
+      this.minTimeBetweenBufferReevaluationMs = minTimeBetweenBufferReevaluationMs;
+      this.clock = clock;
+      trackBitrateEstimator = TrackBitrateEstimator.DEFAULT;
+    }
 
     @Override
     public @NullableType TrackSelection[] createTrackSelections(@NullableType Definition[] definitions, BandwidthMeter bandwidthMeter) {
