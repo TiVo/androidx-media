@@ -920,9 +920,6 @@ import java.util.Map;
     sampleQueues[trackCount] = trackOutput;
     HlsMediaChunk mediaChunk = findChunkMatching(chunkUid);
     mediaChunk.setFirstSampleIndex(trackCount, 0);
-    sampleQueueReaders = Arrays.copyOf(sampleQueueReaders, trackCount + 1);
-    sampleQueueReaders[trackCount] =
-        new DecryptableSampleQueueReader(sampleQueues[trackCount], drmSessionManager);
     sampleQueueIsAudioVideoFlags = Arrays.copyOf(sampleQueueIsAudioVideoFlags, trackCount + 1);
     sampleQueueIsAudioVideoFlags[trackCount] = type == C.TRACK_TYPE_AUDIO
         || type == C.TRACK_TYPE_VIDEO;
