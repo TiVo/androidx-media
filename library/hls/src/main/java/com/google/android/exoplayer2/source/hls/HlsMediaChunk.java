@@ -485,7 +485,7 @@ import java.util.concurrent.atomic.AtomicInteger;
       byte[] encryptionIv, @Nullable Uri keyUri) {
     if(dataSource instanceof HlsDecryptingDataSource) {
       return((HlsDecryptingDataSource) dataSource).getDecryptingDataSource(keyUri,
-          String.valueOf(keyUri));
+          encryptionIv);
     } else if (fullSegmentEncryptionKey != null) {
       return new Aes128DataSource(dataSource, fullSegmentEncryptionKey, encryptionIv);
     }

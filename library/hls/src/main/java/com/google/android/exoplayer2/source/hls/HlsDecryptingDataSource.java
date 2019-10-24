@@ -49,5 +49,5 @@ public interface HlsDecryptingDataSource extends DataSource
      * @return The {@link DataSource} instance which will provide the
      *   decrypted Media Segment data
      **/
-    DataSource getDecryptingDataSource(Uri keyUri, @Nullable  String iv);
+    DataSource getDecryptingDataSource(Uri keyUri, @Nullable  byte[] iv);
 }
