@@ -14,6 +14,7 @@ import com.google.android.exoplayer2.upstream.DataSource;
 import com.google.android.exoplayer2.upstream.DataSpec;
 import com.google.android.exoplayer2.upstream.TransferListener;
 import com.tivo.android.utils.SsUtil;
+import com.tivo.android.utils.ByteBufferPool;
 import java.io.IOException;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
@@ -25,7 +26,6 @@ public class TivoCryptDataSourceFactory implements DataSource.Factory {
 
   public static final String TAG = "TivoCryptDataSourceFactory ";
   private static final int BUFFER_SIZE = 18800;//this is the number VO used
-  private static final int BUFFER_POOL_SIZE = 3;
 
   private String mWBKey;
 
@@ -36,9 +36,7 @@ public class TivoCryptDataSourceFactory implements DataSource.Factory {
   // Byte array used for zeroing ...
   private static byte[] gZeroes = new byte[BUFFER_SIZE];
 
-  // Buffers are pooled.
-  private static ByteBuffer[] gBuffers = new ByteBuffer[BUFFER_POOL_SIZE];
-  private static int gBuffersCount;
+
   private Context mContext;
 
   // delegateFactory is the DataSource.Factory which will create the
@@ -193,7 +191,7 @@ public class TivoCryptDataSourceFactory implements DataSource.Factory {
       }
 
       // Start with a fresh buffer
-      mBuffer = acquireBuffer();
+      mBuffer = ByteBufferPool.getInstance().acquireBuffer(BUFFER_SIZE);
       mBuffer.clear();
 
       long available = mUpstream.open(dataSpec);
@@ -323,7 +321,7 @@ public class TivoCryptDataSourceFactory implements DataSource.Factory {
         if (remaining > 0) {
           zeroBuffer(mBuffer, mBuffer.position(), remaining);
         }
-        releaseBuffer(mBuffer);
+        ByteBufferPool.getInstance().releaseBuffer(mBuffer);
         mBuffer = null;
       }
     }
@@ -390,29 +388,6 @@ public class TivoCryptDataSourceFactory implements DataSource.Factory {
         // Swallow it
         LogError("IOException in upstream close: " + e);
       }
-    }
-  }
-
-  //pool ByteBuffers
-  private static ByteBuffer acquireBuffer() {
-    synchronized (gBuffers) {
-      if (gBuffersCount > 0) {
-        // Use the last buffer
-        return gBuffers[--gBuffersCount];
-      }
-    }
-    return ByteBuffer.allocateDirect(BUFFER_SIZE);
-  }
-
-  private static void releaseBuffer(ByteBuffer buffer) {
-    synchronized (gBuffers) {
-      // If the pool is not at capacity yet, then add this one to the
-      // pool
-      if (gBuffersCount < BUFFER_POOL_SIZE) {
-        gBuffers[gBuffersCount++] = buffer;
-      }
-      // Otherwise, just drop this buffer and let it get garbage
-      // collected
     }
   }
 
