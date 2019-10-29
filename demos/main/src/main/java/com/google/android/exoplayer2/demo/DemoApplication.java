@@ -37,6 +37,7 @@ import com.google.android.exoplayer2.upstream.cache.NoOpCacheEvictor;
 import com.google.android.exoplayer2.upstream.cache.SimpleCache;
 import com.google.android.exoplayer2.util.Log;
 import com.google.android.exoplayer2.util.Util;
+import com.tivo.android.exoplayer.tivocrypt.TivoCryptDataSourceFactory;
 import java.io.File;
 import java.io.IOException;
 
@@ -49,6 +50,8 @@ public class DemoApplication extends Application {
   private static final String DOWNLOAD_ACTION_FILE = "actions";
   private static final String DOWNLOAD_TRACKER_ACTION_FILE = "tracked_actions";
   private static final String DOWNLOAD_CONTENT_DIRECTORY = "downloads";
+  private static final String WB_KEY = "0xB9CFA8ECF9E82BEFC64B7F27BE7444774ECC10D1BDA9FF2C568CB35A34FF296390C63719EB1AA6876F7627D05F162251B23522F0EDE9A17DA73D463CED056D04B363A43D65720D1A879B926B3015226DC43B85E7848CFA85608599512EDBDC6DA79C98529F2FD96166E1912D0BF1309BB0F8996E80DBE33F037DE7AE70F912069F9370E997804CAE7C47135BAAB1A477A63F919C64EC7EB275FE938906808BD96E2407969DA92F4E2A67BBC83842D0BD1251E64B402DF0B6376FE967068AA08628A834CEB5D84EF920C9A095D90BB753262F921E649611650D25125EB8AA5550";
+  private static final String FILES_DIR = "https://devstreaming-cdn.apple.com/videos/streaming/examples/bipbop_4x3/bipbop_4x3_variant.m3u8";
 
   protected String userAgent;
 
@@ -66,14 +69,21 @@ public class DemoApplication extends Application {
 
   /** Returns a {@link DataSource.Factory}. */
   public DataSource.Factory buildDataSourceFactory() {
-    DefaultDataSourceFactory upstreamFactory =
-        new DefaultDataSourceFactory(this, buildHttpDataSourceFactory());
-    return buildReadOnlyCacheDataSource(upstreamFactory, getDownloadCache());
+//    DefaultDataSourceFactory upstreamFactory =
+//        new DefaultDataSourceFactory(this, buildHttpDataSourceFactory());
+//    return buildReadOnlyCacheDataSource(upstreamFactory, getDownloadCache());
+    DataSource.Factory dataSourceFactory = new DefaultDataSourceFactory
+        (this,
+            Util.getUserAgent(this, "TiVo"));
+    return new TivoCryptDataSourceFactory(dataSourceFactory, WB_KEY, this);
   }
 
   /** Returns a {@link HttpDataSource.Factory}. */
-  public HttpDataSource.Factory buildHttpDataSourceFactory() {
-    return new DefaultHttpDataSourceFactory(userAgent);
+  public TivoCryptDataSourceFactory buildHttpDataSourceFactory() {
+    DataSource.Factory dataSourceFactory = new DefaultDataSourceFactory
+        (this,
+            Util.getUserAgent(this, "TiVo"));
+    return new TivoCryptDataSourceFactory(dataSourceFactory, WB_KEY, this);
   }
 
   /** Returns whether extension renderers should be used. */

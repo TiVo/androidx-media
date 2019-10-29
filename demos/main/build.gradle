@@ -13,6 +13,11 @@
 // limitations under the License.
 apply from: '../../constants.gradle'
 apply plugin: 'com.android.application'
+repositories {
+    google()
+    jcenter()
+    maven { url 'http://repo-vip.tivo.com:8081/artifactory/libs-release' }
+}
 
 android {
     compileSdkVersion project.ext.compileSdkVersion
@@ -27,6 +32,9 @@ android {
         versionCode project.ext.releaseVersionCode
         minSdkVersion project.ext.minSdkVersion
         targetSdkVersion project.ext.targetSdkVersion
+        ndk {
+            abiFilters 'armeabi'
+        }
     }
 
     buildTypes {
@@ -71,12 +79,15 @@ dependencies {
     implementation project(modulePrefix + 'library-hls')
     implementation project(modulePrefix + 'library-smoothstreaming')
     implementation project(modulePrefix + 'library-ui')
+    implementation project(modulePrefix + 'tivo')
     withExtensionsImplementation project(path: modulePrefix + 'extension-ffmpeg')
     withExtensionsImplementation project(path: modulePrefix + 'extension-flac')
     withExtensionsImplementation project(path: modulePrefix + 'extension-ima')
     withExtensionsImplementation project(path: modulePrefix + 'extension-opus')
     withExtensionsImplementation project(path: modulePrefix + 'extension-vp9')
     withExtensionsImplementation project(path: modulePrefix + 'extension-rtmp')
+    compile(group: 'com.tivo.android.tivocrypt', name: 'tivoCrypt', version: 'exoplayer_test_ensured1', classifier: "debug", ext: 'aar')
+
 }
 
 apply plugin: 'com.google.android.gms.strict-version-matcher-plugin'

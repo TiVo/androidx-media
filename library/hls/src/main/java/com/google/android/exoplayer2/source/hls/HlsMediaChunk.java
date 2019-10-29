@@ -92,7 +92,7 @@ import java.util.concurrent.atomic.AtomicInteger;
             mediaSegment.byterangeOffset,
             mediaSegment.byterangeLength,
             /* key= */ null);
-    boolean mediaSegmentEncrypted = mediaSegmentKey != null;
+    boolean mediaSegmentEncrypted = true;//mediaSegmentKey != null;
     byte[] mediaSegmentIv =
         mediaSegmentEncrypted ? getEncryptionIvArray(mediaSegment.encryptionIV) : null;
     DataSource mediaDataSource = buildDataSource(dataSource, mediaSegmentKey, mediaSegmentIv, keyUri);

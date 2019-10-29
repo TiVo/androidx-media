@@ -9,7 +9,6 @@ import java.nio.ByteBuffer;
 
 public class SsUtil {
   private static final String TAG = "SsDrm";
-
   public static final String SS_DRM_LIB_NAME = "ssDrm";
 
   public static final int A_FAILED = 100;
