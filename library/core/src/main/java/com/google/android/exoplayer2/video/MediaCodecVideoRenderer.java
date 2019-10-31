@@ -1610,8 +1610,11 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer {
   @TargetApi(23)
   private final class OnFrameRenderedListenerV23 implements MediaCodec.OnFrameRenderedListener {
 
+    protected Handler handler;
+
     private OnFrameRenderedListenerV23(MediaCodec codec) {
-      codec.setOnFrameRenderedListener(this, new Handler());
+      handler = new Handler();
+      codec.setOnFrameRenderedListener(this, handler);
     }
 
     @Override
@@ -1620,7 +1623,8 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer {
         // Stale event.
         return;
       }
-      onProcessedTunneledBuffer(presentationTimeUs);
+
+      handler.post(() -> onProcessedTunneledBuffer(presentationTimeUs));
     }
 
   }
