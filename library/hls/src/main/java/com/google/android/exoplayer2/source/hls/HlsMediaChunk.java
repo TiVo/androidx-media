@@ -81,6 +81,7 @@ import java.util.concurrent.atomic.AtomicInteger;
       boolean isMasterTimestampSource,
       TimestampAdjusterProvider timestampAdjusterProvider,
       @Nullable HlsMediaChunk previousChunk,
+      @Nullable Uri keyUri,
       @Nullable byte[] mediaSegmentKey,
       @Nullable byte[] initSegmentKey) {
     // Media segment.
@@ -91,10 +92,10 @@ import java.util.concurrent.atomic.AtomicInteger;
             mediaSegment.byterangeOffset,
             mediaSegment.byterangeLength,
             /* key= */ null);
-    boolean mediaSegmentEncrypted = mediaSegmentKey != null;
+    boolean mediaSegmentEncrypted = mediaSegmentKey != null || keyUri != null;
     byte[] mediaSegmentIv =
         mediaSegmentEncrypted ? getEncryptionIvArray(mediaSegment.encryptionIV) : null;
-    DataSource mediaDataSource = buildDataSource(dataSource, mediaSegmentKey, mediaSegmentIv);
+    DataSource mediaDataSource = buildDataSource(dataSource, mediaSegmentKey, mediaSegmentIv, keyUri);
 
     // Init segment.
     HlsMediaPlaylist.Segment initSegment = mediaSegment.initializationSegment;
@@ -112,7 +113,7 @@ import java.util.concurrent.atomic.AtomicInteger;
               initSegment.byterangeOffset,
               initSegment.byterangeLength,
               /* key= */ null);
-      initDataSource = buildDataSource(dataSource, initSegmentKey, initSegmentIv);
+      initDataSource = buildDataSource(dataSource, initSegmentKey, initSegmentIv, keyUri);
     }
 
     long segmentStartTimeInPeriodUs = startOfPlaylistInPeriodUs + mediaSegment.relativeStartTimeUs;
@@ -481,8 +482,11 @@ import java.util.concurrent.atomic.AtomicInteger;
    * in order to decrypt the loaded data. Else returns the original.
    */
   private static DataSource buildDataSource(DataSource dataSource, byte[] fullSegmentEncryptionKey,
-      byte[] encryptionIv) {
-    if (fullSegmentEncryptionKey != null) {
+      byte[] encryptionIv, @Nullable Uri keyUri) {
+    if(dataSource instanceof HlsDecryptingDataSource) {
+      return((HlsDecryptingDataSource) dataSource).getDecryptingDataSource(keyUri,
+          encryptionIv);
+    } else if (fullSegmentEncryptionKey != null) {
       return new Aes128DataSource(dataSource, fullSegmentEncryptionKey, encryptionIv);
     }
     return dataSource;

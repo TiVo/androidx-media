@@ -315,24 +315,19 @@ import java.util.Map;
     DataSource dataSource = mediaDataSource;
     Uri initSegmentKeyUri = getFullEncryptionKeyUri(mediaPlaylist, segment.initializationSegment);
     Uri mediaSegmentKeyUri = getFullEncryptionKeyUri(mediaPlaylist, segment);
+    // If the media data source is an HlsDecryptingDataSource, then it will
+    // take care of the decryption and so this HlsChunkSource will read
+    // decrypted data from it. Key fetch is not required (or even possible),
+    // so don't create chunks for the keys
+    if (!(mediaDataSource instanceof HlsDecryptingDataSource)){
 
-    if (segment.fullSegmentEncryptionKeyUri != null) {
-      // If the media data source is an HlsDecryptingDataSource, then it will
-      // take care of the decryption and so this HlsChunkSource will read
-      // decrypted data from it
-      if (mediaDataSource instanceof HlsDecryptingDataSource) {
-        dataSource = ((HlsDecryptingDataSource) mediaDataSource).
-            getDecryptingDataSource(mediaSegmentKeyUri, segment.encryptionIV);
-      } else {
-        // Check if the segment or its initialization segment are fully encrypted.
-        out.chunk = maybeCreateEncryptionChunkFor(initSegmentKeyUri, selectedTrackIndex);
-        if (out.chunk != null) {
-          return;
-        }
-        out.chunk = maybeCreateEncryptionChunkFor(mediaSegmentKeyUri, selectedTrackIndex);
-        if (out.chunk != null) {
-          return;
-        }
+      out.chunk = maybeCreateEncryptionChunkFor(initSegmentKeyUri, selectedTrackIndex);
+      if (out.chunk != null) {
+        return;
+      }
+      out.chunk = maybeCreateEncryptionChunkFor(mediaSegmentKeyUri, selectedTrackIndex);
+      if (out.chunk != null) {
+        return;
       }
     }
 
@@ -351,6 +346,7 @@ import java.util.Map;
             isTimestampMaster,
             timestampAdjusterProvider,
             previous,
+            mediaSegmentKeyUri,
             /* mediaSegmentKey= */ keyCache.get(mediaSegmentKeyUri),
             /* initSegmentKey= */ keyCache.get(initSegmentKeyUri));
   }
