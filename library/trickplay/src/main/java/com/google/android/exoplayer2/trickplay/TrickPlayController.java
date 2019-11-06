@@ -281,8 +281,8 @@ class TrickPlayController implements TrickPlayControlInternal {
         // Used to trottle the next seek so as to achive the frame rate targets
         static final int MSG_TRICKPLAY_FRAMERENDER = 2;
 
-        static final int TARGET_FPS = 3;
-        static final int MIN_FPS = 1;
+        static final int TARGET_FPS = 10;
+        static final int MIN_FPS = 5;
         static final int targetFrameIntervalMs = 1000 / TARGET_FPS;
         static final int minFrameIntervalMs = 1000 / MIN_FPS;
 
@@ -534,13 +534,16 @@ class TrickPlayController implements TrickPlayControlInternal {
         if (usePlaybackSpeedTrickPlay(newMode)) {
             Log.d(TAG, "Start i-frame trickplay " + newMode + " at media time " + player.getCurrentPosition());
             stopSeekBasedTrickplay();
-            switchToTrickPlayTracks();
+            setAudioEnableForTrickPlay(newMode);
             player.setPlayWhenReady(true);
             player.setPlaybackParameters(new PlaybackParameters(getSpeedFor(newMode)));
         } else {
             Log.d(TAG, "Start seek-based trickplay " + newMode + " at media time " + player.getCurrentPosition());
-            switchToTrickPlayTracks();
+            setAudioEnableForTrickPlay(newMode);
             startSeekBasedTrickplay();
+
+            // TODO - maybe a cleaner way, but all ABR gets is the speed, so we set it > 1x
+            player.setPlaybackParameters(new PlaybackParameters(Math.abs(getSpeedFor(newMode))));
         }
         setCurrentTrickMode(newMode);
 
@@ -566,7 +569,7 @@ class TrickPlayController implements TrickPlayControlInternal {
 
         resetTrickPlayState(false);
 
-        enableLastSelectedAudioTrack();
+        setAudioEnableForTrickPlay(TrickMode.NORMAL);
         player.setPlayWhenReady(true);
 
         if (isSmoothPlayAvailable()) {
@@ -785,14 +788,12 @@ class TrickPlayController implements TrickPlayControlInternal {
         return isPossible;
     }
 
-    private void switchToTrickPlayTracks() {
+    private void setAudioEnableForTrickPlay(TrickMode mode) {
         DefaultTrackSelector.Parameters trackSelectorParameters = trackSelector.getParameters();
         DefaultTrackSelector.ParametersBuilder builder = trackSelectorParameters.buildUpon();
-
-        TrackSelectionArray trackSelections = player.getCurrentTrackSelections();
-        for (int i = 0; i < player.getRendererCount() && i < trackSelections.length; i++) {
-          if (player.getRendererType(i) == C.TRACK_TYPE_AUDIO && trackSelections.get(i) != null) {
-              builder.setRendererDisabled(i, true);
+        for (int i = 0; i < player.getRendererCount(); i++) {
+          if (player.getRendererType(i) == C.TRACK_TYPE_AUDIO) {
+              builder.setRendererDisabled(i, mode != TrickMode.NORMAL);
           }
         }
         trackSelector.setParameters(builder);
@@ -813,15 +814,6 @@ class TrickPlayController implements TrickPlayControlInternal {
         currentHandler = new SeekBasedTrickPlay(player.getContentPosition());
         player.addAnalyticsListener(currentHandler);
         currentHandler.startTrickPlay();
-    }
-
-    private void enableLastSelectedAudioTrack() {
-        if (lastSelectedAudioTrack >= 0 && lastSelectedAudioTrack < player.getRendererCount()) {
-            DefaultTrackSelector.Parameters trackSelectorParameters = trackSelector.getParameters();
-            DefaultTrackSelector.ParametersBuilder builder = trackSelectorParameters.buildUpon();
-            builder.setRendererDisabled(lastSelectedAudioTrack, false);
-            trackSelector.setParameters(builder);
-        }
     }
 
     private void dispatchPlaylistMetadataChanged() {
