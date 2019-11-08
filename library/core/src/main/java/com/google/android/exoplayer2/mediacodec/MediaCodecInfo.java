@@ -260,7 +260,25 @@ public final class MediaCodecInfo {
         return true;
       }
     }
-    logNoSupport("codec.profileLevel, " + codec + ", " + codecMimeType);
+
+    // TODO - this is a hack..  The Amino (eSTREAM4k) box under-reports its HEVC support, it supports HEVCHighTierLevel51
+    // TODO - looks like the metadata they report is wrong, because playback works
+    // TODO - once they fix this bug: https://w3-bugs.tivo.com/show_bug.cgi?id=524811 remove this hack
+    //
+    if (isVideo && Util.DEVICE.startsWith("eSTREAM4K") && profile == CodecProfileLevel.HEVCProfileMain) {
+      return true;
+    }
+    // TODO - end of hack
+
+    StringBuffer levelsFor = new StringBuffer("Profile " + profile + " has levels [");
+    for (CodecProfileLevel capabilities : getProfileLevels()) {
+      if (capabilities.profile == profile) {
+        levelsFor.append(capabilities.level);
+        levelsFor.append(", ");
+      }
+    }
+    levelsFor.append("]");
+    logNoSupport("codec.profileLevel, " + codec + ", " + codecMimeType + ", " + levelsFor);
     return false;
   }
 
