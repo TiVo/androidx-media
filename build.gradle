@@ -29,6 +29,7 @@ allprojects {
     }
     project.ext {
         exoplayerPublishEnabled = false
+        tivoExoplayerPublishEnabled = true
     }
     if (it.hasProperty('externalBuildDir')) {
         if (!new File(externalBuildDir).isAbsolute()) {
