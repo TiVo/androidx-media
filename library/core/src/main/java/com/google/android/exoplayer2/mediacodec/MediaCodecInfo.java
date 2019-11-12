@@ -265,7 +265,8 @@ public final class MediaCodecInfo {
     // TODO - looks like the metadata they report is wrong, because playback works
     // TODO - once they fix this bug: https://w3-bugs.tivo.com/show_bug.cgi?id=524811 remove this hack
     //
-    if (isVideo && Util.DEVICE.startsWith("eSTREAM4K") && profile == CodecProfileLevel.HEVCProfileMain) {
+    if (isVideo && Util.DEVICE.startsWith("eSTREAM4K") &&
+        (profile == CodecProfileLevel.HEVCProfileMain || profile == CodecProfileLevel.HEVCProfileMain10)) {
       return true;
     }
     // TODO - end of hack
