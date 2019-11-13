@@ -73,7 +73,7 @@ class TrickPlayController implements TrickPlayControlInternal {
 
     /** Keep track of the last N rendered frame PTS values for jumpback seek
      */
-    private LastNPositions lastRenderPositions = new LastNPositions();
+    private final LastNPositions lastRenderPositions = new LastNPositions();
 
     TrickPlayController(DefaultTrackSelector trackSelector) {
         this.trackSelector = trackSelector;
@@ -110,11 +110,13 @@ class TrickPlayController implements TrickPlayControlInternal {
     /**
      * Keeps record of the program time of the last N rendered frames in trickplay mode.
      * Returns this list, converted to playback positions
+     *
+     * NOTE this class is access by both the Application and ExoPlayer playback threads
      */
     private class LastNPositions {
         public static final int LAST_RENDER_POSITIONS_MAX = 15;
 
-        private final long[] store;
+        private long[] store;
         private int lastWriteIndex = -1;
 
         LastNPositions(int size) {
@@ -155,6 +157,12 @@ class TrickPlayController implements TrickPlayControlInternal {
                 count += (value != C.TIME_UNSET) ? 1 : 0;
             }
             return count;
+        }
+
+        synchronized void empty() {
+            store = new long[store.length];
+            Arrays.fill(this.store, C.TIME_UNSET);
+            lastWriteIndex = -1;
         }
 
         /**
@@ -429,7 +437,7 @@ class TrickPlayController implements TrickPlayControlInternal {
 
     @Override
     public void removePlayerReference() {
-        stopSeekBasedTrickplay();
+        destroySeekBasedTrickplayHandler();
         playbackHandler.removeCallbacksAndMessages(null);
         playbackHandler = null;
         applicatonHandler.removeCallbacksAndMessages(null);
@@ -470,9 +478,7 @@ class TrickPlayController implements TrickPlayControlInternal {
             boolean modeChangePossible = canTrickPlayInMode(newMode);
             if (modeChangePossible) {
 
-                // Pause playback before switching trickplay mode.
-                Log.d(TAG, "setTrickMode(" + newMode + ") pausing playback - previous mode: " + previousMode);
-                player.setPlayWhenReady(false);
+                Log.d(TAG, "setTrickMode(" + newMode + ") previous mode: " + previousMode);
 
                 if (newMode == TrickMode.NORMAL) {
                     lastRendersCount = switchTrickModeToNormal(previousMode);
@@ -511,6 +517,26 @@ class TrickPlayController implements TrickPlayControlInternal {
     }
 
     /////
+    // Internal API - used privately in the trickplay library
+    ////
+
+    // NOTE this method must be fast and will be called from the ExoPlayer playback thread
+    @Override
+    public synchronized boolean useTrickPlayRendering() {
+      return getCurrentTrickDirection() == TrickPlayDirection.FORWARD && isSmoothPlayAvailable;
+    }
+
+
+    @Override
+    public void dispatchTrickFrameRender(long renderedFramePositionUs) {
+        lastRenderPositions.add(renderedFramePositionUs);
+        for (ListenerRef listenerRef : listeners) {
+            Handler handler = getHandler(listenerRef);
+            handler.post(() -> listenerRef.listener.trickFrameRendered(renderedFramePositionUs));
+        }
+    }
+
+    /////
     // Internal methods
     /////
 
@@ -528,7 +554,7 @@ class TrickPlayController implements TrickPlayControlInternal {
     private void switchTrickPlaySpeed(TrickMode newMode, TrickMode previousMode) {
         // Reset to save new set of last N renders on first switch from normal mode.
         if (previousMode == TrickMode.NORMAL) {
-            lastRenderPositions = new LastNPositions();
+            lastRenderPositions.empty();
         }
 
         if (usePlaybackSpeedTrickPlay(newMode)) {
@@ -800,13 +826,17 @@ class TrickPlayController implements TrickPlayControlInternal {
     }
 
     private void stopSeekBasedTrickplay() {
+        destroySeekBasedTrickplayHandler();
+        player.setSeekParameters(SeekParameters.DEFAULT);
+        player.setPlaybackParameters(PlaybackParameters.DEFAULT);
+    }
+
+    private void destroySeekBasedTrickplayHandler() {
         if (currentHandler != null) {
             currentHandler.removeCallbacksAndMessages(null);
             player.removeAnalyticsListener(currentHandler);
             currentHandler = null;
         }
-        player.setSeekParameters(SeekParameters.DEFAULT);
-        player.setPlaybackParameters(PlaybackParameters.DEFAULT);
     }
 
     private void startSeekBasedTrickplay() {
@@ -827,14 +857,6 @@ class TrickPlayController implements TrickPlayControlInternal {
         for (ListenerRef listenerRef : listeners) {
             Handler handler = getHandler(listenerRef);
             handler.post(() -> listenerRef.listener.trickPlayModeChanged(newMode, prevMode));
-        }
-    }
-
-    protected void dispatchTrickFrameRender(long renderedFramePositionUs) {
-        lastRenderPositions.add(renderedFramePositionUs);
-        for (ListenerRef listenerRef : listeners) {
-            Handler handler = getHandler(listenerRef);
-            handler.post(() -> listenerRef.listener.trickFrameRendered(renderedFramePositionUs));
         }
     }
 
