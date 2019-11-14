@@ -40,6 +40,19 @@ if (project.ext.has("exoplayerPublishEnabled")
     }
 }
 
+if (project.ext.has("tivoExoplayerPublishEnabled")
+        && project.ext.tivoExoplayerPublishEnabled) {
+    apply plugin: 'bintray-release'
+    publish {
+        artifactId = releaseArtifact
+        desc = releaseDescription
+        publishVersion = releaseVersion
+        repoName = getBintrayRepo()
+        userOrg = 'tivo'
+        groupId = 'com.tivo.android.exoplayer'
+    }
+}
+
 def getBintrayRepo() {
     boolean publicRepo = hasProperty('publicRepo') &&
         property('publicRepo').toBoolean()
@@ -65,4 +78,14 @@ static void addLicense(File pom) {
     printer.preserveWhitespace = true
     printer.print(xml)
     writer.close()
+}
+
+publishing.repositories {
+    maven {
+        url "http://repo-vip.tivo.com:8081/artifactory/libs-release-local"
+        credentials {
+            username REPO_USER_NAME
+            password REPO_PASSWORD
+        }
+    }
 }
