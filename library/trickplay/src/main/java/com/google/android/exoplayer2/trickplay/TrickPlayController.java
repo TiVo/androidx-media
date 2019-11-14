@@ -283,14 +283,17 @@ class TrickPlayController implements TrickPlayControlInternal {
     private class SeekBasedTrickPlay extends Handler implements AnalyticsListener {
         private static final String TAG = "SeekBasedTrickPlay";
 
-        // Causes the handler to issue a seek to the position indicated by the clock
+        // Causes the handler to issue an initial seek to the position indicated by the clock
         static final int MSG_TRICKPLAY_STARTSEEK = 1;
 
-        // Used to trottle the next seek so as to achive the frame rate targets
-        static final int MSG_TRICKPLAY_FRAMERENDER = 2;
+        // Seek issued for seeks after the initial start, these are throtted to achive a frame rate
+        static final int MSG_TRICKPLAY_TIMED_SEEK = 2;
 
-        static final int TARGET_FPS = 10;
-        static final int MIN_FPS = 5;
+        // Used to trottle the next seek so as to achive the frame rate targets
+        static final int MSG_TRICKPLAY_FRAMERENDER = 3;
+
+        static final int TARGET_FPS = 5;
+        static final int MIN_FPS = 2;
         static final int targetFrameIntervalMs = 1000 / TARGET_FPS;
         static final int minFrameIntervalMs = 1000 / MIN_FPS;
 
@@ -321,8 +324,9 @@ class TrickPlayController implements TrickPlayControlInternal {
                 lastRenderTime = null;
             } else if (currentTrickMode != TrickMode.NORMAL) {
 
-                boolean isMinFrameRate = true;
+                boolean isMinFrameRate = false;
                 long timeSinceLastRender = C.TIME_UNSET;
+                long contentPosition = player.getContentPosition();
 
                 if (lastRenderTime != null) {
                     timeSinceLastRender = currentMediaClock.getClock().elapsedRealtime() - lastRenderTime.realtimeMs;
@@ -331,37 +335,49 @@ class TrickPlayController implements TrickPlayControlInternal {
 
                 switch (msg.what) {
                     case MSG_TRICKPLAY_STARTSEEK:
-                        long contentPosition = player.getContentPosition();
-                        long largestSafeSeekPositionMs = getLargestSafeSeekPositionMs();
-                        seekTargetMs = Math.min(C.usToMs(currentMediaClock.getPositionUs()), largestSafeSeekPositionMs);
 
                         Log.d(TAG, "handleMessage STARTSEEK - mode " + currentTrickMode + " position: "
                             + contentPosition + " request position " + seekTargetMs + " timeSinceLastRender: " + timeSinceLastRender + " delta: " + (
                             seekTargetMs - contentPosition) + " isMinFrameRate: " + isMinFrameRate);
+                        issueSeekTo();
 
+                        sendEmptyMessageDelayed(MSG_TRICKPLAY_TIMED_SEEK, targetFrameIntervalMs);
+
+                        break;
+
+                    case MSG_TRICKPLAY_TIMED_SEEK:
+                        Log.d(TAG, "handleMessage TIMED_SEEK - mode " + currentTrickMode + " position: "
+                            + contentPosition + " request position " + seekTargetMs + " timeSinceLastRender: " + timeSinceLastRender + " delta: " + (
+                            seekTargetMs - contentPosition) + " isMinFrameRate: " + isMinFrameRate);
+
+                        issueSeekTo();
                         if (isMinFrameRate) {
-                            player.seekTo(seekTargetMs);
-                            sendEmptyMessageDelayed(MSG_TRICKPLAY_STARTSEEK, targetFrameIntervalMs);
+                            sendEmptyMessageDelayed(MSG_TRICKPLAY_TIMED_SEEK, targetFrameIntervalMs);
                         }
-
                         break;
 
                     case MSG_TRICKPLAY_FRAMERENDER:
                         lastRenderTime = (AnalyticsListener.EventTime) msg.obj;
 
-                        boolean isNoPendingSeek =  ! hasMessages(MSG_TRICKPLAY_STARTSEEK);
+                        boolean isNoPendingSeek =  ! hasMessages(MSG_TRICKPLAY_STARTSEEK) || ! hasMessages(MSG_TRICKPLAY_TIMED_SEEK);
 
                         Log.d(TAG, "handleMessage FRAMERENDER - mode " + currentTrickMode + " position: " + lastRenderTime.eventPlaybackPositionMs
                                 + " timeSinceLastRender:" + timeSinceLastRender + " isNoPendingSeek: " + isNoPendingSeek);
 
                         // If we have no pending seek then we have fallen below the min frame rate, issue a seek
                         if (isNoPendingSeek) {
-                            sendEmptyMessage(MSG_TRICKPLAY_STARTSEEK);
+                            sendEmptyMessage(MSG_TRICKPLAY_TIMED_SEEK);
                         }
                         break;
 
                 }
             }
+        }
+
+        private void issueSeekTo() {
+            long largestSafeSeekPositionMs = getLargestSafeSeekPositionMs();
+            seekTargetMs = Math.min(C.usToMs(currentMediaClock.getPositionUs()), largestSafeSeekPositionMs);
+            player.seekTo(seekTargetMs);
         }
 
         /**
