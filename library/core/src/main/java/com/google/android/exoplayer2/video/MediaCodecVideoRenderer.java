@@ -1610,7 +1610,7 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer {
   @TargetApi(23)
   private final class OnFrameRenderedListenerV23 implements MediaCodec.OnFrameRenderedListener {
 
-    protected Handler handler;
+    private final Handler handler;
 
     private OnFrameRenderedListenerV23(MediaCodec codec) {
       handler = new Handler();
