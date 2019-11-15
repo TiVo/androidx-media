@@ -458,6 +458,9 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer {
     clearReportedVideoSize();
     clearRenderedFirstFrame();
     frameReleaseTimeHelper.disable();
+    if (tunnelingOnFrameRenderedListener != null && getCodec() != null) {
+      tunnelingOnFrameRenderedListener.destroyHandler(getCodec());
+    }
     tunnelingOnFrameRenderedListener = null;
     try {
       super.onDisabled();
@@ -582,6 +585,9 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer {
     }
     codec.configure(mediaFormat, surface, crypto, 0);
     if (Util.SDK_INT >= 23 && tunneling) {
+      if (tunnelingOnFrameRenderedListener != null) {
+        tunnelingOnFrameRenderedListener.destroyHandler(codec);
+      }
       tunnelingOnFrameRenderedListener = new OnFrameRenderedListenerV23(codec);
     }
   }
@@ -1049,6 +1055,9 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer {
       MediaCodec codec = getCodec();
       // If codec is null then the listener will be instantiated in configureCodec.
       if (codec != null) {
+        if (tunnelingOnFrameRenderedListener != null) {
+          tunnelingOnFrameRenderedListener.destroyHandler(codec);
+        }
         tunnelingOnFrameRenderedListener = new OnFrameRenderedListenerV23(codec);
       }
     }
@@ -1617,6 +1626,18 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer {
       codec.setOnFrameRenderedListener(this, handler);
     }
 
+    /**
+     * Cleanup any messages pending for this listener before removing references to it
+     *
+     * @param codec optional, if the codec is still around it should be passed here
+     */
+    void destroyHandler(@Nullable MediaCodec codec) {
+      if (codec != null) {
+        codec.setOnFrameRenderedListener(null, null);
+      }
+      handler.removeCallbacksAndMessages(null);
+    }
+
     @Override
     public void onFrameRendered(@NonNull MediaCodec codec, long presentationTimeUs, long nanoTime) {
       if (this != tunnelingOnFrameRenderedListener) {
@@ -1633,7 +1654,11 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer {
       // the lock will not be held.
       //
       if (Util.SDK_INT < 30) {
-        handler.post(() -> onProcessedTunneledBuffer(presentationTimeUs));
+        handler.post(() -> {
+          if (this == tunnelingOnFrameRenderedListener) {   // event not stale
+            onProcessedTunneledBuffer(presentationTimeUs);
+          }
+        });
       } else {
         onProcessedTunneledBuffer(presentationTimeUs);
       }
