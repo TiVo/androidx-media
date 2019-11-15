@@ -1624,7 +1624,19 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer {
         return;
       }
 
-      handler.post(() -> onProcessedTunneledBuffer(presentationTimeUs));
+      // Work around bug in MediaCodec that causes deadlocks if you call back a
+      // MediaCodec API that requires MediaCodec to use it's Looper, as it calls this
+      // listener method holding locks.  This was fixed in:
+      //  https://android-review.googlesource.com/1156807
+      //
+      // The work around simply queues the processing to a subsequent message, where
+      // the lock will not be held.
+      //
+      if (Util.SDK_INT < 30) {
+        handler.post(() -> onProcessedTunneledBuffer(presentationTimeUs));
+      } else {
+        onProcessedTunneledBuffer(presentationTimeUs);
+      }
     }
 
   }
