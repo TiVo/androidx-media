@@ -3,13 +3,17 @@ package com.tivo.exoplayer.library;
 
 import android.content.Context;
 import android.net.Uri;
+import androidx.annotation.Nullable;
 import com.google.android.exoplayer2.ExoPlaybackException;
 import com.google.android.exoplayer2.ExoPlayerLibraryInfo;
 import com.google.android.exoplayer2.Player;
 import com.google.android.exoplayer2.SimpleExoPlayer;
+import com.google.android.exoplayer2.analytics.AnalyticsListener;
 import com.google.android.exoplayer2.source.BehindLiveWindowException;
 import com.google.android.exoplayer2.source.MediaSource;
+import com.google.android.exoplayer2.source.TrackGroupArray;
 import com.google.android.exoplayer2.source.hls.HlsMediaSource;
+import com.google.android.exoplayer2.trackselection.TrackSelectionArray;
 import com.google.android.exoplayer2.upstream.DataSource;
 import com.google.android.exoplayer2.upstream.DefaultDataSourceFactory;
 import com.google.android.exoplayer2.upstream.DefaultHttpDataSourceFactory;
@@ -27,13 +31,18 @@ import com.google.android.exoplayer2.util.Log;
  *
  * This object manages the life-cycle of playback and error handling for a give URL
  */
-public class DefaultMediaSourceLifeCycle implements MediaSourceLifeCycle {
+public class DefaultMediaSourceLifeCycle implements MediaSourceLifeCycle, AnalyticsListener {
 
   private static final String TAG = "ExoPlayer";
 
   protected final SimpleExoPlayer player;
   protected final Context context;
   protected MediaSource currentMediaSource;
+
+  @Nullable
+  private MediaSourceEventCallback callback;
+
+  private boolean isInitialMediaSoureEvent;
 
   /**
    * Construct the default implementation of {@link MediaSourceLifeCycle}
@@ -44,6 +53,8 @@ public class DefaultMediaSourceLifeCycle implements MediaSourceLifeCycle {
   public DefaultMediaSourceLifeCycle(SimpleExoPlayer player, Context context) {
     this.player = player;
     this.context = context;
+
+    player.addAnalyticsListener(this);
   }
 
   @Override
@@ -57,8 +68,15 @@ public class DefaultMediaSourceLifeCycle implements MediaSourceLifeCycle {
   protected void playMediaSource(MediaSource mediaSource) {
     player.stop(true);
     currentMediaSource = mediaSource;
+    isInitialMediaSoureEvent = false;
     player.setPlayWhenReady(true);
     player.prepare(currentMediaSource);
+  }
+
+
+  @Override
+  public void setMediaSourceEventCallback(@Nullable MediaSourceEventCallback callback) {
+    this.callback = callback;
   }
 
   /**
@@ -158,6 +176,24 @@ public class DefaultMediaSourceLifeCycle implements MediaSourceLifeCycle {
       cause = cause.getCause();
     }
     return false;
+  }
+
+  /**
+   * Initial trackselection from any prepare signals the playlist is fully parsed
+   * and the player is ready to accept transport request.   Report this event to
+   * any {@link MediaSourceEventCallback} listener
+   *
+   * @param eventTime The event time.
+   * @param trackGroups The available tracks. May be empty.
+   * @param trackSelections The track selections for each renderer. May contain null elements.
+   */
+  @Override
+  public void onTracksChanged(EventTime eventTime, TrackGroupArray trackGroups, TrackSelectionArray trackSelections) {
+
+    if (! isInitialMediaSoureEvent && callback != null) {
+      callback.mediaSourcePrepared(currentMediaSource, player);
+      isInitialMediaSoureEvent = false;
+    }
   }
 
 }
