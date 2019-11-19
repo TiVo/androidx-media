@@ -55,6 +55,8 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
 
   private SimpleExoPlayerFactory exoPlayerFactory;
 
+  public static final Integer DEFAULT_LOG_LEVEL = com.google.android.exoplayer2.util.Log.LOG_LEVEL_ALL;
+
   // Intents
   public static final String ACTION_VIEW = "com.tivo.exoplayer.action.VIEW";
   public static final String ACTION_VIEW_LIST = "com.tivo.exoplayer.action.VIEW_LIST";
@@ -64,10 +66,13 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
   public static final String ENABLE_TUNNELED_PLAYBACK = "enable_tunneled_playback";
   public static final String URI_LIST_EXTRA = "uri_list";
   public static final String CHUNKLESS_PREPARE = "chunkless";
+  public static final String INITIAL_SEEK = "start_at";
   protected Uri[] uris;
 
   private int currentChannel;
   private Uri[] channelUris;
+
+  private int initialSeek = C.POSITION_UNSET;
 
   private BroadcastReceiver hdmiHotPlugReceiver = new BroadcastReceiver() {
 
@@ -126,7 +131,7 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
 
     Context context = getApplicationContext();
 
-    SimpleExoPlayerFactory.initializeLogging(context, com.google.android.exoplayer2.util.Log.LOG_LEVEL_INFO);
+    SimpleExoPlayerFactory.initializeLogging(context, DEFAULT_LOG_LEVEL);
     exoPlayerFactory = new SimpleExoPlayerFactory(context);
 
     LayoutInflater inflater = LayoutInflater.from(context);
@@ -153,6 +158,13 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
     exoPlayerFactory.setCloseCaption(captioningManager.isEnabled(), current.getLanguage());
 
     exoPlayerFactory.setPreferredAudioLanguage(current.getLanguage());
+
+    exoPlayerFactory.setMediaSourceEventCallback((mediaSource, player) -> {
+      if (initialSeek != C.POSITION_UNSET) {
+        boundedSeekTo(player, exoPlayerFactory.getCurrentTrickPlayControl(), initialSeek);
+        initialSeek = C.POSITION_UNSET;
+      }
+    });
   }
 
   @Override
@@ -169,8 +181,7 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
   @Override
   public void onStart() {
     super.onStart();
-    SimpleExoPlayerFactory.initializeLogging(getApplicationContext(), com.google.android.exoplayer2.util.Log.LOG_LEVEL_INFO);
-
+    SimpleExoPlayerFactory.initializeLogging(getApplicationContext(), DEFAULT_LOG_LEVEL);
 
     SimpleExoPlayer player = exoPlayerFactory.createPlayer(true, false);
 
@@ -508,6 +519,7 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
 
     String[] uriStrings = intent.getStringArrayExtra(URI_LIST_EXTRA);
 
+    initialSeek = intent.getIntExtra(INITIAL_SEEK, C.POSITION_UNSET);
 
     if (ACTION_VIEW.equals(action)) {
       uris = new Uri[]{intent.getData()};
