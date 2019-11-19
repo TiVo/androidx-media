@@ -179,21 +179,20 @@ public class DefaultMediaSourceLifeCycle implements MediaSourceLifeCycle, Analyt
   }
 
   /**
-   * Initial trackselection from any prepare signals the playlist is fully parsed
-   * and the player is ready to accept transport request.   Report this event to
-   * any {@link MediaSourceEventCallback} listener
+   * After the player reads the initial M3u8 and parses it, the timeline is created.
+   * Report the first such of these events, following a {@link MediaSource} change
+   * (via {@link #playUrl(Uri, boolean)} call to any {@link MediaSourceEventCallback} listener
    *
    * @param eventTime The event time.
-   * @param trackGroups The available tracks. May be empty.
-   * @param trackSelections The track selections for each renderer. May contain null elements.
+   * @param reason The reason for the timeline change.
    */
   @Override
-  public void onTracksChanged(EventTime eventTime, TrackGroupArray trackGroups, TrackSelectionArray trackSelections) {
-
-    if (! isInitialMediaSoureEvent && callback != null) {
-      callback.mediaSourcePrepared(currentMediaSource, player);
-      isInitialMediaSoureEvent = false;
+  public void onTimelineChanged(EventTime eventTime, int reason) {
+    if (reason == Player.TIMELINE_CHANGE_REASON_PREPARED) {
+      if (! isInitialMediaSoureEvent && callback != null) {
+        callback.mediaSourcePrepared(currentMediaSource, player);
+        isInitialMediaSoureEvent = false;
+      }
     }
   }
-
 }
