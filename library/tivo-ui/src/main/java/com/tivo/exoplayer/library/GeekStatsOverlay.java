@@ -275,12 +275,18 @@ public class GeekStatsOverlay implements AnalyticsListener, Runnable {
               "id:(%s) - %dx%d@%.3f", format.id, format.width, format.height, mbps);
         }
       } else if (isAudioOnlyFormat(format)) {
+        String mimeType = format.sampleMimeType;
+        if (mimeType == null) {
+          mimeType = MimeTypes.getMediaMimeType(format.codecs);
+        }
+        String[] mimeComponents = mimeType.split("/");
+        String audioType = mimeComponents.length > 1 ? mimeComponents[1] : mimeType;
         if (bps == -1) {
           display = String.format(Locale.getDefault(),
-              "id:(%.10s) - <unk>", format.id);
+              "id:(%.10s) - %s@<unk>", format.id, audioType);
         } else {
           display = String.format(Locale.getDefault(),
-              "id:(%.10s) - %.3f", format.id, mbps);
+              "id:(%.10s) - %s@%.3f", format.id, audioType, mbps);
         }
       }
 
