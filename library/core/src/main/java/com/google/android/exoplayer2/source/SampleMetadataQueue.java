@@ -21,6 +21,7 @@ import com.google.android.exoplayer2.FormatHolder;
 import com.google.android.exoplayer2.decoder.DecoderInputBuffer;
 import com.google.android.exoplayer2.extractor.TrackOutput.CryptoData;
 import com.google.android.exoplayer2.util.Assertions;
+import com.google.android.exoplayer2.util.Log;
 import com.google.android.exoplayer2.util.Util;
 
 /**
@@ -28,6 +29,7 @@ import com.google.android.exoplayer2.util.Util;
  */
 /* package */ final class SampleMetadataQueue {
 
+  public static final String TAG = "SampleMetadataQueue";
   /**
    * A holder for sample metadata not held by {@link DecoderInputBuffer}.
    */
@@ -411,6 +413,7 @@ import com.google.android.exoplayer2.util.Util;
     }
     Assertions.checkState(!upstreamFormatRequired);
 
+    Log.d(TAG, "commitSample() - PTS: " + timeUs + ", id:" + upstreamFormat.id + ", size:" + size + ", mime: " +upstreamFormat.sampleMimeType);
     isLastSampleQueued = (sampleFlags & C.BUFFER_FLAG_LAST_SAMPLE) != 0;
     largestQueuedTimestampUs = Math.max(largestQueuedTimestampUs, timeUs);
 
