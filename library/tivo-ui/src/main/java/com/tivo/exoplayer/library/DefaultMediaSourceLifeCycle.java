@@ -11,9 +11,7 @@ import com.google.android.exoplayer2.SimpleExoPlayer;
 import com.google.android.exoplayer2.analytics.AnalyticsListener;
 import com.google.android.exoplayer2.source.BehindLiveWindowException;
 import com.google.android.exoplayer2.source.MediaSource;
-import com.google.android.exoplayer2.source.TrackGroupArray;
 import com.google.android.exoplayer2.source.hls.HlsMediaSource;
-import com.google.android.exoplayer2.trackselection.TrackSelectionArray;
 import com.google.android.exoplayer2.upstream.DataSource;
 import com.google.android.exoplayer2.upstream.DefaultDataSourceFactory;
 import com.google.android.exoplayer2.upstream.DefaultHttpDataSourceFactory;
@@ -42,7 +40,7 @@ public class DefaultMediaSourceLifeCycle implements MediaSourceLifeCycle, Analyt
   @Nullable
   private MediaSourceEventCallback callback;
 
-  private boolean isInitialMediaSoureEvent;
+  private boolean isInitialMediaSourceEvent;
 
   /**
    * Construct the default implementation of {@link MediaSourceLifeCycle}
@@ -68,7 +66,7 @@ public class DefaultMediaSourceLifeCycle implements MediaSourceLifeCycle, Analyt
   protected void playMediaSource(MediaSource mediaSource) {
     player.stop(true);
     currentMediaSource = mediaSource;
-    isInitialMediaSoureEvent = false;
+    isInitialMediaSourceEvent = false;
     player.setPlayWhenReady(true);
     player.prepare(currentMediaSource);
   }
@@ -189,9 +187,9 @@ public class DefaultMediaSourceLifeCycle implements MediaSourceLifeCycle, Analyt
   @Override
   public void onTimelineChanged(EventTime eventTime, int reason) {
     if (reason == Player.TIMELINE_CHANGE_REASON_PREPARED) {
-      if (! isInitialMediaSoureEvent && callback != null) {
+      if (!isInitialMediaSourceEvent && callback != null) {
         callback.mediaSourcePrepared(currentMediaSource, player);
-        isInitialMediaSoureEvent = false;
+        isInitialMediaSourceEvent = false;
       }
     }
   }
