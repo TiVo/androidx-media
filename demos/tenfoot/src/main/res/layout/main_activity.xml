@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+  android:orientation="vertical"
+  android:layout_width="match_parent"
+  android:layout_height="match_parent"
+  android:padding="20dp">
+  <LinearLayout
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:layout_marginBottom="10dp">
+    <TextView
+      android:layout_width="wrap_content"
+      android:layout_height="wrap_content"
+      android:text="URL:"/>
+    <Spinner
+      android:id="@+id/url_spinner"
+      android:layout_width="match_parent"
+      android:layout_height="wrap_content"/>
+  </LinearLayout>
+  <LinearLayout
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginBottom="10dp">
+    <TextView
+      android:layout_width="wrap_content"
+      android:layout_height="wrap_content"
+      android:text="or enter Url:"/>
+    <EditText
+      android:id="@+id/url_string"
+      android:layout_width="match_parent"
+      android:layout_height="wrap_content"/>
+  </LinearLayout>
+  <LinearLayout
+    android:id="@+id/encryption_setting"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:visibility="gone">
+    <TextView
+      android:layout_width="wrap_content"
+      android:layout_height="wrap_content"
+      android:text="Encryption type:"/>
+    <Spinner
+      android:id="@+id/encrypt_spinner"
+      android:layout_width="match_parent"
+      android:layout_height="wrap_content"/>
+  </LinearLayout>
+  <Switch
+    android:id="@+id/enable_tunneling"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:text="Enable Tunneling"
+    android:layout_marginBottom="10dp"
+    />
+  <Switch
+    android:id="@+id/enable_chunkless_prepare"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:text="Enable Chunkless Prepare"
+    android:layout_marginBottom="10dp"
+    />
+  <Button
+    android:id="@+id/play_button"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:text="Play"/>
+</LinearLayout>

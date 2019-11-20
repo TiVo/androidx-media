@@ -31,6 +31,8 @@ Other intents supported, show/hide stats for geeks overlay:
 ````
 adb shell am start -n com.tivo.exoplayer.demo/.ViewActivity -a com.tivo.exoplayer.action.GEEK_STATS
 ````
-
+##UI
+To see more urls in the the drop down list update `video_urls` array in `arrays.xml`
+or you can enter the url at runtime into the input field
 
 
