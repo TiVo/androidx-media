@@ -483,7 +483,7 @@ import java.util.concurrent.atomic.AtomicInteger;
    */
   private static DataSource buildDataSource(DataSource dataSource, byte[] fullSegmentEncryptionKey,
       byte[] encryptionIv, @Nullable Uri keyUri) {
-    if (dataSource instanceof HlsDecryptingDataSource) {
+    if ((dataSource instanceof HlsDecryptingDataSource) && (keyUri != null)) {
       return ((HlsDecryptingDataSource) dataSource).getDecryptingDataSource(keyUri,
           encryptionIv);
     } else if (fullSegmentEncryptionKey != null) {
