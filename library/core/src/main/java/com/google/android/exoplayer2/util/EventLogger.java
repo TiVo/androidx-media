@@ -339,7 +339,13 @@ public class EventLogger implements AnalyticsListener {
   @Override
   public void onLoadStarted(
       EventTime eventTime, LoadEventInfo loadEventInfo, MediaLoadData mediaLoadData) {
-    logd(eventTime,"loadStarted", loadEventInfo.uri.toString());
+    StringBuilder str = new StringBuilder();
+    if (loadEventInfo.dataSpec.length != C.LENGTH_UNSET) {
+      str.append(" range(o/l): ");
+      str.append(loadEventInfo.dataSpec.position); str.append("/"); str.append(loadEventInfo.dataSpec.length);
+    }
+    str.append(" uri: "); str.append(loadEventInfo.uri);
+    logd(eventTime,"loadStarted", str.toString());
   }
 
   @Override
@@ -363,8 +369,14 @@ public class EventLogger implements AnalyticsListener {
   public void onLoadCompleted(
       EventTime eventTime, LoadEventInfo loadEventInfo, MediaLoadData mediaLoadData) {
     if (mediaLoadData.trackFormat != null) {
-      logd(eventTime, "loadCompleted", "trackId: " + mediaLoadData.trackFormat.id + " codecs: "
-          + mediaLoadData.trackFormat.codecs + " URI: " + loadEventInfo.uri);
+      StringBuilder str = new StringBuilder();
+      str.append("trackId: "); str.append(mediaLoadData.trackFormat.id);
+      str.append(" codecs: "); str.append(mediaLoadData.trackFormat.codecs);
+      str.append(" uri: "); str.append(loadEventInfo.uri);
+
+      logd(eventTime, "loadCompleted[media] - ", str.toString());
+    } else {
+      logd(eventTime, "loadCompleted",  " URI: " + loadEventInfo.uri);
     }
   }
 
