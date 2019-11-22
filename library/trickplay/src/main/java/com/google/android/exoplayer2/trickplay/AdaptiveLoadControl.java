@@ -5,8 +5,11 @@ import com.google.android.exoplayer2.Renderer;
 import com.google.android.exoplayer2.source.TrackGroupArray;
 import com.google.android.exoplayer2.trackselection.TrackSelectionArray;
 import com.google.android.exoplayer2.upstream.Allocator;
+import com.google.android.exoplayer2.util.Log;
 
 public class AdaptiveLoadControl implements LoadControl, TrickPlayEventListener {
+
+  private static final String TAG = "AdaptiveLoadControl";
 
   private final TrickPlayControlInternal trickPlayController;
   private final LoadControl delegate;
@@ -45,14 +48,10 @@ public class AdaptiveLoadControl implements LoadControl, TrickPlayEventListener 
 
   @Override
   public long getBackBufferDurationUs() {
-    TrickPlayControl.TrickMode mode = trickPlayController.getCurrentTrickMode();
-    switch (mode) {
-      case NORMAL:
-        return delegate.getBackBufferDurationUs();
 
-      default:    // TOOD might be more cases for this..
-        return 200 * 1000 * 1000;
-    }
+    // NOTE this currently is only called when the player is created :-(, so we need to retain back for trickplay
+    // regardless of the state
+    return 10 * 1000 * 1000;
   }
 
   @Override
@@ -62,12 +61,38 @@ public class AdaptiveLoadControl implements LoadControl, TrickPlayEventListener 
 
   @Override
   public boolean shouldContinueLoading(long bufferedDurationUs, float playbackSpeed) {
-    boolean minForIframePlayback = bufferedDurationUs < 2 * 1000 * 1000;
-    boolean shouldContinue = delegate.shouldContinueLoading(bufferedDurationUs, 1.0f);
+    long iFrameDurationUs = 2 * 1000 * 1000;    // TODO should come from playlist parse somehow
+    boolean shouldContinue = delegate.shouldContinueLoading(bufferedDurationUs, playbackSpeed);
+    float requiredBufferedTime = 0.0f;
 
-    if (shouldContinue) {
-//      Log.d("TRICK-PLAY", "shouldContinueLoading -  speed: " + playbackSpeed + " buffer ms: " + C.usToMs(bufferedDurationUs));
+    if (trickPlayController.isSmoothPlayAvailable() && false) {
+      switch (trickPlayController.getCurrentTrickDirection()) {
+        case FORWARD:
+          if (playbackSpeed > 6.0) {    // Buffering more then one frame when jumps are large is pointless
+            requiredBufferedTime = iFrameDurationUs;
+          } else {
+            requiredBufferedTime = playbackSpeed * iFrameDurationUs;
+          }
+          break;
+
+        case REVERSE:
+          requiredBufferedTime = iFrameDurationUs;
+          break;
+
+        case NONE:
+          requiredBufferedTime = 0.0f;
+          break;
+      }
     }
+
+    if (requiredBufferedTime > 0.0f) {
+      shouldContinue = bufferedDurationUs < requiredBufferedTime;
+    }
+//
+//    if (trickPlayController.getCurrentTrickDirection() == TrickPlayControl.TrickPlayDirection.REVERSE) {
+//      Log.d(TAG, "shouldContinueLoading() - speed: " + playbackSpeed + " buffered: " + bufferedDurationUs);
+//      shouldContinue = minForIframePlayback;
+//    }
     return shouldContinue;
   }
 
@@ -75,8 +100,9 @@ public class AdaptiveLoadControl implements LoadControl, TrickPlayEventListener 
   public boolean shouldStartPlayback(long bufferedDurationUs, float playbackSpeed, boolean rebuffering) {
     boolean defaultShouldStart = delegate.shouldStartPlayback(bufferedDurationUs, 1.0f, rebuffering);
 
-    if (! defaultShouldStart) {
-//      Log.d("TRICK-PLAY", "shouldStartPlayback false - speed: " + playbackSpeed + " buffered: " + bufferedDurationUs + " rebuffer: " + rebuffering);
+    if (trickPlayController.getCurrentTrickDirection() == TrickPlayControl.TrickPlayDirection.REVERSE) {
+      Log.d(TAG, "shouldStartPlayback() - speed: " + playbackSpeed + " buffered: " + bufferedDurationUs + " rebuffer: " + rebuffering + " super:shouldStartPlayback(): " + defaultShouldStart);
+      defaultShouldStart = true;
     }
 
     return defaultShouldStart;
