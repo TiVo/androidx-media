@@ -64,7 +64,7 @@
         android:label="@string/application_name"
         android:theme="@style/PlayerTheme">
       <intent-filter>
-        <action android:name="com.google.android.exoplayer.demo.action.VIEW"/>
+        <action android:name="com.tivo.exoplayer.action.VIEW"/>
         <category android:name="android.intent.category.DEFAULT"/>
         <data android:scheme="http"/>
         <data android:scheme="https"/>
@@ -73,7 +73,7 @@
         <data android:scheme="file"/>
       </intent-filter>
       <intent-filter>
-        <action android:name="com.google.android.exoplayer.demo.action.VIEW_LIST"/>
+        <action android:name="com.tivo.exoplayer.action.VIEW_LISTT"/>
         <category android:name="android.intent.category.DEFAULT"/>
       </intent-filter>
     </activity>

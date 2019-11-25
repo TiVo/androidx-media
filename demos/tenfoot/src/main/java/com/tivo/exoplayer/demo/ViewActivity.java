@@ -30,6 +30,7 @@ import com.google.android.exoplayer2.trackselection.DefaultTrackSelector;
 import com.google.android.exoplayer2.trickplay.TrickPlayControl;
 import com.google.android.exoplayer2.trickplay.TrickPlayEventListener;
 import com.google.android.exoplayer2.ui.PlayerControlView;
+import com.google.android.exoplayer2.ui.PlayerNotificationManager;
 import com.google.android.exoplayer2.ui.PlayerView;
 import com.google.android.exoplayer2.ui.TimeBar;
 import com.google.android.exoplayer2.util.Util;
@@ -73,6 +74,8 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
   private Uri[] channelUris;
 
   private int initialSeek = C.POSITION_UNSET;
+
+  private boolean isTrickPlaybarShowing = false;
 
   private BroadcastReceiver hdmiHotPlugReceiver = new BroadcastReceiver() {
 
@@ -121,7 +124,8 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
       exoPlayerFactory.setCloseCaption(enabled, null);
     }
   };
-  protected TimeBar timeBar;
+
+  private TimeBar timeBar;
 
   // Activity lifecycle
 
@@ -150,7 +154,8 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
     timeBar = playerView.findViewById(R.id.exo_progress);
     timeBar.setKeyTimeIncrement(10_000);
 
-
+    playerView.setControllerAutoShow(false);
+    playerView.setControllerShowTimeoutMs(-1);
     Locale current = Locale.getDefault();
 
     CaptioningManager captioningManager = (CaptioningManager) context.getSystemService(Context.CAPTIONING_SERVICE);
@@ -237,7 +242,7 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
 
   @Override
   public void onVisibilityChange(int visibility) {
-
+    isTrickPlaybarShowing = visibility == View.VISIBLE;
   }
 
   // Internal
@@ -273,7 +278,15 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
       if (event.getAction() == KeyEvent.ACTION_DOWN) {
         int keyCode = event.getKeyCode();
 
+        if (keyCode != KeyEvent.KEYCODE_INFO) {
+          playerView.showController();
+        }
+
         switch (keyCode) {
+
+          case KeyEvent.KEYCODE_INFO:
+            toggleTrickPlayBar();
+            break;
 
           case KeyEvent.KEYCODE_0:
             if (!isShowingTrackSelectionDialog && trackSelector != null && TrackSelectionDialog
@@ -369,14 +382,15 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
             break;
 
           case KeyEvent.KEYCODE_5:
-            List<TrackInfo> audioTracks = exoPlayerFactory.getAvailableAudioTracks();
-            if (audioTracks.size() > 0) {
-              DialogFragment dialog =
-                  TrackInfoSelectionDialog
-                      .createForChoices("Select Audio", audioTracks, exoPlayerFactory);
-              dialog.show(getSupportFragmentManager(), null);
-            }
-            handled = true;
+            geekStats.toggleVisible();
+//            List<TrackInfo> audioTracks = exoPlayerFactory.getAvailableAudioTracks();
+//            if (audioTracks.size() > 0) {
+//              DialogFragment dialog =
+//                  TrackInfoSelectionDialog
+//                      .createForChoices("Select Audio", audioTracks, exoPlayerFactory);
+//              dialog.show(getSupportFragmentManager(), null);
+//            }
+//            handled = true;
             break;
 
           case KeyEvent.KEYCODE_8:
@@ -438,6 +452,14 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
     }
 
     return handled || playerView.dispatchKeyEvent(event) || super.dispatchKeyEvent(event);
+  }
+
+  private void toggleTrickPlayBar() {
+    if (isTrickPlaybarShowing) {
+      playerView.hideController();
+    } else {
+      playerView.showController();
+    }
   }
 
   @Override
