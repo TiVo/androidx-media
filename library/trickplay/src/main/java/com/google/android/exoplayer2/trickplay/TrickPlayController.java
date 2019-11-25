@@ -610,11 +610,7 @@ class TrickPlayController implements TrickPlayControlInternal {
             Log.d(TAG, "Start seek-based trickplay " + newMode + " at media time " + player.getCurrentPosition());
             setAudioEnableForTrickPlay(newMode);
             startSeekBasedTrickplay();
-
-            // TODO - maybe a cleaner way, but all ABR gets is the speed, so we set it > 1x
-            player.setPlaybackParameters(new PlaybackParameters(Math.abs(getSpeedFor(newMode))));
         }
-
         dispatchTrickModeChanged(newMode, previousMode);
 
     }
@@ -647,7 +643,7 @@ class TrickPlayController implements TrickPlayControlInternal {
 
             if (lastRendersCount > 0) {
                 long positionMs = lastRenders.get(0);
-                Log.d(TAG, "Seek to previous rendered frame, positions " + positionMs);
+                Log.d(TAG, "Seek to previous rendered frame, positions " + positionMs + " currentPos: " + player.getCurrentPosition());
                 player.seekTo(positionMs);
             }
         }
@@ -885,6 +881,7 @@ class TrickPlayController implements TrickPlayControlInternal {
         stopSeekBasedTrickplay();
         currentHandler = new SeekBasedTrickPlay(player.getContentPosition());
         player.addAnalyticsListener(currentHandler);
+        player.setPlaybackParameters(new PlaybackParameters(0.1f));
         currentHandler.startTrickPlay();
     }
 

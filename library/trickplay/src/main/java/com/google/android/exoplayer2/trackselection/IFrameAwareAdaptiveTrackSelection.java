@@ -1,8 +1,10 @@
 package com.google.android.exoplayer2.trackselection;
 
+import androidx.annotation.Nullable;
 import com.google.android.exoplayer2.C;
 import com.google.android.exoplayer2.Format;
 import com.google.android.exoplayer2.source.TrackGroup;
+import com.google.android.exoplayer2.trickplay.TrickPlayControl;
 import com.google.android.exoplayer2.upstream.BandwidthMeter;
 import com.google.android.exoplayer2.util.Clock;
 import org.checkerframework.checker.nullness.compatqual.NullableType;
@@ -16,9 +18,10 @@ import org.checkerframework.checker.nullness.compatqual.NullableType;
  *
  */
 public class IFrameAwareAdaptiveTrackSelection extends AdaptiveTrackSelection {
-  private static final String TAG = "TRICK-PLAY";
+  private static final String TAG = "IFrameAwareAdaptiveTrackSelection";
 
-  private float iframeSpeedThreshold  = 6.0f;
+  @Nullable
+  private TrickPlayControl trickPlayControl;
 
   public static class Factory implements TrackSelection.Factory {
 
@@ -63,6 +66,9 @@ public class IFrameAwareAdaptiveTrackSelection extends AdaptiveTrackSelection {
         bufferedFractionToLiveEdgeForQualityIncrease, minTimeBetweenBufferReevaluationMs, clock);
   }
 
+  public void setTrickPlayControl(TrickPlayControl trickPlayControl) {
+    this.trickPlayControl = trickPlayControl;
+  }
 
   /**
    * Override to select only the iFrame tracks when playback speed exceeds a threshold.
@@ -78,12 +84,12 @@ public class IFrameAwareAdaptiveTrackSelection extends AdaptiveTrackSelection {
       Format format, int trackBitrate, float playbackSpeed, long effectiveBitrate) {
 
     boolean isIframeOnly = (format.roleFlags & C.ROLE_FLAG_TRICK_PLAY) != 0;
-    boolean canSelect = Math.round(trackBitrate * playbackSpeed) <= effectiveBitrate;
+    boolean canSelect;
 
 //    Log.d(TAG, "canSelect - ID: " + format.id + " isIf: " + isIframeOnly + " canSelect: " + canSelect + " effBR: " + effectiveBitrate + " trackBR: " + trackBitrate + " speed: "+playbackSpeed);
 
-    if (Math.abs(playbackSpeed) > iframeSpeedThreshold) {
-      canSelect = isIframeOnly;   // TODO factor in playback speed...
+    if (trickPlayControl != null && trickPlayControl.getCurrentTrickMode() != TrickPlayControl.TrickMode.NORMAL) {
+      canSelect = isIframeOnly;
     } else {
       canSelect = super.canSelectFormat(format, trackBitrate, playbackSpeed, effectiveBitrate);
     }

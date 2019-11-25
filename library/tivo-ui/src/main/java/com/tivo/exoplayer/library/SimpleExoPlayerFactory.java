@@ -10,6 +10,7 @@ import com.google.android.exoplayer2.ExoPlaybackException;
 import com.google.android.exoplayer2.ExoPlayerFactory;
 import com.google.android.exoplayer2.Format;
 import com.google.android.exoplayer2.LoadControl;
+import com.google.android.exoplayer2.Player;
 import com.google.android.exoplayer2.RenderersFactory;
 import com.google.android.exoplayer2.SimpleExoPlayer;
 import com.google.android.exoplayer2.analytics.AnalyticsListener;
@@ -52,9 +53,7 @@ import java.util.Properties;
  *
  *
  */
-public class SimpleExoPlayerFactory implements
-    DefaultExoPlayerErrorHandler.PlaybackExceptionRecovery {
-
+public class SimpleExoPlayerFactory implements DefaultExoPlayerErrorHandler.PlaybackExceptionRecovery, Player.EventListener {
   /**
    * Android application context for access to Android
    */
@@ -227,6 +226,7 @@ public class SimpleExoPlayerFactory implements
 
     trickPlayControl.setPlayer(player);
     player.setPlayWhenReady(playWhenReady);
+    player.addListener(this);
     player.addAnalyticsListener(new EventLogger(trackSelector));
     player.addAnalyticsListener(createPlayerErrorHandler(mediaSourceLifeCycle));
     return player;
@@ -562,6 +562,17 @@ public class SimpleExoPlayerFactory implements
 
   // Internal methods
 
+
+  @Override
+  public void onTracksChanged(TrackGroupArray trackGroups, TrackSelectionArray trackSelections) {
+    for (int i=0; i < trackSelections.length; i++) {
+      TrackSelection selection = trackSelections.get(i);
+      if (selection instanceof IFrameAwareAdaptiveTrackSelection) {
+        IFrameAwareAdaptiveTrackSelection ifAwareSelection = (IFrameAwareAdaptiveTrackSelection) selection;
+        ifAwareSelection.setTrickPlayControl(trickPlayControl);
+      }
+    }
+  }
 
   private TrackSelection getTrackSelectionForGroup(TrackGroup group) {
     TrackSelection selection = null;
