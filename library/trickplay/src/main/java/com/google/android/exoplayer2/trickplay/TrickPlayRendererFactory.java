@@ -152,7 +152,7 @@ class TrickPlayRendererFactory extends DefaultRenderersFactory {
       lastRenderTimeUs = System.nanoTime() / 1000;
       lastRenderedPositionUs = presentationTimeUs;
 
-      if (trickPlay.useTrickPlayRendering()) {
+      if (trickPlay.isSmoothPlayAvailable() && trickPlay.getCurrentTrickDirection() != TrickPlayControl.TrickPlayDirection.NONE) {
         trickPlay.dispatchTrickFrameRender(lastRenderedPositionUs);
       }
     }

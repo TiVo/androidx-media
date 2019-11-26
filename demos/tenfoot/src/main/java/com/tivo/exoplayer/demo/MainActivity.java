@@ -13,7 +13,7 @@ public class MainActivity extends Activity {
 
     Intent playKqed = new Intent();
     playKqed.setAction(ViewActivity.ACTION_VIEW);
-    playKqed.setData(Uri.parse("http://live1.nokia.tivo.com/kqedplus/vxfmt=dp/playlist.m3u8?device_profile=hlsclr"));
+    playKqed.setData(Uri.parse("http://live1.nokia.tivo.com/ktvu/vxfmt=dp/playlist.m3u8?device_profile=hlsclr"));
 
     startActivity(playKqed);
   }

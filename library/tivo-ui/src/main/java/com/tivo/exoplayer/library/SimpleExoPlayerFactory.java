@@ -54,6 +54,8 @@ import java.util.Properties;
  *
  */
 public class SimpleExoPlayerFactory implements DefaultExoPlayerErrorHandler.PlaybackExceptionRecovery, Player.EventListener {
+  public static final String TAG = "SimpleExoPlayerFactory";
+
   /**
    * Android application context for access to Android
    */
@@ -565,6 +567,8 @@ public class SimpleExoPlayerFactory implements DefaultExoPlayerErrorHandler.Play
 
   @Override
   public void onTracksChanged(TrackGroupArray trackGroups, TrackSelectionArray trackSelections) {
+
+    Log.d(TAG, "onTracksChanged() - trickPlayControl: " + trickPlayControl + " mode: " + (trickPlayControl == null ? "unknown" : trickPlayControl.getCurrentTrickMode()));
     for (int i=0; i < trackSelections.length; i++) {
       TrackSelection selection = trackSelections.get(i);
       if (selection instanceof IFrameAwareAdaptiveTrackSelection) {

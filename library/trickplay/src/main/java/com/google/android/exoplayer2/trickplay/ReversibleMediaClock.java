@@ -67,9 +67,12 @@ class ReversibleMediaClock implements MediaClock {
         return Math.max(0, positionUs);
     }
 
+    public void setForward(boolean forward) {
+        isForward = forward;
+    }
+
     @Override
     public PlaybackParameters setPlaybackParameters(PlaybackParameters playbackParameters) {
-
         this.playbackParameters = playbackParameters;
         return playbackParameters;
     }

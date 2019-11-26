@@ -282,7 +282,7 @@ class TrickPlayController implements TrickPlayControlInternal {
      * NOTE: there is no chance of handler leak as {@link #removePlayerReference()} cleans up this handler
      */
     @SuppressLint("HandlerLeak")
-    private class SeekBasedTrickPlay extends Handler implements AnalyticsListener {
+    private class SeekBasedTrickPlay extends Handler implements AnalyticsListener, TrickPlayEventListener {
         private static final String TAG = "SeekBasedTrickPlay";
 
         // Causes the handler to issue an initial seek to the position indicated by the clock
@@ -308,13 +308,20 @@ class TrickPlayController implements TrickPlayControlInternal {
 
         SeekBasedTrickPlay(long startingPosition) {
             player.setSeekParameters(SeekParameters.CLOSEST_SYNC);
-            float currentSpeed = getSpeedFor(getCurrentTrickMode());
             boolean isForward = getCurrentTrickDirection() == TrickPlayDirection.FORWARD;
-            Log.d(TAG, "SeekBasedTrickPlay() - mode: " + getCurrentTrickMode() + " start at: " + startingPosition);
-
-            PlaybackParameters playbackParameters = new PlaybackParameters(Math.abs(currentSpeed));
+            Log.d(TAG, "Create SeekBasedTrickPlay() - initial mode: " + getCurrentTrickMode() + " start at: " + startingPosition);
             currentMediaClock = new ReversibleMediaClock(isForward, C.msToUs(startingPosition), Clock.DEFAULT);
+
+            TrickMode currentTrickMode = getCurrentTrickMode();
+            updateTrickMode(currentTrickMode);
+        }
+
+        private void updateTrickMode(TrickMode currentTrickMode) {
+            boolean isForward = getCurrentTrickDirection() == TrickPlayDirection.FORWARD;
+            float currentSpeed = getSpeedFor(currentTrickMode);
+            PlaybackParameters playbackParameters = new PlaybackParameters(Math.abs(currentSpeed));
             currentMediaClock.setPlaybackParameters(playbackParameters);
+            currentMediaClock.setForward(isForward);
         }
 
         @Override
@@ -418,13 +425,36 @@ class TrickPlayController implements TrickPlayControlInternal {
             sendEmptyMessage(MSG_TRICKPLAY_STARTSEEK);
         }
 
+        // Implement trickplay event listener
+
+        @Override
+        public void trickPlayModeChanged(TrickMode newMode, TrickMode prevMode) {
+            if (newMode != TrickMode.NORMAL) {
+                updateTrickMode(newMode);
+            }
+        }
+
+        @Override
+        public void trickFrameRendered(long frameRenderTimeUs) {
+            if (isSmoothPlayAvailable()) {
+              long realtimeMs = Clock.DEFAULT.elapsedRealtime();
+              AnalyticsListener.EventTime eventTime = new EventTime(realtimeMs, player.getCurrentTimeline(), 0, null,
+                  0, player.getCurrentPosition(), 0);
+              Log.d(TAG, "Trick frame render " + getCurrentTrickMode() + " position: " + eventTime.currentPlaybackPositionMs);
+              Message msg = obtainMessage(SeekBasedTrickPlay.MSG_TRICKPLAY_FRAMERENDER, eventTime);
+              sendMessage(msg);
+            }
+        }
+
         // Implement analytics listener.  Methods are called in thread that created this handler
 
         @Override
         public void onRenderedFirstFrame(EventTime eventTime, @Nullable Surface surface) {
-            Log.d(TAG, "First frame " + getCurrentTrickMode() + " position: " + eventTime.currentPlaybackPositionMs);
-            Message msg = obtainMessage(SeekBasedTrickPlay.MSG_TRICKPLAY_FRAMERENDER, eventTime);
-            sendMessage(msg);
+            if (! isSmoothPlayAvailable()) {
+                Log.d(TAG, "First frame " + getCurrentTrickMode() + " position: " + eventTime.currentPlaybackPositionMs);
+                Message msg = obtainMessage(SeekBasedTrickPlay.MSG_TRICKPLAY_FRAMERENDER, eventTime);
+                sendMessage(msg);
+            }
         }
 
         @Override
@@ -608,8 +638,10 @@ class TrickPlayController implements TrickPlayControlInternal {
             player.setPlaybackParameters(new PlaybackParameters(getSpeedFor(newMode)));
         } else {
             Log.d(TAG, "Start seek-based trickplay " + newMode + " at media time " + player.getCurrentPosition());
-            setAudioEnableForTrickPlay(newMode);
-            startSeekBasedTrickplay();
+            if (previousMode == TrickMode.NORMAL) {
+                startSeekBasedTrickplay();
+                setAudioEnableForTrickPlay(newMode);
+            }
         }
         dispatchTrickModeChanged(newMode, previousMode);
 
@@ -873,6 +905,7 @@ class TrickPlayController implements TrickPlayControlInternal {
         if (currentHandler != null) {
             currentHandler.removeCallbacksAndMessages(null);
             player.removeAnalyticsListener(currentHandler);
+            removeEventListener(currentHandler);
             currentHandler = null;
         }
     }
@@ -882,6 +915,9 @@ class TrickPlayController implements TrickPlayControlInternal {
         currentHandler = new SeekBasedTrickPlay(player.getContentPosition());
         player.addAnalyticsListener(currentHandler);
         player.setPlaybackParameters(new PlaybackParameters(0.1f));
+        if (isSmoothPlayAvailable()) {
+            addEventListener(currentHandler);
+        }
         currentHandler.startTrickPlay();
     }
 
