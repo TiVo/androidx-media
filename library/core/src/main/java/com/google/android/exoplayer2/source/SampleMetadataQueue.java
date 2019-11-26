@@ -413,7 +413,7 @@ import com.google.android.exoplayer2.util.Util;
     }
     Assertions.checkState(!upstreamFormatRequired);
 
-    Log.d(TAG, "commitSample() - PTS: " + timeUs + ", id:" + upstreamFormat.id + ", size:" + size + ", mime: " +upstreamFormat.sampleMimeType);
+//    Log.d(TAG, "commitSample() - PTS: " + timeUs + ", id:" + upstreamFormat.id + ", size:" + size + ", mime: " +upstreamFormat.sampleMimeType);
     isLastSampleQueued = (sampleFlags & C.BUFFER_FLAG_LAST_SAMPLE) != 0;
     largestQueuedTimestampUs = Math.max(largestQueuedTimestampUs, timeUs);
 

@@ -356,10 +356,9 @@ class TrickPlayController implements TrickPlayControlInternal {
                     case MSG_TRICKPLAY_SEEKISSUED:
                         Log.d(TAG, "msg SEEKISSUED - timeSinceLastRender: " + timeSinceLastRender + " isMinFrameRate: " + isMinFrameRate);
                         if (hasMessages(MSG_TRICKPLAY_TIMED_SEEK)) {
-                            Log.e(TAG, "msg SEEKISSUED - HAS PENDING SEEK MSG");
-                            throw new RuntimeException();
+                            Log.w(TAG, "msg SEEKISSUED - with pending seek?");
                         }
-                        if (isMinFrameRate) {
+                        if (isMinFrameRate && ! hasMessages(MSG_TRICKPLAY_TIMED_SEEK)) {
                             issueOrQueueSeek();
                         }
                         player.setPlayWhenReady(false);
@@ -441,6 +440,7 @@ class TrickPlayController implements TrickPlayControlInternal {
               AnalyticsListener.EventTime eventTime = new EventTime(realtimeMs, player.getCurrentTimeline(), 0, null,
                   0, player.getCurrentPosition(), 0);
               Log.d(TAG, "Trick frame render " + getCurrentTrickMode() + " position: " + eventTime.currentPlaybackPositionMs);
+              removeMessages(SeekBasedTrickPlay.MSG_TRICKPLAY_FRAMERENDER);
               Message msg = obtainMessage(SeekBasedTrickPlay.MSG_TRICKPLAY_FRAMERENDER, eventTime);
               sendMessage(msg);
             }

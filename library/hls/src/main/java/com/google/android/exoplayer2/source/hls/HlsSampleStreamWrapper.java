@@ -518,7 +518,7 @@ import java.util.Map;
       }
       formatHolder.format = format;
     } else if (result == C.RESULT_BUFFER_READ) {
-      Log.d(TAG, "readData() - PTS: " + buffer.timeUs + ", id:" + downstreamTrackFormat.id + ", size:" + buffer.data.position() + ", mime: " + downstreamTrackFormat.sampleMimeType);
+//      Log.d(TAG, "readData() - PTS: " + buffer.timeUs + ", id:" + downstreamTrackFormat.id + ", size:" + buffer.data.position() + ", mime: " + downstreamTrackFormat.sampleMimeType);
     }
     return result;
   }
