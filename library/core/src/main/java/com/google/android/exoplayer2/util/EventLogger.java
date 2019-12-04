@@ -369,9 +369,11 @@ public class EventLogger implements AnalyticsListener {
   public void onLoadCompleted(
       EventTime eventTime, LoadEventInfo loadEventInfo, MediaLoadData mediaLoadData) {
     if (mediaLoadData.trackFormat != null) {
+      long duration = mediaLoadData.mediaEndTimeMs - mediaLoadData.mediaStartTimeMs;
       StringBuilder str = new StringBuilder();
       str.append("trackId: "); str.append(mediaLoadData.trackFormat.id);
       str.append(" codecs: "); str.append(mediaLoadData.trackFormat.codecs);
+      str.append(" start(dur): "); str.append(mediaLoadData.mediaStartTimeMs);str.append("/");str.append(duration);
       str.append(" uri: "); str.append(loadEventInfo.uri);
 
       logd(eventTime, "loadCompleted[media] - ", str.toString());

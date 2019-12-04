@@ -9,7 +9,6 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
 
-import com.google.android.exoplayer2.DefaultRenderersFactory;
 import com.google.android.exoplayer2.Format;
 import com.google.android.exoplayer2.LoadControl;
 import com.google.android.exoplayer2.Player;
@@ -297,8 +296,8 @@ class TrickPlayController implements TrickPlayControlInternal {
         // Used to throttle the next seek so as to achive the frame rate targets
         static final int MSG_TRICKPLAY_FRAMERENDER = 4;
 
-        static final int TARGET_FPS = 5;
-        static final int MIN_FPS = 2;
+        static final int TARGET_FPS = 7;
+        static final int MIN_FPS = 4;
         static final int targetFrameIntervalMs = 1000 / TARGET_FPS;
         static final int minFrameIntervalMs = 1000 / MIN_FPS;
 
@@ -350,7 +349,7 @@ class TrickPlayController implements TrickPlayControlInternal {
                 switch (msg.what) {
                     case MSG_TRICKPLAY_STARTSEEK:
                         Log.d(TAG, "msg STARTSEEK - call issueSeekToIfMinDelta() - timeSinceLastRender: " + timeSinceLastRender + " targetFrameIntervalMs: " + targetFrameIntervalMs);
-                        issueOrQueueSeek();
+                        issueOrQueueSeek(0);
                         break;
 
                     case MSG_TRICKPLAY_SEEKISSUED:
@@ -359,7 +358,7 @@ class TrickPlayController implements TrickPlayControlInternal {
                             Log.w(TAG, "msg SEEKISSUED - with pending seek?");
                         }
                         if (isMinFrameRate && ! hasMessages(MSG_TRICKPLAY_TIMED_SEEK)) {
-                            issueOrQueueSeek();
+                            issueOrQueueSeek(0);
                         }
                         player.setPlayWhenReady(false);
 
@@ -368,7 +367,7 @@ class TrickPlayController implements TrickPlayControlInternal {
                     case MSG_TRICKPLAY_TIMED_SEEK:
                         if (isMinFrameRate) {
                             Log.d(TAG, "msg TIMED_SEEK issuing seek - timeSinceLastRender: " + timeSinceLastRender + " isPendingSeek: " + isPendingSeek);
-                            issueOrQueueSeek();
+                            issueOrQueueSeek(0);
                         } else {
                             Log.d(TAG, "msg TIMED_SEEK wait for render -" + debugTimeStr() +"timeSinceLastRender: " + timeSinceLastRender + " isPendingSeek: " + isPendingSeek);
                         }
@@ -384,7 +383,7 @@ class TrickPlayController implements TrickPlayControlInternal {
 
                         // If we have no pending seek then we have fallen below the min frame rate, issue a seek
                         if (! isPendingSeek) {
-                            issueOrQueueSeek();
+                            issueOrQueueSeek(30);
                         }
                         break;
 
@@ -392,11 +391,20 @@ class TrickPlayController implements TrickPlayControlInternal {
             }
         }
 
-        private void issueOrQueueSeek() {
+        /**
+         * Calculate the 'seekDelta' as the magnitude of the difference between the current playback
+         * position and where the fast play/rewind media clock calculates the current position should be.
+         *
+         * If seekDelta is less then the target frame interval or a min seek delay is set,
+         * then delay issuing the seek, otherwise issue it imediately.
+         *
+         * @param minSeekDelay - even if seekDelta is less then the
+         */
+        private void issueOrQueueSeek(long minSeekDelay) {
             long largestSafeSeekPositionMs = getLargestSafeSeekPositionMs();
             long seekTargetMs = Math.min(C.usToMs(currentMediaClock.getPositionUs()), largestSafeSeekPositionMs);
             long seekDelta = Math.abs(seekTargetMs - player.getCurrentPosition());
-            long seekDelay = targetFrameIntervalMs - seekDelta;
+            long seekDelay = Math.max(targetFrameIntervalMs - seekDelta, minSeekDelay);
             if (seekDelay > 0) {
                 Log.d(TAG, "issueOrQueueSeek() - queue seek, seekDelay: " + seekDelay + debugTimeStr());
                 sendEmptyMessageDelayed(MSG_TRICKPLAY_TIMED_SEEK, seekDelay);

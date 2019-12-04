@@ -148,11 +148,12 @@ class TrickPlayRendererFactory extends DefaultRenderersFactory {
     protected void renderOutputBufferV21(MediaCodec codec, int index, long presentationTimeUs,
         long releaseTimeNs) {
       super.renderOutputBufferV21(codec, index, presentationTimeUs, releaseTimeNs);
-//      Log.d(TAG, "onRenderOutputBuffer() - pts: " + presentationTimeUs + " releaseTimeUs: " + (releaseTimeNs / 1000) + " index:" +index);
+      long timeSinceLastRender =  lastRenderTimeUs == C.TIME_UNSET ? C.TIME_UNSET : (System.nanoTime() / 1000) - lastRenderTimeUs;
       lastRenderTimeUs = System.nanoTime() / 1000;
       lastRenderedPositionUs = presentationTimeUs;
 
       if (trickPlay.isSmoothPlayAvailable() && trickPlay.getCurrentTrickDirection() != TrickPlayControl.TrickPlayDirection.NONE) {
+        Log.d(TAG, "renderOutputBufferV21() in trickplay - pts: " + presentationTimeUs + " releaseTimeUs: " + (releaseTimeNs / 1000) + " index:" + index + " timeSinceLastUs: " + timeSinceLastRender);
         trickPlay.dispatchTrickFrameRender(lastRenderedPositionUs);
       }
     }
