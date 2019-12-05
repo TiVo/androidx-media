@@ -34,6 +34,7 @@ import com.google.android.exoplayer2.source.hls.playlist.HlsMasterPlaylist.Varia
 import com.google.android.exoplayer2.source.hls.playlist.HlsMediaPlaylist.Segment;
 import com.google.android.exoplayer2.upstream.ParsingLoadable;
 import com.google.android.exoplayer2.util.Assertions;
+import com.google.android.exoplayer2.util.Log;
 import com.google.android.exoplayer2.util.MimeTypes;
 import com.google.android.exoplayer2.util.UriUtil;
 import com.google.android.exoplayer2.util.Util;
@@ -58,7 +59,7 @@ import org.checkerframework.checker.nullness.qual.PolyNull;
  * HLS playlists parsing logic.
  */
 public final class HlsPlaylistParser implements ParsingLoadable.Parser<HlsPlaylist> {
-
+  private static final String TAG = "HlsPlaylistParser";
   private static final String PLAYLIST_HEADER = "#EXTM3U";
 
   private static final String TAG_PREFIX = "#EXT";
@@ -611,6 +612,7 @@ public final class HlsPlaylistParser implements ParsingLoadable.Parser<HlsPlayli
     TreeMap<String, SchemeData> currentSchemeDatas = new TreeMap<>();
     String encryptionScheme = null;
     DrmInitData cachedDrmInitData = null;
+    boolean parsedTagDiscontinuity = false;
 
     String line;
     while (iterator.hasNext()) {
@@ -722,6 +724,7 @@ public final class HlsPlaylistParser implements ParsingLoadable.Parser<HlsPlayli
         playlistDiscontinuitySequence = Integer.parseInt(line.substring(line.indexOf(':') + 1));
       } else if (line.equals(TAG_DISCONTINUITY)) {
         relativeDiscontinuitySequence++;
+        parsedTagDiscontinuity = true;
       } else if (line.startsWith(TAG_PROGRAM_DATE_TIME)) {
         if (playlistStartTimeUs == 0) {
           long programDatetimeUs =
@@ -761,9 +764,14 @@ public final class HlsPlaylistParser implements ParsingLoadable.Parser<HlsPlayli
           }
         }
 
+        String url = replaceVariableReferences(line, variableDefinitions);
+        if (parsedTagDiscontinuity) {
+          parsedTagDiscontinuity = false;
+          Log.d(TAG, "#EXT-X-DISCONTINUITY parsed, plDiscSequence: " +  playlistDiscontinuitySequence + " segmentDiscSequence: " + (playlistDiscontinuitySequence + relativeDiscontinuitySequence) + " mediaSequence: " + segmentMediaSequence + ", uri: " + url);
+        }
         segments.add(
             new Segment(
-                replaceVariableReferences(line, variableDefinitions),
+                url,
                 initializationSegment,
                 segmentTitle,
                 segmentDurationUs,
