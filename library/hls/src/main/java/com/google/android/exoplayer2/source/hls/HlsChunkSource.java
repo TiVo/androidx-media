@@ -444,6 +444,13 @@ import java.util.Map;
     return chunkIterators;
   }
 
+  public int getPreferredQueueSize(long playbackPositionUs, List<? extends MediaChunk> queue) {
+    if (fatalError != null || trackSelection.length() < 2) {
+      return queue.size();
+    }
+    return trackSelection.evaluateQueueSize(playbackPositionUs, queue);
+  }
+
   // Private methods.
 
   /**
