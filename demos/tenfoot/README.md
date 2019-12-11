@@ -32,11 +32,15 @@ Other intents supported, show/hide stats for geeks overlay:
 adb shell am start -n com.tivo.exoplayer.demo/.ViewActivity -a com.tivo.exoplayer.action.GEEK_STATS
 ````
 
+
 Start with an initial position, `start_at` (value is in milliseconds, 0 is start of the playlist or window)
 
 ````
 adb shell am start -n com.tivo.exoplayer.demo/.ViewActivity -a com.tivo.exoplayer.action.VIEW  --ei start_at 1152000 -d  "'http://rr.vod.rcn.net:8080/rolling-buffer/wusahd__tp1-1008007-wusahd-216219168175125654-7614237-1573182000-157318560000000001/wusahd__tp1-1008007-wusahd-216219168175125654-7614237-1573182000-157318560000000001.m4m/transmux/index.m3u8?ccur_st=0&ccur_et=3600&ccur_svc_type=rec&eprefix=lts&source_channel_id=wusahd'"
 ````
 
+##UI
+To see more urls in the drop down list update `video_urls` array in `arrays.xml`
+or you can enter the url at runtime into the input field
 
 
