@@ -3,10 +3,12 @@ package com.tivo.exoplayer.library;
 
 import android.content.Context;
 import android.net.Uri;
+import androidx.annotation.Nullable;
 import com.google.android.exoplayer2.ExoPlaybackException;
 import com.google.android.exoplayer2.ExoPlayerLibraryInfo;
 import com.google.android.exoplayer2.Player;
 import com.google.android.exoplayer2.SimpleExoPlayer;
+import com.google.android.exoplayer2.analytics.AnalyticsListener;
 import com.google.android.exoplayer2.source.BehindLiveWindowException;
 import com.google.android.exoplayer2.source.MediaSource;
 import com.google.android.exoplayer2.source.hls.HlsMediaSource;
@@ -27,13 +29,18 @@ import com.google.android.exoplayer2.util.Log;
  *
  * This object manages the life-cycle of playback and error handling for a give URL
  */
-public class DefaultMediaSourceLifeCycle implements MediaSourceLifeCycle {
+public class DefaultMediaSourceLifeCycle implements MediaSourceLifeCycle, AnalyticsListener {
 
   private static final String TAG = "ExoPlayer";
 
   protected final SimpleExoPlayer player;
   protected final Context context;
   protected MediaSource currentMediaSource;
+
+  @Nullable
+  private MediaSourceEventCallback callback;
+
+  private boolean isInitialMediaSourceEvent;
 
   /**
    * Construct the default implementation of {@link MediaSourceLifeCycle}
@@ -44,6 +51,8 @@ public class DefaultMediaSourceLifeCycle implements MediaSourceLifeCycle {
   public DefaultMediaSourceLifeCycle(SimpleExoPlayer player, Context context) {
     this.player = player;
     this.context = context;
+
+    player.addAnalyticsListener(this);
   }
 
   @Override
@@ -57,8 +66,15 @@ public class DefaultMediaSourceLifeCycle implements MediaSourceLifeCycle {
   protected void playMediaSource(MediaSource mediaSource) {
     player.stop(true);
     currentMediaSource = mediaSource;
+    isInitialMediaSourceEvent = false;
     player.setPlayWhenReady(true);
     player.prepare(currentMediaSource);
+  }
+
+
+  @Override
+  public void setMediaSourceEventCallback(@Nullable MediaSourceEventCallback callback) {
+    this.callback = callback;
   }
 
   /**
@@ -160,4 +176,21 @@ public class DefaultMediaSourceLifeCycle implements MediaSourceLifeCycle {
     return false;
   }
 
+  /**
+   * After the player reads the initial M3u8 and parses it, the timeline is created.
+   * Report the first such of these events, following a {@link MediaSource} change
+   * (via {@link #playUrl(Uri, boolean)} call to any {@link MediaSourceEventCallback} listener
+   *
+   * @param eventTime The event time.
+   * @param reason The reason for the timeline change.
+   */
+  @Override
+  public void onTimelineChanged(EventTime eventTime, int reason) {
+    if (reason == Player.TIMELINE_CHANGE_REASON_PREPARED) {
+      if (!isInitialMediaSourceEvent && callback != null) {
+        callback.mediaSourcePrepared(currentMediaSource, player);
+        isInitialMediaSourceEvent = false;
+      }
+    }
+  }
 }

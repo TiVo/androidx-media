@@ -458,6 +458,9 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer {
     clearReportedVideoSize();
     clearRenderedFirstFrame();
     frameReleaseTimeHelper.disable();
+    if (tunnelingOnFrameRenderedListener != null) {
+      tunnelingOnFrameRenderedListener.destroyHandler(getCodec());
+    }
     tunnelingOnFrameRenderedListener = null;
     try {
       super.onDisabled();
@@ -582,6 +585,9 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer {
     }
     codec.configure(mediaFormat, surface, crypto, 0);
     if (Util.SDK_INT >= 23 && tunneling) {
+      if (tunnelingOnFrameRenderedListener != null) {
+        tunnelingOnFrameRenderedListener.destroyHandler(codec);
+      }
       tunnelingOnFrameRenderedListener = new OnFrameRenderedListenerV23(codec);
     }
   }
@@ -1049,6 +1055,9 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer {
       MediaCodec codec = getCodec();
       // If codec is null then the listener will be instantiated in configureCodec.
       if (codec != null) {
+        if (tunnelingOnFrameRenderedListener != null) {
+          tunnelingOnFrameRenderedListener.destroyHandler(codec);
+        }
         tunnelingOnFrameRenderedListener = new OnFrameRenderedListenerV23(codec);
       }
     }
@@ -1610,8 +1619,23 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer {
   @TargetApi(23)
   private final class OnFrameRenderedListenerV23 implements MediaCodec.OnFrameRenderedListener {
 
+    private final Handler handler;
+
     private OnFrameRenderedListenerV23(MediaCodec codec) {
-      codec.setOnFrameRenderedListener(this, new Handler());
+      handler = new Handler();
+      codec.setOnFrameRenderedListener(this, handler);
+    }
+
+    /**
+     * Cleanup any messages pending for this listener before removing references to it
+     *
+     * @param codec optional, if the codec is still around it should be passed here
+     */
+    void destroyHandler(@Nullable MediaCodec codec) {
+      if (codec != null) {
+        codec.setOnFrameRenderedListener(null, null);
+      }
+      handler.removeCallbacksAndMessages(null);
     }
 
     @Override
@@ -1620,7 +1644,24 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer {
         // Stale event.
         return;
       }
-      onProcessedTunneledBuffer(presentationTimeUs);
+
+      // Work around bug in MediaCodec that causes deadlocks if you call back a
+      // MediaCodec API that requires MediaCodec to use it's Looper, as it calls this
+      // listener method holding locks.  This was fixed in:
+      //  https://android-review.googlesource.com/1156807
+      //
+      // The work around simply queues the processing to a subsequent message, where
+      // the lock will not be held.
+      //
+      if (Util.SDK_INT < 30) {
+        handler.post(() -> {
+          if (this == tunnelingOnFrameRenderedListener) {   // event not stale
+            onProcessedTunneledBuffer(presentationTimeUs);
+          }
+        });
+      } else {
+        onProcessedTunneledBuffer(presentationTimeUs);
+      }
     }
 
   }

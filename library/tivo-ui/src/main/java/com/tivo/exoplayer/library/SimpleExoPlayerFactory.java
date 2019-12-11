@@ -79,12 +79,16 @@ public class SimpleExoPlayerFactory implements
    * really visible so it can be used in the test player's debug track selection dialog.  It will
    * be discarded when the actvitiy stops the player ({@link #releasePlayer()} is called).
    *
-   * Any previous parameter selections are presev
+   * Any previous parameter selections are preserved
    */
   @Nullable
   private DefaultTrackSelector trackSelector;
 
   private MediaSourceLifeCycle mediaSourceLifeCycle;
+
+
+  @Nullable
+  private MediaSourceEventCallback callback;
 
   /**
    * Parameters are preserved across player create/destroy (Activity stop/start) to save track
@@ -117,7 +121,9 @@ public class SimpleExoPlayerFactory implements
    * @return returns a new {@link DefaultMediaSourceLifeCycle} unless overridden
    */
   protected MediaSourceLifeCycle createMediaSourceLifeCycle() {
-    return new DefaultMediaSourceLifeCycle(player, context);
+    DefaultMediaSourceLifeCycle mediaSourceLifeCycle = new DefaultMediaSourceLifeCycle(player, context);
+    mediaSourceLifeCycle.setMediaSourceEventCallback(callback);
+    return mediaSourceLifeCycle;
   }
 
   /**
@@ -235,6 +241,17 @@ public class SimpleExoPlayerFactory implements
    */
   public void playUrl(Uri url, boolean enableChunkless) {
     mediaSourceLifeCycle.playUrl(url, enableChunkless);
+  }
+
+  /**
+   *
+   * @param callback {@link MediaSourceEventCallback} implementation to be called or null to remove reference
+   */
+  public void setMediaSourceEventCallback(@Nullable MediaSourceEventCallback callback) {
+    this.callback = callback;
+    if (mediaSourceLifeCycle != null) {
+      mediaSourceLifeCycle.setMediaSourceEventCallback(callback);
+    }
   }
 
   // Track Selection
@@ -511,7 +528,7 @@ public class SimpleExoPlayerFactory implements
         Log.w("ExoPlayer", "defaulting logging to warning level, properties file read failed.");
       }
     } else {
-      Log.i("ExoPlayer", "defaulting logging to warning level, properties file not found or read failed.");
+      Log.i("ExoPlayer", "defaulting logging to level: " + logLevelInfo +  ", properties file not found or read failed.");
     }
   }
 
