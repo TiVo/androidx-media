@@ -303,7 +303,9 @@ import java.util.concurrent.atomic.AtomicInteger;
     }
     maybeLoadInitData();
     if (!loadCanceled) {
-      if (!hasGapTag) {
+      if (hasGapTag) {
+        Log.d(TAG, "Skipping load EXT-X-GAP tag has no segment data - start/endtime: " + C.usToMs(startTimeUs) + "/" + C.usToMs(endTimeUs));
+      } else {
         loadMedia();
       }
       loadCompleted = true;
