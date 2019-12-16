@@ -368,6 +368,27 @@ public class SimpleExoPlayerFactory implements DefaultExoPlayerErrorHandler.Play
   }
 
   /**
+   * Set rendering of specified track type on or off.  Can use this to disable, for example,
+   * rendering of CC by using {@link C#TRACK_TYPE_TEXT}
+   *
+   * This change is not remembered in the {@link #getCurrentParameters()}
+   *
+   * @param trackType the track to disable rendering for, one of the {@link C} TRACK_TYPE_x constants
+   * @param trackState true to render, false to disable rendering
+   */
+  public void setRendererState(int trackType, boolean trackState) {
+    DefaultTrackSelector.ParametersBuilder builder = currentParameters.buildUpon();
+    if (trackSelector != null) {
+      for (int i = 0; i < player.getRendererCount(); i++) {
+        if (player.getRendererType(i) == trackType) {
+            builder.setRendererDisabled(i, trackState);
+        }
+      }
+      trackSelector.setParameters(builder);
+    }
+  }
+
+  /**
    * Return TrackInfo objects for the tracks matching the format indicated by the Predicate.
    *
    * Use this API call to use forced track selection via overrides.  To select a TrackInfo with an override

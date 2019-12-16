@@ -77,6 +77,8 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
 
   private boolean isTrickPlaybarShowing = false;
 
+  private boolean isAudioRenderOn = true;
+
   private BroadcastReceiver hdmiHotPlugReceiver = new BroadcastReceiver() {
 
     @Override
@@ -382,7 +384,10 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
             break;
 
           case KeyEvent.KEYCODE_5:
-            geekStats.toggleVisible();
+            exoPlayerFactory.setRendererState(C.TRACK_TYPE_AUDIO, ! isAudioRenderOn);
+            isAudioRenderOn = ! isAudioRenderOn;
+
+//            geekStats.toggleVisible();
 //            List<TrackInfo> audioTracks = exoPlayerFactory.getAvailableAudioTracks();
 //            if (audioTracks.size() > 0) {
 //              DialogFragment dialog =

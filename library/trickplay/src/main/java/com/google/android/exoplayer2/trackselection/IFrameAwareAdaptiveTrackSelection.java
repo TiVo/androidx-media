@@ -3,10 +3,15 @@ package com.google.android.exoplayer2.trackselection;
 import androidx.annotation.Nullable;
 import com.google.android.exoplayer2.C;
 import com.google.android.exoplayer2.Format;
+import com.google.android.exoplayer2.Player;
 import com.google.android.exoplayer2.source.TrackGroup;
+import com.google.android.exoplayer2.source.chunk.MediaChunk;
+import com.google.android.exoplayer2.source.chunk.MediaChunkIterator;
 import com.google.android.exoplayer2.trickplay.TrickPlayControl;
 import com.google.android.exoplayer2.upstream.BandwidthMeter;
 import com.google.android.exoplayer2.util.Clock;
+import com.google.android.exoplayer2.util.Log;
+import java.util.List;
 import org.checkerframework.checker.nullness.compatqual.NullableType;
 
 /**
@@ -22,6 +27,8 @@ public class IFrameAwareAdaptiveTrackSelection extends AdaptiveTrackSelection {
 
   @Nullable
   private TrickPlayControl trickPlayControl;
+  private boolean flushQueueOnNextEvaluate;
+  private TrickPlayControl.TrickMode trickModeLastQueueSizeEvaluate;
 
   public static class Factory implements TrackSelection.Factory {
 
@@ -70,8 +77,91 @@ public class IFrameAwareAdaptiveTrackSelection extends AdaptiveTrackSelection {
     this.trickPlayControl = trickPlayControl;
   }
 
+  @Override
+  public int evaluateQueueSize(long playbackPositionUs, List<? extends MediaChunk> queue) {
+    int targetQueueSize;
+    if (trickPlayControl == null) {
+      targetQueueSize = super.evaluateQueueSize(playbackPositionUs, queue);
+    } else {
+      targetQueueSize = evaluateQueueSizeForTrickPlay(playbackPositionUs, queue);
+    }
+    return targetQueueSize;
+  }
+
+  private int evaluateQueueSizeForTrickPlay(long playbackPositionUs, List<? extends MediaChunk> queue) {
+    int targetQueueSize;
+
+    if (trickModeLastQueueSizeEvaluate == null) {
+      trickModeLastQueueSizeEvaluate = trickPlayControl.getCurrentTrickMode();
+      targetQueueSize = super.evaluateQueueSize(playbackPositionUs, queue);
+    } else if (trickModeLastQueueSizeEvaluate != trickPlayControl.getCurrentTrickMode()) {
+
+      if (queue.size() > 0) {
+        Log.d(TAG,
+            "evaluateQueueSize() - mode " + trickPlayControl.getCurrentTrickMode() + " size: "
+                + queue.size());
+        for (MediaChunk chunk : queue) {
+          Log.d(TAG, "chunk " + chunk.chunkIndex
+              + " start/end: " + chunk.startTimeUs + "/" + chunk.endTimeUs + " format: "
+              + chunk.trackFormat);
+        }
+      }
+
+      // We just switched into or out of trickplay
+      if (trickPlayControl.getCurrentTrickMode() == TrickPlayControl.TrickMode.NORMAL) {
+        targetQueueSize = 0;   // Flush non-iframe chunks, TODO - check them for format.
+      } else if (trickModeLastQueueSizeEvaluate == TrickPlayControl.TrickMode.NORMAL) {
+        targetQueueSize = 0;
+      } else {
+        targetQueueSize = super.evaluateQueueSize(playbackPositionUs, queue);
+      }
+      trickModeLastQueueSizeEvaluate = trickPlayControl.getCurrentTrickMode();
+    } else {
+      targetQueueSize = super.evaluateQueueSize(playbackPositionUs, queue);
+    }
+    return targetQueueSize;
+  }
+
+  @Override
+  protected boolean canSwitchNow(long bufferedDurationUs, long availableDurationUs,
+      Format currentFormat, Format selectedFormat) {
+    boolean canSwitch = isIframeOnly(currentFormat) || isIframeOnly(selectedFormat);
+    if (canSwitch) {
+      Log.d(TAG, "canSwitchNow() - from " + currentFormat.toString() + " to " + selectedFormat.toString());
+
+      if (isIframeOnly(currentFormat)) {
+        Log.d(TAG, "Switching from iFrame track, force flush of samples");
+        flushQueueOnNextEvaluate = true;
+      }
+
+    } else {
+      canSwitch = super.canSwitchNow(bufferedDurationUs, availableDurationUs, currentFormat, selectedFormat);
+    }
+    return canSwitch;
+  }
+
+  @Override
+  public void updateSelectedTrack(long playbackPositionUs, long bufferedDurationUs,
+      long availableDurationUs, List<? extends MediaChunk> queue,
+      MediaChunkIterator[] mediaChunkIterators) {
+
+    int currentSelectedIndex = getSelectedIndex();
+
+    super.updateSelectedTrack(playbackPositionUs, bufferedDurationUs, availableDurationUs, queue,
+        mediaChunkIterators);
+
+    if (currentSelectedIndex != getSelectedIndex()) {
+      if (isIframeOnly(getFormat(currentSelectedIndex)) && trickPlayControl != null && trickPlayControl.getCurrentTrickMode() == TrickPlayControl.TrickMode.NORMAL) {
+        Log.d(TAG, "Switching back from iFrame track to track: " + getFormat(getSelectedIndex()).toString());
+      } else {
+        Log.d(TAG, "Switching track from " + getFormat(currentSelectedIndex) + ", to: " + getFormat(getSelectedIndex()));
+
+      }
+    }
+  }
+
   /**
-   * Override to select only the iFrame tracks when playback speed exceeds a threshold.
+   * Override to select only the iFrame tracks when we are in iFrame trickplay mode.
    *
    * @param format The {@link Format} of the candidate track.
    * @param trackBitrate The estimated bitrate of the track. May differ from {@link Format#bitrate}
@@ -83,18 +173,26 @@ public class IFrameAwareAdaptiveTrackSelection extends AdaptiveTrackSelection {
   protected boolean canSelectFormat(
       Format format, int trackBitrate, float playbackSpeed, long effectiveBitrate) {
 
-    boolean isIframeOnly = (format.roleFlags & C.ROLE_FLAG_TRICK_PLAY) != 0;
+    boolean isIframeOnly = isIframeOnly(format);
     boolean canSelect;
 
-//    Log.d(TAG, "canSelect - ID: " + format.id + " isIf: " + isIframeOnly + " canSelect: " + canSelect + " effBR: " + effectiveBitrate + " trackBR: " + trackBitrate + " speed: "+playbackSpeed);
 
+    if (isIframeOnly(getFormat(getSelectedIndex())) && trickPlayControl != null && trickPlayControl.getCurrentTrickMode() == TrickPlayControl.TrickMode.NORMAL) {
+      Log.d(TAG, "Switching back from iFrame track from trickplaymode");
+    }
     if (trickPlayControl != null && trickPlayControl.getCurrentTrickMode() != TrickPlayControl.TrickMode.NORMAL) {
       canSelect = isIframeOnly;
     } else {
       canSelect = super.canSelectFormat(format, trackBitrate, playbackSpeed, effectiveBitrate);
     }
-    return canSelect;
 
+//    Log.d(TAG, "canSelectFormat() - to: " + format.toString() + " isIf: " + isIframeOnly + " canSelect: " + canSelect + " effBR: " + effectiveBitrate + " trackBR: " + trackBitrate + " speed: "+playbackSpeed);
+
+    return canSelect;
+  }
+
+  private boolean isIframeOnly(Format format) {
+    return (format.roleFlags & C.ROLE_FLAG_TRICK_PLAY) != 0;
   }
 
 }

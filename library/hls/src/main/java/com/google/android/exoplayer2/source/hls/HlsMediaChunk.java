@@ -31,6 +31,7 @@ import com.google.android.exoplayer2.source.chunk.MediaChunk;
 import com.google.android.exoplayer2.source.hls.playlist.HlsMediaPlaylist;
 import com.google.android.exoplayer2.upstream.DataSource;
 import com.google.android.exoplayer2.upstream.DataSpec;
+import com.google.android.exoplayer2.util.Log;
 import com.google.android.exoplayer2.util.ParsableByteArray;
 import com.google.android.exoplayer2.util.TimestampAdjuster;
 import com.google.android.exoplayer2.util.UriUtil;
@@ -46,6 +47,8 @@ import java.util.concurrent.atomic.AtomicInteger;
  * An HLS {@link MediaChunk}.
  */
 /* package */ final class HlsMediaChunk extends MediaChunk {
+
+  private static final String TAG = "HlsMediaChunk";
 
   /**
    * Creates a new instance.
@@ -272,6 +275,8 @@ import java.util.concurrent.atomic.AtomicInteger;
     this.shouldSpliceIn = shouldSpliceIn;
     initDataLoadRequired = initDataSpec != null;
     uid = uidSource.getAndIncrement();
+
+    Log.d(TAG, "create HlsMediaChunk - uid: " + uid + " playList: " + playlistUrl + " format: " + format);
   }
 
   /**
