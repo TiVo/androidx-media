@@ -622,7 +622,8 @@ public class AdaptiveTrackSelection extends BaseTrackSelection {
   protected boolean canSelectFormat(
       Format format, int trackBitrate, float playbackSpeed, long effectiveBitrate) {
 
-    boolean isNonIframeOnly = (format.roleFlags & C.ROLE_FLAG_TRICK_PLAY) == 0;
+//    boolean isNonIframeOnly = (format.roleFlags & C.ROLE_FLAG_TRICK_PLAY) == 0;
+    boolean isNonIframeOnly = true;
     boolean canSelect = Math.round(trackBitrate * playbackSpeed) <= effectiveBitrate;
 
     return canSelect && isNonIframeOnly;    // Default is not to use the IDR only tracks in selection

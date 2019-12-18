@@ -53,7 +53,7 @@ import java.util.Properties;
  *
  *
  */
-public class SimpleExoPlayerFactory implements DefaultExoPlayerErrorHandler.PlaybackExceptionRecovery, Player.EventListener {
+public class SimpleExoPlayerFactory implements DefaultExoPlayerErrorHandler.PlaybackExceptionRecovery {
   public static final String TAG = "SimpleExoPlayerFactory";
 
   /**
@@ -96,6 +96,14 @@ public class SimpleExoPlayerFactory implements DefaultExoPlayerErrorHandler.Play
    * selection criteria.
    */
   private DefaultTrackSelector.Parameters currentParameters = new DefaultTrackSelector.ParametersBuilder().build();
+
+  /**
+   * TrackSelection factory creates {@link TrackSelection} objects based on the current state of trick-play, if
+   * the factory is passed in a {@link TrickPlayControl} otherwise it works like the standard {@link TrackSelection.Factory}
+   * subclasses in ExoPlayer core.
+   *
+   */
+  private IFrameAwareAdaptiveTrackSelection.Factory trackSelectionFactory = new IFrameAwareAdaptiveTrackSelection.Factory();
 
   /**
    * Construct the factory.  This factory is intended to survive as a singleton for the entire lifecycle of
@@ -189,6 +197,7 @@ public class SimpleExoPlayerFactory implements DefaultExoPlayerErrorHandler.Play
       player = null;
       mediaSourceLifeCycle = null;
       trackSelector = null;
+      trackSelectionFactory.setTrickPlayControl(null);
     }
   }
 
@@ -220,6 +229,7 @@ public class SimpleExoPlayerFactory implements DefaultExoPlayerErrorHandler.Play
     trackSelector = createTrackSelector(defaultTunneling, context);
     TrickPlayControlFactory trickPlayControlFactory = new TrickPlayControlFactory();
     trickPlayControl = trickPlayControlFactory.createTrickPlayControl(trackSelector);
+    trackSelectionFactory.setTrickPlayControl(trickPlayControl);
     RenderersFactory renderersFactory = trickPlayControl.createRenderersFactory(context);
     LoadControl loadControl = trickPlayControl.createLoadControl(new DefaultLoadControl());
     player = ExoPlayerFactory.newSimpleInstance(context, renderersFactory, trackSelector, loadControl);
@@ -228,7 +238,6 @@ public class SimpleExoPlayerFactory implements DefaultExoPlayerErrorHandler.Play
 
     trickPlayControl.setPlayer(player);
     player.setPlayWhenReady(playWhenReady);
-    player.addListener(this);
     player.addAnalyticsListener(new EventLogger(trackSelector));
     player.addAnalyticsListener(createPlayerErrorHandler(mediaSourceLifeCycle));
     return player;
@@ -585,20 +594,6 @@ public class SimpleExoPlayerFactory implements DefaultExoPlayerErrorHandler.Play
 
   // Internal methods
 
-
-  @Override
-  public void onTracksChanged(TrackGroupArray trackGroups, TrackSelectionArray trackSelections) {
-
-    Log.d(TAG, "onTracksChanged() - trickPlayControl: " + trickPlayControl + " mode: " + (trickPlayControl == null ? "unknown" : trickPlayControl.getCurrentTrickMode()));
-    for (int i=0; i < trackSelections.length; i++) {
-      TrackSelection selection = trackSelections.get(i);
-      if (selection instanceof IFrameAwareAdaptiveTrackSelection) {
-        IFrameAwareAdaptiveTrackSelection ifAwareSelection = (IFrameAwareAdaptiveTrackSelection) selection;
-        ifAwareSelection.setTrickPlayControl(trickPlayControl);
-      }
-    }
-  }
-
   private TrackSelection getTrackSelectionForGroup(TrackGroup group) {
     TrackSelection selection = null;
     TrackSelectionArray selectionArray = player.getCurrentTrackSelections();
@@ -664,7 +659,6 @@ public class SimpleExoPlayerFactory implements DefaultExoPlayerErrorHandler.Play
     boolean usingSavedParameters =
         ! currentParameters.equals(new DefaultTrackSelector.ParametersBuilder().build());
 
-    TrackSelection.Factory trackSelectionFactory =  new IFrameAwareAdaptiveTrackSelection.Factory();
     DefaultTrackSelector trackSelector = new DefaultTrackSelector(trackSelectionFactory);
     DefaultTrackSelector.ParametersBuilder builder = currentParameters.buildUpon();
 

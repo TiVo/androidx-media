@@ -3,7 +3,6 @@ package com.google.android.exoplayer2.trackselection;
 import androidx.annotation.Nullable;
 import com.google.android.exoplayer2.C;
 import com.google.android.exoplayer2.Format;
-import com.google.android.exoplayer2.Player;
 import com.google.android.exoplayer2.source.TrackGroup;
 import com.google.android.exoplayer2.source.chunk.MediaChunk;
 import com.google.android.exoplayer2.source.chunk.MediaChunkIterator;
@@ -11,6 +10,9 @@ import com.google.android.exoplayer2.trickplay.TrickPlayControl;
 import com.google.android.exoplayer2.upstream.BandwidthMeter;
 import com.google.android.exoplayer2.util.Clock;
 import com.google.android.exoplayer2.util.Log;
+import com.google.android.exoplayer2.util.MimeTypes;
+import com.google.android.exoplayer2.util.Util;
+import java.util.ArrayList;
 import java.util.List;
 import org.checkerframework.checker.nullness.compatqual.NullableType;
 
@@ -32,6 +34,9 @@ public class IFrameAwareAdaptiveTrackSelection extends AdaptiveTrackSelection {
 
   public static class Factory implements TrackSelection.Factory {
 
+    @Nullable
+    private TrickPlayControl trickPlayControl;
+
     @Override
     public @NullableType TrackSelection[] createTrackSelections(@NullableType Definition[] definitions, BandwidthMeter bandwidthMeter) {
 
@@ -41,15 +46,77 @@ public class IFrameAwareAdaptiveTrackSelection extends AdaptiveTrackSelection {
         if (definition == null) {
           continue;
         }
+
+        // TODO - the really belongs in the TrackSelector itself, adding a TrackSelectionParameters for the trickplay state.
+        // TODO - that also should enable/disable sound and the whole bit..  Would need that to be integrated with Google source
+        // TODO - as TrackSelectionParameters are impossible to extend, but a much more architecurally correct solution..
+        // Our hack, if trick play mode filter the Definition to include only or exclude IFRAME only tracks
+        if (trickPlayControl != null) {
+          definition = filterIFrameTracks(definition, trickPlayControl.getCurrentTrickDirection());
+        }
         if (definition.tracks.length > 1) {
-          TrackSelection adaptiveSelection = new IFrameAwareAdaptiveTrackSelection(definition, bandwidthMeter);
+          TrackSelection adaptiveSelection = new AdaptiveTrackSelection(definition.group, definition.tracks, bandwidthMeter);
           selections[i] = adaptiveSelection;
         } else {
           selections[i] = new FixedTrackSelection(
               definition.group, definition.tracks[0], definition.reason, definition.data);
         }
+
       }
       return selections;
+    }
+
+    private Definition filterIFrameTracks(Definition definition, TrickPlayControl.TrickPlayDirection mode) {
+      Definition newDefinition = definition;
+
+      if (isVideoDefinition(definition) && hasIframeOnlyTracks(definition)) {
+        ArrayList<Integer> list = new ArrayList<>();
+        TrackGroup group = definition.group;
+        for (int i=0; i < group.length; i++) {
+          if (useFormatInTrickMode(group.getFormat(i), mode)) {
+            list.add(i);
+          }
+        }
+        newDefinition = new Definition(group, Util.toArray(list), definition.reason, definition.data);
+
+
+      }
+      return newDefinition;
+    }
+
+    private boolean useFormatInTrickMode(Format format, TrickPlayControl.TrickPlayDirection mode) {
+      return (isIframeOnly(format) && (mode != TrickPlayControl.TrickPlayDirection.NONE))
+          || (!isIframeOnly(format) && (mode == TrickPlayControl.TrickPlayDirection.NONE));
+    }
+
+    /**
+     * If the created {@link TrackSelection} objects should consider trick-play state, call this
+     * method.
+     *
+     * @param trickPlayControl
+     */
+    public void setTrickPlayControl(@Nullable TrickPlayControl trickPlayControl) {
+      this.trickPlayControl = trickPlayControl;
+    }
+
+    public static boolean isIframeOnly(Format format) {
+      return (format.roleFlags & C.ROLE_FLAG_TRICK_PLAY) != 0;
+    }
+
+    private boolean isVideoDefinition(Definition definition) {
+      return definition.group.length > 0 && isVideo(definition.group.getFormat(0));
+    }
+
+    private boolean hasIframeOnlyTracks(Definition definition) {
+      boolean hasIframeOnly = false;
+      for (int i=0; i < definition.group.length && ! hasIframeOnly; i++) {
+        hasIframeOnly = isIframeOnly(definition.group.getFormat(i));
+      }
+      return hasIframeOnly;
+    }
+
+    private boolean isVideo(Format format) {
+      return format.height > 0 || MimeTypes.getVideoMediaMimeType(format.codecs) != null;
     }
   }
 
@@ -125,11 +192,11 @@ public class IFrameAwareAdaptiveTrackSelection extends AdaptiveTrackSelection {
   @Override
   protected boolean canSwitchNow(long bufferedDurationUs, long availableDurationUs,
       Format currentFormat, Format selectedFormat) {
-    boolean canSwitch = isIframeOnly(currentFormat) || isIframeOnly(selectedFormat);
+    boolean canSwitch = Factory.isIframeOnly(currentFormat) || Factory.isIframeOnly(selectedFormat);
     if (canSwitch) {
       Log.d(TAG, "canSwitchNow() - from " + currentFormat.toString() + " to " + selectedFormat.toString());
 
-      if (isIframeOnly(currentFormat)) {
+      if (Factory.isIframeOnly(currentFormat)) {
         Log.d(TAG, "Switching from iFrame track, force flush of samples");
         flushQueueOnNextEvaluate = true;
       }
@@ -151,7 +218,7 @@ public class IFrameAwareAdaptiveTrackSelection extends AdaptiveTrackSelection {
         mediaChunkIterators);
 
     if (currentSelectedIndex != getSelectedIndex()) {
-      if (isIframeOnly(getFormat(currentSelectedIndex)) && trickPlayControl != null && trickPlayControl.getCurrentTrickMode() == TrickPlayControl.TrickMode.NORMAL) {
+      if (Factory.isIframeOnly(getFormat(currentSelectedIndex)) && trickPlayControl != null && trickPlayControl.getCurrentTrickMode() == TrickPlayControl.TrickMode.NORMAL) {
         Log.d(TAG, "Switching back from iFrame track to track: " + getFormat(getSelectedIndex()).toString());
       } else {
         Log.d(TAG, "Switching track from " + getFormat(currentSelectedIndex) + ", to: " + getFormat(getSelectedIndex()));
@@ -173,11 +240,11 @@ public class IFrameAwareAdaptiveTrackSelection extends AdaptiveTrackSelection {
   protected boolean canSelectFormat(
       Format format, int trackBitrate, float playbackSpeed, long effectiveBitrate) {
 
-    boolean isIframeOnly = isIframeOnly(format);
+    boolean isIframeOnly = Factory.isIframeOnly(format);
     boolean canSelect;
 
 
-    if (isIframeOnly(getFormat(getSelectedIndex())) && trickPlayControl != null && trickPlayControl.getCurrentTrickMode() == TrickPlayControl.TrickMode.NORMAL) {
+    if (Factory.isIframeOnly(getFormat(getSelectedIndex())) && trickPlayControl != null && trickPlayControl.getCurrentTrickMode() == TrickPlayControl.TrickMode.NORMAL) {
       Log.d(TAG, "Switching back from iFrame track from trickplaymode");
     }
     if (trickPlayControl != null && trickPlayControl.getCurrentTrickMode() != TrickPlayControl.TrickMode.NORMAL) {
@@ -189,10 +256,6 @@ public class IFrameAwareAdaptiveTrackSelection extends AdaptiveTrackSelection {
 //    Log.d(TAG, "canSelectFormat() - to: " + format.toString() + " isIf: " + isIframeOnly + " canSelect: " + canSelect + " effBR: " + effectiveBitrate + " trackBR: " + trackBitrate + " speed: "+playbackSpeed);
 
     return canSelect;
-  }
-
-  private boolean isIframeOnly(Format format) {
-    return (format.roleFlags & C.ROLE_FLAG_TRICK_PLAY) != 0;
   }
 
 }
