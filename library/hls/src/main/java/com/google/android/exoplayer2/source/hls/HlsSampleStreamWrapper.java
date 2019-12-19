@@ -52,7 +52,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.ListIterator;
 import java.util.Map;
 
 /**
@@ -518,8 +517,6 @@ import java.util.Map;
         }
       }
       formatHolder.format = format;
-    } else if (result == C.RESULT_BUFFER_READ) {
-//      Log.d(TAG, "readData() - PTS: " + buffer.timeUs + ", id:" + downstreamTrackFormat.id + ", size:" + buffer.data.position() + ", mime: " + downstreamTrackFormat.sampleMimeType);
     }
     return result;
   }
@@ -636,93 +633,9 @@ import java.util.Map;
 
   @Override
   public void reevaluateBuffer(long positionUs) {
-    if (loader.isLoading() || isPendingReset()) {
-      return;
-    }
-
-    int currentQueueSize = mediaChunks.size();
-    int preferredQueueSize = chunkSource.getPreferredQueueSize(positionUs, readOnlyMediaChunks);
-    if (currentQueueSize <= preferredQueueSize) {
-      return;
-    }
-
-    int newQueueSize = currentQueueSize;
-    for (int i = preferredQueueSize; i < currentQueueSize; i++) {
-      if (!haveReadFromMediaChunk(i)) {
-        newQueueSize = i;
-        break;
-      }
-    }
-    if (newQueueSize == currentQueueSize) {
-      return;
-    }
-
-    Log.d(TAG, "Discarding MediaChunks - trackType: " + trackType
-        + " chunk count: " + currentQueueSize
-        + " target chunk count: " + newQueueSize);
-
-    dumpCurrentChunkList();
-
-    long endTimeUs = getLastMediaChunk().endTimeUs;
-    HlsMediaChunk firstRemovedChunk = discardUpstreamMediaChunksFromIndex(newQueueSize);
-    if (mediaChunks.isEmpty()) {
-      pendingResetPositionUs = lastSeekPositionUs;
-    }
-    loadingFinished = false;
-
-    dumpCurrentChunkList();
-    eventDispatcher.upstreamDiscarded(primarySampleQueueType, firstRemovedChunk.startTimeUs, endTimeUs);
+    // Do nothing.
   }
 
-  /**
-   * Discard upstream media chunks from {@code chunkIndex} and corresponding samples from sample
-   * queues.
-   *
-   * @param chunkIndex The index of the first chunk to discard.
-   * @return The chunk at given index.
-   */
-  private HlsMediaChunk discardUpstreamMediaChunksFromIndex(int chunkIndex) {
-    HlsMediaChunk firstRemovedChunk = mediaChunks.get(chunkIndex);
-    Util.removeRange(mediaChunks, /* fromIndex= */ chunkIndex, /* toIndex= */ mediaChunks.size());
-
-
-    int [] firstSamples = firstRemovedChunk.getFirstSampleIndexes();
-    for (int i=0; i < sampleQueues.length; i++) {
-      Log.d(TAG, "discardUpstreamSamples() -  stream: " + " from index: " + firstSamples[i]);
-
-      sampleQueues[i].discardUpstreamSamples(firstSamples[i]);
-    }
-
-    dumpCurrentChunkList();
-
-    return firstRemovedChunk;
-  }
-
-
-  public void dumpCurrentChunkList() {
-    Log.d(TAG, "Dump MediaChunks - trackType: " + trackType + " chunk count: " + mediaChunks.size()
-        + " primary sample write: "+sampleQueues[primarySampleQueueIndex].getWriteIndex()
-        + " primary sample read: "+sampleQueues[primarySampleQueueIndex].getReadIndex()
-    );
-    for (int i=0; i<mediaChunks.size(); i++) {
-      HlsMediaChunk chunk = mediaChunks.get(i);
-      Log.d(TAG, "chunk " + chunk.uid + " reading: " + haveReadFromMediaChunk(i)
-          + " start/end: " + chunk.startTimeUs + "/" + chunk.endTimeUs + " primary sample index: "
-          + chunk.getFirstSampleIndexes()[primarySampleQueueIndex] + " format: "+chunk.trackFormat);
-    }
-  }
-
-
-  /** Returns whether samples have been read from primary sample queue of the indicated chunk */
-  private boolean haveReadFromMediaChunk(int mediaChunkIndex) {
-    HlsMediaChunk mediaChunk = mediaChunks.get(mediaChunkIndex);
-    boolean haveRead = false;
-    int [] firstSamples = mediaChunk.getFirstSampleIndexes();
-    for (int i=0; i < firstSamples.length; i++) {
-      haveRead = haveRead || sampleQueues[i].getReadIndex() > firstSamples[i];
-    }
-    return haveRead;
-  }
   // Loader.Callback implementation.
 
   @Override
@@ -856,11 +769,8 @@ import java.util.Map;
       videoSampleQueueMappingDone = false;
     }
     this.chunkUid = chunkUid;
-    HlsMediaChunk loadingChunk = findChunkMatching(chunkUid);
-    for (int i=0; i < sampleQueues.length; i++) {
-      SampleQueue sampleQueue = sampleQueues[i];
+    for (SampleQueue sampleQueue : sampleQueues) {
       sampleQueue.sourceId(chunkUid);
-      loadingChunk.setFirstSampleIndex(i, sampleQueue.getWriteIndex());
     }
     if (shouldSpliceIn) {
       for (SampleQueue sampleQueue : sampleQueues) {
@@ -920,8 +830,6 @@ import java.util.Map;
     sampleQueueTrackIds[trackCount] = id;
     sampleQueues = Arrays.copyOf(sampleQueues, trackCount + 1);
     sampleQueues[trackCount] = trackOutput;
-    HlsMediaChunk mediaChunk = findChunkMatching(chunkUid);
-    mediaChunk.setFirstSampleIndex(trackCount, 0);
     sampleQueueIsAudioVideoFlags = Arrays.copyOf(sampleQueueIsAudioVideoFlags, trackCount + 1);
     sampleQueueIsAudioVideoFlags[trackCount] = type == C.TRACK_TYPE_AUDIO
         || type == C.TRACK_TYPE_VIDEO;
@@ -969,17 +877,6 @@ import java.util.Map;
   }
 
   // Internal methods.
-
-  private HlsMediaChunk findChunkMatching(int chunkUid) {
-    ListIterator iter = mediaChunks.listIterator(mediaChunks.size());
-    while (iter.hasPrevious()) {
-      HlsMediaChunk chunk = (HlsMediaChunk) iter.previous();
-      if (chunk.uid == chunkUid) {
-        return chunk;
-      }
-    }
-    return null;
-  }
 
   private void updateSampleStreams(SampleStream[] streams) {
     hlsSampleStreams.clear();

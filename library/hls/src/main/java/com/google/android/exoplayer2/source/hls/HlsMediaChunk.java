@@ -26,12 +26,10 @@ import com.google.android.exoplayer2.extractor.ExtractorInput;
 import com.google.android.exoplayer2.metadata.Metadata;
 import com.google.android.exoplayer2.metadata.id3.Id3Decoder;
 import com.google.android.exoplayer2.metadata.id3.PrivFrame;
-import com.google.android.exoplayer2.source.SampleQueue;
 import com.google.android.exoplayer2.source.chunk.MediaChunk;
 import com.google.android.exoplayer2.source.hls.playlist.HlsMediaPlaylist;
 import com.google.android.exoplayer2.upstream.DataSource;
 import com.google.android.exoplayer2.upstream.DataSpec;
-import com.google.android.exoplayer2.util.Log;
 import com.google.android.exoplayer2.util.ParsableByteArray;
 import com.google.android.exoplayer2.util.TimestampAdjuster;
 import com.google.android.exoplayer2.util.UriUtil;
@@ -39,7 +37,6 @@ import com.google.android.exoplayer2.util.Util;
 import java.io.EOFException;
 import java.io.IOException;
 import java.math.BigInteger;
-import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -47,8 +44,6 @@ import java.util.concurrent.atomic.AtomicInteger;
  * An HLS {@link MediaChunk}.
  */
 /* package */ final class HlsMediaChunk extends MediaChunk {
-
-  private static final String TAG = "HlsMediaChunk";
 
   /**
    * Creates a new instance.
@@ -217,12 +212,6 @@ import java.util.concurrent.atomic.AtomicInteger;
   private volatile boolean loadCanceled;
   private boolean loadCompleted;
 
-  /**
-   * Index of first sample written for each SampleQueue created from the extraction of this
-   * media chunk
-   */
-  private int [] firstSampleIndexes = new int[0];
-
   private HlsMediaChunk(
       HlsExtractorFactory extractorFactory,
       DataSource mediaDataSource,
@@ -290,27 +279,6 @@ import java.util.concurrent.atomic.AtomicInteger;
   @Override
   public boolean isLoadCompleted() {
     return loadCompleted;
-  }
-
-  /**
-   * Return the indexes of the first samples from each sample queue for this media chunk
-   *
-   * @return sample index {@link SampleQueue#getWriteIndex()}
-   */
-  int [] getFirstSampleIndexes() {
-    return firstSampleIndexes;
-  }
-
-  /**
-   * Set the index of the first sample written to a sample queue from this media chunk,
-   * indexed by the caller's stream index for the sample queue
-   *
-   * @param streamIndex - caller's index for the {@link SampleQueue}
-   * @param firstSampleIndex - index value to store
-   */
-  void setFirstSampleIndex(int streamIndex, int firstSampleIndex) {
-    firstSampleIndexes = Arrays.copyOf(firstSampleIndexes, streamIndex + 1);
-    firstSampleIndexes[streamIndex] = firstSampleIndex;
   }
 
   // Loadable implementation
