@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string-array name="video_urls">
+    <item>http://live1.nokia.tivo.com/ktvu/vxfmt=dp/playlist.m3u8?device_profile=hlsclr</item>
+    <item>https://devstreaming-cdn.apple.com/videos/streaming/examples/bipbop_4x3/bipbop_4x3_variant.m3u8</item>
+  </string-array>
+  <string-array name="encryption_type">
+    <item>none</item>
+    <item>VCAS</item>
+    <item>Tivo</item>
+  </string-array>
+</resources>
