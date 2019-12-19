@@ -275,8 +275,6 @@ import java.util.concurrent.atomic.AtomicInteger;
     this.shouldSpliceIn = shouldSpliceIn;
     initDataLoadRequired = initDataSpec != null;
     uid = uidSource.getAndIncrement();
-
-    Log.d(TAG, "create HlsMediaChunk - uid: " + uid + " playList: " + playlistUrl + " format: " + format);
   }
 
   /**

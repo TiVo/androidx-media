@@ -1030,22 +1030,6 @@ import java.util.Map;
       // Tracks are created using media segment information.
       buildTracksFromSampleStreams();
       prepared = true;
-
-
-      Log.d(TAG, "Wrapper prepared - trackType: " + trackType + " tracks: " + trackGroups.length + " sample queues: " + sampleQueues.length + " sample streams: " + hlsSampleStreams.size());
-
-      for (int i = 0; i < trackGroups.length; i++) {
-        TrackGroup group = trackGroups.get(i);
-        int sampleQueueIndex = this.trackGroupToSampleQueueIndex[i];
-        if (sampleQueueIndex == C.INDEX_UNSET) {
-          Log.d(TAG, " track group " + i + " is unmapped, tracks: " + group.length);
-        } else {
-          Log.d(TAG, " track group " + i + " is maped to sample queue: " + sampleQueueIndex + "  ,tracks: " + group.length);
-          for (int j=0; j<group.length; j++) {
-            Log.d(TAG, "   track " + j + " format: " + group.getFormat(j));
-          }
-        }
-      }
       callback.onPrepared();
     }
   }

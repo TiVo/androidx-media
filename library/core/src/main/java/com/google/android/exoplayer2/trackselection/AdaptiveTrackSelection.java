@@ -508,10 +508,15 @@ public class AdaptiveTrackSelection extends BaseTrackSelection {
       // Revert back to the current selection if conditions are not suitable for switching.
       Format currentFormat = getFormat(currentSelectedIndex);
       Format selectedFormat = getFormat(selectedIndex);
-      boolean canSwitchNow = canSwitchNow(bufferedDurationUs, availableDurationUs, currentFormat,
-          selectedFormat);
-
-      if (!canSwitchNow) {
+      if (selectedFormat.bitrate > currentFormat.bitrate
+          && bufferedDurationUs < minDurationForQualityIncreaseUs(availableDurationUs)) {
+        // The selected track is a higher quality, but we have insufficient buffer to safely switch
+        // up. Defer switching up for now.
+        selectedIndex = currentSelectedIndex;
+      } else if (selectedFormat.bitrate < currentFormat.bitrate
+          && bufferedDurationUs >= maxDurationForQualityDecreaseUs) {
+        // The selected track is a lower quality, but we have sufficient buffer to defer switching
+        // down for now.
         selectedIndex = currentSelectedIndex;
       }
     }
@@ -519,35 +524,6 @@ public class AdaptiveTrackSelection extends BaseTrackSelection {
     if (selectedIndex != currentSelectedIndex) {
       reason = C.SELECTION_REASON_ADAPTIVE;
     }
-  }
-
-  /**
-   * Evaluate if switching tracks to the selectedFormat is ok given the current
-   * buffering level and distance to the live edge, see description
-   * in {@link #updateSelectedTrack(long, long, long, List, MediaChunkIterator[])} for these parameters
-   *
-   *
-   * @param bufferedDurationUs - us of buffered media
-   * @param availableDurationUs - time to the live edge
-   * @param currentFormat - the track format we are currently playing
-   * @param selectedFormat - track format of the proposed selection
-   * @return true to complete the selection or false to abort it.
-   */
-  protected boolean canSwitchNow(long bufferedDurationUs, long availableDurationUs,
-      Format currentFormat, Format selectedFormat) {
-    boolean canSwitchNow = true;
-    if (selectedFormat.bitrate > currentFormat.bitrate
-        && bufferedDurationUs < minDurationForQualityIncreaseUs(availableDurationUs)) {
-      // The selected track is a higher quality, but we have insufficient buffer to safely switch
-      // up. Defer switching up for now.
-      canSwitchNow = false;
-    } else if (selectedFormat.bitrate < currentFormat.bitrate
-        && bufferedDurationUs >= maxDurationForQualityDecreaseUs) {
-      // The selected track is a lower quality, but we have sufficient buffer to defer switching
-      // down for now.
-      canSwitchNow = false;
-    }
-    return canSwitchNow;
   }
 
   @Override
@@ -621,12 +597,7 @@ public class AdaptiveTrackSelection extends BaseTrackSelection {
   @SuppressWarnings("unused")
   protected boolean canSelectFormat(
       Format format, int trackBitrate, float playbackSpeed, long effectiveBitrate) {
-
-//    boolean isNonIframeOnly = (format.roleFlags & C.ROLE_FLAG_TRICK_PLAY) == 0;
-    boolean isNonIframeOnly = true;
-    boolean canSelect = Math.round(trackBitrate * playbackSpeed) <= effectiveBitrate;
-
-    return canSelect && isNonIframeOnly;    // Default is not to use the IDR only tracks in selection
+    return Math.round(trackBitrate * playbackSpeed) <= effectiveBitrate;
   }
 
   /**

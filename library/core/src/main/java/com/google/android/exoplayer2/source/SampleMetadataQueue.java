@@ -261,15 +261,6 @@ import com.google.android.exoplayer2.util.Util;
     }
 
     int relativeReadIndex = getRelativeIndex(readPosition);
-    Format format = formats[relativeReadIndex];
-    if (format.sampleMimeType != null && format.sampleMimeType.startsWith("video")) {
-      Log.d(TAG, "read() - relativeReadIndex: " + relativeReadIndex + " formatRequired:" + formatRequired + " format[readIndex]: " + formats[relativeReadIndex] + " sourceId:" + sourceIds[relativeReadIndex]);
-
-      if (format != downstreamFormat) {
-        Log.d(TAG, "read() - newFormat: " + format + " relativeReadIndex: " + relativeReadIndex + " oldFormat: " + downstreamFormat);
-      }
-    }
-
     if (formatRequired || formats[relativeReadIndex] != downstreamFormat) {
       formatHolder.format = formats[relativeReadIndex];
       return C.RESULT_FORMAT_READ;
@@ -422,9 +413,7 @@ import com.google.android.exoplayer2.util.Util;
     }
     Assertions.checkState(!upstreamFormatRequired);
 
-    if (upstreamFormat.sampleMimeType != null && upstreamFormat.sampleMimeType.startsWith("video")) {
-      Log.d(TAG, "commitSample() - PTS: " + timeUs + ", id:" + upstreamFormat.id + ", size:" + size + ", mime: " +upstreamFormat.sampleMimeType + " sourceId: " + upstreamSourceId);
-    }
+//    Log.d(TAG, "commitSample() - PTS: " + timeUs + ", id:" + upstreamFormat.id + ", size:" + size + ", mime: " +upstreamFormat.sampleMimeType);
     isLastSampleQueued = (sampleFlags & C.BUFFER_FLAG_LAST_SAMPLE) != 0;
     largestQueuedTimestampUs = Math.max(largestQueuedTimestampUs, timeUs);
 

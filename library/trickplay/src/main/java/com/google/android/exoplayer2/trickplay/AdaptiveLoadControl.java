@@ -62,7 +62,7 @@ public class AdaptiveLoadControl implements LoadControl, TrickPlayEventListener 
   @Override
   public boolean shouldContinueLoading(long bufferedDurationUs, float playbackSpeed) {
     long iFrameDurationUs = 2 * 1000 * 1000;    // TODO should come from playlist parse somehow
-    boolean shouldContinue = delegate.shouldContinueLoading(bufferedDurationUs, 1.0f);
+    boolean shouldContinue = delegate.shouldContinueLoading(bufferedDurationUs, playbackSpeed);
     float requiredBufferedTime = 0.0f;
 
     if (trickPlayController.isSmoothPlayAvailable() && false) {
