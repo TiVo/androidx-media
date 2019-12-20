@@ -321,6 +321,7 @@ class TrickPlayController implements TrickPlayControlInternal {
             PlaybackParameters playbackParameters = new PlaybackParameters(Math.abs(currentSpeed));
             currentMediaClock.setPlaybackParameters(playbackParameters);
             currentMediaClock.setForward(isForward);
+            Log.d(TAG, "updateTrickMode() - to: " + currentTrickMode + " current pos: " + currentMediaClock.getPositionUs());
         }
 
         @Override
@@ -360,8 +361,6 @@ class TrickPlayController implements TrickPlayControlInternal {
                         if (isMinFrameRate && ! hasMessages(MSG_TRICKPLAY_TIMED_SEEK)) {
                             issueOrQueueSeek(0);
                         }
-                        player.setPlayWhenReady(false);
-
                         break;
 
                     case MSG_TRICKPLAY_TIMED_SEEK:
@@ -409,7 +408,7 @@ class TrickPlayController implements TrickPlayControlInternal {
                 Log.d(TAG, "issueOrQueueSeek() - queue seek, seekDelay: " + seekDelay + debugTimeStr());
                 sendEmptyMessageDelayed(MSG_TRICKPLAY_TIMED_SEEK, seekDelay);
             } else {
-                Log.d(TAG, "issueSeekToIfMinDelta() - issuing, seekTarget: " + seekTargetMs / 1000.0f + debugTimeStr());
+                Log.d(TAG, "issueOrQueueSeek() - issuing, seekTarget: " + seekTargetMs / 1000.0f + debugTimeStr());
                 lastIssuedSeekTimeMs = seekTargetMs;
                 player.seekTo(seekTargetMs);
             }
@@ -437,6 +436,8 @@ class TrickPlayController implements TrickPlayControlInternal {
         @Override
         public void trickPlayModeChanged(TrickMode newMode, TrickMode prevMode) {
             if (newMode != TrickMode.NORMAL) {
+                Log.d(TAG, "trickPlayModeChanged() from: " + prevMode + " to: " + newMode + " current pos: " + currentMediaClock.getPositionUs());
+
                 updateTrickMode(newMode);
             }
         }

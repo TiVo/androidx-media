@@ -35,6 +35,7 @@ class ReversibleMediaClock implements MediaClock {
         this.clock = clock;
         baseElapsedMs = clock.elapsedRealtime();
         this.baseUs = positionUs;
+        this.playbackParameters = PlaybackParameters.DEFAULT;
     }
 
     Clock getClock() {
@@ -73,6 +74,11 @@ class ReversibleMediaClock implements MediaClock {
 
     @Override
     public PlaybackParameters setPlaybackParameters(PlaybackParameters playbackParameters) {
+        // If the parameters cause a speed change reset the base (otherwise the calculation
+        // assumes the playback speed was the new speed since the last position reset which
+        // will result in sudden position jumps on speed change)
+        resetPosition(getPositionUs());
+
         this.playbackParameters = playbackParameters;
         return playbackParameters;
     }
