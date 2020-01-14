@@ -50,6 +50,7 @@ class TrickPlayController implements TrickPlayControlInternal {
 
     private @MonotonicNonNull SimpleExoPlayer player;
     private final DefaultTrackSelector trackSelector;
+    private DefaultTrackSelector.Parameters savedParameters;
 
     private final CopyOnWriteArraySet<ListenerRef> listeners;
 
@@ -229,6 +230,16 @@ class TrickPlayController implements TrickPlayControlInternal {
             if (reason == Player.TIMELINE_CHANGE_REASON_DYNAMIC) {
 
             }
+        }
+
+        @Override
+        public void onMediaPeriodCreated(EventTime eventTime) {
+            Log.d(TAG, "onMediaPeriodCreated() -  timeline empty: " + eventTime.timeline.isEmpty());
+        }
+
+        @Override
+        public void onMediaPeriodReleased(EventTime eventTime) {
+            Log.d(TAG, "onMediaPeriodReleased() -  timeline empty: " + eventTime.timeline.isEmpty());
         }
 
         @Override
@@ -642,14 +653,14 @@ class TrickPlayController implements TrickPlayControlInternal {
         if (usePlaybackSpeedTrickPlay(newMode)) {
             Log.d(TAG, "Start i-frame trickplay " + newMode + " at media time " + player.getCurrentPosition());
             stopSeekBasedTrickplay();
-            setAudioEnableForTrickPlay(newMode);
+            setTrackSelectionForTrickPlay(newMode, previousMode);
             player.setPlayWhenReady(true);
             player.setPlaybackParameters(new PlaybackParameters(getSpeedFor(newMode)));
         } else {
             Log.d(TAG, "Start seek-based trickplay " + newMode + " at media time " + player.getCurrentPosition());
             if (previousMode == TrickMode.NORMAL) {
                 startSeekBasedTrickplay();
-                setAudioEnableForTrickPlay(newMode);
+                setTrackSelectionForTrickPlay(newMode, previousMode);
             }
         }
         dispatchTrickModeChanged(newMode, previousMode);
@@ -674,7 +685,7 @@ class TrickPlayController implements TrickPlayControlInternal {
 
         resetTrickPlayState(false);
 
-        setAudioEnableForTrickPlay(TrickMode.NORMAL);
+        setTrackSelectionForTrickPlay(TrickMode.NORMAL, previousMode);
         player.setPlayWhenReady(true);
 
         if (isSmoothPlayAvailable()) {
@@ -712,6 +723,7 @@ class TrickPlayController implements TrickPlayControlInternal {
         player.setPlaybackParameters(PlaybackParameters.DEFAULT);
         TrickMode prevMode = getCurrentTrickMode();
         setCurrentTrickMode(TrickMode.NORMAL);
+        restoreSavedTrackSelection();
         Log.d(TAG, "resetTrickPlayState("+ dispatchEvent + ") - speed: " + player.getPlaybackParameters().speed + " prev mode: " + prevMode);
         if (dispatchEvent && prevMode != TrickMode.NORMAL) {
             dispatchTrickModeChanged(TrickMode.NORMAL, prevMode);
@@ -893,15 +905,39 @@ class TrickPlayController implements TrickPlayControlInternal {
         return isPossible;
     }
 
-    private void setAudioEnableForTrickPlay(TrickMode mode) {
-        DefaultTrackSelector.Parameters trackSelectorParameters = trackSelector.getParameters();
-        DefaultTrackSelector.ParametersBuilder builder = trackSelectorParameters.buildUpon();
-        for (int i = 0; i < player.getRendererCount(); i++) {
-          if (player.getRendererType(i) == C.TRACK_TYPE_AUDIO) {
-              builder.setRendererDisabled(i, mode != TrickMode.NORMAL);
-          }
+    private void setTrackSelectionForTrickPlay(TrickMode newMode, TrickMode previousMode) {
+        Log.d(TAG, "setTrackSelectionForTrickPlay(" + newMode +"," + previousMode +") - current newMode");
+
+        // Update if we switch in or out of NORMAL mode only.
+        if (newMode != previousMode && (newMode == TrickMode.NORMAL || previousMode == TrickMode.NORMAL)) {
+            if (newMode == TrickMode.NORMAL) {
+                restoreSavedTrackSelection();
+            } else {
+                Log.d(TAG, "setTrackSelectionForTrickPlay() - disabling tracks not used for trick-play (audio, CC)");
+
+                DefaultTrackSelector.Parameters trackSelectorParameters = trackSelector.getParameters();
+                savedParameters = trackSelectorParameters;
+
+                DefaultTrackSelector.ParametersBuilder builder = trackSelectorParameters.buildUpon();
+                for (int i = 0; i < player.getRendererCount(); i++) {
+                  if (player.getRendererType(i) == C.TRACK_TYPE_AUDIO) {
+                      builder.setRendererDisabled(i, newMode != TrickMode.NORMAL);
+                  }
+                }
+                trackSelector.setParameters(builder);
+            }
+
         }
-        trackSelector.setParameters(builder);
+
+    }
+
+    private void restoreSavedTrackSelection() {
+        // Restore track selection to state before trick-play started
+        if (savedParameters != null) {
+            Log.d(TAG, "setTrackSelectionForTrickPlay() - restoring previously saved track selection parameters");
+            trackSelector.setParameters(savedParameters.buildUpon());
+            savedParameters = null;
+        }
     }
 
     private void stopSeekBasedTrickplay() {
