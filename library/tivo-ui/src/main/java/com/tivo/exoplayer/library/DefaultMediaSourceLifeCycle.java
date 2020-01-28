@@ -162,6 +162,13 @@ public class DefaultMediaSourceLifeCycle implements MediaSourceLifeCycle, Analyt
     return value;
   }
 
+  @Override
+  public boolean restartPlaybackAtLastPosition() {
+    player.prepare(currentMediaSource, false, true);
+    return true;
+  }
+
+
   private static boolean isBehindLiveWindow(ExoPlaybackException e) {
     if (e.type != ExoPlaybackException.TYPE_SOURCE) {
       return false;
