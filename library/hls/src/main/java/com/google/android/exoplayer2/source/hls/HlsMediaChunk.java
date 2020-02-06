@@ -30,7 +30,6 @@ import com.google.android.exoplayer2.source.chunk.MediaChunk;
 import com.google.android.exoplayer2.source.hls.playlist.HlsMediaPlaylist;
 import com.google.android.exoplayer2.upstream.DataSource;
 import com.google.android.exoplayer2.upstream.DataSpec;
-import com.google.android.exoplayer2.util.Log;
 import com.google.android.exoplayer2.util.ParsableByteArray;
 import com.google.android.exoplayer2.util.TimestampAdjuster;
 import com.google.android.exoplayer2.util.UriUtil;
@@ -45,7 +44,6 @@ import java.util.concurrent.atomic.AtomicInteger;
  * An HLS {@link MediaChunk}.
  */
 /* package */ final class HlsMediaChunk extends MediaChunk {
-  private static final String TAG = "HlsMediaChunk";
 
   /**
    * Creates a new instance.
@@ -138,9 +136,6 @@ import java.util.concurrent.atomic.AtomicInteger;
                   && !shouldSpliceIn
               ? previousChunk.extractor
               : null;
-      if (previousChunk.discontinuitySequenceNumber != discontinuitySequenceNumber) {
-       Log.d(TAG, "Discontinuity, not splicing samples from " + previousChunk.dataSpec.uri);
-      }
     } else {
       id3Decoder = new Id3Decoder();
       scratchId3Data = new ParsableByteArray(Id3Decoder.ID3_HEADER_LENGTH);
@@ -303,9 +298,7 @@ import java.util.concurrent.atomic.AtomicInteger;
     }
     maybeLoadInitData();
     if (!loadCanceled) {
-      if (hasGapTag) {
-        Log.d(TAG, "Skipping load EXT-X-GAP tag has no segment data - start/endtime: " + C.usToMs(startTimeUs) + "/" + C.usToMs(endTimeUs));
-      } else {
+      if (!hasGapTag) {
         loadMedia();
       }
       loadCompleted = true;

@@ -372,13 +372,14 @@ public class EventLogger implements AnalyticsListener {
       long duration = mediaLoadData.mediaEndTimeMs - mediaLoadData.mediaStartTimeMs;
       StringBuilder str = new StringBuilder();
       str.append("trackId: "); str.append(mediaLoadData.trackFormat.id);
+      str.append(" load-duration: "); str.append(loadEventInfo.loadDurationMs); str.append("ms");
       str.append(" codecs: "); str.append(mediaLoadData.trackFormat.codecs);
       str.append(" start(dur): "); str.append(mediaLoadData.mediaStartTimeMs);str.append("/");str.append(duration);
       str.append(" uri: "); str.append(loadEventInfo.uri);
 
       logd(eventTime, "loadCompleted[media] - ", str.toString());
     } else {
-      logd(eventTime, "loadCompleted",  " URI: " + loadEventInfo.uri);
+      logd(eventTime, "loadCompleted - load-duration: " + loadEventInfo.loadDurationMs + "ms, URI: " + loadEventInfo.uri);
     }
   }
 
