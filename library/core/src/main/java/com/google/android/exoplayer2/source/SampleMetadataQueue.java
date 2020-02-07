@@ -15,12 +15,15 @@
  */
 package com.google.android.exoplayer2.source;
 
+import android.annotation.SuppressLint;
 import com.google.android.exoplayer2.C;
 import com.google.android.exoplayer2.Format;
 import com.google.android.exoplayer2.FormatHolder;
 import com.google.android.exoplayer2.decoder.DecoderInputBuffer;
 import com.google.android.exoplayer2.extractor.TrackOutput.CryptoData;
 import com.google.android.exoplayer2.util.Assertions;
+import com.google.android.exoplayer2.util.Log;
+import com.google.android.exoplayer2.util.MimeTypes;
 import com.google.android.exoplayer2.util.Util;
 
 /**
@@ -401,8 +404,9 @@ import com.google.android.exoplayer2.util.Util;
     }
   }
 
+  @SuppressLint("DefaultLocale")
   public synchronized void commitSample(long timeUs, @C.BufferFlags int sampleFlags, long offset,
-      int size, CryptoData cryptoData) {
+                                        int size, CryptoData cryptoData) {
     if (upstreamKeyframeRequired) {
       if ((sampleFlags & C.BUFFER_FLAG_KEY_FRAME) == 0) {
         return;
@@ -415,6 +419,19 @@ import com.google.android.exoplayer2.util.Util;
     largestQueuedTimestampUs = Math.max(largestQueuedTimestampUs, timeUs);
 
     int relativeEndIndex = getRelativeIndex(length);
+
+    // Check for obvious discontinuities in the content
+    if ( length > 0 && (sampleFlags & C.BUFFER_FLAG_KEY_FRAME) == 1) {
+      int prev = getRelativeIndex(length - 1);
+      long delta = timeUs - timesUs[prev];
+      if (Math.abs(delta) > 10*C.MICROS_PER_SECOND) {
+        int trackType = MimeTypes.getTrackType(upstreamFormat.sampleMimeType);
+        Log.w("DISC", String.format("SampleQueue: %s leap %s: cur=%d prev=%d delta=%ds",
+                delta > 0 ? "forward" : "back", trackType == C.TRACK_TYPE_VIDEO ? "v" : "a",
+                timeUs, timesUs[prev], delta / C.MICROS_PER_SECOND));
+      }
+    }
+
     timesUs[relativeEndIndex] = timeUs;
     offsets[relativeEndIndex] = offset;
     sizes[relativeEndIndex] = size;
