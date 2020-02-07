@@ -339,7 +339,13 @@ public class EventLogger implements AnalyticsListener {
   @Override
   public void onLoadStarted(
       EventTime eventTime, LoadEventInfo loadEventInfo, MediaLoadData mediaLoadData) {
-    logd(eventTime,"loadStarted", loadEventInfo.toString());
+    StringBuilder str = new StringBuilder();
+    if (loadEventInfo.dataSpec.length != C.LENGTH_UNSET) {
+      str.append(" range(o/l): ");
+      str.append(loadEventInfo.dataSpec.position); str.append("/"); str.append(loadEventInfo.dataSpec.length);
+    }
+    str.append(" uri: "); str.append(loadEventInfo.uri);
+    logd(eventTime,"loadStarted", str.toString());
   }
 
   @Override
@@ -362,7 +368,19 @@ public class EventLogger implements AnalyticsListener {
   @Override
   public void onLoadCompleted(
       EventTime eventTime, LoadEventInfo loadEventInfo, MediaLoadData mediaLoadData) {
-    logd(eventTime,"loadCompleted", loadEventInfo.toString());
+    if (mediaLoadData.trackFormat != null) {
+      long duration = mediaLoadData.mediaEndTimeMs - mediaLoadData.mediaStartTimeMs;
+      StringBuilder str = new StringBuilder();
+      str.append("trackId: "); str.append(mediaLoadData.trackFormat.id);
+      str.append(" load-duration: "); str.append(loadEventInfo.loadDurationMs); str.append("ms");
+      str.append(" codecs: "); str.append(mediaLoadData.trackFormat.codecs);
+      str.append(" start(dur): "); str.append(mediaLoadData.mediaStartTimeMs);str.append("/");str.append(duration);
+      str.append(" uri: "); str.append(loadEventInfo.uri);
+
+      logd(eventTime, "loadCompleted[media] - ", str.toString());
+    } else {
+      logd(eventTime, "loadCompleted - load-duration: " + loadEventInfo.loadDurationMs + "ms, URI: " + loadEventInfo.uri);
+    }
   }
 
   @Override

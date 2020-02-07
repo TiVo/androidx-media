@@ -475,8 +475,10 @@ public class GeekStatsOverlay implements AnalyticsListener, Runnable {
       levelSwitchCount += format.equals(lastLoadedVideoFormat) ? 0 : 1;
       lastLoadedVideoFormat = format;
 
-      long kbps = (loadEventInfo.bytesLoaded / loadEventInfo.loadDurationMs) * 8;
-      loadingLevel.setText(getFormatString(format) + " - " + kbps + "kbps");
+      if (loadEventInfo.loadDurationMs > 0) {
+        long kbps = (loadEventInfo.bytesLoaded / loadEventInfo.loadDurationMs) * 8;
+        loadingLevel.setText(getFormatString(format) + " - " + kbps + "kbps");
+      }
     }
   }
 }

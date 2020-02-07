@@ -10,6 +10,7 @@ import com.google.android.exoplayer2.ExoPlaybackException;
 import com.google.android.exoplayer2.ExoPlayerFactory;
 import com.google.android.exoplayer2.Format;
 import com.google.android.exoplayer2.LoadControl;
+import com.google.android.exoplayer2.Player;
 import com.google.android.exoplayer2.RenderersFactory;
 import com.google.android.exoplayer2.SimpleExoPlayer;
 import com.google.android.exoplayer2.analytics.AnalyticsListener;
@@ -52,8 +53,8 @@ import java.util.Properties;
  *
  *
  */
-public class SimpleExoPlayerFactory implements
-    DefaultExoPlayerErrorHandler.PlaybackExceptionRecovery {
+public class SimpleExoPlayerFactory implements DefaultExoPlayerErrorHandler.PlaybackExceptionRecovery {
+  public static final String TAG = "SimpleExoPlayerFactory";
 
   /**
    * Android application context for access to Android
@@ -95,6 +96,14 @@ public class SimpleExoPlayerFactory implements
    * selection criteria.
    */
   private DefaultTrackSelector.Parameters currentParameters = new DefaultTrackSelector.ParametersBuilder().build();
+
+  /**
+   * TrackSelection factory creates {@link TrackSelection} objects based on the current state of trick-play, if
+   * the factory is passed in a {@link TrickPlayControl} otherwise it works like the standard {@link TrackSelection.Factory}
+   * subclasses in ExoPlayer core.
+   *
+   */
+  private IFrameAwareAdaptiveTrackSelection.Factory trackSelectionFactory = new IFrameAwareAdaptiveTrackSelection.Factory();
 
   /**
    * Construct the factory.  This factory is intended to survive as a singleton for the entire lifecycle of
@@ -188,6 +197,7 @@ public class SimpleExoPlayerFactory implements
       player = null;
       mediaSourceLifeCycle = null;
       trackSelector = null;
+      trackSelectionFactory.setTrickPlayControl(null);
     }
   }
 
@@ -219,6 +229,7 @@ public class SimpleExoPlayerFactory implements
     trackSelector = createTrackSelector(defaultTunneling, context);
     TrickPlayControlFactory trickPlayControlFactory = new TrickPlayControlFactory();
     trickPlayControl = trickPlayControlFactory.createTrickPlayControl(trackSelector);
+    trackSelectionFactory.setTrickPlayControl(trickPlayControl);
     RenderersFactory renderersFactory = trickPlayControl.createRenderersFactory(context);
     LoadControl loadControl = trickPlayControl.createLoadControl(new DefaultLoadControl());
     player = ExoPlayerFactory.newSimpleInstance(context, renderersFactory, trackSelector, loadControl);
@@ -363,6 +374,27 @@ public class SimpleExoPlayerFactory implements
    */
   public List<TrackInfo> getAvailableAudioTracks() {
     return getMatchingAvailableTrackInfo(input -> isAudioFormat(input));
+  }
+
+  /**
+   * Set rendering of specified track type on or off.  Can use this to disable, for example,
+   * rendering of CC by using {@link C#TRACK_TYPE_TEXT}
+   *
+   * This change is not remembered in the {@link #getCurrentParameters()}
+   *
+   * @param trackType the track to disable rendering for, one of the {@link C} TRACK_TYPE_x constants
+   * @param trackState true to render, false to disable rendering
+   */
+  public void setRendererState(int trackType, boolean trackState) {
+    DefaultTrackSelector.ParametersBuilder builder = currentParameters.buildUpon();
+    if (trackSelector != null) {
+      for (int i = 0; i < player.getRendererCount(); i++) {
+        if (player.getRendererType(i) == trackType) {
+            builder.setRendererDisabled(i, trackState);
+        }
+      }
+      trackSelector.setParameters(builder);
+    }
   }
 
   /**
@@ -562,7 +594,6 @@ public class SimpleExoPlayerFactory implements
 
   // Internal methods
 
-
   private TrackSelection getTrackSelectionForGroup(TrackGroup group) {
     TrackSelection selection = null;
     TrackSelectionArray selectionArray = player.getCurrentTrackSelections();
@@ -628,7 +659,6 @@ public class SimpleExoPlayerFactory implements
     boolean usingSavedParameters =
         ! currentParameters.equals(new DefaultTrackSelector.ParametersBuilder().build());
 
-    TrackSelection.Factory trackSelectionFactory =  new IFrameAwareAdaptiveTrackSelection.Factory();
     DefaultTrackSelector trackSelector = new DefaultTrackSelector(trackSelectionFactory);
     DefaultTrackSelector.ParametersBuilder builder = currentParameters.buildUpon();
 

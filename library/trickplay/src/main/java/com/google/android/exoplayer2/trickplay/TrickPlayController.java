@@ -21,6 +21,7 @@ import java.util.Collections;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.ListIterator;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArraySet;
 
@@ -49,6 +50,7 @@ class TrickPlayController implements TrickPlayControlInternal {
 
     private @MonotonicNonNull SimpleExoPlayer player;
     private final DefaultTrackSelector trackSelector;
+    private DefaultTrackSelector.Parameters savedParameters;
 
     private final CopyOnWriteArraySet<ListenerRef> listeners;
 
@@ -73,7 +75,7 @@ class TrickPlayController implements TrickPlayControlInternal {
 
     /** Keep track of the last N rendered frame PTS values for jumpback seek
      */
-    private LastNPositions lastRenderPositions = new LastNPositions();
+    private final LastNPositions lastRenderPositions = new LastNPositions();
 
     TrickPlayController(DefaultTrackSelector trackSelector) {
         this.trackSelector = trackSelector;
@@ -110,11 +112,13 @@ class TrickPlayController implements TrickPlayControlInternal {
     /**
      * Keeps record of the program time of the last N rendered frames in trickplay mode.
      * Returns this list, converted to playback positions
+     *
+     * NOTE this class is access by both the Application and ExoPlayer playback threads
      */
     private class LastNPositions {
         public static final int LAST_RENDER_POSITIONS_MAX = 15;
 
-        private final long[] store;
+        private long[] store;
         private int lastWriteIndex = -1;
 
         LastNPositions(int size) {
@@ -155,6 +159,12 @@ class TrickPlayController implements TrickPlayControlInternal {
                 count += (value != C.TIME_UNSET) ? 1 : 0;
             }
             return count;
+        }
+
+        synchronized void empty() {
+            store = new long[store.length];
+            Arrays.fill(this.store, C.TIME_UNSET);
+            lastWriteIndex = -1;
         }
 
         /**
@@ -223,6 +233,16 @@ class TrickPlayController implements TrickPlayControlInternal {
         }
 
         @Override
+        public void onMediaPeriodCreated(EventTime eventTime) {
+            Log.d(TAG, "onMediaPeriodCreated() -  timeline empty: " + eventTime.timeline.isEmpty());
+        }
+
+        @Override
+        public void onMediaPeriodReleased(EventTime eventTime) {
+            Log.d(TAG, "onMediaPeriodReleased() -  timeline empty: " + eventTime.timeline.isEmpty());
+        }
+
+        @Override
         public void onTracksChanged(EventTime eventTime, TrackGroupArray trackGroups, TrackSelectionArray trackSelections) {
             isMetadataValid = true;
 
@@ -265,40 +285,79 @@ class TrickPlayController implements TrickPlayControlInternal {
      * </ol>
      *
      * The basic algorithm is to issue repeated seeks, timed to achieve a target frame rate, but
-     * throttled back if a minimum frame rate is not realized.  This way {@link Player#getCurrentPosition()}
-     * will move forward (backward) as close to the expected value per wall-clock time as possible while
-     * still seeing visual progress with rendered frames.
+     * throttled back (by issuing the seeks less frequently) if a minimum frame rate is not realized.
+     *
+     * This way {@link Player#getCurrentPosition()} and the UI rendering of it (time bar) move at the
+     * expected rate (that is matching the requested speed) while the player makes a best effort to
+     * show visual progress with rendered frames.
+     *
+     * Two parameters set the alogorithm behavior:
+     * <ol>
+     *   <li>DEFAULT_SEEK_INTERVAL_MS - seeks are issued at this rate, as long as render intervals meet target</li>
+     *   <li>THROTTLED_SEEK_INTERVAL_MS - if there is not a render during the targetFrameInterval, switch down to this until there is</li>
+     * </ol>
      *
      * NOTE: there is no chance of handler leak as {@link #removePlayerReference()} cleans up this handler
      */
     @SuppressLint("HandlerLeak")
-    private class SeekBasedTrickPlay extends Handler implements AnalyticsListener {
+    private class SeekBasedTrickPlay extends Handler implements AnalyticsListener, TrickPlayEventListener {
         private static final String TAG = "SeekBasedTrickPlay";
 
-        // Causes the handler to issue a seek to the position indicated by the clock
+        // Causes the handler to issue an initial seek to the position indicated by the clock
         static final int MSG_TRICKPLAY_STARTSEEK = 1;
 
-        // Used to trottle the next seek so as to achive the frame rate targets
-        static final int MSG_TRICKPLAY_FRAMERENDER = 2;
+        // Seek issued for seeks after the initial start, these are throtted to achive a frame rate
+        static final int MSG_TRICKPLAY_TIMED_SEEK = 2;
 
-        static final int TARGET_FPS = 3;
-        static final int MIN_FPS = 1;
+        // Used to throttle the next seek so as to achieve the frame rate targets
+        static final int MSG_TRICKPLAY_FRAMERENDER = 4;
+
+        // Issue delayed seek when frame release to render in last 30ms
+        static final int MSG_DELAYED_SEEK_AFTER_RENDER = 5;
+
+        // Time delay between seeks if we are rendering frames each seek
+        static final int DEFAULT_SEEK_INTERVAL_MS = 500;
+
+        // Fall back delay between seeks if frame rendering is not reaching the target FPS
+        static final int THROTTLED_SEEK_INTERVAL_MS = 1000;
+
+        // FPS target, this is the render rate we hope for
+        static final int TARGET_FPS = 1;
         static final int targetFrameIntervalMs = 1000 / TARGET_FPS;
-        static final int minFrameIntervalMs = 1000 / MIN_FPS;
+
+        // The frame rendered event is reported when the frame is released to the output buffer,
+        // the actual render may be as much as a VSYNC interval later.  This delay avoids
+        // issuing a seek immediately after a frame is cued (as the seek will reset the codec
+        // and discard output buffers
+        private static final int DELAY_FOR_RENDER_MS = 30;
 
         private AnalyticsListener.EventTime lastRenderTime;
-        private long seekTargetMs = C.TIME_UNSET;
+        private long lastIssuedSeekTimeMs = C.TIME_UNSET;
         private ReversibleMediaClock currentMediaClock;
+        private int currentSeekIntervalMs = DEFAULT_SEEK_INTERVAL_MS;
 
         SeekBasedTrickPlay(long startingPosition) {
             player.setSeekParameters(SeekParameters.CLOSEST_SYNC);
-            float currentSpeed = getSpeedFor(getCurrentTrickMode());
             boolean isForward = getCurrentTrickDirection() == TrickPlayDirection.FORWARD;
-            Log.d(TAG, "SeekBasedTrickPlay() - mode: " + getCurrentTrickMode() + " start at: " + startingPosition);
+            Log.d(TAG, "Create SeekBasedTrickPlay() - initial mode: " + getCurrentTrickMode() + " start at: " + startingPosition);
 
+            // Round position to nearest second, this improves the odds the first seek will hit an I-Frame playlist segment
+            // boundary.  Frame intervals for issuing seeks are set to even seconds as well
+            //
+            long roundedPosition = (startingPosition / 1000L) * 1000L;
+            currentMediaClock = new ReversibleMediaClock(isForward, C.msToUs(roundedPosition), Clock.DEFAULT);
+
+            TrickMode currentTrickMode = getCurrentTrickMode();
+            updateTrickMode(currentTrickMode);
+        }
+
+        private void updateTrickMode(TrickMode currentTrickMode) {
+            boolean isForward = getCurrentTrickDirection() == TrickPlayDirection.FORWARD;
+            float currentSpeed = getSpeedFor(currentTrickMode);
             PlaybackParameters playbackParameters = new PlaybackParameters(Math.abs(currentSpeed));
-            currentMediaClock = new ReversibleMediaClock(isForward, C.msToUs(startingPosition), Clock.DEFAULT);
             currentMediaClock.setPlaybackParameters(playbackParameters);
+            currentMediaClock.setForward(isForward);
+            Log.d(TAG, "updateTrickMode() - to: " + currentTrickMode + " current pos: " + currentMediaClock.getPositionUs());
         }
 
         @Override
@@ -313,47 +372,94 @@ class TrickPlayController implements TrickPlayControlInternal {
                 lastRenderTime = null;
             } else if (currentTrickMode != TrickMode.NORMAL) {
 
-                boolean isMinFrameRate = true;
-                long timeSinceLastRender = C.TIME_UNSET;
+                boolean isTargetFrameIntervalMet;  // True if at least making the min. desired frame rate.
+                long timeSinceLastRenderMs = C.TIME_UNSET;
 
-                if (lastRenderTime != null) {
-                    timeSinceLastRender = currentMediaClock.getClock().elapsedRealtime() - lastRenderTime.realtimeMs;
-                    isMinFrameRate = timeSinceLastRender <= minFrameIntervalMs;
+                if (lastRenderTime == null) {
+                    isTargetFrameIntervalMet = false;
+                } else {
+                    timeSinceLastRenderMs = currentMediaClock.getClock().elapsedRealtime() - lastRenderTime.realtimeMs;
+                    isTargetFrameIntervalMet = timeSinceLastRenderMs <= targetFrameIntervalMs;
                 }
 
                 switch (msg.what) {
                     case MSG_TRICKPLAY_STARTSEEK:
-                        long contentPosition = player.getContentPosition();
-                        long largestSafeSeekPositionMs = getLargestSafeSeekPositionMs();
-                        seekTargetMs = Math.min(C.usToMs(currentMediaClock.getPositionUs()), largestSafeSeekPositionMs);
+                        Log.d(TAG, "msg STARTSEEK - calling seekToMediaClock() - timeSinceLastRenderMs: " + timeSinceLastRenderMs + " targetFrameIntervalMs: " + targetFrameIntervalMs);
+                        currentSeekIntervalMs = DEFAULT_SEEK_INTERVAL_MS;
+                        sendEmptyMessageDelayed(MSG_TRICKPLAY_TIMED_SEEK, currentSeekIntervalMs);
+                        Log.d(TAG, "msg STARTSEEK - set next seek time, currentSeekIntervalMs: " + currentSeekIntervalMs
+                            + " timeSinceLastRenderMs: " + timeSinceLastRenderMs);
+                        break;
 
-                        Log.d(TAG, "handleMessage STARTSEEK - mode " + currentTrickMode + " position: "
-                            + contentPosition + " request position " + seekTargetMs + " timeSinceLastRender: " + timeSinceLastRender + " delta: " + (
-                            seekTargetMs - contentPosition) + " isMinFrameRate: " + isMinFrameRate);
+                    case MSG_TRICKPLAY_TIMED_SEEK:
+                        long nextSeekDelay = C.TIME_UNSET;
 
-                        if (isMinFrameRate) {
-                            player.seekTo(seekTargetMs);
-                            sendEmptyMessageDelayed(MSG_TRICKPLAY_STARTSEEK, targetFrameIntervalMs);
+                        if (isTargetFrameIntervalMet) {
+                            currentSeekIntervalMs = DEFAULT_SEEK_INTERVAL_MS;
+                            if (timeSinceLastRenderMs > DELAY_FOR_RENDER_MS) {
+                                Log.d(TAG, "msg TIMED_SEEK - just rendered, delay seek slightly, timeSinceLastRenderMs: " + timeSinceLastRenderMs);
+                                sendEmptyMessage(MSG_DELAYED_SEEK_AFTER_RENDER);
+                            } else {
+                                Log.d(TAG, "msg TIMED_SEEK - had render, so issuing seek. timeSinceLastRenderMs: " + timeSinceLastRenderMs + " next seek in: " + currentSeekIntervalMs +"ms");
+                                seekToMediaClock();
+                                nextSeekDelay = currentSeekIntervalMs;
+                            }
+                        } else {
+                            Log.d(TAG, "msg TIMED_SEEK - no render, " + debugTimeStr() +"timeSinceLastRenderMs: " + timeSinceLastRenderMs);
+                            if (currentSeekIntervalMs != THROTTLED_SEEK_INTERVAL_MS) {
+                                Log.d(TAG, "msg TIMED_SEEK - change seek interval to thottled value");
+                                currentSeekIntervalMs = THROTTLED_SEEK_INTERVAL_MS;
+                            }
+                            Log.d(TAG, "msg TIMED_SEEK - no render, issuing seek anyway, timeSinceLastRenderMs: " + timeSinceLastRenderMs + " next seek in: " + currentSeekIntervalMs +"ms");
+                            seekToMediaClock();
+                            nextSeekDelay = currentSeekIntervalMs;
                         }
 
+                        if (nextSeekDelay != C.TIME_UNSET) {
+                            sendEmptyMessageDelayed(MSG_TRICKPLAY_TIMED_SEEK, currentSeekIntervalMs);
+                        }
+                        break;
+
+                    case MSG_DELAYED_SEEK_AFTER_RENDER:
+                        Log.d(TAG, "msg DELAYED_SEEK_AFTER_RENDER - next seek in: " + (currentSeekIntervalMs - DELAY_FOR_RENDER_MS) +"ms");
+                        seekToMediaClock();
+                        sendEmptyMessageDelayed(MSG_TRICKPLAY_TIMED_SEEK, currentSeekIntervalMs - DELAY_FOR_RENDER_MS);
                         break;
 
                     case MSG_TRICKPLAY_FRAMERENDER:
                         lastRenderTime = (AnalyticsListener.EventTime) msg.obj;
-
-                        boolean isNoPendingSeek =  ! hasMessages(MSG_TRICKPLAY_STARTSEEK);
-
-                        Log.d(TAG, "handleMessage FRAMERENDER - mode " + currentTrickMode + " position: " + lastRenderTime.eventPlaybackPositionMs
-                                + " timeSinceLastRender:" + timeSinceLastRender + " isNoPendingSeek: " + isNoPendingSeek);
-
-                        // If we have no pending seek then we have fallen below the min frame rate, issue a seek
-                        if (isNoPendingSeek) {
-                            sendEmptyMessage(MSG_TRICKPLAY_STARTSEEK);
-                        }
+                        player.setPlayWhenReady(false);
+                        boolean isPendingSeek =  hasMessages(MSG_TRICKPLAY_TIMED_SEEK);
+                        Log.d(TAG, "msg FRAMERENDER -" + debugTimeStr() + "timeSinceLastRenderMs:" + timeSinceLastRenderMs + " isPendingSeek: " + isPendingSeek);
                         break;
 
                 }
             }
+        }
+
+        /**
+         * Issue the actual seek to the player.  The seek value is based on the current media
+         * time (playback position) reported by the {@link #currentMediaClock}.
+         *
+         * The position is truncated to a 1 second boundary (to better match the i-Frame intervals) and
+         * min'd with the upper bound of the seekable range.
+         */
+        private void seekToMediaClock() {
+            long largestSafeSeekPositionMs = getLargestSafeSeekPositionMs();
+            long seekTargetMs = C.usToMs(currentMediaClock.getPositionUs());
+            seekTargetMs = (seekTargetMs / 1000L) * 1000L;
+            seekTargetMs = Math.min(seekTargetMs, largestSafeSeekPositionMs);
+
+            Log.d(TAG, "seekToMediaClock() - issuing, seekTarget: " + seekTargetMs / 1000.0f + debugTimeStr());
+            lastIssuedSeekTimeMs = seekTargetMs;
+            player.seekTo(seekTargetMs);
+        }
+
+        private String debugTimeStr() {
+            long currentPositionMs = player.getCurrentPosition();
+            long clockPositionUs = currentMediaClock.getPositionUs();
+            return String.format(Locale.getDefault(), " [position: %.3f clock %.3f delta %d(ms)] ",
+                currentPositionMs / 1000.0f, clockPositionUs / 1_000_000.0f, C.usToMs(clockPositionUs) - currentPositionMs);
         }
 
         /**
@@ -362,34 +468,56 @@ class TrickPlayController implements TrickPlayControlInternal {
          * Expects current trickmode is not {@link TrickMode#NORMAL}
          */
         public void startTrickPlay() {
-            seekTargetMs = C.usToMs(currentMediaClock.getPositionUs());
-            Log.d(TAG, "starting seek trick-play - mode " + currentTrickMode + " target pos: " + seekTargetMs);
+            Log.d(TAG, "starting seek trick-play - mode " + currentTrickMode + " current pos: " + currentMediaClock.getPositionUs());
+            sendEmptyMessage(MSG_TRICKPLAY_STARTSEEK);
+        }
 
-            player.seekTo(seekTargetMs);
-            sendEmptyMessageDelayed(MSG_TRICKPLAY_STARTSEEK, targetFrameIntervalMs);
+        // Implement trickplay event listener
+
+        @Override
+        public void trickPlayModeChanged(TrickMode newMode, TrickMode prevMode) {
+            if (newMode != TrickMode.NORMAL) {
+                Log.d(TAG, "trickPlayModeChanged() from: " + prevMode + " to: " + newMode + " current pos: " + currentMediaClock.getPositionUs());
+
+                updateTrickMode(newMode);
+            }
+        }
+
+        @Override
+        public void trickFrameRendered(long frameRenderTimeUs) {
+            if (isSmoothPlayAvailable()) {
+              long realtimeMs = Clock.DEFAULT.elapsedRealtime();
+              AnalyticsListener.EventTime eventTime = new EventTime(realtimeMs, player.getCurrentTimeline(), 0, null,
+                  0, player.getCurrentPosition(), 0);
+              Log.d(TAG, "Trick frame render " + getCurrentTrickMode() + " position: " + eventTime.currentPlaybackPositionMs);
+              removeMessages(SeekBasedTrickPlay.MSG_TRICKPLAY_FRAMERENDER);
+              Message msg = obtainMessage(SeekBasedTrickPlay.MSG_TRICKPLAY_FRAMERENDER, eventTime);
+              sendMessage(msg);
+            }
         }
 
         // Implement analytics listener.  Methods are called in thread that created this handler
 
         @Override
         public void onRenderedFirstFrame(EventTime eventTime, @Nullable Surface surface) {
-            Log.d(TAG, "First frame " + getCurrentTrickMode() + " position: " + eventTime.currentPlaybackPositionMs);
-            Message msg = obtainMessage(SeekBasedTrickPlay.MSG_TRICKPLAY_FRAMERENDER, eventTime);
-            sendMessage(msg);
+            if (! isSmoothPlayAvailable()) {
+                Log.d(TAG, "First frame " + getCurrentTrickMode() + " position: " + eventTime.currentPlaybackPositionMs);
+                Message msg = obtainMessage(SeekBasedTrickPlay.MSG_TRICKPLAY_FRAMERENDER, eventTime);
+                sendMessage(msg);
+            }
         }
 
         @Override
         public void onSeekProcessed(EventTime eventTime) {
-            long currentClock = C.usToMs(currentMediaClock.getPositionUs());
 
-            if (eventTime.currentPlaybackPositionMs != seekTargetMs) {
-                Log.d(TAG, "handleMessage SEEKPROCESSED - reset clock for advance - " + currentTrickMode + " seekTargetMs: " + seekTargetMs
-                    + " position: " + eventTime.currentPlaybackPositionMs + " clock position: " + currentClock);
-                currentMediaClock.resetPosition(C.msToUs(eventTime.currentPlaybackPositionMs));
+            // Check if it's our seek (we set the lastIssuedSeekTimeMs for each one we source).  Otherwise
+            // user pressed 'advance' or some other jump button.
+            //
+            if (eventTime.currentPlaybackPositionMs == lastIssuedSeekTimeMs) {
+                Log.d(TAG, "onSeekProcessed() - mode:  " + currentTrickMode + debugTimeStr());
             } else {
-                Log.d(TAG, "handleMessage SEEKPROCESSED - mode " + currentTrickMode + " seekTargetMs: " + seekTargetMs
-                    + " position: " + eventTime.currentPlaybackPositionMs + " clock position: " + currentClock);
-
+                Log.d(TAG, "onSeekProcessed() - reset clock for advance - " + currentTrickMode + debugTimeStr());
+                currentMediaClock.resetPosition(C.msToUs(eventTime.currentPlaybackPositionMs));
             }
         }
     }
@@ -429,7 +557,7 @@ class TrickPlayController implements TrickPlayControlInternal {
 
     @Override
     public void removePlayerReference() {
-        stopSeekBasedTrickplay();
+        destroySeekBasedTrickplayHandler();
         playbackHandler.removeCallbacksAndMessages(null);
         playbackHandler = null;
         applicatonHandler.removeCallbacksAndMessages(null);
@@ -470,9 +598,7 @@ class TrickPlayController implements TrickPlayControlInternal {
             boolean modeChangePossible = canTrickPlayInMode(newMode);
             if (modeChangePossible) {
 
-                // Pause playback before switching trickplay mode.
-                Log.d(TAG, "setTrickMode(" + newMode + ") pausing playback - previous mode: " + previousMode);
-                player.setPlayWhenReady(false);
+                Log.d(TAG, "setTrickMode(" + newMode + ") previous mode: " + previousMode);
 
                 if (newMode == TrickMode.NORMAL) {
                     lastRendersCount = switchTrickModeToNormal(previousMode);
@@ -511,6 +637,26 @@ class TrickPlayController implements TrickPlayControlInternal {
     }
 
     /////
+    // Internal API - used privately in the trickplay library
+    ////
+
+    // NOTE this method must be fast and will be called from the ExoPlayer playback thread
+    @Override
+    public synchronized boolean useTrickPlayRendering() {
+      return getCurrentTrickDirection() == TrickPlayDirection.FORWARD && isSmoothPlayAvailable;
+    }
+
+
+    @Override
+    public void dispatchTrickFrameRender(long renderedFramePositionUs) {
+        lastRenderPositions.add(renderedFramePositionUs);
+        for (ListenerRef listenerRef : listeners) {
+            Handler handler = getHandler(listenerRef);
+            handler.post(() -> listenerRef.listener.trickFrameRendered(renderedFramePositionUs));
+        }
+    }
+
+    /////
     // Internal methods
     /////
 
@@ -528,22 +674,23 @@ class TrickPlayController implements TrickPlayControlInternal {
     private void switchTrickPlaySpeed(TrickMode newMode, TrickMode previousMode) {
         // Reset to save new set of last N renders on first switch from normal mode.
         if (previousMode == TrickMode.NORMAL) {
-            lastRenderPositions = new LastNPositions();
+            lastRenderPositions.empty();
         }
+        setCurrentTrickMode(newMode);
 
         if (usePlaybackSpeedTrickPlay(newMode)) {
             Log.d(TAG, "Start i-frame trickplay " + newMode + " at media time " + player.getCurrentPosition());
             stopSeekBasedTrickplay();
-            switchToTrickPlayTracks();
+            setTrackSelectionForTrickPlay(newMode, previousMode);
             player.setPlayWhenReady(true);
             player.setPlaybackParameters(new PlaybackParameters(getSpeedFor(newMode)));
         } else {
             Log.d(TAG, "Start seek-based trickplay " + newMode + " at media time " + player.getCurrentPosition());
-            switchToTrickPlayTracks();
-            startSeekBasedTrickplay();
+            if (previousMode == TrickMode.NORMAL) {
+                startSeekBasedTrickplay();
+                setTrackSelectionForTrickPlay(newMode, previousMode);
+            }
         }
-        setCurrentTrickMode(newMode);
-
         dispatchTrickModeChanged(newMode, previousMode);
 
     }
@@ -566,7 +713,7 @@ class TrickPlayController implements TrickPlayControlInternal {
 
         resetTrickPlayState(false);
 
-        enableLastSelectedAudioTrack();
+        setTrackSelectionForTrickPlay(TrickMode.NORMAL, previousMode);
         player.setPlayWhenReady(true);
 
         if (isSmoothPlayAvailable()) {
@@ -576,7 +723,7 @@ class TrickPlayController implements TrickPlayControlInternal {
 
             if (lastRendersCount > 0) {
                 long positionMs = lastRenders.get(0);
-                Log.d(TAG, "Seek to previous rendered frame, positions " + positionMs);
+                Log.d(TAG, "Seek to previous rendered frame, positions " + positionMs + " currentPos: " + player.getCurrentPosition());
                 player.seekTo(positionMs);
             }
         }
@@ -604,6 +751,7 @@ class TrickPlayController implements TrickPlayControlInternal {
         player.setPlaybackParameters(PlaybackParameters.DEFAULT);
         TrickMode prevMode = getCurrentTrickMode();
         setCurrentTrickMode(TrickMode.NORMAL);
+        restoreSavedTrackSelection();
         Log.d(TAG, "resetTrickPlayState("+ dispatchEvent + ") - speed: " + player.getPlaybackParameters().speed + " prev mode: " + prevMode);
         if (dispatchEvent && prevMode != TrickMode.NORMAL) {
             dispatchTrickModeChanged(TrickMode.NORMAL, prevMode);
@@ -737,6 +885,7 @@ class TrickPlayController implements TrickPlayControlInternal {
             Timeline.Window currentWindow = new Timeline.Window();
             timeline.getWindow(player.getCurrentWindowIndex(), currentWindow);
             if (! canContinuePlaybackInMode(currentWindow, player.getContentPosition(), currentTrickMode)) {
+                Log.d(TAG, "exitTrickPlayIfTimelineExceeded() - exiting trickplay, position outside of seekable, currentPosition: " + player.getContentPosition() + "ms");
                 switchTrickModeToNormal(currentTrickMode);
                 didExit = true;
             }
@@ -785,43 +934,65 @@ class TrickPlayController implements TrickPlayControlInternal {
         return isPossible;
     }
 
-    private void switchToTrickPlayTracks() {
-        DefaultTrackSelector.Parameters trackSelectorParameters = trackSelector.getParameters();
-        DefaultTrackSelector.ParametersBuilder builder = trackSelectorParameters.buildUpon();
+    private void setTrackSelectionForTrickPlay(TrickMode newMode, TrickMode previousMode) {
+        Log.d(TAG, "setTrackSelectionForTrickPlay(" + newMode +"," + previousMode +") - current newMode");
 
-        TrackSelectionArray trackSelections = player.getCurrentTrackSelections();
-        for (int i = 0; i < player.getRendererCount() && i < trackSelections.length; i++) {
-          if (player.getRendererType(i) == C.TRACK_TYPE_AUDIO && trackSelections.get(i) != null) {
-              builder.setRendererDisabled(i, true);
-          }
+        // Update if we switch in or out of NORMAL mode only.
+        if (newMode != previousMode && (newMode == TrickMode.NORMAL || previousMode == TrickMode.NORMAL)) {
+            if (newMode == TrickMode.NORMAL) {
+                restoreSavedTrackSelection();
+            } else {
+                Log.d(TAG, "setTrackSelectionForTrickPlay() - disabling tracks not used for trick-play (audio, CC)");
+
+                DefaultTrackSelector.Parameters trackSelectorParameters = trackSelector.getParameters();
+                savedParameters = trackSelectorParameters;
+
+                DefaultTrackSelector.ParametersBuilder builder = trackSelectorParameters.buildUpon();
+                for (int i = 0; i < player.getRendererCount(); i++) {
+                  if (player.getRendererType(i) != C.TRACK_TYPE_VIDEO) {
+                      builder.setRendererDisabled(i, true);
+                  }
+                }
+                trackSelector.setParameters(builder);
+            }
+
         }
-        trackSelector.setParameters(builder);
+
+    }
+
+    private void restoreSavedTrackSelection() {
+        // Restore track selection to state before trick-play started
+        if (savedParameters != null) {
+            Log.d(TAG, "setTrackSelectionForTrickPlay() - restoring previously saved track selection parameters");
+            trackSelector.setParameters(savedParameters.buildUpon());
+            savedParameters = null;
+        }
     }
 
     private void stopSeekBasedTrickplay() {
+        destroySeekBasedTrickplayHandler();
+        player.setSeekParameters(SeekParameters.DEFAULT);
+        player.setPlaybackParameters(PlaybackParameters.DEFAULT);
+    }
+
+    private void destroySeekBasedTrickplayHandler() {
         if (currentHandler != null) {
             currentHandler.removeCallbacksAndMessages(null);
             player.removeAnalyticsListener(currentHandler);
+            removeEventListener(currentHandler);
             currentHandler = null;
         }
-        player.setSeekParameters(SeekParameters.DEFAULT);
-        player.setPlaybackParameters(PlaybackParameters.DEFAULT);
     }
 
     private void startSeekBasedTrickplay() {
         stopSeekBasedTrickplay();
         currentHandler = new SeekBasedTrickPlay(player.getContentPosition());
         player.addAnalyticsListener(currentHandler);
-        currentHandler.startTrickPlay();
-    }
-
-    private void enableLastSelectedAudioTrack() {
-        if (lastSelectedAudioTrack >= 0 && lastSelectedAudioTrack < player.getRendererCount()) {
-            DefaultTrackSelector.Parameters trackSelectorParameters = trackSelector.getParameters();
-            DefaultTrackSelector.ParametersBuilder builder = trackSelectorParameters.buildUpon();
-            builder.setRendererDisabled(lastSelectedAudioTrack, false);
-            trackSelector.setParameters(builder);
+        player.setPlaybackParameters(new PlaybackParameters(0.1f));
+        if (isSmoothPlayAvailable()) {
+            addEventListener(currentHandler);
         }
+        currentHandler.startTrickPlay();
     }
 
     private void dispatchPlaylistMetadataChanged() {
@@ -835,14 +1006,6 @@ class TrickPlayController implements TrickPlayControlInternal {
         for (ListenerRef listenerRef : listeners) {
             Handler handler = getHandler(listenerRef);
             handler.post(() -> listenerRef.listener.trickPlayModeChanged(newMode, prevMode));
-        }
-    }
-
-    protected void dispatchTrickFrameRender(long renderedFramePositionUs) {
-        lastRenderPositions.add(renderedFramePositionUs);
-        for (ListenerRef listenerRef : listeners) {
-            Handler handler = getHandler(listenerRef);
-            handler.post(() -> listenerRef.listener.trickFrameRendered(renderedFramePositionUs));
         }
     }
 

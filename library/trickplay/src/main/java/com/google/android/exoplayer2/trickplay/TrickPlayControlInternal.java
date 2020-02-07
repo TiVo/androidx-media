@@ -20,4 +20,20 @@ public interface TrickPlayControlInternal extends TrickPlayControl {
    * @param eventListener - listener to remove.
    */
   void removeEventListenerInternal(TrickPlayEventListener eventListener);
+
+  /**
+   * If the renderer should control frame rate.
+   *
+   * @return true to use trick-play rendering.
+   */
+  boolean useTrickPlayRendering();
+
+  /**
+   * Called from the renderer (on the ExoPlayer's player thread) to report rendering a frame
+   * while in trick-play mode.
+   *
+   * @param renderedFramePositionUs
+   */
+  void dispatchTrickFrameRender(long renderedFramePositionUs);
+
 }

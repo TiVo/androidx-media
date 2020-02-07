@@ -28,9 +28,9 @@ import java.util.logging.Logger;
 
 class TrickPlayRendererFactory extends DefaultRenderersFactory {
 
-  private final TrickPlayController trickPlayController;
+  private final TrickPlayControlInternal trickPlayController;
 
-  public TrickPlayRendererFactory(Context context, TrickPlayController controller) {
+  TrickPlayRendererFactory(Context context, TrickPlayControlInternal controller) {
     super(context);
     trickPlayController = controller;
     setAllowedVideoJoiningTimeMs(0);
@@ -67,9 +67,7 @@ class TrickPlayRendererFactory extends DefaultRenderersFactory {
   private class TrickPlayAwareMediaCodecVideoRenderer extends MediaCodecVideoRenderer {
     public static final String TAG = "TrickPlayAwareMediaCodecVideoRenderer";
 
-    private TrickPlayController trickPlay;
-
-    private TrickPlayControl.TrickMode previousTrickMode;
+    private TrickPlayControlInternal trickPlay;
 
     public static final int TARGET_FRAME_RATE = 15;
 
@@ -78,7 +76,7 @@ class TrickPlayRendererFactory extends DefaultRenderersFactory {
     private long lastRenderedPositionUs = C.TIME_UNSET;
 
     TrickPlayAwareMediaCodecVideoRenderer(
-        TrickPlayController trickPlayController,
+        TrickPlayControlInternal trickPlayController,
         Context context,
         MediaCodecSelector mediaCodecSelector,
         long allowedJoiningTimeMs,
@@ -90,23 +88,7 @@ class TrickPlayRendererFactory extends DefaultRenderersFactory {
       super(context, mediaCodecSelector, allowedJoiningTimeMs, drmSessionManager, playClearSamplesWithoutKeys,
           eventHandler, eventListener, maxDroppedFramesToNotify);
       trickPlay = trickPlayController;
-      previousTrickMode = trickPlay.getCurrentTrickMode();
-    }
-
-    /**
-     * When the trickplay mode changes, we need to flush the codec, as when we change back to normal mode this method
-     * flushes the codec, as all the to be decoded/rendered frames are IDR frames only, conversely when we change to
-     * a trickplay mode we only want the IDR frames.
-     *
-     * @param positionUs
-     * @param elapsedRealtimeUs
-     * @throws ExoPlaybackException
-     */
-    @Override
-    public void render(long positionUs, long elapsedRealtimeUs) throws ExoPlaybackException {
-      TrickPlayControl.TrickMode currentTrickMode = trickPlayController.getCurrentTrickMode();
-      previousTrickMode = currentTrickMode;
-      super.render(positionUs, elapsedRealtimeUs);
+      trickPlay.getCurrentTrickMode();
     }
 
     /**
@@ -132,19 +114,26 @@ class TrickPlayRendererFactory extends DefaultRenderersFactory {
     @Override
     protected void onPositionReset(long positionUs, boolean joining) throws ExoPlaybackException {
       super.onPositionReset(positionUs, joining);
-      lastRenderedPositionUs = positionUs;
+      Log.d(TAG, "onPositionReset() -  readPosUs: " + getReadingPositionUs() + " lastRenderTimeUs: " + lastRenderTimeUs);
+      lastRenderTimeUs = C.TIME_UNSET;    // Force a render on a discontinuity
     }
+
 
     @Override
     protected int readSource(FormatHolder formatHolder, DecoderInputBuffer buffer, boolean formatRequired) {
       int result;
-      if (useTrickPlayRendering()) {
+      if (trickPlay.useTrickPlayRendering()) {
         long elapsedRealtimeNowUs = System.nanoTime() / 1000;
         boolean nextFrameIsDue = lastRenderTimeUs == C.TIME_UNSET || (elapsedRealtimeNowUs - lastRenderTimeUs) >= targetInterFrameTimeUs;
-//        Log.d(TAG, "readSource() - formatRequired " + formatRequired + " currentFormat: " + formatHolder.format);
+        Log.d(TAG, "readSource() -  readPosUs: " + getReadingPositionUs() + " lastRenderTimeUs: " + lastRenderTimeUs + " frameDue: " + nextFrameIsDue + " formatRequired: " + formatRequired + " track: " + formatHolder.format.id);
 
         if (nextFrameIsDue) {
           result = super.readSource(formatHolder, buffer, formatRequired);
+          if (result != C.RESULT_BUFFER_READ) {
+            lastRenderTimeUs = C.TIME_UNSET;    // Force nextFrameDue again till we read an actual sample buffer.
+          } else {
+            Log.d(TAG, "super.readSource() - readPosUs: " + getReadingPositionUs() + " returned buffer - PTS: "+ buffer.timeUs + " decodeOnly: " + buffer.isDecodeOnly() + " keyFrame: " + buffer.isKeyFrame());
+          }
         } else {
           result = C.RESULT_NOTHING_READ;
         }
@@ -159,39 +148,16 @@ class TrickPlayRendererFactory extends DefaultRenderersFactory {
     protected void renderOutputBufferV21(MediaCodec codec, int index, long presentationTimeUs,
         long releaseTimeNs) {
       super.renderOutputBufferV21(codec, index, presentationTimeUs, releaseTimeNs);
-//      Log.d(TAG, "onRenderOutputBuffer() - pts: " + presentationTimeUs + " releaseTimeUs: " + (releaseTimeNs / 1000) + " index:" +index);
+      long timeSinceLastRender =  lastRenderTimeUs == C.TIME_UNSET ? C.TIME_UNSET : (System.nanoTime() / 1000) - lastRenderTimeUs;
       lastRenderTimeUs = System.nanoTime() / 1000;
       lastRenderedPositionUs = presentationTimeUs;
 
-      if (useTrickPlayRendering()) {
-        trickPlayController.dispatchTrickFrameRender(lastRenderedPositionUs);
+      if (trickPlay.isSmoothPlayAvailable() && trickPlay.getCurrentTrickDirection() != TrickPlayControl.TrickPlayDirection.NONE) {
+        Log.d(TAG, "renderOutputBufferV21() in trickplay - pts: " + presentationTimeUs + " releaseTimeUs: " + (releaseTimeNs / 1000) + " index:" + index + " timeSinceLastUs: " + timeSinceLastRender);
+        trickPlay.dispatchTrickFrameRender(lastRenderedPositionUs);
       }
     }
 
-    /**
-     * TODO - this belongs in TrickPlayContoller...  Need to differentiate between seek based and iFrame based
-     *
-     * If should override with trickplay rendering operations.
-     *
-     * Currently only forward modes are supported for trickplay
-     *
-     * @return true to use trick-play rendering.
-     */
-    private boolean useTrickPlayRendering() {
-      boolean shouldUse;
-
-      switch (trickPlay.getCurrentTrickMode()) {
-        case FF1:
-        case FF2:
-        case FF3:
-          shouldUse = true;
-          break;
-        default:
-          shouldUse = false;
-          break;
-      }
-      return shouldUse;
-    }
   }
 
 }
