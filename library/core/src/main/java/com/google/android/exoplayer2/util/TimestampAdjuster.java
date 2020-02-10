@@ -121,12 +121,6 @@ public final class TimestampAdjuster {
           Math.abs(ptsWrapBelow - lastPts) < Math.abs(ptsWrapAbove - lastPts)
               ? ptsWrapBelow
               : ptsWrapAbove;
-
-      // Log only large PTS jumps as audio and video might be processed at different time by same adjuster
-      if (Math.abs(pts90Khz - lastPts) > usToPts(60*C.MICROS_PER_SECOND)) {
-        Log.w("DISC", String.format("TS Adjuster: PTS jump delta=%d prev=%d cur=%d",
-            pts90Khz - lastPts, lastPts, pts90Khz));
-      }
     }
     return adjustSampleTimestamp(ptsToUs(pts90Khz));
   }
