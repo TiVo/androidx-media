@@ -21,12 +21,17 @@ import com.google.android.exoplayer2.FormatHolder;
 import com.google.android.exoplayer2.decoder.DecoderInputBuffer;
 import com.google.android.exoplayer2.extractor.TrackOutput.CryptoData;
 import com.google.android.exoplayer2.util.Assertions;
+import com.google.android.exoplayer2.util.Log;
+import com.google.android.exoplayer2.util.MimeTypes;
 import com.google.android.exoplayer2.util.Util;
+import java.util.Locale;
 
 /**
  * A queue of metadata describing the contents of a media buffer.
  */
 /* package */ final class SampleMetadataQueue {
+
+  private static final String TAG = "SampleMetadataQueue";
 
   /**
    * A holder for sample metadata not held by {@link DecoderInputBuffer}.
@@ -402,7 +407,7 @@ import com.google.android.exoplayer2.util.Util;
   }
 
   public synchronized void commitSample(long timeUs, @C.BufferFlags int sampleFlags, long offset,
-      int size, CryptoData cryptoData) {
+                                        int size, CryptoData cryptoData) {
     if (upstreamKeyframeRequired) {
       if ((sampleFlags & C.BUFFER_FLAG_KEY_FRAME) == 0) {
         return;
@@ -415,6 +420,22 @@ import com.google.android.exoplayer2.util.Util;
     largestQueuedTimestampUs = Math.max(largestQueuedTimestampUs, timeUs);
 
     int relativeEndIndex = getRelativeIndex(length);
+
+    // Check for obvious discontinuities in the content
+    if ( length > 0 && (sampleFlags & C.BUFFER_FLAG_KEY_FRAME) == 1) {
+      int prev = getRelativeIndex(length - 1);
+      long delta = timeUs - timesUs[prev];
+      if (Math.abs(delta) > (10 * C.MICROS_PER_SECOND)) {
+        Log.w(TAG, String.format(Locale.getDefault(),
+            "commitSample(%d, ...) - PTS delta exceeds 10sec - leap %s: prev=%d delta=%ds mime=%s",
+            timeUs, 
+            delta > 0 ? "forward" : "back",
+            timesUs[prev],
+            delta / C.MICROS_PER_SECOND,
+            upstreamFormat));
+      }
+    }
+
     timesUs[relativeEndIndex] = timeUs;
     offsets[relativeEndIndex] = offset;
     sizes[relativeEndIndex] = size;
