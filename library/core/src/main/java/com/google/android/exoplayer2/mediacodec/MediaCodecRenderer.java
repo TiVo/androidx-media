@@ -1106,6 +1106,13 @@ public abstract class MediaCodecRenderer extends BaseRenderer {
       }
       codecNeedsDiscardToSpsWorkaround = false;
     }
+
+    if (buffer.isDiscontinuity())
+    {
+      throw ExoPlaybackException.createForRenderer(
+              new PlaybackDiscontinuityException(buffer.timeUs), getIndex());
+    }
+
     try {
       long presentationTimeUs = buffer.timeUs;
       if (buffer.isDecodeOnly()) {

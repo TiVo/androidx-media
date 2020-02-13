@@ -54,6 +54,13 @@ public abstract class Buffer {
   }
 
   /**
+   * Returns whether the {@link C#BUFFER_FLAG_DISCONTINUITY} flag is set.
+   */
+  public final boolean isDiscontinuity() {
+    return getFlag(C.BUFFER_FLAG_DISCONTINUITY);
+  }
+
+  /**
    * Replaces this buffer's flags with {@code flags}.
    *
    * @param flags The flags to set, which should be a combination of the {@code C.BUFFER_FLAG_*}
