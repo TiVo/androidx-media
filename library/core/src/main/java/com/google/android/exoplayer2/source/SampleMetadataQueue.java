@@ -271,6 +271,24 @@ import java.util.Locale;
 
     buffer.setFlags(flags[relativeReadIndex]);
     buffer.timeUs = timesUs[relativeReadIndex];
+
+    // mark large discontinuities to let renderer throw an exception
+    if (readPosition + 1 < length && MimeTypes.getTrackType(upstreamFormat.sampleMimeType) == C.TRACK_TYPE_AUDIO)
+    {
+      int next = getRelativeIndex(readPosition + 1);
+      long delta = timesUs[next] - timesUs[relativeReadIndex];
+      if (Math.abs(delta) > (10 * C.MICROS_PER_SECOND)) {
+        Log.w(TAG, String.format(Locale.getDefault(),
+            "read(%d, ...) - PTS delta exceeds 10sec - leap %s: next=%d delta=%ds mime=%s",
+            timesUs[relativeReadIndex],
+            delta > 0 ? "forward" : "back",
+            timesUs[next],
+            delta / C.MICROS_PER_SECOND,
+            upstreamFormat));
+        buffer.addFlag(C.BUFFER_FLAG_DISCONTINUITY);
+      }
+    }
+
     if (buffer.isFlagsOnly()) {
       return C.RESULT_BUFFER_READ;
     }

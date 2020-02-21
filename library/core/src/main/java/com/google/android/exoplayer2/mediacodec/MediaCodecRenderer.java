@@ -31,6 +31,7 @@ import androidx.annotation.Nullable;
 import com.google.android.exoplayer2.BaseRenderer;
 import com.google.android.exoplayer2.C;
 import com.google.android.exoplayer2.ExoPlaybackException;
+import com.google.android.exoplayer2.PlaybackDiscontinuityException;
 import com.google.android.exoplayer2.Format;
 import com.google.android.exoplayer2.FormatHolder;
 import com.google.android.exoplayer2.Renderer;
@@ -1106,6 +1107,13 @@ public abstract class MediaCodecRenderer extends BaseRenderer {
       }
       codecNeedsDiscardToSpsWorkaround = false;
     }
+
+    if (buffer.isDiscontinuity())
+    {
+      throw ExoPlaybackException.createForRenderer(
+              new PlaybackDiscontinuityException(buffer.timeUs), getIndex());
+    }
+
     try {
       long presentationTimeUs = buffer.timeUs;
       if (buffer.isDecodeOnly()) {
