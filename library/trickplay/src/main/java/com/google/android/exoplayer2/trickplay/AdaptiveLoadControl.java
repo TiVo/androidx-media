@@ -100,7 +100,7 @@ public class AdaptiveLoadControl implements LoadControl, TrickPlayEventListener 
   public boolean shouldStartPlayback(long bufferedDurationUs, float playbackSpeed, boolean rebuffering) {
     boolean defaultShouldStart = delegate.shouldStartPlayback(bufferedDurationUs, 1.0f, rebuffering);
 
-    if (trickPlayController.getCurrentTrickDirection() == TrickPlayControl.TrickPlayDirection.REVERSE) {
+    if (trickPlayController.getCurrentTrickDirection() == TrickPlayControl.TrickPlayDirection.SCRUB) {
       Log.d(TAG, "shouldStartPlayback() - speed: " + playbackSpeed + " buffered: " + bufferedDurationUs + " rebuffer: " + rebuffering + " super:shouldStartPlayback(): " + defaultShouldStart);
       defaultShouldStart = true;
     }

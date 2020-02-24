@@ -70,6 +70,32 @@ public interface TrickPlayControl {
     TrickPlayDirection getCurrentTrickDirection();
 
     /**
+     * Convenience method to convert a {@link TrickMode} into {@link TrickPlayDirection}
+     *
+     * @param mode mode to convert
+     * @return direction implied by the mode
+     */
+    static TrickPlayDirection directionForMode(TrickMode mode) {
+        TrickPlayDirection direction = TrickPlayDirection.NONE;
+
+        switch (mode) {
+            case FF1:
+            case FF2:
+            case FF3:
+                direction = TrickPlayDirection.FORWARD;
+                break;
+            case FR1:
+            case FR2:
+            case FR3:
+                direction = TrickPlayDirection.REVERSE;
+                break;
+
+            case SCRUB:
+                direction = TrickPlayDirection.SCRUB;
+        }
+        return  direction;
+    }
+    /**
      * If the trickplay event has signaled metadata is valid or {@link #isMetadataValid()} is
      * true then this value is valid and indicates if high speed trickplay (I-Frames) are supported
      *
@@ -144,6 +170,18 @@ public interface TrickPlayControl {
     Float getSpeedFor(TrickMode mode);
 
     /**
+     * Seek to the requested position, only valid in {@link TrickMode#SCRUB} mode.  This call
+     * issues the seek (if there is not a pending render for the last seek) with the promise to
+     * render the fame at the position.
+     *
+     * Playback is paused at the last requested position
+     *
+     * @param positionMs - media time to seek to
+     * @return true if there is no pending un-rendered seek
+     */
+    boolean scrubSeek(long positionMs);
+
+    /**
      * Add event listener for changes to trickplay state.  Called back with Handler for the
      * application thread (that started the Player, {@link ExoPlayer#getApplicationLooper()})
      *
@@ -160,18 +198,23 @@ public interface TrickPlayControl {
     void removeEventListener(TrickPlayEventListener eventListener);
 
     /**
-     * Trick modes include normal playback and one of 3 fast modes forward and reverse.   The first fast-modes
-     * are within the range to allow for playback with changing the source of {@link MediaClock}
+     * Trick modes include normal playback, one of 3 fast modes forward and reverse, and Scrub mode.
+     * Scrub mode works best if {@link #isSmoothPlayAvailable()}, it pauses playback and sets trackselection
+     * to use the smooth play tracks (I-Frame only) so a seek will play the frame at the seek target
+     *
+     * The first fast-modes are within the range to allow for playback with changing the source of {@link MediaClock}
+     * in the forward direction.  In reverse skip based trickplay is used.   The
      */
     enum TrickMode {
-        FF1, FF2, FF3, NORMAL, FR1, FR2, FR3
+        FF1, FF2, FF3, NORMAL, SCRUB, FR1, FR2,  FR3
     }
 
     /**
-     * Trick-play direction, fast play forward or reverse.  Or NONE for
-     * {@see TrickMode#NORMAL}.
+     * Trick-play direction, fast play forward or reverse, and NONE for {@link TrickMode#NORMAL}.
+     * SCRUB is returned only if TrickMode is is {@link TrickMode#NORMAL}, this is a trick-play mode
+     * but with speed of 0 (seek then stop playback immediately on frame render)
      */
     enum TrickPlayDirection {
-        FORWARD, NONE, REVERSE
+        FORWARD, NONE, SCRUB, REVERSE
     }
 }
