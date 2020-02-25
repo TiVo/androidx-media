@@ -948,7 +948,6 @@ class TrickPlayController implements TrickPlayControlInternal {
                 int tolerance = (int) (100 * getSpeedFor(requestedMode));
                 long delta = lastSeekablePosition - playbackPositionMs;
                 isPossible = delta >= tolerance;
-                Log.d(TAG, "canContinuePlaybackInMode() - isPossible " + isPossible + " tolerance: " + tolerance + " lastSeekable: " + lastSeekablePosition + " positionMs: " + playbackPositionMs + " delta: " + delta);
                 break;
 
             case REVERSE:
