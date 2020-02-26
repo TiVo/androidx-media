@@ -55,7 +55,7 @@ class TrickPlayController implements TrickPlayControlInternal {
     private final CopyOnWriteArraySet<ListenerRef> listeners;
 
     private TrickMode currentTrickMode = TrickMode.NORMAL;
-    private AnalyticsListener playerEventListener;
+    private @Nullable PlayerEventListener playerEventListener;
     private int lastSelectedAudioTrack = -1;
 
     private SeekBasedTrickPlay currentHandler = null;
@@ -200,7 +200,17 @@ class TrickPlayController implements TrickPlayControlInternal {
 
     }
 
-    private class PlayerEventListener implements AnalyticsListener {
+    /**
+     * Listens to Analytics events and run a periodic timer (Handler) to monitor playback
+     * for managing TrickPlay.  This includes, but is not limited to:
+     * <ul>
+     *   <li>Listening to track-selection events in order to determine if trick play (IFrame) tracks are present</li>
+     *   <li>Managing trick-play early exit when timeline boundaries are reached.</li>
+     * </ul>
+     *
+     */
+    @SuppressLint("HandlerLeak")
+    private class PlayerEventListener extends Handler implements AnalyticsListener {
 
         @Override
         public void onPlayerStateChanged(EventTime eventTime, boolean playWhenReady, int playbackState) {
@@ -217,10 +227,9 @@ class TrickPlayController implements TrickPlayControlInternal {
                     dispatchPlaylistMetadataChanged();
                     break;
 
-                case Player.STATE_BUFFERING:
                 case Player.STATE_READY:
-                    Timeline timeline = eventTime.timeline;
-                    exitTrickPlayIfTimelineExceeded(timeline);
+                case Player.STATE_BUFFERING:
+                    exitTrickPlayIfTimelineExceeded(eventTime.timeline);
                     break;
             }
         }
@@ -228,7 +237,7 @@ class TrickPlayController implements TrickPlayControlInternal {
         @Override
         public void onTimelineChanged(EventTime eventTime, int reason) {
             if (reason == Player.TIMELINE_CHANGE_REASON_DYNAMIC) {
-
+                exitTrickPlayIfTimelineExceeded(eventTime.timeline);
             }
         }
 
@@ -245,6 +254,10 @@ class TrickPlayController implements TrickPlayControlInternal {
         @Override
         public void onTracksChanged(EventTime eventTime, TrackGroupArray trackGroups, TrackSelectionArray trackSelections) {
             isMetadataValid = true;
+
+            if (getCurrentTrickMode() != TrickMode.NORMAL) {
+                sendEmptyMessageDelayed(0, 1000);
+            }
 
             // Each related set of playlists in the master (for HLS at least) creates a TrackGroup in
             // the TrackGroupArray.  The Format's within that group are the adaptations of the playlist.
@@ -271,6 +284,15 @@ class TrickPlayController implements TrickPlayControlInternal {
               if (player.getRendererType(i) == C.TRACK_TYPE_AUDIO && selections.get(i) != null && lastSelectedAudioTrack == -1) {
                 lastSelectedAudioTrack = i;
               }
+            }
+        }
+
+        @Override
+        public void handleMessage(Message msg) {
+            if (currentTrickMode != TrickMode.NORMAL) {
+                Timeline timeline = player.getCurrentTimeline();
+                exitTrickPlayIfTimelineExceeded(timeline);
+                sendEmptyMessageDelayed(0, 1000);
             }
         }
     }
@@ -564,6 +586,7 @@ class TrickPlayController implements TrickPlayControlInternal {
         applicatonHandler = null;
         this.listeners.clear();
         this.player.removeAnalyticsListener(playerEventListener);
+        playerEventListener = null;
         this.player = null;
     }
 
@@ -923,7 +946,8 @@ class TrickPlayController implements TrickPlayControlInternal {
         switch (direction) {
             case FORWARD:
                 int tolerance = (int) (100 * getSpeedFor(requestedMode));
-                isPossible = (lastSeekablePosition - playbackPositionMs) >= tolerance;
+                long delta = lastSeekablePosition - playbackPositionMs;
+                isPossible = delta >= tolerance;
                 break;
 
             case REVERSE:

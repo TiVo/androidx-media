@@ -1,5 +1,8 @@
 # Release notes #
 
+### 2.10.4-tivo.tp.3 ###
+* Merge in fix for PARTDEFECT-1129 - VTP does not exit from FFWD mode to live
+
 ### 2.10.4 ###
 
 * Offline: Add `Scheduler` implementation that uses `WorkManager`.
