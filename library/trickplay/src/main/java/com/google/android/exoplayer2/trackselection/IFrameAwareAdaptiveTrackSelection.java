@@ -47,7 +47,11 @@ public class IFrameAwareAdaptiveTrackSelection extends AdaptiveTrackSelection {
           continue;
         }
 
-        if (trickPlayControl != null) {
+        // Don't filter selection at all if there are selection overrides, otherwise if we are doing
+        // trickplay, filter in/out the iFrame only tracks
+        //
+        boolean hasSelectionOverrides = definition.group.length != definition.tracks.length;
+        if (trickPlayControl != null && ! hasSelectionOverrides) {
           definition = filterIFrameTracks(definition, trickPlayControl.getCurrentTrickDirection());
         }
         if (definition.tracks.length > 1) {
