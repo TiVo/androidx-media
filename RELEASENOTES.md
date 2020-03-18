@@ -1,5 +1,11 @@
 # Release notes #
 
+
+### 2.10.4-tivo.tp.4 ###
+* Update with latest change from public i-Frame pull ([6270](https://github.com/google/ExoPlayer/pull/6270)).  
+Adds support for implicit Media Initialization Segment ([1f1123](https://github.com/google/ExoPlayer/pull/6270/commits/1f11233ba022e00367ed32904092070d8c42f5ee) 
+this is required for Vecima (and Apple generated streams).
+
 ### 2.10.4-tivo.tp.3 ###
 * Merge in fix for PARTDEFECT-1129 - VTP does not exit from FFWD mode to live
 
