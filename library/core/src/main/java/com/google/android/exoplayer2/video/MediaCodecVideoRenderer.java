@@ -135,6 +135,7 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer {
   /* package */ OnFrameRenderedListenerV23 tunnelingOnFrameRenderedListener;
 
   private long lastInputTimeUs;
+  private long lastOutputTimeUs;
   private long outputStreamOffsetUs;
   private int pendingOutputStreamOffsetCount;
   private @Nullable VideoFrameMetadataListener frameMetadataListener;
@@ -280,6 +281,7 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer {
     pendingOutputStreamSwitchTimesUs = new long[MAX_PENDING_OUTPUT_STREAM_OFFSET_COUNT];
     outputStreamOffsetUs = C.TIME_UNSET;
     lastInputTimeUs = C.TIME_UNSET;
+    lastOutputTimeUs = C.TIME_UNSET;
     joiningDeadlineMs = C.TIME_UNSET;
     currentWidth = Format.NO_VALUE;
     currentHeight = Format.NO_VALUE;
@@ -392,6 +394,7 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer {
     initialPositionUs = C.TIME_UNSET;
     consecutiveDroppedFrameCount = 0;
     lastInputTimeUs = C.TIME_UNSET;
+    lastOutputTimeUs = C.TIME_UNSET;
     if (pendingOutputStreamOffsetCount != 0) {
       outputStreamOffsetUs = pendingOutputStreamOffsetsUs[pendingOutputStreamOffsetCount - 1];
       pendingOutputStreamOffsetCount = 0;
@@ -432,7 +435,18 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer {
    */
   @Override
   protected boolean hasOutputReady() {
-    return tunneling && buffersInCodecCount > 0 || super.hasOutputReady();
+    boolean fifoReady = true;
+    if (tunneling && lastOutputTimeUs != C.TIME_UNSET) {
+      long fifoLengthUs = lastInputTimeUs - lastOutputTimeUs;
+
+      // make sure there is at least 1/3s of video available in decoder FIFO,
+      // otherwise decoder may start stalling
+      if (fifoLengthUs < 333333)
+      {
+        fifoReady = false;
+      }
+    }
+    return fifoReady || super.hasOutputReady();
   }
 
   @Override
@@ -842,6 +856,7 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer {
 
   /** Called when a buffer was processed in tunneling mode. */
   protected void onProcessedTunneledBuffer(long presentationTimeUs) {
+    lastOutputTimeUs = presentationTimeUs;
     @Nullable Format format = updateOutputFormatForTime(presentationTimeUs);
     if (format != null) {
       processOutputFormat(getCodec(), format.width, format.height);
