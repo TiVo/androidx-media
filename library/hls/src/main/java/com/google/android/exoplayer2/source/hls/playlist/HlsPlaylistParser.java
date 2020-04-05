@@ -439,13 +439,19 @@ public final class HlsPlaylistParser implements ParsingLoadable.Parser<HlsPlayli
           }
           break;
         case TYPE_SUBTITLES:
+          variant = getVariantWithSubtitleGroup(variants, groupId);
+          codecs =
+                  variant != null
+                          ? Util.getCodecsOfType(variant.format.codecs, C.TRACK_TYPE_TEXT)
+                          : null;
+          sampleMimeType = codecs != null ? MimeTypes.getMediaMimeType(codecs) : MimeTypes.TEXT_VTT;
           format =
               Format.createTextContainerFormat(
                       /* id= */ formatId,
                       /* label= */ name,
                       /* containerMimeType= */ MimeTypes.APPLICATION_M3U8,
-                      /* sampleMimeType= */ MimeTypes.TEXT_VTT,
-                      /* codecs= */ null,
+                      /* sampleMimeType= */ sampleMimeType,
+                      /* codecs= */ codecs,
                       /* bitrate= */ Format.NO_VALUE,
                       selectionFlags,
                       roleFlags,
@@ -564,6 +570,16 @@ public final class HlsPlaylistParser implements ParsingLoadable.Parser<HlsPlayli
     for (int i = 0; i < variants.size(); i++) {
       Variant variant = variants.get(i);
       if (groupId.equals(variant.audioGroupId)) {
+        return variant;
+      }
+    }
+    return null;
+  }
+
+  private static Variant getVariantWithSubtitleGroup(ArrayList<Variant> variants, String groupId) {
+    for (int i = 0; i < variants.size(); i++) {
+      Variant variant = variants.get(i);
+      if (groupId.equals(variant.subtitleGroupId)) {
         return variant;
       }
     }
