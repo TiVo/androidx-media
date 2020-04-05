@@ -1,5 +1,7 @@
 # Release notes #
 
+### t.b.s ###
+* Add support for SMPTE-TT subtitle parsing in HLS manifest - pull [48](https://github.com/tivocorp/exoplayerprvt/pull/48)
 
 ### 2.10.4-tivo.tp.4 ###
 * Update with latest change from public i-Frame pull ([6270](https://github.com/google/ExoPlayer/pull/6270)).  
