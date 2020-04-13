@@ -59,6 +59,7 @@ public class EventLogger implements AnalyticsListener {
   private final Timeline.Window window;
   private final Timeline.Period period;
   private final long startTimeMs;
+  private @Nullable Format currentLoadingVideoFormat;
 
   /**
    * Creates event logger.
@@ -253,6 +254,9 @@ public class EventLogger implements AnalyticsListener {
       logd("  ]");
     }
     logd("]");
+
+    // Reset for showing level changes
+    currentLoadingVideoFormat = null;
   }
 
   @Override
@@ -346,6 +350,18 @@ public class EventLogger implements AnalyticsListener {
     }
     str.append(" uri: "); str.append(loadEventInfo.uri);
     logd(eventTime,"loadStarted", str.toString());
+
+    if (isVideoTrack(mediaLoadData)) {
+      if (currentLoadingVideoFormat == null) {
+        currentLoadingVideoFormat = mediaLoadData.trackFormat;
+      }
+
+      if (! currentLoadingVideoFormat.equals(mediaLoadData.trackFormat)) {
+        logd(eventTime, "levelChange", "Buffered: " + eventTime.totalBufferedDurationMs + "ms -- Old: " + getVideoLevelStr(currentLoadingVideoFormat)
+            + " New: " + getVideoLevelStr(mediaLoadData.trackFormat));
+        currentLoadingVideoFormat = mediaLoadData.trackFormat;
+      }
+    }
   }
 
   @Override
@@ -441,6 +457,16 @@ public class EventLogger implements AnalyticsListener {
   @Override
   public void onDrmSessionReleased(EventTime eventTime) {
     logd(eventTime, "drmSessionReleased");
+  }
+
+  private boolean isVideoTrack(MediaLoadData loadData) {
+    Format format = loadData.trackFormat;
+    return  format != null &&
+        (loadData.trackType == C.TRACK_TYPE_VIDEO || format.height > 0 || MimeTypes.getVideoMediaMimeType(format.codecs) != null);
+  }
+
+  public static String getVideoLevelStr(Format format) {
+    return format.id + " - " + format.width + "x" + format.height + "@" + format.bitrate;
   }
 
   /**
