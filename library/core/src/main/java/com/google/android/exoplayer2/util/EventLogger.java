@@ -391,6 +391,10 @@ public class EventLogger implements AnalyticsListener {
       str.append(" load-duration: "); str.append(loadEventInfo.loadDurationMs); str.append("ms");
       str.append(" codecs: "); str.append(mediaLoadData.trackFormat.codecs);
       str.append(" start(dur): "); str.append(mediaLoadData.mediaStartTimeMs);str.append("/");str.append(duration);
+      if (loadEventInfo.dataSpec.length != C.LENGTH_UNSET) {
+        str.append(" offset/len: ");
+        str.append(loadEventInfo.dataSpec.position); str.append("/"); str.append(loadEventInfo.dataSpec.length);
+      }
       str.append(" uri: "); str.append(loadEventInfo.uri);
 
       logd(eventTime, "loadCompleted[media] - ", str.toString());
