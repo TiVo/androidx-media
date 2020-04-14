@@ -354,13 +354,16 @@ public class EventLogger implements AnalyticsListener {
     if (isVideoTrack(mediaLoadData)) {
       if (currentLoadingVideoFormat == null) {
         currentLoadingVideoFormat = mediaLoadData.trackFormat;
+        logd(eventTime, "levelChange", "initial level - Buffered: "
+            + eventTime.totalBufferedDurationMs + "ms -- Start Level: " + getVideoLevelStr(currentLoadingVideoFormat));
+      } else {
+        if (! currentLoadingVideoFormat.equals(mediaLoadData.trackFormat)) {
+          logd(eventTime, "levelChange", "Buffered: " + eventTime.totalBufferedDurationMs + "ms -- Old: " + getVideoLevelStr(currentLoadingVideoFormat)
+              + " New: " + getVideoLevelStr(mediaLoadData.trackFormat));
+          currentLoadingVideoFormat = mediaLoadData.trackFormat;
+        }
       }
 
-      if (! currentLoadingVideoFormat.equals(mediaLoadData.trackFormat)) {
-        logd(eventTime, "levelChange", "Buffered: " + eventTime.totalBufferedDurationMs + "ms -- Old: " + getVideoLevelStr(currentLoadingVideoFormat)
-            + " New: " + getVideoLevelStr(mediaLoadData.trackFormat));
-        currentLoadingVideoFormat = mediaLoadData.trackFormat;
-      }
     }
   }
 
