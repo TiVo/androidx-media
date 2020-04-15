@@ -125,11 +125,31 @@ Pull requests are the mechanism for sharing your changes with the community and 
 1. A pull request is backed by a branch, so any one can check out the branch make suggested changes and commit.
 1. Unlike a code-collab, the code is already committed to version control, so the merge state (conflicts) is always visible
 
-TBS - Sada
-  
-* -- Making comments
-*  -- resolve converstion
-*  -- request re-review
+In pull request any team member can add a general comment and or file level comments. General comments are usually questions, clarifications or top level discussions. 
+The pull requester can select one or more member of the team as reviewer/s. In Git all are optional reviewers. To merge the pull request at least one reviewer should approve the pull request.
+
+### Navigating to pull request ###
+In Github, got to the repository and find the `Pull Request` tab. All the open pull requests are listed there. Then click on the pull request to be reviewed.
+Pull request page has below tabs -
+* `Conversation`
+*	`Commits`
+*	`Checks`
+*	`Files Changed`
+
+### Making comments ###
+To add general comment, go to `Conversation` tab. Write the comment in the comment editor box under `Write` tab. The comment can be directed to a member using "@<user>".  Then press `Comment` button for the comment to be visible to author and others.
+
+To comment on a line, go to `Files Changed` tab. Hover over the line and click on highlighted Blue “+” icon. To add a comment on multiple lines click and drag to select multiple lines and then click the Blue “+” icon. This brings up the comment editor, add the comments and then `Start the review`. If the review is already started click on `Add single comment`.  
+Reviewer can submit the review by choosing either one of radio button `Comment`, `Approve` or `Request changes`. This can be done form - 
+1. `Files changed` tab and clicking `Review changes` drop down button.
+2. `Conversation` tab and clicking `Submit Review` button
+Any member of the team can replay to the comments by typing the comment in `Replay…` comment box. Use "@<user>” to direct the replay.
+ 
+### Resolve conversation ###
+Anybody can replay to the comment or replay to others comments. But only the member who started the pull request can resolve the conversation. “Resolve conversation” button is visible only to the person created the pull request. After addressing the reviewers comment or suggestion the conversation can be resolved by clicking 'Resolve conversation' button.
+
+### Request re-review ###
+If reviewer requested for changes by 'Request changes', author has to request for the re-review. The review status remains 'Changes Requested' with red circle in the pull request’s 'Conversation' section. Author of the pull request has to scroll down to each change request and request for re-review. This can be done by clicking '…' at the end of the '<user> requested changes' line. The 're-review' option is visible only to the member who created the pull request. The status of the reviewer after this will change to “Awaiting requested review from <user>”.  
 
 Link out to sections in [GitHub help](https://help.github.com/en/github/collaborating-with-issues-and-pull-requests/about-pull-requests)
 
