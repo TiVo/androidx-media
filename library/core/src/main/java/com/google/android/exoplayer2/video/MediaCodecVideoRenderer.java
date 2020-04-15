@@ -446,7 +446,7 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer {
         fifoReady = false;
       }
     }
-    return fifoReady || super.hasOutputReady();
+    return tunneling && fifoReady || super.hasOutputReady();
   }
 
   @Override
