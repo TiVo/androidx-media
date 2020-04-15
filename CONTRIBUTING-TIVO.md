@@ -67,10 +67,54 @@ Branches must be named `t-xxx` for topic branches, where `xxx` is a *descriptive
 If your topic branch is for a *public change* (most likely case) follow the workflow for [Making Public Changes](#making-public-changes)
 
 ## Versioning ##
-Code is built by jenkins, https://builds.tivo.com/view/Android/job/b-exoplayerprvt-release/
-The  published to an artifactory, https://builds.tivo.com/view/Android/job/b-exoplayerprvt-release/ via the [publish.gradle]()
+
+### Published Artifacts ###
+The Gradle publish tasks publish the ExoPlayer libraries as Android libraries (aar files), along with source.  These are published to the local [TiVo artifactory](http://repo-vip.tivo.com:8081/artifactory/libs-release-local/).  The workflows section, [Publishing New Versions](#publishing-versions)
+
+The libraries are described in the [README.md](https://github.com/tivocorp/exoplayerprvt/blob/release/README.md).  The TiVo internal library, [library-tivo-ui](https://github.com/tivocorp/exoplayerprvt/tree/release/library/tivo-ui) has an example of how to use ExoPlayer in TiVo and the libraries to include in your project, as well as TiVO specific libraries.
+
+Code is built by Jenkins, [https://builds.tivo.com/view/Android/job/b-exoplayerprvt-release/](https://builds.tivo.com/view/Android/job/b-exoplayerprvt-release/)
+
+TBS - versioning and publishing apk for demo-tenfoot?
+
+### Version Numbering Scheme ###
+
+The ExoPlayer libraries are integrated into other products as binary, so it is imperative that all releases are versioned.  TiVo will take a released version of ExoPlayer and include our proprietary changes along with any cherry-picked changes that are not yet released by Google.  Any version identification scheme must:
+
+1. Identify the released ExoPlayer version that is base
+1. Mark any TiVo additions as a patch version
+
+ExoPlayer uses `major.minor.micro`, [ExoPlayer Releases](https://github.com/google/ExoPlayer/releases)
+TiVo versions will add a `-` patch number and/or name to this. 
+
+Some valid examples are:
+
+* 2.11.4-1.0 &mdash; presumably first "released" version of TiVo's variant of ExoPlayer 2.11.4
+* 2.11.4-hydra-1.6 &mdash; one example of how we might branch with a patch set specific to Hydra
+
+In all cases, if the versions have a time ordering it should match up to the logic for [Gradle Versioning](https://docs.gradle.org/current/userguide/single_versions.html).  In the two examples above, the `-1.0` version is considered higher so clients would not pickup the hydra patch unless explicitly requested
+
+It is assumed that most (if not all TiVo products will request explicit versions from the artifactory, e.g.:
+
+```groovy
+dependencies {
+    implementation('library-tivo-ui:2.11.4-1.0')
+}
+```
+
+Library APIs locked down to the major release.  So it is safe to wild card the minor release number, e.g.
+
+```groovy
+dependencies {
+    implementation('library-tivo-ui:2.11.4-1.+')
+}
+```
 
 ## Workflows ##
+### Publishing New Versions ###
+
+TBS - Steve
+
 ### Git Best Practices ###
 
 TBS - Steve
