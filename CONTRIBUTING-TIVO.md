@@ -265,11 +265,17 @@ But basically you will:
 
 Use the radio button to select the next state for the review then click _Submit review_ to publish your comments (which will message the reviewers)
 
+The workflow state is displayed in the reviewer's list UI:
+
+![](tivo-docs/images/request-review.png)
+
+The orange arrow points to the link to show each reviewers comments, the speech bubble icon will show if they have left comments.   After responding to their comments the purple arrow points to a button to send the reviewer a message to request they read your response to their comments.
+
 If a reviewer requested changes by selecting _Request changes_, the author has to request for the re-review. The review status remains _Changes Requested_ with red circle in the pull request’s _Conversation_ tab. 
 
 The Author of the pull request has to scroll down to each change request and request for re-review. This can be done by clicking '…' at the end of the '<user> requested changes' line. The 're-review' option is visible only to the member who created the pull request. The status of the reviewer after this will change to “Awaiting requested review from <user>”.  
 
-You can quickly filter the list to find your next steps for pull requests using the filters tabs.  See the 
+If you have a large number of pull requests active you can quickly filter the list to find your next steps for pull requests using the filters tabs.  See the 
 [Filtering pull requests by review status](https://help.github.com/en/github/managing-your-work-on-github/filtering-pull-requests-by-review-status)
 
 
