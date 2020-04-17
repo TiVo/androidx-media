@@ -2,11 +2,13 @@
 
 ### 2.10.4-1.0 ###
 * Fix for Playback position keep changing in buffering mode(trickplay) [56](https://github.com/tivocorp/exoplayerprvt/pull/56)
-* Add logging for bitrate adaptation(level shifts), Log byterange for load complete, fix icons
-  Seperate initial from subsequent shifts pull [55](https://github.com/tivocorp/exoplayerprvt/pull/55)
-* Replacing Flush with Collection.emptyList
+* Add logging to `EventLogger`:
+   1. for bitrate adaptation(level shifts), (917858f19)
+   1. Log byte-range for loadComplete events
 * Fix to remove CEA-608 caption stuck on screen with timeout pull [52](https://github.com/tivocorp/exoplayerprvt/pull/52)
-* Work around transient bad EXT-X-PROGRAM-DATE-TIME value that Velocix server puts in manifest.pull [51](https://github.com/tivocorp/exoplayerprvt/pull/51)
+* Merge pull request [51](https://github.com/tivocorp/exoplayerprvt/pull/51) -- released as initial Hydra 1.6
+   1. Work around transient bad EXT-X-PROGRAM-DATE-TIME value that Velocix server puts in manifest.
+   1. Workaround for PTS discontinuity -- recovery based off exception in the renderer input path (e7dc1834c)
 
 ### 2.10.4-tivo.tp.5 ###
 * Add support for SMPTE-TT subtitle parsing in HLS manifest &mdash; pull [48](https://github.com/tivocorp/exoplayerprvt/pull/48)
