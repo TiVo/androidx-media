@@ -27,7 +27,7 @@ To add both of these, use these commands:
 
 ```
 git remote add tivo-public https://github.com/TiVo/ExoPlayer
-git remote add upstream https://github.com/google/ExoPlaye
+git remote add upstream https://github.com/google/ExoPlayer
 ```
 
 ### Accessing Public Repository ###
