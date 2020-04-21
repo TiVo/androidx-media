@@ -280,10 +280,44 @@ If you have a large number of pull requests active you can quickly filter the li
 
 
 ## Best Practices ##
+Sections here talk about best practices for contributing to ExoPlayer development at TiVo
 
 ### Git Best Practices ###
+Working with Git is a significant mental shift from perforce.  Mostly it is about becoming comfortable and courteous when working with **many** in-flight branches.
 
-TBS - Steve
+
+#### Commit Comments
+When merging multiple branches and looking at branch history well formatted commit comments are critical.  Assuming you use `vi` (the GitHub desktop splits a separate subject and description text field) make the first line a short (50 chars or less summary, it has to fit in a tree view of git log) then add an empty new line, then more detailed description.
+
+This is a pretty well written summary of how to make good commits:
+https://www.freecodecamp.org/news/writing-good-commit-messages-a-practical-guide/
+
+Make the text complete enough we can share publicly with the world, note when we cherry-pick them into public pull requests the TiVo internal stuff will get cleaned up, but better to explicitly add text along with links to stuff like JIRA issues. 
+
+#### Rebase
+The `git rebase` command is both powerful (allows 'clean' history) and evil.  The evil is:
+
+1. Since commits are re-created it requires forced pushes, this makes sharing a re-based branch very difficult
+1. It rewrites history in a way that obliterates the time ordering of things
+
+For our TiVo private ExoPlayer respository pull requests should avoid using rebase unless reviewers explicitly ask for it.  The `release` branch moves slowly enough that it is overkill for most of what we do, and it is quite easy to make mistakes using rebase that are hard to see and harder to fix.
+
+Rebase is required by the Google team for pull requests, it re-writes history in a way that reduces the number of open branches when there are **many** pull request branches in flight.  They will ask you to "rebase" your branch to `dev-v2`,  there are two ways to do this (assume your branch is `t-my-changes`
+
+1. Checkout and merge upstream &mdash; 
+  * `git checkout t-my-changes`
+  * make sure your branch is clean (`git status`)
+  * `git merge upstream/dev-v2` 
+
+1. Rebase to `dev-v2`
+  * same first two steps.
+  * `git rebase upstream/dev-v2` 
+  
+The first (merge) will require you to resolve all the conflicts once, and keep history the same (an additional merge commit[s] will appear in your branch each time you bring in the changes in `dev-v2`
+
+The second, rebase, forces you to merge and continue (`git rebase --continue`) for **every** commit in your branch.  Basically what it does is reset the branch point for your branch to the current HEAD of `upstream/dev-v2` and guide you through re-writing all your patches (commits) to fix any conflicts.
+
+
 
 
 
