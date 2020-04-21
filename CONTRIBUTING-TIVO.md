@@ -41,7 +41,7 @@ ExoPlayer is not a TiVo product, this is the mind set we want, the vast majority
 To share code back with Google, use the workflow in [Making Public Changes](#making-public-changes).  These changes fall into the following categories:
  
 * _Bug Fixes_ &mdash; The vast majority of what we will do.  These should first be documented and reproducible.  Follow Google's template, [bug.md](https://github.com/google/ExoPlayer/tree/release-v2/.github/ISSUE_TEMPLATE/bug.md).
-* _Extension Hooks_ &mdash; these are changes to the core of ExoPlayer that allow us to extend it or to add changes that may or may not be of interest to the community (proprietary DRM like VCAS).  An example is this change to enable VCAS (c4bb819192271a3650f6764e2c485738ce05081a).  These are a long term liability if we cannot get the code to *upstream* so we should keep these to a minimum.
+* _Extension Hooks_ &mdash; these are changes to the core of ExoPlayer that allow us to extend it or to add changes that may or may not be of interest to the community (proprietary DRM like VCAS).  An example is this change to enable VCAS (Commit [c4bb819](https://github.com/tivocorp/exoplayerprvt/commit/c4bb819192271a3650f6764e2c485738ce05081a)).  These are a long term liability if we cannot get the code to *upstream* so we should keep these to a minimum.
 * _Non-Proprietary Enhancements_ &mdash; new features for ExoPlayer, for example HLS I-Frame only playlist parsing. Here we follow Google's template, [feature_request.md](https://github.com/google/ExoPlayer/tree/release-v2/.github/ISSUE_TEMPLATE/feature_request.md).  For these it is important to document the design copiously and include Google early and often in the process.  As an example, look at the enhancement for i-Frame only playlist, [Issue 474](https://github.com/google/ExoPlayer/issues/474) 
 
 ### Private Changes ###
@@ -143,9 +143,9 @@ When you are in doubt, please check with Steve Mayhew.
 
 Note Google's development is always based from their [dev-v2](https://github.com/google/ExoPlayer/tree/dev-v2) branch and our development is based from our [release](https://github.com/tivocorp/exoplayerprvt/tree/release) branch.  Thus sharing requires two parallel tracking branches.
 
-For bug fixes, assuming you have searched [Google's Open Issues]() and not found the issue, start with creating public example media that demonstrates the problem then enter a bug for the issue, follow Google's template, [bug.md](https://github.com/google/ExoPlayer/tree/release-v2/.github/ISSUE_TEMPLATE/bug.md).
+For bug fixes, assuming you have searched [Google's Open Issues](https://github.com/google/ExoPlayer/issues) and not found the issue, start with creating public example media that demonstrates the problem then enter a bug for the issue, follow Google's template, [bug.md](https://github.com/google/ExoPlayer/tree/release-v2/.github/ISSUE_TEMPLATE/bug.md).
 
-From here the steps are the same for both bugs and public features (assuming your remote names are setup as documented in [Initial Setup](initial-setup))
+From here the steps are the same for both bugs and public features (assuming your remote names are setup as documented in [Initial Setup](#initial-setup))
 
 Create branch to fix the problem in our tree:
 
@@ -257,7 +257,7 @@ This is substantially less clear from the GitHub UI, and the source of much conf
 
 But basically you will: 
 
-1. add comments, as described in [Adding Comments](adding-comments)
+1. add comments, as described in [Adding Comments](#adding-comments)
 1. Navigate to the _Files Changed_ tab
 1. Click the green (_Review xxx_) button and you'll see this drop down 
 
