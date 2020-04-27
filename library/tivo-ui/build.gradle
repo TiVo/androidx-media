@@ -40,6 +40,7 @@ dependencies {
     implementation project(modulePrefix + 'library-ui')
     compileOnly 'org.checkerframework:checker-qual:' + checkerframeworkVersion
     compileOnly 'org.checkerframework:checker-compat-qual:' + checkerframeworkVersion
+    implementation project(path: ':extension-vcas')
 }
 
 ext {

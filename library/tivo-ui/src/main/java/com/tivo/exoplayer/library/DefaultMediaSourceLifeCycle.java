@@ -3,6 +3,7 @@ package com.tivo.exoplayer.library;
 
 import android.content.Context;
 import android.net.Uri;
+import android.os.Build;
 import androidx.annotation.Nullable;
 import com.google.android.exoplayer2.ExoPlaybackException;
 import com.google.android.exoplayer2.ExoPlayerLibraryInfo;
@@ -17,6 +18,9 @@ import com.google.android.exoplayer2.upstream.DefaultDataSourceFactory;
 import com.google.android.exoplayer2.upstream.DefaultHttpDataSourceFactory;
 import com.google.android.exoplayer2.upstream.HttpDataSource;
 import com.google.android.exoplayer2.util.Log;
+import com.tivo.exoplayer.ext.vcas.VcasDataSourceFactory;
+
+import java.io.File;
 
 /**
  * Manages creation and the lifecycle of playback of an ExoPlayer {@link MediaSource}
@@ -100,10 +104,22 @@ public class DefaultMediaSourceLifeCycle implements MediaSourceLifeCycle, Analyt
 // will not need the native library directory
 //
 // Create the singleton "Verimatrix DRM" data source factory
-//    factory = new VerimatrixDataSourceFactory
-//        (dataSourceFactory, getFilesDir(), getNativeLibraryDir());
+    if (Build.VERSION.SDK_INT >= 22) {
+      String filesDir = "/sdcard/demoVR/";
+      File folder = new File(filesDir);
+      if (!folder.exists()) {
+        folder.mkdirs();
+      }
+      VcasDataSourceFactory vfactory = new VcasDataSourceFactory(upstreamFactory,
+              filesDir,
+              context.getApplicationInfo().nativeLibraryDir,
+              context.getApplicationInfo().sourceDir,
+              true);
+      vfactory.prepareForPlayback("addaf9ae-846f-34ad-a5d0-4f9f75f741bc", "devvcas04.engr.tivo.com:8042");
+      factory = vfactory;
+    }
 
-    return factory;
+  return factory;
   }
 
   /**
