@@ -1252,11 +1252,52 @@ public final class Cea708Decoder extends CeaDecoder {
 
   }
 
-  protected void clearStuckCaptions()
-  {
-    // Do nothing for CEA-708.
-    // As per spec CEA-708 Caption text sequences shall be terminated by either the start of a new
-    // DTVCC Command, or with an ASCII ETX (End of Text) (0x03) character when no other DTVCC
-    // Commands follow.
+  /** A {@link Cue} for CEA-708. */
+  private static final class Cea708CueInfo {
+
+    public final Cue cue;
+
+    /** The priority of the cue box. */
+    public final int priority;
+
+    /**
+     * @param text See {@link Cue#text}.
+     * @param textAlignment See {@link Cue#textAlignment}.
+     * @param line See {@link Cue#line}.
+     * @param lineType See {@link Cue#lineType}.
+     * @param lineAnchor See {@link Cue#lineAnchor}.
+     * @param position See {@link Cue#position}.
+     * @param positionAnchor See {@link Cue#positionAnchor}.
+     * @param size See {@link Cue#size}.
+     * @param windowColorSet See {@link Cue#windowColorSet}.
+     * @param windowColor See {@link Cue#windowColor}.
+     * @param priority See (@link #priority}.
+     */
+    public Cea708CueInfo(
+        CharSequence text,
+        Alignment textAlignment,
+        float line,
+        @Cue.LineType int lineType,
+        @AnchorType int lineAnchor,
+        float position,
+        @AnchorType int positionAnchor,
+        float size,
+        boolean windowColorSet,
+        int windowColor,
+        int priority) {
+      this.cue =
+          new Cue(
+              text,
+              textAlignment,
+              line,
+              lineType,
+              lineAnchor,
+              position,
+              positionAnchor,
+              size,
+              windowColorSet,
+              windowColor);
+      this.priority = priority;
+    }
   }
 }
