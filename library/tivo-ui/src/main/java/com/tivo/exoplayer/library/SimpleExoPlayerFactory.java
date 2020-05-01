@@ -248,10 +248,11 @@ public class SimpleExoPlayerFactory implements DefaultExoPlayerErrorHandler.Play
    * called {@link #createPlayer(boolean, boolean)}
    *
    * @param url - URL to play
+   * @param drmInfo - DRM information
    * @param enableChunkless - flag to enable chunkless prepare, TODO - will make this default
    */
-  public void playUrl(Uri url, boolean enableChunkless) {
-    mediaSourceLifeCycle.playUrl(url, enableChunkless);
+  public void playUrl(Uri url, DrmInfo drmInfo, boolean enableChunkless) {
+    mediaSourceLifeCycle.playUrl(url, drmInfo, enableChunkless);
   }
 
   /**

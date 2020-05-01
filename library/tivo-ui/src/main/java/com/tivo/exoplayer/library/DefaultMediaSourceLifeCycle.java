@@ -60,10 +60,10 @@ public class DefaultMediaSourceLifeCycle implements MediaSourceLifeCycle, Analyt
   }
 
   @Override
-  public void playUrl(Uri uri, boolean enableChunkless) {
+  public void playUrl(Uri uri, DrmInfo drmInfo, boolean enableChunkless) {
     Log.d("ExoPlayer", "play URL " + uri);
 
-    MediaSource mediaSource = buildMediaSource(uri, buildDataSourceFactory(), enableChunkless);
+    MediaSource mediaSource = buildMediaSource(uri, buildDataSourceFactory(drmInfo), enableChunkless);
     playMediaSource(mediaSource);
   }
 
@@ -91,7 +91,7 @@ public class DefaultMediaSourceLifeCycle implements MediaSourceLifeCycle, Analyt
    *
    * @return factory to produce DataSource objects.
    */
-  protected DataSource.Factory buildDataSourceFactory() {
+  protected DataSource.Factory buildDataSourceFactory(DrmInfo drmInfo) {
     String userAgent = getUserAgentPrefix();
 
     userAgent += "-" + ExoPlayerLibraryInfo.VERSION;
@@ -100,23 +100,24 @@ public class DefaultMediaSourceLifeCycle implements MediaSourceLifeCycle, Analyt
     HttpDataSource.Factory upstreamFactory = new DefaultHttpDataSourceFactory(userAgent);
     DataSource.Factory factory = new DefaultDataSourceFactory(context, upstreamFactory);
 
-// TODO - integrate the VCAS DRM, standalone applications may need to verify files access, hopefull
-// will not need the native library directory
-//
-// Create the singleton "Verimatrix DRM" data source factory
-    if (Build.VERSION.SDK_INT >= 22) {
-      String filesDir = "/sdcard/demoVR/";
-      File folder = new File(filesDir);
-      if (!folder.exists()) {
-        folder.mkdirs();
+    if (drmInfo instanceof VcasDrmInfo) {
+      VcasDrmInfo vDrmInfo = (VcasDrmInfo)drmInfo;
+      // Create the singleton "Verimatrix DRM" data source factory
+      if (Build.VERSION.SDK_INT >= 22) {
+        String filesDir = vDrmInfo.getStoreDir();
+        File folder = new File(filesDir);
+        if (!folder.exists()) {
+          folder.mkdirs();
+        }
+        VcasDataSourceFactory vfactory = new VcasDataSourceFactory(upstreamFactory,
+                filesDir,
+                context.getApplicationInfo().nativeLibraryDir,
+                context.getApplicationInfo().sourceDir,
+                true);
+        vfactory.prepareForPlayback(/*"1677ad27-ce62-39fe-9418-757e18723fb2"*/vDrmInfo.getCaId(),
+                /*"devvcas04.engr.tivo.com:8042"*/ vDrmInfo.getBootAddr());
+        factory = vfactory;
       }
-      VcasDataSourceFactory vfactory = new VcasDataSourceFactory(upstreamFactory,
-              filesDir,
-              context.getApplicationInfo().nativeLibraryDir,
-              context.getApplicationInfo().sourceDir,
-              true);
-      vfactory.prepareForPlayback("addaf9ae-846f-34ad-a5d0-4f9f75f741bc", "devvcas04.engr.tivo.com:8042");
-      factory = vfactory;
     }
 
   return factory;
@@ -202,7 +203,7 @@ public class DefaultMediaSourceLifeCycle implements MediaSourceLifeCycle, Analyt
   /**
    * After the player reads the initial M3u8 and parses it, the timeline is created.
    * Report the first such of these events, following a {@link MediaSource} change
-   * (via {@link #playUrl(Uri, boolean)} call to any {@link MediaSourceEventCallback} listener
+   * (via {@link #playUrl(Uri, DrmInfo, boolean)} call to any {@link MediaSourceEventCallback} listener
    *
    * @param eventTime The event time.
    * @param reason The reason for the timeline change.

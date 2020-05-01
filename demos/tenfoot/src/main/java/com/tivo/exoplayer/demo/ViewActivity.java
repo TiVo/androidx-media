@@ -41,8 +41,10 @@ import com.google.android.exoplayer2.ui.PlayerControlView;
 import com.google.android.exoplayer2.ui.PlayerView;
 import com.google.android.exoplayer2.ui.TimeBar;
 import com.google.android.exoplayer2.util.EventLogger;
+import com.tivo.exoplayer.library.DrmInfo;
 import com.tivo.exoplayer.library.GeekStatsOverlay;
 import com.tivo.exoplayer.library.SimpleExoPlayerFactory;
+import com.tivo.exoplayer.library.VcasDrmInfo;
 import com.tivo.exoplayer.library.tracks.TrackInfo;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -65,6 +67,7 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
   private boolean isShowingTrackSelectionDialog;
 
   private SimpleExoPlayerFactory exoPlayerFactory;
+  private DrmInfo drmInfo;
 
   public static final Integer DEFAULT_LOG_LEVEL = com.google.android.exoplayer2.util.Log.LOG_LEVEL_ALL;
 
@@ -78,6 +81,10 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
   public static final String URI_LIST_EXTRA = "uri_list";
   public static final String CHUNKLESS_PREPARE = "chunkless";
   public static final String INITIAL_SEEK = "start_at";
+  public static final String DRM_SCHEME = "drm_scheme";
+  public static final String DRM_VCAS_CA_ID = "vcas_ca_id";
+  public static final String DRM_VCAS_ADDR = "vcas_addr";
+
   protected Uri[] uris;
 
   private int currentChannel;
@@ -613,6 +620,10 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
   protected void playUri(Uri uri) {
     // TODO chunkless should come from a properties file (so we can switch it when it's supported)
     boolean enableChunkless = getIntent().getBooleanExtra(CHUNKLESS_PREPARE, false);
+          exoPlayerFactory.playUrl(nextChannel, drmInfo, enableChunkless);
+        }
+      }
+    }
 
     stopPlaybackIfPlaying();
     currentUri = uri;
@@ -722,6 +733,17 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
 
     boolean enableTunneling = getIntent().getBooleanExtra(ENABLE_TUNNELED_PLAYBACK, false);
     exoPlayerFactory.setTunnelingMode(enableTunneling);
+
+    if (getIntent().getStringExtra(DRM_SCHEME).equals("vcas")) {
+      String vcasAddr = getIntent().getStringExtra(DRM_VCAS_ADDR);
+      String vcasCaId = getIntent().getStringExtra(DRM_VCAS_CA_ID);
+      String storeDir = "/sdcard/demoVR";
+      Log.d(TAG, String.format("Requested Verimatrix DRM with addr:%s CAID:%s storage:%s", vcasAddr, vcasCaId, storeDir));
+      drmInfo = new VcasDrmInfo(vcasAddr,vcasCaId, storeDir, true);
+    } else {
+      drmInfo = new DrmInfo(DrmInfo.DrmType.CLEAR);
+    }
+
 
     if (uris.length > 0) {
       playUri(uris[0]);
