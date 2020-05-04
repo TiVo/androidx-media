@@ -272,6 +272,9 @@ public class GeekStatsOverlay implements AnalyticsListener, Runnable {
           display = String.format(Locale.getDefault(),
               "id:(%s) - %dx%d@%.3f", format.id, format.width, format.height, mbps);
         }
+        if ((format.roleFlags & C.ROLE_FLAG_TRICK_PLAY) != 0) {
+          display += " (ifrm)";
+        }
       } else if (isAudioOnlyFormat(format)) {
         String mimeType = format.sampleMimeType;
         if (mimeType == null) {
