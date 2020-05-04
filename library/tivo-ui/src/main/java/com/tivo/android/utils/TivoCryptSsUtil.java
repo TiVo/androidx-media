@@ -7,7 +7,7 @@ import android.content.Context;
 import android.util.Log;
 import java.nio.ByteBuffer;
 
-public class SsUtil {
+public class TivoCryptSsUtil {
   private static final String TAG = "SsDrm";
   public static final String SS_DRM_LIB_NAME = "ssDrm";
 
@@ -91,12 +91,12 @@ public class SsUtil {
   }
 
   public static boolean isRootDeviceDetectionFatal(int errorCode) {
-    return errorCode == SsUtil.A_FAILED || errorCode == SsUtil.D_FAILED ||
-        errorCode == SsUtil.E_FAILED || errorCode == SsUtil.G_FAILED;
+    return errorCode == TivoCryptSsUtil.A_FAILED || errorCode == TivoCryptSsUtil.D_FAILED ||
+        errorCode == TivoCryptSsUtil.E_FAILED || errorCode == TivoCryptSsUtil.G_FAILED;
   }
 
   public static boolean isRootDeviceDetectionIgnored(int errorCode) {
-    return errorCode == SsUtil.B_FAILED || errorCode == SsUtil.C_FAILED || errorCode == SsUtil.F_FAILED;
+    return errorCode == TivoCryptSsUtil.B_FAILED || errorCode == TivoCryptSsUtil.C_FAILED || errorCode == TivoCryptSsUtil.F_FAILED;
   }
 
   private static void LogMessage(String msg)

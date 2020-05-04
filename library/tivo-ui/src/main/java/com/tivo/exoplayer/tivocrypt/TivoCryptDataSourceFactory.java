@@ -7,7 +7,7 @@ package com.tivo.exoplayer.tivocrypt;
 import android.content.Context;
 import android.net.Uri;
 import android.util.Log;
-import com.tivo.android.utils.SsUtil;
+import com.tivo.android.utils.TivoCryptSsUtil;
 import androidx.annotation.Nullable;
 import com.google.android.exoplayer2.C;
 import com.google.android.exoplayer2.source.hls.HlsDecryptingDataSource;
@@ -49,16 +49,16 @@ public class TivoCryptDataSourceFactory implements DataSource.Factory {
 
     // Load the native library so that we can call the native methods
     if (wbKey != null) {
-      if (SsUtil.loadLibrary(SsUtil.SS_DRM_LIB_NAME)) {
-        int resultCode = SsUtil.initLibrary(mContext);
-        if (SsUtil.isRootDeviceDetectionFatal(resultCode)) {
+      if (TivoCryptSsUtil.loadLibrary(TivoCryptSsUtil.SS_DRM_LIB_NAME)) {
+        int resultCode = TivoCryptSsUtil.initLibrary(mContext);
+        if (TivoCryptSsUtil.isRootDeviceDetectionFatal(resultCode)) {
           LogError("streaming rooted device");//TODO error handling later
-        } else if (SsUtil.isRootDeviceDetectionIgnored(resultCode)) {
+        } else if (TivoCryptSsUtil.isRootDeviceDetectionIgnored(resultCode)) {
           LogError("RootDeviceDetectionIgnored");//TODO  handling later
         } else {
           LogMsg("Clear to stream");
         }
-        SsUtil.setKBWData(mWBKey);
+        TivoCryptSsUtil.setKBWData(mWBKey);
       } else {
         LogError("Can not stream");//TODO  handling later
       }
@@ -265,7 +265,7 @@ public class TivoCryptDataSourceFactory implements DataSource.Factory {
             }
           }
           // Decrypt what was read in
-          int result = SsUtil.decryptSegment(
+          int result = TivoCryptSsUtil.decryptSegment(
               mKeyUri.toString(),
               mIv,
               mIv.position(),
