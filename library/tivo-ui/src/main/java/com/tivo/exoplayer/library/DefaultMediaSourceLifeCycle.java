@@ -18,9 +18,9 @@ import com.google.android.exoplayer2.upstream.DefaultDataSourceFactory;
 import com.google.android.exoplayer2.upstream.DefaultHttpDataSourceFactory;
 import com.google.android.exoplayer2.upstream.HttpDataSource;
 import com.google.android.exoplayer2.util.Log;
-import com.tivo.exoplayer.ext.vcas.VcasDataSourceFactory;
 
 import java.io.File;
+import java.lang.reflect.Constructor;
 
 /**
  * Manages creation and the lifecycle of playback of an ExoPlayer {@link MediaSource}
@@ -87,7 +87,7 @@ public class DefaultMediaSourceLifeCycle implements MediaSourceLifeCycle, Analyt
    * The DataSource is used to build a {@link MediaSource} for loading and playing a
    * URL.
    *
-   * TODO - will need DRM type parameter to allow creating factory for VCAS
+   * @param drmInfo DRM specific metadata to create DRM aware data source factory
    *
    * @return factory to produce DataSource objects.
    */
@@ -102,24 +102,42 @@ public class DefaultMediaSourceLifeCycle implements MediaSourceLifeCycle, Analyt
 
     if (drmInfo instanceof VcasDrmInfo) {
       VcasDrmInfo vDrmInfo = (VcasDrmInfo)drmInfo;
-      // Create the singleton "Verimatrix DRM" data source factory
       if (Build.VERSION.SDK_INT >= 22) {
-        String filesDir = vDrmInfo.getStoreDir();
-        File folder = new File(filesDir);
-        if (!folder.exists()) {
-          folder.mkdirs();
+        // Create the singleton "Verimatrix DRM" data source factory
+        Class<?> clazz =
+                null;
+        try {
+          clazz = Class.forName("com.tivo.exoplayer.ext.vcas.VcasDataSourceFactory");
+          Constructor<?> constructor =
+                  clazz.getConstructor(
+                          DataSource.Factory.class,
+                          String.class, String.class,
+                          String.class, String.class,
+                          String.class, boolean.class);
+
+          String filesDir = vDrmInfo.getStoreDir();
+          File folder = new File(filesDir);
+          if (!folder.exists()) {
+            folder.mkdirs();
+          }
+          DataSource.Factory vfactory = (DataSource.Factory) constructor
+                  .newInstance(upstreamFactory,
+                          filesDir,
+                          context.getApplicationInfo().nativeLibraryDir,
+                          context.getApplicationInfo().sourceDir,
+                          vDrmInfo.getCaId(),
+                          vDrmInfo.getBootAddr(),
+                          vDrmInfo.isDebugOn());
+          factory = vfactory;
+        } catch (ClassNotFoundException e) {
+          Log.e(TAG, "Couldn't instantiate VCAS factory");
+        } catch (NoSuchMethodException e) {
+          Log.e(TAG, "No matching VCAS constructor");
+        } catch (Exception e) {
+          Log.e(TAG, "VCAS instantiation failed" + e);
         }
-        VcasDataSourceFactory vfactory = new VcasDataSourceFactory(upstreamFactory,
-                filesDir,
-                context.getApplicationInfo().nativeLibraryDir,
-                context.getApplicationInfo().sourceDir,
-                true);
-        vfactory.prepareForPlayback(/*"1677ad27-ce62-39fe-9418-757e18723fb2"*/vDrmInfo.getCaId(),
-                /*"devvcas04.engr.tivo.com:8042"*/ vDrmInfo.getBootAddr());
-        factory = vfactory;
       }
     }
-
   return factory;
   }
 

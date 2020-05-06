@@ -1,7 +1,7 @@
 package com.tivo.exoplayer.library;
 
 /**
- * Represents Verimatrix DRM information.
+ * Verimatrix specific DRM information.
  */
 public class VcasDrmInfo extends DrmInfo {
 
@@ -14,40 +14,41 @@ public class VcasDrmInfo extends DrmInfo {
         this.debugOn = debugOn;
     }
 
+    /**
+     * Get VCAS boot server address.
+     * @return address as addr:port
+     */
     public String getBootAddr() {
         return bootAddr;
     }
 
-
+    /**
+     * Get CA device ID registered with VCAS.
+     * @return device ID
+     */
     public String getCaId() {
         return caId;
     }
 
+    /**
+     * Checks if debug is enabled
+     * @return whether debug is enabled
+     */
     public boolean isDebugOn() {
         return debugOn;
     }
 
+    /**
+     * Writable path to store data.
+     * @return file path to store
+     */
     public String getStoreDir() {
         return storeDir;
     }
 
-    /**
-     * VCAS boot server.
-     */
+
     private String bootAddr;
-
-    /**
-     * Registered CA device ID.
-     */
     private String caId;
-
-    /**
-     * Debug switch.
-     */
     private boolean debugOn;
-
-    /**
-     * Writeable path to store data.
-     */
     private String storeDir;
 }
