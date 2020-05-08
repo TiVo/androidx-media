@@ -903,9 +903,7 @@ public final class Cea608Decoder extends CeaDecoder {
       int lineAnchor;
       int line;
       // Note: Row indices are in the range [1-15].
-      // Removing the caption mode check. When top rows are set, captions are moved up by 2 rows
-      // in roll-up mode.
-      if (row > (BASE_ROW / 2)) {
+      if (captionMode == CC_MODE_ROLL_UP || row > (BASE_ROW / 2)) {
         lineAnchor = Cue.ANCHOR_TYPE_END;
         line = row - BASE_ROW;
         // Two line adjustments. The first is because line indices from the bottom of the window
