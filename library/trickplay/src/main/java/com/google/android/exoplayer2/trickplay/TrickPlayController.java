@@ -288,6 +288,11 @@ class TrickPlayController implements TrickPlayControlInternal {
         }
 
         @Override
+        public void onSeekProcessed(EventTime eventTime) {
+            lastRenderPositions.empty();
+        }
+
+        @Override
         public void handleMessage(Message msg) {
             if (currentTrickMode != TrickMode.NORMAL) {
                 Timeline timeline = player.getCurrentTimeline();
