@@ -13,6 +13,7 @@ import android.os.Build;
 import android.os.Bundle;
 import android.provider.Settings;
 import android.util.Log;
+import android.util.Pair;
 import android.view.Display;
 import android.view.KeyEvent;
 import android.view.LayoutInflater;
@@ -25,22 +26,29 @@ import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.fragment.app.DialogFragment;
 import com.google.android.exoplayer2.C;
+import com.google.android.exoplayer2.Format;
+import com.google.android.exoplayer2.Player;
 import com.google.android.exoplayer2.SimpleExoPlayer;
 import com.google.android.exoplayer2.Timeline;
+import com.google.android.exoplayer2.analytics.AnalyticsListener;
+import com.google.android.exoplayer2.analytics.PlaybackStats;
+import com.google.android.exoplayer2.analytics.PlaybackStatsListener;
 import com.google.android.exoplayer2.demo.TrackSelectionDialog;
 import com.google.android.exoplayer2.trackselection.DefaultTrackSelector;
 import com.google.android.exoplayer2.trickplay.TrickPlayControl;
 import com.google.android.exoplayer2.trickplay.TrickPlayEventListener;
 import com.google.android.exoplayer2.ui.PlayerControlView;
-import com.google.android.exoplayer2.ui.PlayerNotificationManager;
 import com.google.android.exoplayer2.ui.PlayerView;
 import com.google.android.exoplayer2.ui.TimeBar;
-import com.google.android.exoplayer2.util.Util;
+import com.google.android.exoplayer2.util.EventLogger;
 import com.tivo.exoplayer.library.GeekStatsOverlay;
 import com.tivo.exoplayer.library.SimpleExoPlayerFactory;
 import com.tivo.exoplayer.library.tracks.TrackInfo;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 /**
  * Example player that uses a "ten foot" UI, that is majority of the UX is controlled by
@@ -122,6 +130,8 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
     }
   };
   private GeekStatsOverlay geekStats;
+  private PlaybackStatsListener playbackStats;
+
   private @Nullable CaptioningManager.CaptioningChangeListener captionChangeListener;
 
   public ViewActivity() {
@@ -135,12 +145,49 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
     }
   }
   private TimeBar timeBar;
+  private Uri currentUri;
 
+
+  // Adapter Back-port of the two dev-v2 inner-classes from PlaybackStats
+  public static final class EventTimeAndFormat {
+    public final AnalyticsListener.EventTime eventTime;
+    @Nullable public final Format format;
+
+    private EventTimeAndFormat(AnalyticsListener.EventTime eventTime, @Nullable Format format) {
+      this.eventTime = eventTime;
+      this.format = format;
+    }
+    public static List<EventTimeAndFormat> fromPairList(List<Pair<AnalyticsListener.EventTime, Format>> pairList) {
+      List<EventTimeAndFormat> list = new ArrayList<>(pairList.size());
+      for (Pair<AnalyticsListener.EventTime, Format> pair : pairList) {
+        list.add(new EventTimeAndFormat(pair.first, pair.second));
+      }
+      return list;
+    }
+  }
+
+  public static final class EventTimeAndPlaybackState {
+    public final AnalyticsListener.EventTime eventTime;
+    public final int playbackState;
+
+    public EventTimeAndPlaybackState(AnalyticsListener.EventTime eventTime, int playbackState) {
+      this.eventTime = eventTime;
+      this.playbackState = playbackState;
+    }
+    public static List<EventTimeAndPlaybackState> fromPairList(List<Pair<AnalyticsListener.EventTime, Integer>> pairList) {
+      List<EventTimeAndPlaybackState> list = new ArrayList<>(pairList.size());
+      for (Pair<AnalyticsListener.EventTime, Integer> pair : pairList) {
+        list.add(new EventTimeAndPlaybackState(pair.first, pair.second));
+      }
+      return list;
+    }
+  }
   // Activity lifecycle
 
   @Override
   public void onCreate(Bundle savedInstanceState) {
     super.onCreate(savedInstanceState);
+    Log.d(TAG, "onCreate() called");
 
     Context context = getApplicationContext();
 
@@ -187,6 +234,7 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
   @Override
    public void onNewIntent(Intent intent) {
     super.onNewIntent(intent);
+    Log.d(TAG, "onNewIntent() called");
 
     if (intent.getAction().equals(ACTION_GEEK_STATS)) {
       geekStats.toggleVisible();
@@ -199,8 +247,8 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
   public void onStart() {
     super.onStart();
     SimpleExoPlayerFactory.initializeLogging(getApplicationContext(), DEFAULT_LOG_LEVEL);
-
-    SimpleExoPlayer player = exoPlayerFactory.createPlayer(true, false);
+    Log.d(TAG, "onStart() called");
+    SimpleExoPlayer player = exoPlayerFactory.createPlayer(false, false);
 
     TrickPlayControl trickPlayControl = exoPlayerFactory.getCurrentTrickPlayControl();
     trickPlayControl.addEventListener(new TrickPlayEventListener() {
@@ -216,12 +264,93 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
 
     playerView.setPlayer(player);
     geekStats.setPlayer(player, trickPlayControl);
+    playbackStats = new PlaybackStatsListener(true, new PlaybackStatsListener.Callback() {
+      @Override
+      public void onPlaybackStatsReady(AnalyticsListener.EventTime eventTime, PlaybackStats playbackStats) {
+        logPlaybackStats(eventTime, playbackStats);
+      }
+    });
+    player.addAnalyticsListener(playbackStats);
+
     processIntent(getIntent());
+  }
+
+  protected void logPlaybackStats(AnalyticsListener.EventTime readTime, PlaybackStats stats) {
+    StringBuilder sb = new StringBuilder();
+    sb.append("\n  ");
+    sb.append("total time:  ");
+    sb.append(stats.getTotalElapsedTimeMs());sb.append("ms");
+    sb.append("\n  ");
+    sb.append("startup time:  ");
+    sb.append(stats.getMeanJoinTimeMs());sb.append("ms");
+    sb.append("\n  ");
+    sb.append("playing time:  ");
+    sb.append(stats.getTotalPlayTimeMs());sb.append("ms");
+    sb.append("\n  ");
+    sb.append("paused time:  ");
+    sb.append(stats.getTotalPausedTimeMs());sb.append("ms");
+    sb.append("\n  ");
+    sb.append("re-buffering time:  ");
+    sb.append(stats.getTotalRebufferTimeMs());sb.append("ms");
+    sb.append("\n  ");
+    sb.append("format changes:  ");
+    sb.append(stats.videoFormatHistory.size());
+    sb.append("\n  ");
+    sb.append("mean bandwidth: ");
+    sb.append(stats.getMeanBandwidth() / 1_000_000.0f);
+    sb.append(" Mbps");
+
+    HashMap<Format, Long> timeInFormat = new HashMap<>();
+    long lastFormatChangeTime = C.TIME_UNSET;
+    EventTimeAndFormat lastFormatEvent = null;
+    for (EventTimeAndFormat formatEvent : EventTimeAndFormat.fromPairList(stats.videoFormatHistory)) {
+      Long time = timeInFormat.get(formatEvent.format);
+      if (time == null) {
+        time = 0L;
+      }
+      if (lastFormatChangeTime != C.TIME_UNSET) {
+        time += formatEvent.eventTime.realtimeMs - lastFormatChangeTime;
+      }
+      timeInFormat.put(formatEvent.format, time);
+      lastFormatChangeTime = formatEvent.eventTime.realtimeMs;
+      lastFormatEvent = formatEvent;
+    }
+
+    long playbackStopTime = findLastStoppedOrEnded(stats);
+
+    // Balance of time is in last format (note could be playing, buffering or paused)
+    if (playbackStopTime != C.TIME_UNSET) {
+      Long time = timeInFormat.get(lastFormatEvent.format);
+      time += playbackStopTime - lastFormatChangeTime;
+      timeInFormat.put(lastFormatEvent.format, time);
+    }
+
+    Log.d(TAG, "Playback stats for '" + currentUri + "'" + sb.toString());
+
+    if (stats.videoFormatHistory.size() > 0) {
+      Log.d(TAG, "Time in variant:");
+      for (Map.Entry<Format, Long> entry : timeInFormat.entrySet()) {
+        Log.d(TAG, "  " + EventLogger.getVideoLevelStr(entry.getKey()) + " played for " + entry.getValue() + " ms total");
+      }
+    }
+  }
+
+  private static long findLastStoppedOrEnded(PlaybackStats stats) {
+    List <EventTimeAndPlaybackState> stateHistory = EventTimeAndPlaybackState.fromPairList(stats.playbackStateHistory);
+    for (int i = stateHistory.size() - 1; i > 0; i--) {
+      EventTimeAndPlaybackState endEvent = stateHistory.get(i);
+      if (endEvent.playbackState == PlaybackStats.PLAYBACK_STATE_ENDED ||
+          endEvent.playbackState == PlaybackStats.PLAYBACK_STATE_STOPPED) {
+        return endEvent.eventTime.realtimeMs;
+      }
+    }
+    return C.TIME_UNSET;
   }
 
   @Override
   public void onResume() {
     super.onResume();
+    Log.d(TAG, "onResume() called");
     IntentFilter filter = new IntentFilter();
     filter.addAction(ACTION_HDMI_AUDIO_PLUG);
     registerReceiver(hdmiHotPlugReceiver, filter);
@@ -236,8 +365,21 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
    @Override
    public void onStop() {
      super.onStop();
+     Log.d(TAG, "onStop() called");
+     stopPlaybackIfPlaying();
      exoPlayerFactory.releasePlayer();
    }
+
+  protected void stopPlaybackIfPlaying() {
+    SimpleExoPlayer currentPlayer = exoPlayerFactory.getCurrentPlayer();
+    if (currentPlayer != null) {
+      if (! (currentPlayer.getPlaybackState() == Player.STATE_ENDED || currentPlayer.getPlaybackState() == Player.STATE_IDLE)) {
+        Log.d(TAG, "Stop and dump stats for current playback URI: '" + currentUri + "'");
+        currentPlayer.stop();
+        playbackStats.finishAllSessions();
+      }
+    }
+  }
 
   @Override
   protected void onDestroy() {
@@ -247,6 +389,7 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
       playerView = null;
       exoPlayerFactory = null;
       geekStats = null;
+      playbackStats = null;
     }
   }
 
@@ -458,15 +601,23 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
         }
 
         if (nextChannel != null) {
+          playUri(nextChannel);
 
-          // TODO chunkless should come from a properties file (so we can switch it when it's supported)
-          boolean enableChunkless = getIntent().getBooleanExtra(CHUNKLESS_PREPARE, false);
-          exoPlayerFactory.playUrl(nextChannel, enableChunkless);
         }
       }
     }
 
     return handled || playerView.dispatchKeyEvent(event) || super.dispatchKeyEvent(event);
+  }
+
+  protected void playUri(Uri uri) {
+    // TODO chunkless should come from a properties file (so we can switch it when it's supported)
+    boolean enableChunkless = getIntent().getBooleanExtra(CHUNKLESS_PREPARE, false);
+
+    stopPlaybackIfPlaying();
+    currentUri = uri;
+    Log.d(TAG, "playUri() playUri: '" + uri + "' - chunkless: " + enableChunkless);
+    exoPlayerFactory.playUrl(uri, enableChunkless);
   }
 
   private void toggleTrickPlayBar() {
@@ -568,15 +719,12 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
       showToast(getString(R.string.unexpected_intent_action, action));
       finish();
     }
-    
+
     boolean enableTunneling = getIntent().getBooleanExtra(ENABLE_TUNNELED_PLAYBACK, false);
     exoPlayerFactory.setTunnelingMode(enableTunneling);
 
     if (uris.length > 0) {
-      Log.d(TAG, "calling playUrl - " + uris[0]);
-      // TODO chunkless should come from a properties file (so we can switch it when it's supported)
-      boolean enableChunkless = getIntent().getBooleanExtra(CHUNKLESS_PREPARE, false);
-      exoPlayerFactory.playUrl(uris[0], enableChunkless);
+      playUri(uris[0]);
       setIntent(intent);
     }
   }

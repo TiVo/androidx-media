@@ -64,6 +64,7 @@ public class EventLogger implements AnalyticsListener {
   private final Timeline.Period period;
   private final long startTimeMs;
   private @Nullable Format currentLoadingVideoFormat;
+  private @Nullable Format currentPlayingVideoFormat;
 
   /**
    * Creates event logger.
@@ -394,11 +395,11 @@ public class EventLogger implements AnalyticsListener {
     if (isVideoTrack(mediaLoadData)) {
       if (currentLoadingVideoFormat == null) {
         currentLoadingVideoFormat = mediaLoadData.trackFormat;
-        logd(eventTime, "levelChange", "initial level - Buffered: "
+        logd(eventTime, "loadingFormatChanged", "initial level - Buffered: "
             + eventTime.totalBufferedDurationMs + "ms -- Start Level: " + getVideoLevelStr(currentLoadingVideoFormat));
       } else {
         if (! currentLoadingVideoFormat.equals(mediaLoadData.trackFormat)) {
-          logd(eventTime, "levelChange", "Buffered: " + eventTime.totalBufferedDurationMs + "ms -- Old: " + getVideoLevelStr(currentLoadingVideoFormat)
+          logd(eventTime, "loadingFormatChanged", "Buffered: " + eventTime.totalBufferedDurationMs + "ms -- Old: " + getVideoLevelStr(currentLoadingVideoFormat)
               + " New: " + getVideoLevelStr(mediaLoadData.trackFormat));
           currentLoadingVideoFormat = mediaLoadData.trackFormat;
         }
@@ -473,6 +474,14 @@ public class EventLogger implements AnalyticsListener {
 
   @Override
   public void onDownstreamFormatChanged(EventTime eventTime, MediaLoadData mediaLoadData) {
+    if (mediaLoadData.trackType == C.TRACK_TYPE_VIDEO || mediaLoadData.trackType == C.TRACK_TYPE_DEFAULT) {
+      if (currentPlayingVideoFormat == null) {
+        currentPlayingVideoFormat = mediaLoadData.trackFormat;
+        logd(eventTime, "videoFormatInitial - " + getVideoLevelStr(mediaLoadData.trackFormat));
+      } else {
+        logd(eventTime, "videoFormatChanged - Old: " + getVideoLevelStr(currentPlayingVideoFormat) + " New: " + getVideoLevelStr(mediaLoadData.trackFormat));
+      }
+    }
     logd(eventTime, "downstreamFormat", Format.toLogString(mediaLoadData.trackFormat));
   }
 
@@ -512,8 +521,8 @@ public class EventLogger implements AnalyticsListener {
         (loadData.trackType == C.TRACK_TYPE_VIDEO || format.height > 0 || MimeTypes.getVideoMediaMimeType(format.codecs) != null);
   }
 
-  public static String getVideoLevelStr(Format format) {
-    return format.id + " - " + format.width + "x" + format.height + "@" + format.bitrate;
+  public static String getVideoLevelStr(@Nullable Format format) {
+    return format == null ? "<unk>" : format.id + " - " + format.width + "x" + format.height + "@" + format.bitrate;
   }
 
   /**
@@ -601,7 +610,7 @@ public class EventLogger implements AnalyticsListener {
         + windowPeriodString;
   }
 
-  private static String getTimeString(long timeMs) {
+  public static String getTimeString(long timeMs) {
     return timeMs == C.TIME_UNSET ? "?" : TIME_FORMAT.format((timeMs) / 1000f);
   }
 

@@ -139,10 +139,8 @@ public class GeekStatsOverlay implements AnalyticsListener, Runnable {
 
     if (visibility == View.VISIBLE) {
       containingView.setVisibility(View.INVISIBLE);
-      stop();
     } else {
       containingView.setVisibility(View.VISIBLE);
-      start();
     }
   }
 
