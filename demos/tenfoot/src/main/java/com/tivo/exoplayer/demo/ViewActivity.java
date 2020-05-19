@@ -72,6 +72,7 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
   public static final String ACTION_VIEW = "com.tivo.exoplayer.action.VIEW";
   public static final String ACTION_VIEW_LIST = "com.tivo.exoplayer.action.VIEW_LIST";
   public static final String ACTION_GEEK_STATS = "com.tivo.exoplayer.action.GEEK_STATS";
+  public static final String ACTION_STOP = "com.tivo.exoplayer.action.STOP_PLAYBACK";
 
   // Intent data
   public static final String ENABLE_TUNNELED_PLAYBACK = "enable_tunneled_playback";
@@ -234,12 +235,20 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
   @Override
    public void onNewIntent(Intent intent) {
     super.onNewIntent(intent);
-    Log.d(TAG, "onNewIntent() called");
+    String action = intent.getAction();
+    action = action == null ? "" : action;
+    switch (action) {
+      case ACTION_GEEK_STATS:
+        geekStats.toggleVisible();
+        break;
 
-    if (intent.getAction().equals(ACTION_GEEK_STATS)) {
-      geekStats.toggleVisible();
-    } else {
-      processIntent(intent);
+      case ACTION_STOP:
+        stopPlaybackIfPlaying();
+        break;
+
+      default:
+        processIntent(intent);
+        break;
     }
    }
 
