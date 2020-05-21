@@ -287,9 +287,21 @@ class TrickPlayController implements TrickPlayControlInternal {
             }
         }
 
+        /**
+         * Listen for seeks.  When a seek occurs while trick-play is active the seek position
+         * may not yet be rendered, this makes the list of last rendered
+         * positions {@link #lastRenderPositions} no longer relevant.
+         *
+         * Clear the list, subsequent renders and continued trick-play from the seek position
+         * will fill the list again.  (See Jira issue BZSTREAM-5732)
+         *
+         * @param eventTime The event time.
+         */
         @Override
         public void onSeekProcessed(EventTime eventTime) {
-            lastRenderPositions.empty();
+            if (currentTrickMode != TrickMode.NORMAL) {
+                lastRenderPositions.empty();
+            }
         }
 
         @Override
