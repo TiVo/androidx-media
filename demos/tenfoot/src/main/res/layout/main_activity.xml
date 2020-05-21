@@ -1,9 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-  android:orientation="vertical"
-  android:layout_width="match_parent"
-  android:layout_height="match_parent"
-  android:padding="20dp">
+              xmlns:app="http://schemas.android.com/apk/res-auto"
+              android:orientation="vertical"
+              android:layout_width="match_parent"
+              android:layout_height="match_parent"
+              android:padding="20dp">
   <LinearLayout
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
@@ -15,17 +16,22 @@
       android:text="URL:"/>
     <Spinner
       android:id="@+id/url_spinner"
-      android:layout_width="match_parent"
+      android:layout_width="650dp"
       android:layout_height="wrap_content"/>
   </LinearLayout>
   <LinearLayout
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:layout_marginBottom="10dp">
+    <Button
+      android:id="@+id/play_button"
+      android:layout_width="84dp"
+      android:layout_height="match_parent"
+      android:text="Play"/>
     <TextView
       android:layout_width="wrap_content"
       android:layout_height="wrap_content"
-      android:text="or enter Url:"/>
+      android:text="URL:"/>
     <EditText
       android:id="@+id/url_string"
       android:layout_width="match_parent"
@@ -48,21 +54,20 @@
   </LinearLayout>
   <Switch
     android:id="@+id/enable_tunneling"
-    android:layout_width="match_parent"
+    android:layout_width="wrap_content"
     android:layout_height="wrap_content"
+    android:layoutDirection="rtl"
     android:text="Enable Tunneling"
+    app:switchPadding="8dp"
     android:layout_marginBottom="10dp"
     />
   <Switch
     android:id="@+id/enable_chunkless_prepare"
-    android:layout_width="match_parent"
+    android:layout_width="wrap_content"
     android:layout_height="wrap_content"
+    android:layoutDirection="rtl"
     android:text="Enable Chunkless Prepare"
+    app:switchPadding="8dp"
     android:layout_marginBottom="10dp"
     />
-  <Button
-    android:id="@+id/play_button"
-    android:layout_width="match_parent"
-    android:layout_height="wrap_content"
-    android:text="Play"/>
 </LinearLayout>
