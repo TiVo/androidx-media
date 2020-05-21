@@ -4,12 +4,9 @@ import androidx.annotation.Nullable;
 import com.google.android.exoplayer2.C;
 import com.google.android.exoplayer2.Format;
 import com.google.android.exoplayer2.source.TrackGroup;
-import com.google.android.exoplayer2.source.chunk.MediaChunk;
-import com.google.android.exoplayer2.source.chunk.MediaChunkIterator;
 import com.google.android.exoplayer2.trickplay.TrickPlayControl;
 import com.google.android.exoplayer2.upstream.BandwidthMeter;
 import com.google.android.exoplayer2.util.Clock;
-import com.google.android.exoplayer2.util.Log;
 import com.google.android.exoplayer2.util.MimeTypes;
 import com.google.android.exoplayer2.util.Util;
 import java.util.ArrayList;
@@ -55,7 +52,18 @@ public class IFrameAwareAdaptiveTrackSelection extends AdaptiveTrackSelection {
           definition = filterIFrameTracks(definition, trickPlayControl.getCurrentTrickDirection());
         }
         if (definition.tracks.length > 1) {
-          TrackSelection adaptiveSelection = new AdaptiveTrackSelection(definition.group, definition.tracks, bandwidthMeter);
+          // TODO - this is temporary, in 2.11.x the code allows extending AdaptiveTrackSelection.Factory.
+          TrackSelection adaptiveSelection = new AdaptiveTrackSelection(
+              definition.group,
+              definition.tracks,
+              bandwidthMeter,
+              DEFAULT_MIN_DURATION_FOR_QUALITY_INCREASE_MS,
+              12_000,
+              DEFAULT_MIN_DURATION_TO_RETAIN_AFTER_DISCARD_MS,
+              1.0f,    // TODO - this works around lack of AVERAGE_BANDWIDTH
+              DEFAULT_BUFFERED_FRACTION_TO_LIVE_EDGE_FOR_QUALITY_INCREASE,
+              DEFAULT_MIN_TIME_BETWEEN_BUFFER_REEVALUTATION_MS,
+              Clock.DEFAULT);
           selections[i] = adaptiveSelection;
         } else {
           selections[i] = new FixedTrackSelection(
