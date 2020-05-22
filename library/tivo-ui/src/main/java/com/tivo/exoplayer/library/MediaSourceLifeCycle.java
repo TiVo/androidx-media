@@ -32,4 +32,6 @@ public interface MediaSourceLifeCycle extends
 
   @Override
   boolean recoverFrom(ExoPlaybackException e);
+
+  boolean restartPlaybackAtLastPosition();
 }

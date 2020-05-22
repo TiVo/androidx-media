@@ -618,26 +618,17 @@ public class SimpleExoPlayerFactory implements DefaultExoPlayerErrorHandler.Play
 
         handled = true;
       } else if (renderException instanceof AudioSink.WriteException) {
-        // TODO - we decided this was to complicated, so we ignore the error in ExoPlayer core :-(
-//        AudioSink.WriteException writeException = (AudioSink.WriteException) renderException;
-//        if (writeException.errorCode == android.media.AudioTrack.ERROR_DEAD_OBJECT) {
-//          DefaultTrackSelector.Parameters trackSelectorParameters = trackSelector.getParameters();
-//          DefaultTrackSelector.ParametersBuilder builder = trackSelectorParameters.buildUpon();
-//
-//          TrackSelectionArray trackSelections = player.getCurrentTrackSelections();
-//          for (int i = 0; i < player.getRendererCount() && i < trackSelections.length; i++) {
-//            if (player.getRendererType(i) == C.TRACK_TYPE_AUDIO && trackSelections.get(i) != null) {
-//                builder.setRendererDisabled(i, true);
-//              Log.d("ExoPlayer", "AudioSink.WriteException - disable audio track " + player.getRendererType(i) + " to recover");
-//            }
-//          }
-//          trackSelector.setParameters(builder);
-//
-//          Log.d("ExoPlayer", "AudioSink.WriteException - reset player with prepare");
-//          player.prepare(mediaSource, true, true);
-//          handled = true;
-      }
+        AudioSink.WriteException writeException = (AudioSink.WriteException) renderException;
+        if (writeException.errorCode == android.media.AudioTrack.ERROR_DEAD_OBJECT) {
 
+          DefaultTrackSelector.Parameters savedParameters = currentParameters;
+          setRendererState(C.TRACK_TYPE_AUDIO, false);
+          Log.d("ExoPlayer", "AudioSink.WriteException - reset player with prepare");
+          setCurrentParameters(savedParameters);
+          handled = mediaSourceLifeCycle.restartPlaybackAtLastPosition();
+        }
+
+      }
     }
 
     return handled;
