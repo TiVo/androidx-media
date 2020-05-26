@@ -1,5 +1,14 @@
 # Release notes #
 
+### 2.10.4-1.1 ###
+
+* [0595c8197](https://github.com/tivocorp/exoplayerprvt/commit/0595c8197) &mdash;  Minor update to TiVo demo UI Layout to allow editing URL text (Does not affect Hydra or libraries, only demo)
+* [0595c8197](https://github.com/tivocorp/exoplayerprvt/commit/0595c8197) &mdash; Update ABR to mitigate issue [PARTDEFECT-1732](https://jira.tivo.com/browse/PARTDEFECT-1732).  A different fix upcoming in our 2.11.x release will build on this, this is a back port. 
+* [3a2a8cd4a](https://github.com/tivocorp/exoplayerprvt/commit/0595c8197) &mdash; Fix issue [BZSTREAM-5732](https://jira.tivo.com/browse/BZSTREAM-5732), seeks could cause position update at trick-play end to be incorrect.
+* [e7c83e177](https://github.com/tivocorp/exoplayerprvt/commit/e7c83e177) &mdash; Add recovery from dead-object. (only affects demo player)
+* [584e59e01](https://github.com/tivocorp/exoplayerprvt/commit/584e59e01) &mdash; Merge pull request #64 - Fix-caption-roll issue.  This was missed in all the caption fixes shared with Google. NOTE this does not exist in dev-v2, so we need a bug with Google to get the fix merged in with upcoming 2.11.x
+* [e18e4aed8](https://github.com/tivocorp/exoplayerprvt/commit/e18e4aed8) &mdash; fix ProGuard merge conflict in mobile build.  This does not affect Hydra
+
 ### 2.10.4-1.0 ###
 * Fix for Playback position keep changing in buffering mode(trickplay) [56](https://github.com/tivocorp/exoplayerprvt/pull/56)
 * Add logging to `EventLogger`:
