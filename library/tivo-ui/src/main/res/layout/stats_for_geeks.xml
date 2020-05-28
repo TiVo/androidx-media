@@ -20,7 +20,8 @@
         android:orientation="vertical"
         android:layout_alignParentEnd="true"
         android:layout_width="480dp"
-        android:layout_height="wrap_content">
+        android:layout_height="wrap_content"
+        tools:ignore="RtlCompat">
          <RelativeLayout
            android:layout_width="fill_parent"
            android:layout_height="wrap_content">

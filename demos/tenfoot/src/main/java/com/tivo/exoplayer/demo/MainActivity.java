@@ -1,10 +1,12 @@
 
 package com.tivo.exoplayer.demo;
 
+import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Parcel;
 import android.os.Parcelable;
@@ -19,6 +21,7 @@ import android.widget.EditText;
 import android.widget.Spinner;
 import android.widget.Switch;
 import androidx.annotation.NonNull;
+import androidx.annotation.RequiresApi;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -114,11 +117,15 @@ public class MainActivity extends Activity {
   }
 
   @Override
+  @SuppressLint("NewApi")
   protected void onPause() {
     super.onPause();
-    savePreferences();
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+      savePreferences();
+    }
   }
 
+  @RequiresApi(23)
   private void savePreferences() {
     SharedPreferences preferences = getPreferences(MODE_PRIVATE);
     SharedPreferences.Editor edit = preferences.edit();
@@ -158,6 +165,7 @@ public class MainActivity extends Activity {
     processIntent(intent);
   }
 
+  @SuppressLint("NewApi")
   private void processIntent(Intent intent) {
     String[] uriStrings = intent.getStringArrayExtra(ViewActivity.URI_LIST_EXTRA);
     if (uriStrings != null) {
@@ -165,7 +173,9 @@ public class MainActivity extends Activity {
       for (String url : uriStrings) {
         addUrlToList(url);
       }
-      savePreferences();
+      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+        savePreferences();
+      }
     }
   }
 

@@ -9,6 +9,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
 import android.provider.Settings;
 import android.util.Log;
@@ -20,6 +21,7 @@ import android.view.ViewGroup;
 import android.view.WindowManager;
 import android.view.accessibility.CaptioningManager;
 import android.widget.Toast;
+import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.fragment.app.DialogFragment;
 import com.google.android.exoplayer2.C;
@@ -120,13 +122,18 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
     }
   };
   private GeekStatsOverlay geekStats;
-  private CaptioningManager.CaptioningChangeListener captionChangeListener = new CaptioningManager.CaptioningChangeListener() {
-    @Override
-    public void onEnabledChanged(boolean enabled) {
-      exoPlayerFactory.setCloseCaption(enabled, null);
-    }
-  };
+  private @Nullable CaptioningManager.CaptioningChangeListener captionChangeListener;
 
+  public ViewActivity() {
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+      captionChangeListener = new CaptioningManager.CaptioningChangeListener() {
+        @Override
+        public void onEnabledChanged(boolean enabled) {
+          exoPlayerFactory.setCloseCaption(enabled, null);
+        }
+      };
+    }
+  }
   private TimeBar timeBar;
 
   // Activity lifecycle
@@ -160,9 +167,12 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
     playerView.setControllerShowTimeoutMs(-1);
     Locale current = Locale.getDefault();
 
-    CaptioningManager captioningManager = (CaptioningManager) context.getSystemService(Context.CAPTIONING_SERVICE);
-    captioningManager.addCaptioningChangeListener(captionChangeListener);
-    exoPlayerFactory.setCloseCaption(captioningManager.isEnabled(), current.getLanguage());
+    CaptioningManager captioningManager = null;
+    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.KITKAT && captionChangeListener != null) {
+      captioningManager = (CaptioningManager) context.getSystemService(Context.CAPTIONING_SERVICE);
+      captioningManager.addCaptioningChangeListener(captionChangeListener);
+      exoPlayerFactory.setCloseCaption(captioningManager.isEnabled(), current.getLanguage());
+    }
 
     exoPlayerFactory.setPreferredAudioLanguage(current.getLanguage());
 
