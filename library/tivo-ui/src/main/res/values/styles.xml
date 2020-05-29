@@ -18,7 +18,7 @@
   <style name="GeekStatsMetricLabel">
     <item name="android:textColor">#989ae2</item>
     <item name="android:textStyle">bold</item>
-    <item name="android:layout_marginEnd">7dp</item>
+    <item name="android:layout_marginRight">7dp</item>
   </style>
 
 </resources>
