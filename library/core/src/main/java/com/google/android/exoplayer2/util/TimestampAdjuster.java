@@ -33,7 +33,7 @@ public final class TimestampAdjuster {
    * The value one greater than the largest representable (33 bit) MPEG-2 TS 90 kHz clock
    * presentation timestamp.
    */
-  private static final long MAX_PTS_PLUS_ONE = 0x200000000L;
+  public static final long MAX_PTS_PLUS_ONE = 0x200000000L;
 
   private long firstSampleTimestampUs;
   private long timestampOffsetUs;

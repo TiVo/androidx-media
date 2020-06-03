@@ -26,6 +26,7 @@ import com.google.android.exoplayer2.extractor.PositionHolder;
 import com.google.android.exoplayer2.extractor.SeekMap;
 import com.google.android.exoplayer2.extractor.TrackOutput;
 import com.google.android.exoplayer2.text.webvtt.WebvttParserUtil;
+import com.google.android.exoplayer2.util.Log;
 import com.google.android.exoplayer2.util.MimeTypes;
 import com.google.android.exoplayer2.util.ParsableByteArray;
 import com.google.android.exoplayer2.util.TimestampAdjuster;
@@ -43,6 +44,8 @@ import java.util.regex.Pattern;
  * derive a sample timestamp in this case.
  */
 public final class WebvttExtractor implements Extractor {
+
+  private static final String TAG = "WebvttExtractor";
 
   private static final Pattern LOCAL_TIMESTAMP = Pattern.compile("LOCAL:([^,]+)");
   private static final Pattern MEDIA_TIMESTAMP = Pattern.compile("MPEGTS:(\\d+)");
@@ -136,7 +139,7 @@ public final class WebvttExtractor implements Extractor {
 
     // Defaults to use if the header doesn't contain an X-TIMESTAMP-MAP header.
     long vttTimestampUs = 0;
-    long tsTimestampUs = 0;
+    long tsTimestampPts = 0;
 
     // Parse the remainder of the header looking for X-TIMESTAMP-MAP.
     String line;
@@ -151,7 +154,7 @@ public final class WebvttExtractor implements Extractor {
           throw new ParserException("X-TIMESTAMP-MAP doesn't contain media timestamp: " + line);
         }
         vttTimestampUs = WebvttParserUtil.parseTimestampUs(localTimestampMatcher.group(1));
-        tsTimestampUs = TimestampAdjuster.ptsToUs(Long.parseLong(mediaTimestampMatcher.group(1)));
+        tsTimestampPts = Long.parseLong(mediaTimestampMatcher.group(1));
       }
     }
 
@@ -163,10 +166,24 @@ public final class WebvttExtractor implements Extractor {
       return;
     }
 
+    // Compute subsampleOffsetUs, the time offset of the Cue timestamps in this extracted
+    // segment to media time.  This is describe in Pantos Section 3.5 WebVTT
+    //  (https://tools.ietf.org/html/draft-pantos-hls-rfc8216bis-04#section-3.5)
+    //
+
+    // Scale the MPEGTS "media time" (default is 0 if no TIMESTAMP-MAP) to ExoPlayer media time timebase
+    //
+    long mediaTimeOfSegmentStartUs = timestampAdjuster.adjustTsTimestamp(tsTimestampPts);
+
+    // The "LOCAL" time (if any) set time the start time of this segment in Cue timestamp time
+    // base, time 0.  The delta from the adjusted PTS is the time to offset samples times with
+    //
+    long subsampleOffsetUs = mediaTimeOfSegmentStartUs - vttTimestampUs;
+
+    // parse and output the first queue.
     long firstCueTimeUs = WebvttParserUtil.parseTimestampUs(cueHeaderMatcher.group(1));
-    long sampleTimeUs = timestampAdjuster.adjustTsTimestamp(
-        TimestampAdjuster.usToPts(firstCueTimeUs + tsTimestampUs - vttTimestampUs));
-    long subsampleOffsetUs = sampleTimeUs - firstCueTimeUs;
+    long sampleTimeUs = firstCueTimeUs + subsampleOffsetUs;
+
     // Output the track.
     TrackOutput trackOutput = buildTrackOutput(subsampleOffsetUs);
     // Output the sample.
