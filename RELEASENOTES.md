@@ -1,5 +1,10 @@
 # Release notes #
 
+### 2.10.4-1.2 ###
+
+* [cd7558e2f](https://github.com/tivocorp/exoplayerprvt/commit/cd7558e2f) Tue Jun 2 16:52:36 2020 -0700  (HEAD -> t-webvtt-bugfixes, tivo-pvt/t-webvtt-bugfixes, tivo-public/t-webvtt-bugfixes) Allow alternate termination for the "WEBVTT" header.  Fixes (partially) a bug at LLA
+
+
 ### 2.10.4-1.1 ###
 
 * [0ab706657](https://github.com/tivocorp/exoplayerprvt/commit/0ab706657) &mdash; Fix build to run clean (lint issues).  Note this does not change library code
