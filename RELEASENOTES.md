@@ -2,8 +2,9 @@
 
 ### 2.10.4-1.2 ###
 
-* [cd7558e2f](https://github.com/tivocorp/exoplayerprvt/commit/cd7558e2f) Tue Jun 2 16:52:36 2020 -0700  (HEAD -> t-webvtt-bugfixes, tivo-pvt/t-webvtt-bugfixes, tivo-public/t-webvtt-bugfixes) Allow alternate termination for the "WEBVTT" header.  Fixes (partially) a bug at LLA
-
+* Fixes for [PARTDEFECT-2618](https://jira.tivo.com/browse/PARTDEFECT-2618) and [PARTDEFECT-2567](https://jira.tivo.com/browse/PARTDEFECT-2567) -- Issues that LLA found with WebVTT
+  * [ef9ae18c5](https://github.com/tivocorp/exoplayerprvt/commit/ef9ae18c5) Fix the WebVTT parsing to deal with timestamp PTS wrap.
+  * [1d64544f9](https://github.com/tivocorp/exoplayerprvt/commit/1d64544f9) Allow alternate termination for the "WEBVTT" header.
 
 ### 2.10.4-1.1 ###
 
