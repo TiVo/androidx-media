@@ -821,7 +821,11 @@ public final class DefaultAudioSink implements AudioSink {
 
   @Override
   public boolean hasPendingData() {
-    return isInitialized() && audioTrackPositionTracker.hasPendingData(getWrittenFrames());
+    if (isInitialized()) {
+      return tunneling ? audioTrackPositionTracker.hasPendingTunneledData(getWrittenFrames())
+              : audioTrackPositionTracker.hasPendingData(getWrittenFrames());
+    }
+    return false;
   }
 
   @Override
