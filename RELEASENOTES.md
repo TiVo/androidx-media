@@ -1,5 +1,8 @@
 # Release notes #
 
+### 2.10.4-1.2 ###
+* Improved audio stall detection by using tolerance threshold for checking FIFO depth. The current audio position 
+  reported by Android is always behind the actual and therefore Exoplayer was not pausing to rebuffer even when FIFO was stalling.
 ### 2.10.4-1.1 ###
 
 * [0ab706657](https://github.com/tivocorp/exoplayerprvt/commit/0ab706657) &mdash; Fix build to run clean (lint issues).  Note this does not change library code
