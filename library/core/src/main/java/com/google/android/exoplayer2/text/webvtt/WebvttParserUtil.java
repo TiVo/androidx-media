@@ -18,6 +18,7 @@ package com.google.android.exoplayer2.text.webvtt;
 import androidx.annotation.Nullable;
 import com.google.android.exoplayer2.ParserException;
 import com.google.android.exoplayer2.util.ParsableByteArray;
+import com.google.android.exoplayer2.util.TimestampAdjuster;
 import com.google.android.exoplayer2.util.Util;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -87,7 +88,21 @@ public final class WebvttParserUtil {
     if (parts.length == 2) {
       value += Long.parseLong(parts[1]);
     }
-    return value * 1000;
+
+    return adjustCueForPtsWrap(value);
+  }
+
+  /**
+   * Convert a WebVTT Cue timestamp to PTS, adjusting for PTS Wrap.  According to the Pantos spec (last paragraph of
+   * <a href="https://tools.ietf.org/html/draft-pantos-hls-rfc8216bis-04#section-3.5">section 3.5 </a>) the
+   * Cue timestamp can be non-monotonic, that is it <b>does not</b> wrap with the PTS.
+   *
+   * @param webvttCueTimestampMs - the timestamp in ms parsed from the VTT cue (non-monotonic)
+   * @return cue time, in ms adjusted for any PTS wrap.
+   */
+  private static long adjustCueForPtsWrap(long webvttCueTimestampMs) {
+    long cueAsPts = (webvttCueTimestampMs * 90) % (TimestampAdjuster.MAX_PTS_PLUS_ONE - 1);
+    return TimestampAdjuster.ptsToUs(cueAsPts);
   }
 
   /**
