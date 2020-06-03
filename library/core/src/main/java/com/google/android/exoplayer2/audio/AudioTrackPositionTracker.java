@@ -24,6 +24,7 @@ import androidx.annotation.IntDef;
 import androidx.annotation.Nullable;
 import com.google.android.exoplayer2.C;
 import com.google.android.exoplayer2.util.Assertions;
+import com.google.android.exoplayer2.util.Log;
 import com.google.android.exoplayer2.util.Util;
 import java.lang.annotation.Documented;
 import java.lang.annotation.Retention;
@@ -129,6 +130,7 @@ import java.lang.reflect.Method;
   private static final int MAX_PLAYHEAD_OFFSET_COUNT = 10;
   private static final int MIN_PLAYHEAD_OFFSET_SAMPLE_INTERVAL_US = 30000;
   private static final int MIN_LATENCY_SAMPLE_INTERVAL_US = 500000;
+  private static final int TUNNELED_FIFO_EMPTY_THRESHOLD_US = 300000;
 
   private final Listener listener;
   private final long[] playheadOffsets;
@@ -333,6 +335,17 @@ import java.lang.reflect.Method;
   public boolean hasPendingData(long writtenFrames) {
     return writtenFrames > getPlaybackHeadPosition()
         || forceHasPendingData();
+  }
+
+  public boolean hasPendingTunneledData(long writtenFrames) {
+    long delta = framesToDurationUs(writtenFrames - getPlaybackHeadPosition());
+    //Log.e("AudioTrackPos" , String.format("written=%d head=%d delta=%d 20", writtenFrames, getPlaybackHeadPosition(), delta));
+    /* In tunneling playback head never catches up with written frames so need to use
+       some tolerance threshold to prevent running with drained FIFO without a chance to rebuffer.
+     */
+    return framesToDurationUs(writtenFrames - getPlaybackHeadPosition())
+            > TUNNELED_FIFO_EMPTY_THRESHOLD_US
+            || forceHasPendingData();
   }
 
   /**

@@ -5,6 +5,7 @@
 * Fixes for [PARTDEFECT-2618](https://jira.tivo.com/browse/PARTDEFECT-2618) and [PARTDEFECT-2567](https://jira.tivo.com/browse/PARTDEFECT-2567) -- Issues that LLA found with WebVTT
   * [ef9ae18c5](https://github.com/tivocorp/exoplayerprvt/commit/ef9ae18c5) Fix the WebVTT parsing to deal with timestamp PTS wrap.
   * [1d64544f9](https://github.com/tivocorp/exoplayerprvt/commit/1d64544f9) Allow alternate termination for the "WEBVTT" header.
+* [f876fec8e](https://github.com/tivocorp/exoplayerprvt/commit/f876fec8e) Improved tunneled audio FIFO underrun detection.
 
 ### 2.10.4-1.1 ###
 
