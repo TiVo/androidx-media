@@ -568,12 +568,7 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
       showToast(getString(R.string.unexpected_intent_action, action));
       finish();
     }
-
-    if (!Util.checkCleartextTrafficPermitted(uris)) {
-      uris = new Uri[0];
-      showToast(getString(R.string.error_cleartext_not_permitted));
-    }
-
+    
     boolean enableTunneling = getIntent().getBooleanExtra(ENABLE_TUNNELED_PLAYBACK, false);
     exoPlayerFactory.setTunnelingMode(enableTunneling);
 
