@@ -1,5 +1,11 @@
 # Release notes #
 
+### 2.10.4-1.3 ###
+
+* Fix so header parse does not break test cases
+* Apparently comments and other garbage are legal after the WEBVTT, also an empty vtt file must report as the file is invalid.
+* We don't want to prevent HTTP
+
 ### 2.10.4-1.2 ###
 
 * Fixes for [PARTDEFECT-2618](https://jira.tivo.com/browse/PARTDEFECT-2618) and [PARTDEFECT-2567](https://jira.tivo.com/browse/PARTDEFECT-2567) -- Issues that LLA found with WebVTT
