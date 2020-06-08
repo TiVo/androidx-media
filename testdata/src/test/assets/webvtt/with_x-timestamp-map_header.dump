@@ -1,0 +1,35 @@
+seekMap:
+  isSeekable = false
+  duration = UNSET TIME
+  getPosition(0) = [[timeUs=0, position=0]]
+numberOfTracks = 1
+track 0:
+  format:
+    bitrate = -1
+    id = null
+    containerMimeType = null
+    sampleMimeType = text/vtt
+    maxInputSize = -1
+    width = -1
+    height = -1
+    frameRate = -1.0
+    rotationDegrees = 0
+    pixelWidthHeightRatio = 1.0
+    channelCount = -1
+    sampleRate = -1
+    pcmEncoding = -1
+    encoderDelay = 0
+    encoderPadding = 0
+    subsampleOffsetUs = -958710678845
+    selectionFlags = 0
+    language = null
+    drmInitData = -
+    metadata = null
+    initializationData:
+  total output bytes = 324
+  sample count = 1
+  sample 0:
+    time = 5000155
+    flags = 1
+    data = length 324, hash C0D159A2
+tracksEnded = true
