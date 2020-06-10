@@ -634,9 +634,7 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
   @Override
   public void retryPlayback() {
     if (player != null) {
-        player.retry();
       player.retry();
-      }
     }
   }
 

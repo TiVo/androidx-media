@@ -4,8 +4,10 @@ import static android.media.AudioManager.ACTION_HDMI_AUDIO_PLUG;
 import static android.media.AudioManager.ACTION_HEADSET_PLUG;
 import static android.media.AudioManager.EXTRA_AUDIO_PLUG_STATE;
 
+import android.app.AlertDialog;
 import android.content.BroadcastReceiver;
 import android.content.Context;
+import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.net.Uri;
@@ -184,7 +186,11 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
     Context context = getApplicationContext();
 
     SimpleExoPlayerFactory.initializeLogging(context, DEFAULT_LOG_LEVEL);
-    exoPlayerFactory = new SimpleExoPlayerFactory(context);
+    exoPlayerFactory = new SimpleExoPlayerFactory(context, (eventTime, error, recovered) -> {
+      if (! recovered) {
+        showError("Un-recovered Playback Error", error);
+      }
+    });
 
     LayoutInflater inflater = LayoutInflater.from(context);
     ViewGroup activityView = (ViewGroup) inflater.inflate(R.layout.view_activity, null);
@@ -747,6 +753,17 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
       uris[i] = Uri.parse(uriStrings[i]);
     }
     return uris;
+  }
+
+  private void showError(String message, @Nullable Exception exception) {
+    AlertDialog alertDialog = new AlertDialog.Builder(this).create();
+    alertDialog.setTitle("Error");
+    if (exception != null) {
+      message += " - " + exception.getMessage();
+    }
+    alertDialog.setMessage(message);
+    alertDialog.setButton(AlertDialog.BUTTON_NEUTRAL, "OK", (dialog, which) -> dialog.dismiss());
+    alertDialog.show();
   }
 
   private void showToast(String message) {
