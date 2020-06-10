@@ -85,6 +85,8 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
 
   private MediaSourceLifeCycle mediaSourceLifeCycle;
 
+  @Nullable
+  private PlayerErrorHandlerListener playerErrorHandlerListener;
 
   @Nullable
   private MediaSourceEventCallback callback;
@@ -123,6 +125,17 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
     this.context = context;
   }
 
+  /**
+   * Construct the factory, including specifying an event listener that will be called for
+   * playback errors (either recovered from internally or not).
+   *
+   * @param context - android ApplicationContext
+   * @param listener - error listener
+   */
+  public SimpleExoPlayerFactory(Context context, @Nullable PlayerErrorHandlerListener listener) {
+    this(context);
+    playerErrorHandlerListener = listener;
+  }
 
   // Factory methods.  Override these if you want to subclass the objects they produce
 
@@ -151,7 +164,9 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
     List<DefaultExoPlayerErrorHandler.PlaybackExceptionRecovery> errorHandlers = getDefaultPlaybackExceptionHandlers(
         mediaSourceLifeCycle);
 
-    return new DefaultExoPlayerErrorHandler(errorHandlers);
+    DefaultExoPlayerErrorHandler defaultExoPlayerErrorHandler = new DefaultExoPlayerErrorHandler(errorHandlers);
+    defaultExoPlayerErrorHandler.playerErrorHandlerListener = playerErrorHandlerListener;
+    return defaultExoPlayerErrorHandler;
   }
 
   /**

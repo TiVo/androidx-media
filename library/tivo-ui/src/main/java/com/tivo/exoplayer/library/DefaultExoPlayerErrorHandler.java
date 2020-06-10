@@ -34,6 +34,8 @@ public class DefaultExoPlayerErrorHandler implements AnalyticsListener {
   private static final String TAG = "ExoPlayerErrorHandler";
   private final List<PlaybackExceptionRecovery> handlers;
 
+  @Nullable protected PlayerErrorHandlerListener playerErrorHandlerListener;
+
   /**
    * If you add a handler to the list it must implement this interface.
    */
@@ -119,6 +121,9 @@ public class DefaultExoPlayerErrorHandler implements AnalyticsListener {
    */
   protected void playerErrorProcessed(EventTime eventTime, ExoPlaybackException error, boolean recovered) {
     Log.d(TAG, "playerError was processed, " + (recovered ? "recovery succeed" : "recovery failed."));
+    if (playerErrorHandlerListener != null) {
+      playerErrorHandlerListener.playerErrorProcessed(eventTime, error, recovered);
+    }
   }
 
   @Override
