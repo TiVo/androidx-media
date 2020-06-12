@@ -39,11 +39,13 @@ import com.google.android.exoplayer2.trickplay.TrickPlayControl;
 import com.google.android.exoplayer2.trickplay.TrickPlayEventListener;
 import com.google.android.exoplayer2.ui.PlayerControlView;
 import com.google.android.exoplayer2.ui.PlayerView;
+import com.google.android.exoplayer2.ui.SubtitleView;
 import com.google.android.exoplayer2.ui.TimeBar;
 import com.google.android.exoplayer2.util.EventLogger;
 import com.tivo.exoplayer.library.GeekStatsOverlay;
 import com.tivo.exoplayer.library.SimpleExoPlayerFactory;
 import com.tivo.exoplayer.library.tracks.TrackInfo;
+import com.tivo.exoplayer.library.util.AccessibilityHelper;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -132,20 +134,10 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
   };
   private GeekStatsOverlay geekStats;
   private PlaybackStatsListener playbackStats;
+  private AccessibilityHelper accessibilityHelper;
 
-  private @Nullable CaptioningManager.CaptioningChangeListener captionChangeListener;
-
-  public ViewActivity() {
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
-      captionChangeListener = new CaptioningManager.CaptioningChangeListener() {
-        @Override
-        public void onEnabledChanged(boolean enabled) {
-          exoPlayerFactory.setCloseCaption(enabled, null);
-        }
-      };
-    }
-  }
   private TimeBar timeBar;
+
   private Uri currentUri;
 
 
@@ -166,7 +158,6 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
       return list;
     }
   }
-
   public static final class EventTimeAndPlaybackState {
     public final AnalyticsListener.EventTime eventTime;
     public final int playbackState;
@@ -213,16 +204,25 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
 
     playerView.setControllerAutoShow(false);
     playerView.setControllerShowTimeoutMs(-1);
-    Locale current = Locale.getDefault();
 
-    CaptioningManager captioningManager = null;
-    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.KITKAT && captionChangeListener != null) {
-      captioningManager = (CaptioningManager) context.getSystemService(Context.CAPTIONING_SERVICE);
-      captioningManager.addCaptioningChangeListener(captionChangeListener);
-      exoPlayerFactory.setCloseCaption(captioningManager.isEnabled(), current.getLanguage());
-    }
+    accessibilityHelper = new AccessibilityHelper(context, new AccessibilityHelper.AccessibilityStateChangeListener() {
+      @Override
+      public void captionStateChanged(boolean enabled, Locale captionLanguage) {
+        exoPlayerFactory.setCloseCaption(enabled, captionLanguage.getLanguage());
+      }
 
-    exoPlayerFactory.setPreferredAudioLanguage(current.getLanguage());
+      @Override
+      public void captionStyleChanged(CaptioningManager.CaptionStyle style, float fontScale) {
+        // Subtitle view.
+        SubtitleView subtitleView = findViewById(R.id.exo_subtitles);
+        if (subtitleView != null) {   // set "defaults", which it fetches CaptioningManager
+          subtitleView.setUserDefaultStyle();
+          subtitleView.setUserDefaultTextSize();
+        }
+      }
+    });
+
+    exoPlayerFactory.setPreferredAudioLanguage(Locale.getDefault().getLanguage());
 
     exoPlayerFactory.setMediaSourceEventCallback((mediaSource, player) -> {
       if (initialSeek != C.POSITION_UNSET) {
