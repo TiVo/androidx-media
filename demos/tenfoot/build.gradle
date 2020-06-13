@@ -55,5 +55,11 @@ dependencies {
     implementation project(modulePrefix + 'library-trickplay')
     implementation project(modulePrefix + 'library-tivo-ui')
     implementation 'com.android.support.constraint:constraint-layout:1.1.3'
+<<<<<<< HEAD
+=======
+    implementation ('com.tivo.android.exoplayer:verimatrix:1.0.0-1.0') {
+        changing = true
+    }
+>>>>>>> Switched to using published Verimatrix library from corporate artifactory server.
 }
 

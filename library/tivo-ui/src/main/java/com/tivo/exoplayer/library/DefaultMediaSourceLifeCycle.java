@@ -107,7 +107,7 @@ public class DefaultMediaSourceLifeCycle implements MediaSourceLifeCycle, Analyt
         Class<?> clazz =
                 null;
         try {
-          clazz = Class.forName("com.tivo.exoplayer.ext.vcas.VcasDataSourceFactory");
+          clazz = Class.forName("com.tivo.exoplayer.vcas.VerimatrixDataSourceFactory");
           Constructor<?> constructor =
                   clazz.getConstructor(
                           DataSource.Factory.class,
@@ -134,7 +134,7 @@ public class DefaultMediaSourceLifeCycle implements MediaSourceLifeCycle, Analyt
         } catch (NoSuchMethodException e) {
           Log.e(TAG, "No matching VCAS constructor");
         } catch (Exception e) {
-          Log.e(TAG, "VCAS instantiation failed" + e);
+          Log.e(TAG, "VCAS instantiation failed: ", e);
         }
       }
     }
