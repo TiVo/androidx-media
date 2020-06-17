@@ -47,6 +47,19 @@ public class DefaultExoPlayerErrorHandler implements AnalyticsListener {
      * @return true to stop the recovery chain (assumes your handler recovered from it)
      */
     boolean recoverFrom(ExoPlaybackException e);
+
+
+    /**
+     * Called when playback starts (or restarts) successfully to allow stateful
+     * error recover (e.g. retry count based) to reset any internal state.
+     */
+    default void recoveryComplete() {};
+
+    /**
+     * Called when the {@link SimpleExoPlayerFactory} destroys the player, use this
+     * to release any listeners
+     */
+    default void releaseResources() {};
   }
 
   /**
@@ -59,6 +72,23 @@ public class DefaultExoPlayerErrorHandler implements AnalyticsListener {
    */
   public DefaultExoPlayerErrorHandler(List<PlaybackExceptionRecovery> handlers) {
     this.handlers = handlers;
+  }
+
+  public void releaseResources() {
+    for (PlaybackExceptionRecovery handler : handlers) {
+      handler.releaseResources();
+    }
+  }
+
+  @Override
+  public void onPlayerStateChanged(EventTime eventTime, boolean playWhenReady, int playbackState) {
+    // Any playback state change to READY resets error state
+    if (playbackState == Player.STATE_READY) {
+
+      for (PlaybackExceptionRecovery handler : handlers) {
+        handler.recoveryComplete();
+      }
+    }
   }
 
   @Override
