@@ -135,6 +135,15 @@ dependencies {
 ### Making Private Changes ###
 To make a change to TiVo proprietary code, simply create a new [Topic Branch](#topic-branches) from the `release` branch, make your changes and start a draft pull request to share them
 
+### Testing Changes Locally ###
+Often there is a need for trying local ExoPlayer build with Hydra application before publishing the final variant. For that local Maven repository can be used. Publish Exoplayer locally via:
+```
+gradlew publishToMavenLocal
+```
+Take note of the releaseVersion in constants.gradle and specify it when building Hydra by setting `USE_LOCAL_EXO_VER=<local-ver>` environment variable:
+```
+USE_LOCAL_EXO_VER=<ver> make cableco3-managed-qe
+```
 
 ### Making Public Changes ###
 Always the primary goal is to publicly publish (to the [TiVo Fork](https://github.com/TiVo/ExoPlayer)) all our bug fixes and changes to any Google owned modules (e.g. `library-core`, `library-hls`, etc).  
