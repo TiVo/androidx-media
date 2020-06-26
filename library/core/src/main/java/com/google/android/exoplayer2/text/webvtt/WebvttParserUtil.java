@@ -18,7 +18,6 @@ package com.google.android.exoplayer2.text.webvtt;
 import androidx.annotation.Nullable;
 import com.google.android.exoplayer2.ParserException;
 import com.google.android.exoplayer2.util.ParsableByteArray;
-import com.google.android.exoplayer2.util.TimestampAdjuster;
 import com.google.android.exoplayer2.util.Util;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -28,9 +27,8 @@ import java.util.regex.Pattern;
  */
 public final class WebvttParserUtil {
 
-  private static final Pattern COMMENT = Pattern.compile("^NOTE((\u0020|\u0009).*)?$");
+  private static final Pattern COMMENT = Pattern.compile("^NOTE([ \t].*)?$");
   private static final String WEBVTT_HEADER = "WEBVTT";
-  private static final String TIMESTAMP_MAP_HEADER = "X-TIMESTAMP-MAP";
 
   private WebvttParserUtil() {}
 
@@ -54,16 +52,8 @@ public final class WebvttParserUtil {
    * @param input The input from which the line should be read.
    */
   public static boolean isWebvttHeaderLine(ParsableByteArray input) {
-    @Nullable  String line = input.readLine();
-    boolean isValidHeader = line != null && line.startsWith(WEBVTT_HEADER);
-    if (isValidHeader) {
-      // According to w3c spec, TIMESTAMP-MAP header can be on same line as WEBVTT header.
-      int headerStartAt = line.indexOf(TIMESTAMP_MAP_HEADER);
-      if (headerStartAt != -1) {
-        input.setPosition(headerStartAt);   // set so next readLine() reads TIMESTAMP header
-      }
-    }
-    return isValidHeader;
+    @Nullable String line = input.readLine();
+    return line != null && line.startsWith(WEBVTT_HEADER);
   }
 
   /**
@@ -84,21 +74,7 @@ public final class WebvttParserUtil {
     if (parts.length == 2) {
       value += Long.parseLong(parts[1]);
     }
-
-    return adjustCueForPtsWrap(value);
-  }
-
-  /**
-   * Convert a WebVTT Cue timestamp to PTS, adjusting for PTS Wrap.  According to the Pantos spec (last paragraph of
-   * <a href="https://tools.ietf.org/html/draft-pantos-hls-rfc8216bis-04#section-3.5">section 3.5 </a>) the
-   * Cue timestamp can be non-monotonic, that is it <b>does not</b> wrap with the PTS.
-   *
-   * @param webvttCueTimestampMs - the timestamp in ms parsed from the VTT cue (non-monotonic)
-   * @return cue time, in ms adjusted for any PTS wrap.
-   */
-  private static long adjustCueForPtsWrap(long webvttCueTimestampMs) {
-    long cueAsPts = (webvttCueTimestampMs * 90) % (TimestampAdjuster.MAX_PTS_PLUS_ONE - 1);
-    return TimestampAdjuster.ptsToUs(cueAsPts);
+    return value * 1000;
   }
 
   /**
@@ -123,8 +99,9 @@ public final class WebvttParserUtil {
    *     reached without a cue header being found. In the case that a cue header is found, groups 1,
    *     2 and 3 of the returned matcher contain the start time, end time and settings list.
    */
+  @Nullable
   public static Matcher findNextCueHeader(ParsableByteArray input) {
-    String line;
+    @Nullable String line;
     while ((line = input.readLine()) != null) {
       if (COMMENT.matcher(line).matches()) {
         // Skip until the end of the comment block.

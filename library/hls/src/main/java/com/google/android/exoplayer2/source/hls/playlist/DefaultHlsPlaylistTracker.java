@@ -166,11 +166,13 @@ public final class DefaultHlsPlaylistTracker
   }
 
   @Override
-  public @Nullable HlsMasterPlaylist getMasterPlaylist() {
+  @Nullable
+  public HlsMasterPlaylist getMasterPlaylist() {
     return masterPlaylist;
   }
 
   @Override
+  @Nullable
   public HlsMediaPlaylist getPlaylistSnapshot(Uri url, boolean isForPlayback) {
     HlsMediaPlaylist snapshot = playlistBundles.get(url).getPlaylistSnapshot();
     if (snapshot != null && isForPlayback) {
@@ -447,7 +449,7 @@ public final class DefaultHlsPlaylistTracker
     private final Loader mediaPlaylistLoader;
     private final ParsingLoadable<HlsPlaylist> mediaPlaylistLoadable;
 
-    private HlsMediaPlaylist playlistSnapshot;
+    @Nullable private HlsMediaPlaylist playlistSnapshot;
     private long lastSnapshotLoadMs;
     private long lastSnapshotChangeMs;
     private long earliestNextLoadTimeMs;
@@ -466,6 +468,7 @@ public final class DefaultHlsPlaylistTracker
               mediaPlaylistParser);
     }
 
+    @Nullable
     public HlsMediaPlaylist getPlaylistSnapshot() {
       return playlistSnapshot;
     }
@@ -488,8 +491,8 @@ public final class DefaultHlsPlaylistTracker
 
     public void loadPlaylist() {
       blacklistUntilMs = 0;
-      if (loadPending || mediaPlaylistLoader.isLoading()) {
-        // Load already pending or in progress. Do nothing.
+      if (loadPending || mediaPlaylistLoader.isLoading() || mediaPlaylistLoader.hasFatalError()) {
+        // Load already pending, in progress, or a fatal error has been encountered. Do nothing.
         return;
       }
       long currentTimeMs = SystemClock.elapsedRealtime();

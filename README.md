@@ -109,6 +109,7 @@ branch:
 
 ```sh
 git clone https://github.com/google/ExoPlayer.git
+cd ExoPlayer
 git checkout release-v2
 ```
 

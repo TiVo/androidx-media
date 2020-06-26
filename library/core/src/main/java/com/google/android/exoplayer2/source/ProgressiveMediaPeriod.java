@@ -24,6 +24,7 @@ import com.google.android.exoplayer2.FormatHolder;
 import com.google.android.exoplayer2.ParserException;
 import com.google.android.exoplayer2.SeekParameters;
 import com.google.android.exoplayer2.decoder.DecoderInputBuffer;
+import com.google.android.exoplayer2.drm.DrmSessionManager;
 import com.google.android.exoplayer2.extractor.DefaultExtractorInput;
 import com.google.android.exoplayer2.extractor.Extractor;
 import com.google.android.exoplayer2.extractor.ExtractorInput;
@@ -33,6 +34,7 @@ import com.google.android.exoplayer2.extractor.SeekMap;
 import com.google.android.exoplayer2.extractor.SeekMap.SeekPoints;
 import com.google.android.exoplayer2.extractor.SeekMap.Unseekable;
 import com.google.android.exoplayer2.extractor.TrackOutput;
+import com.google.android.exoplayer2.extractor.mp3.Mp3Extractor;
 import com.google.android.exoplayer2.metadata.Metadata;
 import com.google.android.exoplayer2.metadata.icy.IcyHeaders;
 import com.google.android.exoplayer2.source.MediaSourceEventListener.EventDispatcher;
@@ -54,6 +56,9 @@ import com.google.android.exoplayer2.util.Util;
 import java.io.EOFException;
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 import org.checkerframework.checker.nullness.compatqual.NullableType;
 
 /** A {@link MediaPeriod} that extracts data using an {@link Extractor}. */
@@ -70,13 +75,14 @@ import org.checkerframework.checker.nullness.compatqual.NullableType;
   interface Listener {
 
     /**
-     * Called when the duration or ability to seek within the period changes.
+     * Called when the duration, the ability to seek within the period, or the categorization as
+     * live stream changes.
      *
      * @param durationUs The duration of the period, or {@link C#TIME_UNSET}.
      * @param isSeekable Whether the period is seekable.
+     * @param isLive Whether the period is live.
      */
-    void onSourceInfoRefreshed(long durationUs, boolean isSeekable);
-
+    void onSourceInfoRefreshed(long durationUs, boolean isSeekable, boolean isLive);
   }
 
   /**
@@ -85,11 +91,14 @@ import org.checkerframework.checker.nullness.compatqual.NullableType;
    */
   private static final long DEFAULT_LAST_SAMPLE_DURATION_US = 10000;
 
+  private static final Map<String, String> ICY_METADATA_HEADERS = createIcyMetadataHeaders();
+
   private static final Format ICY_FORMAT =
       Format.createSampleFormat("icy", MimeTypes.APPLICATION_ICY, Format.OFFSET_SAMPLE_RELATIVE);
 
   private final Uri uri;
   private final DataSource dataSource;
+  private final DrmSessionManager<?> drmSessionManager;
   private final LoadErrorHandlingPolicy loadErrorHandlingPolicy;
   private final EventDispatcher eventDispatcher;
   private final Listener listener;
@@ -121,6 +130,7 @@ import org.checkerframework.checker.nullness.compatqual.NullableType;
   private int enabledTrackCount;
   private long durationUs;
   private long length;
+  private boolean isLive;
 
   private long lastSeekPositionUs;
   private long pendingResetPositionUs;
@@ -152,6 +162,7 @@ import org.checkerframework.checker.nullness.compatqual.NullableType;
       Uri uri,
       DataSource dataSource,
       Extractor[] extractors,
+      DrmSessionManager<?> drmSessionManager,
       LoadErrorHandlingPolicy loadErrorHandlingPolicy,
       EventDispatcher eventDispatcher,
       Listener listener,
@@ -160,6 +171,7 @@ import org.checkerframework.checker.nullness.compatqual.NullableType;
       int continueLoadingCheckIntervalBytes) {
     this.uri = uri;
     this.dataSource = dataSource;
+    this.drmSessionManager = drmSessionManager;
     this.loadErrorHandlingPolicy = loadErrorHandlingPolicy;
     this.eventDispatcher = eventDispatcher;
     this.listener = listener;
@@ -192,7 +204,7 @@ import org.checkerframework.checker.nullness.compatqual.NullableType;
       // Discard as much as we can synchronously. We only do this if we're prepared, since otherwise
       // sampleQueues may still be being modified by the loading thread.
       for (SampleQueue sampleQueue : sampleQueues) {
-        sampleQueue.discardToEnd();
+        sampleQueue.preRelease();
       }
     }
     loader.release(/* callback= */ this);
@@ -205,7 +217,7 @@ import org.checkerframework.checker.nullness.compatqual.NullableType;
   @Override
   public void onLoaderReleased() {
     for (SampleQueue sampleQueue : sampleQueues) {
-      sampleQueue.reset();
+      sampleQueue.release();
     }
     extractorHolder.release();
   }
@@ -269,13 +281,13 @@ import org.checkerframework.checker.nullness.compatqual.NullableType;
         // If there's still a chance of avoiding a seek, try and seek within the sample queue.
         if (!seekRequired) {
           SampleQueue sampleQueue = sampleQueues[track];
-          sampleQueue.rewind();
-          // A seek can be avoided if we're able to advance to the current playback position in the
+          // A seek can be avoided if we're able to seek to the current playback position in the
           // sample queue, or if we haven't read anything from the queue since the previous seek
           // (this case is common for sparse tracks such as metadata tracks). In all other cases a
           // seek is required.
-          seekRequired = sampleQueue.advanceTo(positionUs, true, true) == SampleQueue.ADVANCE_FAILED
-              && sampleQueue.getReadIndex() != 0;
+          seekRequired =
+              !sampleQueue.seekTo(positionUs, /* allowTimeBeyondBuffer= */ true)
+                  && sampleQueue.getReadIndex() != 0;
         }
       }
     }
@@ -325,7 +337,10 @@ import org.checkerframework.checker.nullness.compatqual.NullableType;
 
   @Override
   public boolean continueLoading(long playbackPositionUs) {
-    if (loadingFinished || pendingDeferredRetry || (prepared && enabledTrackCount == 0)) {
+    if (loadingFinished
+        || loader.hasFatalError()
+        || pendingDeferredRetry
+        || (prepared && enabledTrackCount == 0)) {
       return false;
     }
     boolean continuedLoading = loadCondition.open();
@@ -334,6 +349,11 @@ import org.checkerframework.checker.nullness.compatqual.NullableType;
       continuedLoading = true;
     }
     return continuedLoading;
+  }
+
+  @Override
+  public boolean isLoading() {
+    return loader.isLoading() && loadCondition.isOpen();
   }
 
   @Override
@@ -410,6 +430,7 @@ import org.checkerframework.checker.nullness.compatqual.NullableType;
     if (loader.isLoading()) {
       loader.cancelLoading();
     } else {
+      loader.clearFatalError();
       for (SampleQueue sampleQueue : sampleQueues) {
         sampleQueue.reset();
       }
@@ -432,24 +453,32 @@ import org.checkerframework.checker.nullness.compatqual.NullableType;
   // SampleStream methods.
 
   /* package */ boolean isReady(int track) {
-    return !suppressRead() && (loadingFinished || sampleQueues[track].hasNextSample());
+    return !suppressRead() && sampleQueues[track].isReady(loadingFinished);
+  }
+
+  /* package */ void maybeThrowError(int sampleQueueIndex) throws IOException {
+    sampleQueues[sampleQueueIndex].maybeThrowError();
+    maybeThrowError();
   }
 
   /* package */ void maybeThrowError() throws IOException {
     loader.maybeThrowError(loadErrorHandlingPolicy.getMinimumLoadableRetryCount(dataType));
   }
 
-  /* package */ int readData(int track, FormatHolder formatHolder, DecoderInputBuffer buffer,
+  /* package */ int readData(
+      int sampleQueueIndex,
+      FormatHolder formatHolder,
+      DecoderInputBuffer buffer,
       boolean formatRequired) {
     if (suppressRead()) {
       return C.RESULT_NOTHING_READ;
     }
-    maybeNotifyDownstreamFormat(track);
+    maybeNotifyDownstreamFormat(sampleQueueIndex);
     int result =
-        sampleQueues[track].read(
+        sampleQueues[sampleQueueIndex].read(
             formatHolder, buffer, formatRequired, loadingFinished, lastSeekPositionUs);
     if (result == C.RESULT_NOTHING_READ) {
-      maybeStartDeferredRetry(track);
+      maybeStartDeferredRetry(sampleQueueIndex);
     }
     return result;
   }
@@ -464,10 +493,7 @@ import org.checkerframework.checker.nullness.compatqual.NullableType;
     if (loadingFinished && positionUs > sampleQueue.getLargestQueuedTimestampUs()) {
       skipCount = sampleQueue.advanceToEnd();
     } else {
-      skipCount = sampleQueue.advanceTo(positionUs, true, true);
-      if (skipCount == SampleQueue.ADVANCE_FAILED) {
-        skipCount = 0;
-      }
+      skipCount = sampleQueue.advanceTo(positionUs);
     }
     if (skipCount == 0) {
       maybeStartDeferredRetry(track);
@@ -494,7 +520,7 @@ import org.checkerframework.checker.nullness.compatqual.NullableType;
     boolean[] trackIsAudioVideoFlags = getPreparedState().trackIsAudioVideoFlags;
     if (!pendingDeferredRetry
         || !trackIsAudioVideoFlags[track]
-        || sampleQueues[track].hasNextSample()) {
+        || sampleQueues[track].isReady(/* loadingFinished= */ false)) {
       return;
     }
     pendingResetPositionUs = 0;
@@ -522,7 +548,7 @@ import org.checkerframework.checker.nullness.compatqual.NullableType;
       long largestQueuedTimestampUs = getLargestQueuedTimestampUs();
       durationUs = largestQueuedTimestampUs == Long.MIN_VALUE ? 0
           : largestQueuedTimestampUs + DEFAULT_LAST_SAMPLE_DURATION_US;
-      listener.onSourceInfoRefreshed(durationUs, isSeekable);
+      listener.onSourceInfoRefreshed(durationUs, isSeekable, isLive);
     }
     eventDispatcher.loadCompleted(
         loadable.dataSpec,
@@ -653,7 +679,8 @@ import org.checkerframework.checker.nullness.compatqual.NullableType;
         return sampleQueues[i];
       }
     }
-    SampleQueue trackOutput = new SampleQueue(allocator);
+    SampleQueue trackOutput = new SampleQueue(
+        allocator, /* playbackLooper= */ handler.getLooper(), drmSessionManager);
     trackOutput.setUpstreamFormatChangeListener(this);
     @NullableType
     TrackId[] sampleQueueTrackIds = Arrays.copyOf(this.sampleQueueTrackIds, trackCount + 1);
@@ -703,16 +730,19 @@ import org.checkerframework.checker.nullness.compatqual.NullableType;
           trackFormat = trackFormat.copyWithBitrate(icyHeaders.bitrate);
         }
       }
+      if (trackFormat.drmInitData != null) {
+        trackFormat =
+            trackFormat.copyWithExoMediaCryptoType(
+                drmSessionManager.getExoMediaCryptoType(trackFormat.drmInitData));
+      }
       trackArray[i] = new TrackGroup(trackFormat);
     }
-    dataType =
-        length == C.LENGTH_UNSET && seekMap.getDurationUs() == C.TIME_UNSET
-            ? C.DATA_TYPE_MEDIA_PROGRESSIVE_LIVE
-            : C.DATA_TYPE_MEDIA;
+    isLive = length == C.LENGTH_UNSET && seekMap.getDurationUs() == C.TIME_UNSET;
+    dataType = isLive ? C.DATA_TYPE_MEDIA_PROGRESSIVE_LIVE : C.DATA_TYPE_MEDIA;
     preparedState =
         new PreparedState(seekMap, new TrackGroupArray(trackArray), trackIsAudioVideoFlags);
     prepared = true;
-    listener.onSourceInfoRefreshed(durationUs, seekMap.isSeekable());
+    listener.onSourceInfoRefreshed(durationUs, seekMap.isSeekable(), isLive);
     Assertions.checkNotNull(callback).onPrepared(this);
   }
 
@@ -813,9 +843,7 @@ import org.checkerframework.checker.nullness.compatqual.NullableType;
     int trackCount = sampleQueues.length;
     for (int i = 0; i < trackCount; i++) {
       SampleQueue sampleQueue = sampleQueues[i];
-      sampleQueue.rewind();
-      boolean seekInsideQueue = sampleQueue.advanceTo(positionUs, true, false)
-          != SampleQueue.ADVANCE_FAILED;
+      boolean seekInsideQueue = sampleQueue.seekTo(positionUs, /* allowTimeBeyondBuffer= */ false);
       // If we have AV tracks then an in-buffer seek is successful if the seek into every AV queue
       // is successful. We ignore whether seeks within non-AV queues are successful in this case, as
       // they may be sparse or poorly interleaved. If we only have non-AV tracks then a seek is
@@ -863,7 +891,7 @@ import org.checkerframework.checker.nullness.compatqual.NullableType;
 
     @Override
     public void maybeThrowError() throws IOException {
-      ProgressiveMediaPeriod.this.maybeThrowError();
+      ProgressiveMediaPeriod.this.maybeThrowError(track);
     }
 
     @Override
@@ -945,6 +973,12 @@ import org.checkerframework.checker.nullness.compatqual.NullableType;
           }
           input = new DefaultExtractorInput(extractorDataSource, position, length);
           Extractor extractor = extractorHolder.selectExtractor(input, extractorOutput, uri);
+
+          // MP3 live streams commonly have seekable metadata, despite being unseekable.
+          if (icyHeaders != null && extractor instanceof Mp3Extractor) {
+            ((Mp3Extractor) extractor).disableSeeking();
+          }
+
           if (pendingExtractorSeek) {
             extractor.seek(position, seekTimeUs);
             pendingExtractorSeek = false;
@@ -995,9 +1029,8 @@ import org.checkerframework.checker.nullness.compatqual.NullableType;
           position,
           C.LENGTH_UNSET,
           customCacheKey,
-          DataSpec.FLAG_ALLOW_ICY_METADATA
-              | DataSpec.FLAG_DONT_CACHE_IF_LENGTH_UNKNOWN
-              | DataSpec.FLAG_ALLOW_CACHE_FRAGMENTATION);
+          DataSpec.FLAG_DONT_CACHE_IF_LENGTH_UNKNOWN | DataSpec.FLAG_ALLOW_CACHE_FRAGMENTATION,
+          ICY_METADATA_HEADERS);
     }
 
     private void setLoadPosition(long position, long timeUs) {
@@ -1013,7 +1046,7 @@ import org.checkerframework.checker.nullness.compatqual.NullableType;
 
     private final Extractor[] extractors;
 
-    private @Nullable Extractor extractor;
+    @Nullable private Extractor extractor;
 
     /**
      * Creates a holder that will select an extractor and initialize it using the specified output.
@@ -1042,21 +1075,28 @@ import org.checkerframework.checker.nullness.compatqual.NullableType;
       if (extractor != null) {
         return extractor;
       }
-      for (Extractor extractor : extractors) {
-        try {
-          if (extractor.sniff(input)) {
-            this.extractor = extractor;
-            break;
+      if (extractors.length == 1) {
+        this.extractor = extractors[0];
+      } else {
+        for (Extractor extractor : extractors) {
+          try {
+            if (extractor.sniff(input)) {
+              this.extractor = extractor;
+              break;
+            }
+          } catch (EOFException e) {
+            // Do nothing.
+          } finally {
+            input.resetPeekPosition();
           }
-        } catch (EOFException e) {
-          // Do nothing.
-        } finally {
-          input.resetPeekPosition();
         }
-      }
-      if (extractor == null) {
-        throw new UnrecognizedInputFormatException("None of the available extractors ("
-            + Util.getCommaDelimitedSimpleClassNames(extractors) + ") could read the stream.", uri);
+        if (extractor == null) {
+          throw new UnrecognizedInputFormatException(
+              "None of the available extractors ("
+                  + Util.getCommaDelimitedSimpleClassNames(extractors)
+                  + ") could read the stream.",
+              uri);
+        }
       }
       extractor.init(output);
       return extractor;
@@ -1116,5 +1156,13 @@ import org.checkerframework.checker.nullness.compatqual.NullableType;
     public int hashCode() {
       return 31 * id + (isIcyTrack ? 1 : 0);
     }
+  }
+
+  private static Map<String, String> createIcyMetadataHeaders() {
+    Map<String, String> headers = new HashMap<>();
+    headers.put(
+        IcyHeaders.REQUEST_HEADER_ENABLE_METADATA_NAME,
+        IcyHeaders.REQUEST_HEADER_ENABLE_METADATA_VALUE);
+    return Collections.unmodifiableMap(headers);
   }
 }

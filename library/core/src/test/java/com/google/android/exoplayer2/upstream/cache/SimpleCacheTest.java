@@ -164,7 +164,7 @@ public class SimpleCacheTest {
         .isEqualTo(150);
 
     // Removing the last span shouldn't cause the length be change next time cache loaded
-    SimpleCacheSpan lastSpan = simpleCache2.startReadWrite(KEY_1, 145);
+    CacheSpan lastSpan = simpleCache2.startReadWrite(KEY_1, 145);
     simpleCache2.removeSpan(lastSpan);
     simpleCache2.release();
     simpleCache2 = getSimpleCache();
@@ -204,7 +204,7 @@ public class SimpleCacheTest {
     simpleCache.releaseHoleSpan(cacheSpan2);
     simpleCache.removeSpan(simpleCache.getCachedSpans(KEY_2).first());
 
-    // Don't release the cache. This means the index file wont have been written to disk after the
+    // Don't release the cache. This means the index file won't have been written to disk after the
     // data for KEY_2 was removed. Move the cache instead, so we can reload it without failing the
     // folder locking check.
     File cacheDir2 =
@@ -284,45 +284,100 @@ public class SimpleCacheTest {
   }
 
   @Test
-  public void testGetCachedLength() throws Exception {
+  public void getCachedLength_noCachedContent_returnsNegativeMaxHoleLength() {
     SimpleCache simpleCache = getSimpleCache();
-    CacheSpan cacheSpan = simpleCache.startReadWrite(KEY_1, 0);
 
-    // No cached bytes, returns -'length'
-    assertThat(simpleCache.getCachedLength(KEY_1, 0, 100)).isEqualTo(-100);
+    assertThat(simpleCache.getCachedLength(KEY_1, /* position= */ 0, /* length= */ 100))
+        .isEqualTo(-100);
+    assertThat(simpleCache.getCachedLength(KEY_1, /* position= */ 0, /* length= */ Long.MAX_VALUE))
+        .isEqualTo(-Long.MAX_VALUE);
+    assertThat(simpleCache.getCachedLength(KEY_1, /* position= */ 20, /* length= */ 100))
+        .isEqualTo(-100);
+    assertThat(simpleCache.getCachedLength(KEY_1, /* position= */ 20, /* length= */ Long.MAX_VALUE))
+        .isEqualTo(-Long.MAX_VALUE);
+  }
 
-    // Position value doesn't affect the return value
-    assertThat(simpleCache.getCachedLength(KEY_1, 20, 100)).isEqualTo(-100);
-
-    addCache(simpleCache, KEY_1, 0, 15);
-
-    // Returns the length of a single span
-    assertThat(simpleCache.getCachedLength(KEY_1, 0, 100)).isEqualTo(15);
-
-    // Value is capped by the 'length'
-    assertThat(simpleCache.getCachedLength(KEY_1, 0, 10)).isEqualTo(10);
-
-    addCache(simpleCache, KEY_1, 15, 35);
-
-    // Returns the length of two adjacent spans
-    assertThat(simpleCache.getCachedLength(KEY_1, 0, 100)).isEqualTo(50);
-
-    addCache(simpleCache, KEY_1, 60, 10);
-
-    // Not adjacent span doesn't affect return value
-    assertThat(simpleCache.getCachedLength(KEY_1, 0, 100)).isEqualTo(50);
-
-    // Returns length of hole up to the next cached span
-    assertThat(simpleCache.getCachedLength(KEY_1, 55, 100)).isEqualTo(-5);
-
+  @Test
+  public void getCachedLength_returnsNegativeHoleLength() throws Exception {
+    SimpleCache simpleCache = getSimpleCache();
+    CacheSpan cacheSpan = simpleCache.startReadWrite(KEY_1, /* position= */ 0);
+    addCache(simpleCache, KEY_1, /* position= */ 50, /* length= */ 50);
     simpleCache.releaseHoleSpan(cacheSpan);
+
+    assertThat(simpleCache.getCachedLength(KEY_1, /* position= */ 0, /* length= */ 100))
+        .isEqualTo(-50);
+    assertThat(simpleCache.getCachedLength(KEY_1, /* position= */ 0, /* length= */ Long.MAX_VALUE))
+        .isEqualTo(-50);
+    assertThat(simpleCache.getCachedLength(KEY_1, /* position= */ 20, /* length= */ 100))
+        .isEqualTo(-30);
+    assertThat(simpleCache.getCachedLength(KEY_1, /* position= */ 20, /* length= */ Long.MAX_VALUE))
+        .isEqualTo(-30);
+  }
+
+  @Test
+  public void getCachedLength_returnsCachedLength() throws Exception {
+    SimpleCache simpleCache = getSimpleCache();
+    CacheSpan cacheSpan = simpleCache.startReadWrite(KEY_1, /* position= */ 0);
+    addCache(simpleCache, KEY_1, /* position= */ 0, /* length= */ 50);
+    simpleCache.releaseHoleSpan(cacheSpan);
+
+    assertThat(simpleCache.getCachedLength(KEY_1, /* position= */ 0, /* length= */ 100))
+        .isEqualTo(50);
+    assertThat(simpleCache.getCachedLength(KEY_1, /* position= */ 0, /* length= */ Long.MAX_VALUE))
+        .isEqualTo(50);
+    assertThat(simpleCache.getCachedLength(KEY_1, /* position= */ 20, /* length= */ 100))
+        .isEqualTo(30);
+    assertThat(simpleCache.getCachedLength(KEY_1, /* position= */ 20, /* length= */ Long.MAX_VALUE))
+        .isEqualTo(30);
+    assertThat(simpleCache.getCachedLength(KEY_1, /* position= */ 20, /* length= */ 15))
+        .isEqualTo(15);
+  }
+
+  @Test
+  public void getCachedLength_withMultipleAdjacentSpans_returnsCachedLength() throws Exception {
+    SimpleCache simpleCache = getSimpleCache();
+    CacheSpan cacheSpan = simpleCache.startReadWrite(KEY_1, /* position= */ 0);
+    addCache(simpleCache, KEY_1, /* position= */ 0, /* length= */ 25);
+    addCache(simpleCache, KEY_1, /* position= */ 25, /* length= */ 25);
+    simpleCache.releaseHoleSpan(cacheSpan);
+
+    assertThat(simpleCache.getCachedLength(KEY_1, /* position= */ 0, /* length= */ 100))
+        .isEqualTo(50);
+    assertThat(simpleCache.getCachedLength(KEY_1, /* position= */ 0, /* length= */ Long.MAX_VALUE))
+        .isEqualTo(50);
+    assertThat(simpleCache.getCachedLength(KEY_1, /* position= */ 20, /* length= */ 100))
+        .isEqualTo(30);
+    assertThat(simpleCache.getCachedLength(KEY_1, /* position= */ 20, /* length= */ Long.MAX_VALUE))
+        .isEqualTo(30);
+    assertThat(simpleCache.getCachedLength(KEY_1, /* position= */ 20, /* length= */ 15))
+        .isEqualTo(15);
+  }
+
+  @Test
+  public void getCachedLength_withMultipleNonAdjacentSpans_returnsCachedLength() throws Exception {
+    SimpleCache simpleCache = getSimpleCache();
+    CacheSpan cacheSpan = simpleCache.startReadWrite(KEY_1, /* position= */ 0);
+    addCache(simpleCache, KEY_1, /* position= */ 0, /* length= */ 10);
+    addCache(simpleCache, KEY_1, /* position= */ 15, /* length= */ 35);
+    simpleCache.releaseHoleSpan(cacheSpan);
+
+    assertThat(simpleCache.getCachedLength(KEY_1, /* position= */ 0, /* length= */ 100))
+        .isEqualTo(10);
+    assertThat(simpleCache.getCachedLength(KEY_1, /* position= */ 0, /* length= */ Long.MAX_VALUE))
+        .isEqualTo(10);
+    assertThat(simpleCache.getCachedLength(KEY_1, /* position= */ 20, /* length= */ 100))
+        .isEqualTo(30);
+    assertThat(simpleCache.getCachedLength(KEY_1, /* position= */ 20, /* length= */ Long.MAX_VALUE))
+        .isEqualTo(30);
+    assertThat(simpleCache.getCachedLength(KEY_1, /* position= */ 20, /* length= */ 15))
+        .isEqualTo(15);
   }
 
   /* Tests https://github.com/google/ExoPlayer/issues/3260 case. */
   @Test
   public void testExceptionDuringEvictionByLeastRecentlyUsedCacheEvictorNotHang() throws Exception {
     CachedContentIndex contentIndex =
-        Mockito.spy(new CachedContentIndex(TestUtil.getTestDatabaseProvider()));
+        Mockito.spy(new CachedContentIndex(TestUtil.getInMemoryDatabaseProvider()));
     SimpleCache simpleCache =
         new SimpleCache(
             cacheDir, new LeastRecentlyUsedCacheEvictor(20), contentIndex, /* fileIndex= */ null);
@@ -401,11 +456,8 @@ public class SimpleCacheTest {
   private static void addCache(SimpleCache simpleCache, String key, int position, int length)
       throws IOException {
     File file = simpleCache.startFile(key, position, length);
-    FileOutputStream fos = new FileOutputStream(file);
-    try {
+    try (FileOutputStream fos = new FileOutputStream(file)) {
       fos.write(generateData(key, position, length));
-    } finally {
-      fos.close();
     }
     simpleCache.commitFile(file, length);
   }
@@ -413,11 +465,8 @@ public class SimpleCacheTest {
   private static void assertCachedDataReadCorrect(CacheSpan cacheSpan) throws IOException {
     assertThat(cacheSpan.isCached).isTrue();
     byte[] expected = generateData(cacheSpan.key, (int) cacheSpan.position, (int) cacheSpan.length);
-    FileInputStream inputStream = new FileInputStream(cacheSpan.file);
-    try {
+    try (FileInputStream inputStream = new FileInputStream(cacheSpan.file)) {
       assertThat(toByteArray(inputStream)).isEqualTo(expected);
-    } finally {
-      inputStream.close();
     }
   }
 

@@ -40,7 +40,8 @@ public interface MediaCodecSelector {
         }
 
         @Override
-        public @Nullable MediaCodecInfo getPassthroughDecoderInfo() throws DecoderQueryException {
+        @Nullable
+        public MediaCodecInfo getPassthroughDecoderInfo() throws DecoderQueryException {
           return MediaCodecUtil.getPassthroughDecoderInfo();
         }
       };
@@ -51,7 +52,8 @@ public interface MediaCodecSelector {
    * @param mimeType The MIME type for which a decoder is required.
    * @param requiresSecureDecoder Whether a secure decoder is required.
    * @param requiresTunnelingDecoder Whether a tunneling decoder is required.
-   * @return A list of {@link MediaCodecInfo}s corresponding to decoders. May be empty.
+   * @return An unmodifiable list of {@link MediaCodecInfo}s corresponding to decoders. May be
+   *     empty.
    * @throws DecoderQueryException Thrown if there was an error querying decoders.
    */
   List<MediaCodecInfo> getDecoderInfos(
