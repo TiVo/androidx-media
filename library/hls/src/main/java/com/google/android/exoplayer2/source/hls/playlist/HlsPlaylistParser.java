@@ -16,9 +16,9 @@
 package com.google.android.exoplayer2.source.hls.playlist;
 
 import android.net.Uri;
-import androidx.annotation.Nullable;
 import android.text.TextUtils;
 import android.util.Base64;
+import androidx.annotation.Nullable;
 import com.google.android.exoplayer2.C;
 import com.google.android.exoplayer2.Format;
 import com.google.android.exoplayer2.ParserException;
@@ -48,10 +48,12 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.NoSuchElementException;
 import java.util.Queue;
 import java.util.TreeMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import org.checkerframework.checker.nullness.qual.EnsuresNonNullIf;
 import org.checkerframework.checker.nullness.qual.PolyNull;
 
 /**
@@ -532,12 +534,14 @@ public final class HlsPlaylistParser implements ParsingLoadable.Parser<HlsPlayli
 
   private static int parseStreamBitrate(HashMap<String, String> variableDefinitions, String line)
       throws ParserException {
-    int bitrate = parseIntAttr(line, REGEX_BANDWIDTH);
+    int bitrate;
     String averageBandwidthString =
         parseOptionalStringAttr(line, REGEX_AVERAGE_BANDWIDTH, variableDefinitions);
     if (averageBandwidthString != null) {
       // If available, the average bandwidth attribute is used as the variant's bitrate.
       bitrate = Integer.parseInt(averageBandwidthString);
+    } else {
+      bitrate = parseIntAttr(line, REGEX_BANDWIDTH);
     }
     return bitrate;
   }
