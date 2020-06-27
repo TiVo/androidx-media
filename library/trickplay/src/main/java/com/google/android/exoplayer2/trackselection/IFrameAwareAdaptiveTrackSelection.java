@@ -57,6 +57,7 @@ public class IFrameAwareAdaptiveTrackSelection extends AdaptiveTrackSelection {
               definition.group,
               definition.tracks,
               bandwidthMeter,
+              0,
               DEFAULT_MIN_DURATION_FOR_QUALITY_INCREASE_MS,
               12_000,
               DEFAULT_MIN_DURATION_TO_RETAIN_AFTER_DISCARD_MS,
@@ -147,18 +148,12 @@ public class IFrameAwareAdaptiveTrackSelection extends AdaptiveTrackSelection {
     }
   }
 
-  // TODO this will probably be non-empty class when we adapt multiple iFrame tracks.
   public IFrameAwareAdaptiveTrackSelection(TrackGroup group, int[] tracks,
-      BandwidthMeter bandwidthMeter) {
-    super(group, tracks, bandwidthMeter);
-  }
-
-  public IFrameAwareAdaptiveTrackSelection(TrackGroup group, int[] tracks,
-      BandwidthMeter bandwidthMeter, long minDurationForQualityIncreaseMs,
-      long maxDurationForQualityDecreaseMs, long minDurationToRetainAfterDiscardMs,
-      float bandwidthFraction, float bufferedFractionToLiveEdgeForQualityIncrease,
-      long minTimeBetweenBufferReevaluationMs, Clock clock) {
-    super(group, tracks, bandwidthMeter, minDurationForQualityIncreaseMs,
+      BandwidthMeter bandwidthMeter, long reservedBandwidth, long minDurationForQualityIncreaseMs,
+      long maxDurationForQualityDecreaseMs, long minDurationToRetainAfterDiscardMs, float bandwidthFraction,
+      float bufferedFractionToLiveEdgeForQualityIncrease, long minTimeBetweenBufferReevaluationMs,
+      Clock clock) {
+    super(group, tracks, bandwidthMeter, reservedBandwidth, minDurationForQualityIncreaseMs,
         maxDurationForQualityDecreaseMs, minDurationToRetainAfterDiscardMs, bandwidthFraction,
         bufferedFractionToLiveEdgeForQualityIncrease, minTimeBetweenBufferReevaluationMs, clock);
   }

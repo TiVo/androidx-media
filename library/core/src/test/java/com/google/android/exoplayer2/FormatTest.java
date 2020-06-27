@@ -58,6 +58,7 @@ public final class FormatTest {
             /* containerMimeType= */ MimeTypes.APPLICATION_M3U8,
             MimeTypes.AUDIO_AAC,
             null,
+            /* metadata= */ null,
             /* bitrate= */ Format.NO_VALUE,
             1,
             /* sampleRate= */ Format.NO_VALUE,
