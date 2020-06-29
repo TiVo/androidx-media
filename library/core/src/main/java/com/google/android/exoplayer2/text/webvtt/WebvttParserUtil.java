@@ -29,6 +29,7 @@ public final class WebvttParserUtil {
 
   private static final Pattern COMMENT = Pattern.compile("^NOTE([ \t].*)?$");
   private static final String WEBVTT_HEADER = "WEBVTT";
+  private static final String TIMESTAMP_MAP_HEADER = "X-TIMESTAMP-MAP";
 
   private WebvttParserUtil() {}
 
@@ -52,8 +53,16 @@ public final class WebvttParserUtil {
    * @param input The input from which the line should be read.
    */
   public static boolean isWebvttHeaderLine(ParsableByteArray input) {
-    @Nullable String line = input.readLine();
-    return line != null && line.startsWith(WEBVTT_HEADER);
+    @Nullable  String line = input.readLine();
+    boolean isValidHeader = line != null && line.startsWith(WEBVTT_HEADER);
+    if (isValidHeader) {
+      // According to w3c spec, TIMESTAMP-MAP header can be on same line as WEBVTT header.
+      int headerStartAt = line.indexOf(TIMESTAMP_MAP_HEADER);
+      if (headerStartAt != -1) {
+        input.setPosition(headerStartAt);   // set so next readLine() reads TIMESTAMP header
+      }
+    }
+    return isValidHeader;
   }
 
   /**
