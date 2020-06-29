@@ -1,5 +1,25 @@
 # Release notes #
 
+### 2.11.6-0.1 - Alpha (not released)
+
+* Merge our HLS changes from our `release` for I-Frame only support (merge with `dev-v2` version is pending)
+* Use AVERAGE_BANDWIDTH where available, preferring it over BANDWIDTH (note this is a WIP on Google side, [pull 6706](https://github.com/google/ExoPlayer/pull/6706).
+* Cherry-picked Google `dev-v2` changes:
+	* [770df8636](https://github.com/google/exoplayer/commit/770df8636) Jun 8 2020 &mdash; CEA-608: Don't assume roll-up captions are at the bottom of the screen
+	* [a39233d2f](https://github.com/google/exoplayer/commit/a39233d2f) May 14 2020 &mdash; Limit CEA-608 captions to 32 chars per line
+	* [a03f8a1c9](https://github.com/google/exoplayer/commit/a03f8a1c9) Apr 27 2020 &mdash; Merge pull request [#7199](https://github.com/google/ExoPlayer/pull/7199) from TiVo:p-fix-stuckcaption
+
+##### Google Post 2.11.6 Release Notes For The Cherry Picks
+
+*   Text:
+    *   Implement timing-out of stuck CEA-608 captions (as permitted by
+        ANSI/CTA-608-E R-2014 Annex C.9) and set the default timeout to 16
+        seconds ([#7181](https://github.com/google/ExoPlayer/issues/7181)).
+    *   Ignore excess characters in CEA-608 lines (max length is 32)
+        ([#7341](https://github.com/google/ExoPlayer/issues/7341)).
+    *   Fix positioning for CEA-608 roll-up captions in the top half of screen
+        ([#7475](https://github.com/google/ExoPlayer/issues/7475)).
+
 ### 2.11.6 (2020-06-24) ###
 
 *   UI: Prevent `PlayerView` from temporarily hiding the video surface when
@@ -512,7 +532,7 @@
 * IMA extension: Fix crash in `ImaAdsLoader.onTimelineChanged`
   ([#5831](https://github.com/google/ExoPlayer/issues/5831)).
 
-### 2.10.4-1.3 ###
+### 2.10.4-1.3 (2020-06-04 Tivo) ###
 
 * Fix so header parse does not break test cases
 * Apparently comments and other garbage are legal after the WEBVTT, also an empty vtt file must report as the file is invalid.
@@ -525,7 +545,7 @@
   * [1d64544f9](https://github.com/tivocorp/exoplayerprvt/commit/1d64544f9) Allow alternate termination for the "WEBVTT" header.
 * [f876fec8e](https://github.com/tivocorp/exoplayerprvt/commit/f876fec8e) Improved tunneled audio FIFO underrun detection.
 
-### 2.10.4-1.1 ###
+### 2.10.4-1.1 (2020-05-27 Tivo) ###
 
 * [0ab706657](https://github.com/tivocorp/exoplayerprvt/commit/0ab706657) &mdash; Fix build to run clean (lint issues).  Note this does not change library code
 * [df1b6116b](https://github.com/tivocorp/exoplayerprvt/commit/df1b6116b) &mdash;  Minor update to TiVo demo UI Layout to allow editing URL text (Does not affect Hydra or libraries, only demo)
