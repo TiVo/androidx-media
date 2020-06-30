@@ -16,6 +16,7 @@
 package com.google.android.exoplayer2.text.cea;
 
 import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 import com.google.android.exoplayer2.C;
 import com.google.android.exoplayer2.Format;
 import com.google.android.exoplayer2.text.Subtitle;
@@ -92,8 +93,6 @@ import java.util.PriorityQueue;
     if (availableOutputBuffers.isEmpty()) {
       return null;
     }
-    // check if 608 decoder needs to clean up the stale caption
-    clearStuckCaptions();
     // iterate through all available input buffers whose timestamps are less than or equal
     // to the current playback position; processing input buffers for future content should
     // be deferred until they would be applicable
@@ -175,6 +174,15 @@ import java.util.PriorityQueue;
    */
   protected abstract void decode(SubtitleInputBuffer inputBuffer);
 
+  @Nullable
+  protected final SubtitleOutputBuffer getAvailableOutputBuffer() {
+    return availableOutputBuffers.pollFirst();
+  }
+
+  protected final long getPositionUs() {
+    return playbackPositionUs;
+  }
+
   private static final class CeaInputBuffer extends SubtitleInputBuffer
       implements Comparable<CeaInputBuffer> {
 
@@ -203,9 +211,4 @@ import java.util.PriorityQueue;
       releaseOutputBuffer(this);
     }
   }
-
-  /**
-   * Implements CEA-608 Annex C.9 automatic Caption Erase Logic
-   */
-  protected abstract void clearStuckCaptions();
 }
