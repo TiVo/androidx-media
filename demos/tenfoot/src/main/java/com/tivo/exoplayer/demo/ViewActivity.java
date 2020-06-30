@@ -734,7 +734,7 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
     boolean enableTunneling = getIntent().getBooleanExtra(ENABLE_TUNNELED_PLAYBACK, false);
     exoPlayerFactory.setTunnelingMode(enableTunneling);
 
-    if (getIntent().getStringExtra(DRM_SCHEME).equals("vcas")) {
+    if ("vcas".equals(getIntent().getStringExtra(DRM_SCHEME))) {
       String vcasAddr = getIntent().getStringExtra(DRM_VCAS_ADDR);
       String vcasCaId = getIntent().getStringExtra(DRM_VCAS_CA_ID);
       String storeDir = "/sdcard/demoVR";
