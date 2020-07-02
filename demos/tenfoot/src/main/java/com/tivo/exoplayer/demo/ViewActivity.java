@@ -46,6 +46,8 @@ import com.tivo.exoplayer.library.GeekStatsOverlay;
 import com.tivo.exoplayer.library.SimpleExoPlayerFactory;
 import com.tivo.exoplayer.library.VcasDrmInfo;
 import com.tivo.exoplayer.library.tracks.TrackInfo;
+import java.io.File;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -620,15 +622,10 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
   protected void playUri(Uri uri) {
     // TODO chunkless should come from a properties file (so we can switch it when it's supported)
     boolean enableChunkless = getIntent().getBooleanExtra(CHUNKLESS_PREPARE, false);
-          exoPlayerFactory.playUrl(nextChannel, drmInfo, enableChunkless);
-        }
-      }
-    }
-
     stopPlaybackIfPlaying();
     currentUri = uri;
     Log.d(TAG, "playUri() playUri: '" + uri + "' - chunkless: " + enableChunkless);
-    exoPlayerFactory.playUrl(uri, enableChunkless);
+    exoPlayerFactory.playUrl(uri, drmInfo, enableChunkless);
   }
 
   private void toggleTrickPlayBar() {
@@ -738,8 +735,18 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
       String vcasAddr = getIntent().getStringExtra(DRM_VCAS_ADDR);
       String vcasCaId = getIntent().getStringExtra(DRM_VCAS_CA_ID);
       String storeDir = "/sdcard/demoVR";
+      File vcasStoreDir = getApplicationContext().getExternalFilesDir("VCAS");
+      if (! vcasStoreDir.exists()) {
+        vcasStoreDir.mkdirs();
+      }
+      try {
+        storeDir = vcasStoreDir.getCanonicalPath();
+      } catch (IOException e) {
+        Log.e(TAG, "Failed to open VCAS storage directory.", e);
+      }
+
       Log.d(TAG, String.format("Requested Verimatrix DRM with addr:%s CAID:%s storage:%s", vcasAddr, vcasCaId, storeDir));
-      drmInfo = new VcasDrmInfo(vcasAddr,vcasCaId, storeDir, true);
+      drmInfo = new VcasDrmInfo(vcasAddr, vcasCaId, storeDir, true);
     } else {
       drmInfo = new DrmInfo(DrmInfo.DrmType.CLEAR);
     }
