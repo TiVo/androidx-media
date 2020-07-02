@@ -26,6 +26,9 @@ allprojects {
     repositories {
         google()
         jcenter()
+        maven {
+            url 'http://repo-vip.tivo.com:8081/artifactory/libs-release'
+        }
     }
     project.ext {
         exoplayerPublishEnabled = false
@@ -38,6 +41,11 @@ allprojects {
         buildDir = "${externalBuildDir}/${project.name}"
     }
     group = 'com.google.android.exoplayer'
+
+    configurations.all {
+        // Don't cache changing modules at all.
+        resolutionStrategy.cacheChangingModulesFor 0, 'seconds'
+    }
 }
 
 apply from: 'javadoc_combined.gradle'
