@@ -1,6 +1,31 @@
 # Release notes #
 
-### 2.11.6-0.1 - Alpha (not released)
+### 2.11.6-0.2 - Alpha (not released)
+
+* **VCAS Support** &mdash; enables VCAS use from the library-tivo-ui and in demo app. 
+	* [34d86a6ba](https://github.com/tivocorp/exoplayerprvt/commit/34d86a6ba) 2020-07-01 2020-07-01 Store VCAS provision info in app private storage.
+	* [fc776f69b](https://github.com/tivocorp/exoplayerprvt/commit/fc776f69b) 2020-07-01 2020-06-30 Support Verimatrix on 64bit devices
+	* [bff90e61e](https://github.com/tivocorp/exoplayerprvt/commit/bff90e61e) 2020-07-01 2020-06-12 Switched to using published Verimatrix library from corporate artifactory server.
+	* [d72d07c30](https://github.com/tivocorp/exoplayerprvt/commit/d72d07c30) 2020-07-01 2020-05-01 Added SimpleFactory API to select Verimatrix DRM for playback.
+
+* **Update Error Handling** &mdash; update error handling in library-tivo-ui, split into multiple
+  `PlaybackExceptionRecovery` handlers.  Lift interface (`PlayerErrorRecoverable`) to allow use
+	   outside of the `SimpleExoPlayerFactory`.  Main commit is [Recover from audiotrack init failure (f44fde16)](https://github.com/tivocorp/exoplayerprvt/commit/ef44fde16).  Also includes: 
+	* [a4849bf0c](https://github.com/tivocorp/exoplayerprvt/commit/a4849bf0c) 2020-07-01 2020-06-10 Add PlayerErrorHandlerListener to demo
+	* [11cf5f839](https://github.com/tivocorp/exoplayerprvt/commit/11cf5f839) 2020-07-01 2020-06-10 Add PlayerErrorHandlerListener
+
+* **CaptionManager integration** &mdash; Add `AccessibilityHelper` to library-tivo-ui, with example 
+  in the tenfoot demo app ([c129e953b](https://github.com/tivocorp/exoplayerprvt/commit/c129e953b)).
+  This allows clients to honor locale settings from Android (if that is their preferred UX).  Hydra
+  has *borrowed* portions of this code. 
+  
+* Other minor demo app updates:
+	* [5e1107683](https://github.com/tivocorp/exoplayerprvt/commit/5e1107683) 2020-07-01 2020-05-19 Add intent to stop playback
+	* [7044edaa1](https://github.com/tivocorp/exoplayerprvt/commit/7044edaa1) 2020-07-01 2020-05-18 Add PlaybackStats to the demo player, update EventLogger and GeekStats
+
+* Undo "Regression" in i-Frame support from Google release branch changes
+	* [d62e04471](https://github.com/tivocorp/exoplayerprvt/commit/d62e04471) 2020-07-01 2020-05-04 Workaround to enable iFrame tracks
+
 
 * Merge our HLS changes from our `release` for I-Frame only support (merge with `dev-v2` version is pending)
 * Use AVERAGE_BANDWIDTH where available, preferring it over BANDWIDTH (note this is a WIP on Google side, [pull 6706](https://github.com/google/ExoPlayer/pull/6706).
