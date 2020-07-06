@@ -2,18 +2,14 @@
 package com.tivo.exoplayer.demo;
 
 import android.annotation.SuppressLint;
-import android.app.Activity;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
-import android.os.Parcel;
-import android.os.Parcelable;
-import android.text.Editable;
-import android.text.TextWatcher;
 import android.util.ArraySet;
 import android.view.View;
+import android.widget.Adapter;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
@@ -22,12 +18,13 @@ import android.widget.Spinner;
 import android.widget.Switch;
 import androidx.annotation.NonNull;
 import androidx.annotation.RequiresApi;
+import androidx.fragment.app.FragmentActivity;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
 
-public class MainActivity extends Activity {
+public class MainActivity extends FragmentActivity {
 
   private Spinner urlSpinner;
   private Spinner encryptionSpinner;
@@ -94,19 +91,48 @@ public class MainActivity extends Activity {
     playButton.setOnClickListener(new View.OnClickListener() {
       @Override
       public void onClick(View view) {
-        Intent startVideoIntent;
-        startVideoIntent = new Intent(MainActivity.this, ViewActivity.class);
-        startVideoIntent.setAction(ViewActivity.ACTION_VIEW);
+        Intent startVideoIntent = createPlayIntent(ViewActivity.ACTION_VIEW);
         String uriString = editUrl.getText().toString();
         uriString = uriString.trim();
         Uri videoUri = Uri.parse(uriString);
         addUrlToList(uriString);
         startVideoIntent.setData(videoUri);
-        startVideoIntent.putExtra(ViewActivity.CHUNKLESS_PREPARE, chunklessSwitch.isChecked());
-        startVideoIntent.putExtra(ViewActivity.ENABLE_TUNNELED_PLAYBACK, tunnelingSwitch.isChecked());
-        startActivity(startVideoIntent);
+        issuePlayIntent(startVideoIntent);
       }
     });
+
+    Button clearUriButton = findViewById(R.id.clear_url);
+    clearUriButton.setOnClickListener(v -> {
+      editUrl.setText("");
+    });
+
+    Button playAllButton = findViewById(R.id.play_all);
+    playAllButton.setOnClickListener(v -> {
+      Intent playAll = createPlayIntent(ViewActivity.ACTION_VIEW_LIST);
+      Adapter spinnerAdapter = urlSpinner.getAdapter();
+      String urls[] = new String[spinnerAdapter.getCount()];
+      for (int i = 0; i < spinnerAdapter.getCount(); i++) {
+        urls[i] = spinnerAdapter.getItem(i).toString();
+      }
+      if (urls.length > 0) {
+        playAll.putExtra(ViewActivity.URI_LIST_EXTRA, urls);
+        issuePlayIntent(playAll);
+      }
+
+    });
+  }
+
+  protected void issuePlayIntent(Intent startVideoIntent) {
+    startVideoIntent.putExtra(ViewActivity.CHUNKLESS_PREPARE, chunklessSwitch.isChecked());
+    startVideoIntent.putExtra(ViewActivity.ENABLE_TUNNELED_PLAYBACK, tunnelingSwitch.isChecked());
+    startActivity(startVideoIntent);
+  }
+
+  protected Intent createPlayIntent(String action) {
+    Intent startVideoIntent;
+    startVideoIntent = new Intent(this, ViewActivity.class);
+    startVideoIntent.setAction(action);
+    return startVideoIntent;
   }
 
   @Override

@@ -6,18 +6,26 @@
               android:layout_height="match_parent"
               android:padding="20dp">
   <LinearLayout
-    android:layout_width="match_parent"
+    android:layout_width="wrap_content"
     android:layout_height="wrap_content"
-    android:orientation="horizontal"
-    android:layout_marginBottom="10dp">
+    android:layout_marginBottom="10dp"
+    android:orientation="horizontal">
     <TextView
       android:layout_width="wrap_content"
       android:layout_height="wrap_content"
       android:text="URL:"/>
     <Spinner
       android:id="@+id/url_spinner"
-      android:layout_width="650dp"
+      android:layout_width="757dp"
       android:layout_height="wrap_content"/>
+    <Button
+      android:id="@+id/play_all"
+      android:layout_marginLeft="10dp"
+      android:layout_width="wrap_content"
+      android:layout_height="wrap_content"
+      android:layout_weight="1"
+      android:drawableLeft="@drawable/exo_icon_play"
+      android:text="All"/>
   </LinearLayout>
   <LinearLayout
     android:layout_width="match_parent"
@@ -25,17 +33,23 @@
     android:layout_marginBottom="10dp">
     <Button
       android:id="@+id/play_button"
-      android:layout_width="84dp"
+      android:layout_width="98dp"
       android:layout_height="match_parent"
-      android:text="Play"/>
+      android:drawableLeft="@drawable/exo_controls_play" android:text="Play"/>
     <TextView
       android:layout_width="wrap_content"
       android:layout_height="wrap_content"
       android:text="URL:"/>
     <EditText
       android:id="@+id/url_string"
-      android:layout_width="match_parent"
+      android:layout_width="700dp"
       android:layout_height="wrap_content"/>
+    <Button
+      android:id="@+id/clear_url"
+      android:layout_width="90dp"
+      android:layout_height="match_parent"
+      android:drawableLeft="@android:drawable/ic_menu_delete"
+      android:text="Clr"/>
   </LinearLayout>
   <LinearLayout
     android:id="@+id/encryption_setting"
