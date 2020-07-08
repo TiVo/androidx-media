@@ -342,7 +342,7 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
     long playbackStopTime = findLastStoppedOrEnded(stats);
 
     // Balance of time is in last format (note could be playing, buffering or paused)
-    if (playbackStopTime != C.TIME_UNSET) {
+    if (playbackStopTime != C.TIME_UNSET && lastFormatEvent != null) {
       Long time = timeInFormat.get(lastFormatEvent.format);
       time += playbackStopTime - lastFormatChangeTime;
       timeInFormat.put(lastFormatEvent.format, time);
