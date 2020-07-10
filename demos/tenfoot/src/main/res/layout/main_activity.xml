@@ -10,13 +10,20 @@
     android:layout_height="wrap_content"
     android:layout_marginBottom="10dp"
     android:orientation="horizontal">
+    <Button
+      android:id="@+id/load_urls"
+      android:layout_marginRight="10dp"
+      android:layout_width="wrap_content"
+      android:layout_height="wrap_content"
+      android:layout_weight="1"
+      android:text="Load"/>
     <TextView
       android:layout_width="wrap_content"
       android:layout_height="wrap_content"
-      android:text="URL:"/>
+      android:text="URLs:"/>
     <Spinner
       android:id="@+id/url_spinner"
-      android:layout_width="757dp"
+      android:layout_width="700dp"
       android:layout_height="wrap_content"/>
     <Button
       android:id="@+id/play_all"
@@ -36,13 +43,10 @@
       android:layout_width="98dp"
       android:layout_height="match_parent"
       android:drawableLeft="@drawable/exo_controls_play" android:text="Play"/>
-    <TextView
-      android:layout_width="wrap_content"
-      android:layout_height="wrap_content"
-      android:text="URL:"/>
     <EditText
       android:id="@+id/url_string"
-      android:layout_width="700dp"
+      android:layout_weight="1"
+      android:layout_width="wrap_content"
       android:layout_height="wrap_content"/>
     <Button
       android:id="@+id/clear_url"
