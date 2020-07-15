@@ -9,6 +9,7 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.os.Build;
 import android.util.Log;
 import android.view.Display;
 import android.view.WindowManager;
@@ -49,12 +50,16 @@ public class HdmiPlayerErrorHandler implements DefaultExoPlayerErrorHandler.Play
             Log.d(TAG, "HDMI Hotplug - plugged in - hdmiRemovedWhileTunneling: " + tunnelingDisabledForRecovery);
             WindowManager windowManager = (WindowManager) context.getSystemService(WINDOW_SERVICE);
             int displayFlags;
-            displayFlags = windowManager != null ? windowManager.getDefaultDisplay().getFlags() : 0;
-            if ((displayFlags & (Display.FLAG_SECURE | Display.FLAG_SUPPORTS_PROTECTED_BUFFERS)) !=
-                ((Display.FLAG_SECURE | Display.FLAG_SUPPORTS_PROTECTED_BUFFERS))) {
-              Log.d(TAG, "Insecure display plugged in");
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR1) {
+              displayFlags = windowManager != null ? windowManager.getDefaultDisplay().getFlags() : 0;
+              if ((displayFlags & (Display.FLAG_SECURE | Display.FLAG_SUPPORTS_PROTECTED_BUFFERS)) !=
+                  ((Display.FLAG_SECURE | Display.FLAG_SUPPORTS_PROTECTED_BUFFERS))) {
+                Log.d(TAG, "Insecure display plugged in");
+              } else {
+                Log.d(TAG, "Secure display plugged in - flags: " + displayFlags);
+              }
             } else {
-              Log.d(TAG, "Secure display plugged in - flags: " + displayFlags);
+              Log.d(TAG, "Display security un-known for build version < JELLY_BEAN");
             }
 
             if (factory != null && tunnelingDisabledForRecovery && ! factory.isTunnelingMode() ) {
