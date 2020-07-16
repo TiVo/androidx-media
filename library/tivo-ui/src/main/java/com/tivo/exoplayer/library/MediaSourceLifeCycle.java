@@ -15,9 +15,10 @@ public interface MediaSourceLifeCycle extends
    * player is set to play when ready playback will begin as soon as buffering completes.
    *
    * @param uri - URI (must be HTTP[x] schema, to play with HLS
+   * @param drmInfo - DRM information
    * @param enableChunkless - sets the chunkless prepare option on mediasource
    */
-  void playUrl(Uri uri, boolean enableChunkless);
+  void playUrl(Uri uri, DrmInfo drmInfo, boolean enableChunkless);
 
   /**
    * Set (or remove for null) a callback to notified when the MediaSource is prepared initially.

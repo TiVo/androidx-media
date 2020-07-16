@@ -23,6 +23,7 @@ import com.google.android.exoplayer2.drm.DrmInitData;
 import com.google.android.exoplayer2.extractor.DefaultExtractorInput;
 import com.google.android.exoplayer2.extractor.Extractor;
 import com.google.android.exoplayer2.extractor.ExtractorInput;
+import com.google.android.exoplayer2.extractor.PositionHolder;
 import com.google.android.exoplayer2.metadata.Metadata;
 import com.google.android.exoplayer2.metadata.id3.Id3Decoder;
 import com.google.android.exoplayer2.metadata.id3.PrivFrame;
@@ -30,6 +31,7 @@ import com.google.android.exoplayer2.source.chunk.MediaChunk;
 import com.google.android.exoplayer2.source.hls.playlist.HlsMediaPlaylist;
 import com.google.android.exoplayer2.upstream.DataSource;
 import com.google.android.exoplayer2.upstream.DataSpec;
+import com.google.android.exoplayer2.util.Assertions;
 import com.google.android.exoplayer2.util.Log;
 import com.google.android.exoplayer2.util.ParsableByteArray;
 import com.google.android.exoplayer2.util.TimestampAdjuster;
@@ -40,6 +42,9 @@ import java.io.IOException;
 import java.math.BigInteger;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
+import org.checkerframework.checker.nullness.qual.EnsuresNonNull;
+import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
+import org.checkerframework.checker.nullness.qual.RequiresNonNull;
 
 /**
  * An HLS {@link MediaChunk}.
@@ -96,7 +101,9 @@ import java.util.concurrent.atomic.AtomicInteger;
             /* key= */ null);
     boolean mediaSegmentEncrypted = mediaSegmentKey != null || keyUri != null;
     byte[] mediaSegmentIv =
-        mediaSegmentEncrypted ? getEncryptionIvArray(mediaSegment.encryptionIV) : null;
+        mediaSegmentEncrypted
+            ? getEncryptionIvArray(Assertions.checkNotNull(mediaSegment.encryptionIV))
+            : null;
     DataSource mediaDataSource = buildDataSource(dataSource, mediaSegmentKey, mediaSegmentIv, keyUri);
 
     // Init segment.
@@ -107,7 +114,9 @@ import java.util.concurrent.atomic.AtomicInteger;
     if (initSegment != null) {
       initSegmentEncrypted = initSegmentKey != null;
       byte[] initSegmentIv =
-          initSegmentEncrypted ? getEncryptionIvArray(initSegment.encryptionIV) : null;
+          initSegmentEncrypted
+              ? getEncryptionIvArray(Assertions.checkNotNull(initSegment.encryptionIV))
+              : null;
       Uri initSegmentUri = UriUtil.resolveToUri(mediaPlaylist.baseUri, initSegment.url);
       initDataSpec =
           new DataSpec(
@@ -176,6 +185,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
   public static final String PRIV_TIMESTAMP_FRAME_OWNER =
       "com.apple.streaming.transportStreamTimestamp";
+  private static final PositionHolder DUMMY_POSITION_HOLDER = new PositionHolder();
 
   private static final AtomicInteger uidSource = new AtomicInteger();
 
@@ -194,6 +204,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 
   @Nullable private final DataSource initDataSource;
   @Nullable private final DataSpec initDataSpec;
+  @Nullable private final Extractor previousExtractor;
+
   private final boolean isMasterTimestampSource;
   private final boolean hasGapTag;
   private final TimestampAdjuster timestampAdjuster;
@@ -201,15 +213,14 @@ import java.util.concurrent.atomic.AtomicInteger;
   private final HlsExtractorFactory extractorFactory;
   @Nullable private final List<Format> muxedCaptionFormats;
   @Nullable private final DrmInitData drmInitData;
-  @Nullable private final Extractor previousExtractor;
   private final Id3Decoder id3Decoder;
   private final ParsableByteArray scratchId3Data;
   private final boolean mediaSegmentEncrypted;
   private final boolean initSegmentEncrypted;
 
-  private Extractor extractor;
+  @MonotonicNonNull private Extractor extractor;
   private boolean isExtractorReusable;
-  private HlsSampleStreamWrapper output;
+  @MonotonicNonNull private HlsSampleStreamWrapper output;
   // nextLoadPosition refers to the init segment if initDataLoadRequired is true.
   // Otherwise, nextLoadPosition refers to the media segment.
   private int nextLoadPosition;
@@ -223,13 +234,13 @@ import java.util.concurrent.atomic.AtomicInteger;
       DataSpec dataSpec,
       Format format,
       boolean mediaSegmentEncrypted,
-      DataSource initDataSource,
+      @Nullable DataSource initDataSource,
       @Nullable DataSpec initDataSpec,
       boolean initSegmentEncrypted,
       Uri playlistUrl,
       @Nullable List<Format> muxedCaptionFormats,
       int trackSelectionReason,
-      Object trackSelectionData,
+      @Nullable Object trackSelectionData,
       long startTimeUs,
       long endTimeUs,
       long chunkMediaSequence,
@@ -253,8 +264,9 @@ import java.util.concurrent.atomic.AtomicInteger;
         chunkMediaSequence);
     this.mediaSegmentEncrypted = mediaSegmentEncrypted;
     this.discontinuitySequenceNumber = discontinuitySequenceNumber;
-    this.initDataSource = initDataSource;
     this.initDataSpec = initDataSpec;
+    this.initDataSource = initDataSource;
+    this.initDataLoadRequired = initDataSpec != null;
     this.initSegmentEncrypted = initSegmentEncrypted;
     this.playlistUrl = playlistUrl;
     this.isMasterTimestampSource = isMasterTimestampSource;
@@ -267,7 +279,6 @@ import java.util.concurrent.atomic.AtomicInteger;
     this.id3Decoder = id3Decoder;
     this.scratchId3Data = scratchId3Data;
     this.shouldSpliceIn = shouldSpliceIn;
-    initDataLoadRequired = initDataSpec != null;
     uid = uidSource.getAndIncrement();
   }
 
@@ -279,6 +290,7 @@ import java.util.concurrent.atomic.AtomicInteger;
    */
   public void init(HlsSampleStreamWrapper output) {
     this.output = output;
+    output.init(uid, shouldSpliceIn);
   }
 
   @Override
@@ -295,11 +307,12 @@ import java.util.concurrent.atomic.AtomicInteger;
 
   @Override
   public void load() throws IOException, InterruptedException {
+    // output == null means init() hasn't been called.
+    Assertions.checkNotNull(output);
     if (extractor == null && previousExtractor != null) {
       extractor = previousExtractor;
       isExtractorReusable = true;
       initDataLoadRequired = false;
-      output.init(uid, shouldSpliceIn, /* reusingExtractor= */ true);
     }
     maybeLoadInitData();
     if (!loadCanceled) {
@@ -314,15 +327,20 @@ import java.util.concurrent.atomic.AtomicInteger;
 
   // Internal methods.
 
+  @RequiresNonNull("output")
   private void maybeLoadInitData() throws IOException, InterruptedException {
     if (!initDataLoadRequired) {
       return;
     }
+    // initDataLoadRequired =>  initDataSource != null && initDataSpec != null
+    Assertions.checkNotNull(initDataSource);
+    Assertions.checkNotNull(initDataSpec);
     feedDataToExtractor(initDataSource, initDataSpec, initSegmentEncrypted);
     nextLoadPosition = 0;
     initDataLoadRequired = false;
   }
 
+  @RequiresNonNull("output")
   private void loadMedia() throws IOException, InterruptedException {
     if (!isMasterTimestampSource) {
       timestampAdjuster.waitUntilInitialized();
@@ -338,6 +356,7 @@ import java.util.concurrent.atomic.AtomicInteger;
    * concludes (because of a thrown exception or because the operation finishes), the number of fed
    * bytes is written to {@code nextLoadPosition}.
    */
+  @RequiresNonNull("output")
   private void feedDataToExtractor(
       DataSource dataSource, DataSpec dataSpec, boolean dataIsEncrypted)
       throws IOException, InterruptedException {
@@ -362,7 +381,7 @@ import java.util.concurrent.atomic.AtomicInteger;
       try {
         int result = Extractor.RESULT_CONTINUE;
         while (result == Extractor.RESULT_CONTINUE && !loadCanceled) {
-          result = extractor.read(input, /* seekPosition= */ null);
+          result = extractor.read(input, DUMMY_POSITION_HOLDER);
         }
       } finally {
         nextLoadPosition = (int) (input.getPosition() - dataSpec.absoluteStreamPosition);
@@ -372,10 +391,11 @@ import java.util.concurrent.atomic.AtomicInteger;
     }
   }
 
+  @RequiresNonNull("output")
+  @EnsuresNonNull("extractor")
   private DefaultExtractorInput prepareExtraction(DataSource dataSource, DataSpec dataSpec)
       throws IOException, InterruptedException {
     long bytesToRead = dataSource.open(dataSpec);
-
     DefaultExtractorInput extractorInput =
         new DefaultExtractorInput(dataSource, dataSpec.absoluteStreamPosition, bytesToRead);
 
@@ -389,7 +409,6 @@ import java.util.concurrent.atomic.AtomicInteger;
               dataSpec.uri,
               trackFormat,
               muxedCaptionFormats,
-              drmInitData,
               timestampAdjuster,
               dataSource.getResponseHeaders(),
               extractorInput);
@@ -400,11 +419,15 @@ import java.util.concurrent.atomic.AtomicInteger;
             id3Timestamp != C.TIME_UNSET
                 ? timestampAdjuster.adjustTsTimestamp(id3Timestamp)
                 : startTimeUs);
+      } else {
+        // In case the container format changes mid-stream to non-packed-audio, we need to reset
+        // the timestamp offset.
+        output.setSampleOffsetUs(/* sampleOffsetUs= */ 0L);
       }
-      output.init(uid, shouldSpliceIn, /* reusingExtractor= */ false);
+      output.onNewExtractor();
       extractor.init(output);
     }
-
+    output.setDrmInitData(drmInitData);
     return extractorInput;
   }
 
@@ -487,13 +510,18 @@ import java.util.concurrent.atomic.AtomicInteger;
   /**
    * If the segment is fully encrypted, returns an {@link Aes128DataSource} that wraps the original
    * in order to decrypt the loaded data. Else returns the original.
+   *
+   * <p>{@code fullSegmentEncryptionKey} & {@code encryptionIv} can either both be null, or neither.
    */
-  private static DataSource buildDataSource(DataSource dataSource, byte[] fullSegmentEncryptionKey,
-      byte[] encryptionIv, @Nullable Uri keyUri) {
+  private static DataSource buildDataSource(
+      DataSource dataSource,
+      @Nullable byte[] fullSegmentEncryptionKey,
+      @Nullable byte[] encryptionIv, @Nullable Uri keyUri) {
     if ((dataSource instanceof HlsDecryptingDataSource) && (keyUri != null)) {
       return ((HlsDecryptingDataSource) dataSource).getDecryptingDataSource(keyUri,
           encryptionIv);
     } else if (fullSegmentEncryptionKey != null) {
+      Assertions.checkNotNull(encryptionIv);
       return new Aes128DataSource(dataSource, fullSegmentEncryptionKey, encryptionIv);
     }
     return dataSource;

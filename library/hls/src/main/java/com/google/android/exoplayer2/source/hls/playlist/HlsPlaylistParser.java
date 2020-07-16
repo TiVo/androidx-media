@@ -16,9 +16,9 @@
 package com.google.android.exoplayer2.source.hls.playlist;
 
 import android.net.Uri;
-import androidx.annotation.Nullable;
 import android.text.TextUtils;
 import android.util.Base64;
+import androidx.annotation.Nullable;
 import com.google.android.exoplayer2.C;
 import com.google.android.exoplayer2.Format;
 import com.google.android.exoplayer2.ParserException;
@@ -48,10 +48,12 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.NoSuchElementException;
 import java.util.Queue;
 import java.util.TreeMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import org.checkerframework.checker.nullness.qual.EnsuresNonNullIf;
 import org.checkerframework.checker.nullness.qual.PolyNull;
 
 /**
@@ -314,6 +316,9 @@ public final class HlsPlaylistParser implements ParsingLoadable.Parser<HlsPlayli
             parseOptionalStringAttr(line, REGEX_SUBTITLES, variableDefinitions);
         String closedCaptionsGroupId =
             parseOptionalStringAttr(line, REGEX_CLOSED_CAPTIONS, variableDefinitions);
+        if (!iterator.hasNext()) {
+          throw new ParserException("#EXT-X-STREAM-INF tag must be followed by another line");
+        }
         line =
             replaceVariableReferences(
                 iterator.next(), variableDefinitions); // #EXT-X-STREAM-INF's URI.
@@ -395,6 +400,7 @@ public final class HlsPlaylistParser implements ParsingLoadable.Parser<HlsPlayli
                       /* containerMimeType= */ MimeTypes.APPLICATION_M3U8,
                       sampleMimeType,
                       codecs,
+                      /* metadata= */ null,
                       /* bitrate= */ Format.NO_VALUE,
                       width,
                       height,
@@ -416,7 +422,15 @@ public final class HlsPlaylistParser implements ParsingLoadable.Parser<HlsPlayli
                   ? Util.getCodecsOfType(variant.format.codecs, C.TRACK_TYPE_AUDIO)
                   : null;
           sampleMimeType = codecs != null ? MimeTypes.getMediaMimeType(codecs) : null;
-          int channelCount = parseChannelsAttribute(line, variableDefinitions);
+          String channelsString =
+              parseOptionalStringAttr(line, REGEX_CHANNELS, variableDefinitions);
+          int channelCount = Format.NO_VALUE;
+          if (channelsString != null) {
+            channelCount = Integer.parseInt(Util.splitAtFirst(channelsString, "/")[0]);
+            if (MimeTypes.AUDIO_E_AC3.equals(sampleMimeType) && channelsString.endsWith("/JOC")) {
+              sampleMimeType = MimeTypes.AUDIO_E_AC3_JOC;
+            }
+          }
           format =
               Format.createAudioContainerFormat(
                   /* id= */ formatId,
@@ -424,6 +438,7 @@ public final class HlsPlaylistParser implements ParsingLoadable.Parser<HlsPlayli
                   /* containerMimeType= */ MimeTypes.APPLICATION_M3U8,
                   sampleMimeType,
                   codecs,
+                  /* metadata= */ null,
                   /* bitrate= */ Format.NO_VALUE,
                   channelCount,
                   /* sampleRate= */ Format.NO_VALUE,
@@ -439,23 +454,27 @@ public final class HlsPlaylistParser implements ParsingLoadable.Parser<HlsPlayli
           }
           break;
         case TYPE_SUBTITLES:
+          codecs = null;
+          sampleMimeType = null;
           variant = getVariantWithSubtitleGroup(variants, groupId);
-          codecs =
-                  variant != null
-                          ? Util.getCodecsOfType(variant.format.codecs, C.TRACK_TYPE_TEXT)
-                          : null;
-          sampleMimeType = codecs != null ? MimeTypes.getMediaMimeType(codecs) : MimeTypes.TEXT_VTT;
+          if (variant != null) {
+            codecs = Util.getCodecsOfType(variant.format.codecs, C.TRACK_TYPE_TEXT);
+            sampleMimeType = MimeTypes.getMediaMimeType(codecs);
+          }
+          if (sampleMimeType == null) {
+            sampleMimeType = MimeTypes.TEXT_VTT;
+          }
           format =
               Format.createTextContainerFormat(
-                      /* id= */ formatId,
-                      /* label= */ name,
-                      /* containerMimeType= */ MimeTypes.APPLICATION_M3U8,
-                      /* sampleMimeType= */ sampleMimeType,
-                      /* codecs= */ codecs,
-                      /* bitrate= */ Format.NO_VALUE,
-                      selectionFlags,
-                      roleFlags,
-                      language)
+                  /* id= */ formatId,
+                  /* label= */ name,
+                  /* containerMimeType= */ MimeTypes.APPLICATION_M3U8,
+                  sampleMimeType,
+                  codecs,
+                  /* bitrate= */ Format.NO_VALUE,
+                  selectionFlags,
+                  roleFlags,
+                  language)
                   .copyWithMetadata(metadata);
           subtitles.add(new Rendition(uri, format, groupId, name));
           break;
@@ -515,12 +534,14 @@ public final class HlsPlaylistParser implements ParsingLoadable.Parser<HlsPlayli
 
   private static int parseStreamBitrate(HashMap<String, String> variableDefinitions, String line)
       throws ParserException {
-    int bitrate = parseIntAttr(line, REGEX_BANDWIDTH);
+    int bitrate;
     String averageBandwidthString =
         parseOptionalStringAttr(line, REGEX_AVERAGE_BANDWIDTH, variableDefinitions);
     if (averageBandwidthString != null) {
       // If available, the average bandwidth attribute is used as the variant's bitrate.
       bitrate = Integer.parseInt(averageBandwidthString);
+    } else {
+      bitrate = parseIntAttr(line, REGEX_BANDWIDTH);
     }
     return bitrate;
   }
@@ -557,6 +578,7 @@ public final class HlsPlaylistParser implements ParsingLoadable.Parser<HlsPlayli
         /* containerMimeType= */ MimeTypes.APPLICATION_M3U8,
         /* sampleMimeType= */ null,
         codecs,
+        /* metadata= */ null,
         bitrate,
         width,
         height,

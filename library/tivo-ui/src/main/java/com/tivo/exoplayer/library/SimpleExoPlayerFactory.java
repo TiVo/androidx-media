@@ -13,8 +13,6 @@ import com.google.android.exoplayer2.LoadControl;
 import com.google.android.exoplayer2.Player;
 import com.google.android.exoplayer2.RenderersFactory;
 import com.google.android.exoplayer2.SimpleExoPlayer;
-import com.google.android.exoplayer2.analytics.AnalyticsListener;
-import com.google.android.exoplayer2.audio.AudioSink;
 import com.google.android.exoplayer2.source.TrackGroup;
 import com.google.android.exoplayer2.source.TrackGroupArray;
 import com.google.android.exoplayer2.trackselection.DefaultTrackSelector;
@@ -53,7 +51,7 @@ import java.util.Properties;
  *
  *
  */
-public class SimpleExoPlayerFactory implements DefaultExoPlayerErrorHandler.PlaybackExceptionRecovery {
+public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
   public static final String TAG = "SimpleExoPlayerFactory";
 
   /**
@@ -87,6 +85,8 @@ public class SimpleExoPlayerFactory implements DefaultExoPlayerErrorHandler.Play
 
   private MediaSourceLifeCycle mediaSourceLifeCycle;
 
+  @Nullable
+  private PlayerErrorHandlerListener playerErrorHandlerListener;
 
   @Nullable
   private MediaSourceEventCallback callback;
@@ -105,6 +105,12 @@ public class SimpleExoPlayerFactory implements DefaultExoPlayerErrorHandler.Play
    */
   private IFrameAwareAdaptiveTrackSelection.Factory trackSelectionFactory = new IFrameAwareAdaptiveTrackSelection.Factory();
 
+
+  /**
+   * Listens for and attempts to recover from playback errors.
+   */
+  private DefaultExoPlayerErrorHandler playerErrorHandler;
+
   /**
    * Construct the factory.  This factory is intended to survive as a singleton for the entire lifecycle of
    * the application (create to destroy).  Note that it holds references to the SimpleExoPlayer it creates,
@@ -119,6 +125,17 @@ public class SimpleExoPlayerFactory implements DefaultExoPlayerErrorHandler.Play
     this.context = context;
   }
 
+  /**
+   * Construct the factory, including specifying an event listener that will be called for
+   * playback errors (either recovered from internally or not).
+   *
+   * @param context - android ApplicationContext
+   * @param listener - error listener
+   */
+  public SimpleExoPlayerFactory(Context context, @Nullable PlayerErrorHandlerListener listener) {
+    this(context);
+    playerErrorHandlerListener = listener;
+  }
 
   // Factory methods.  Override these if you want to subclass the objects they produce
 
@@ -143,11 +160,13 @@ public class SimpleExoPlayerFactory implements DefaultExoPlayerErrorHandler.Play
    * @param mediaSourceLifeCycle current {@link MediaSourceLifeCycle}, this is one of the error handlers
    * @return default returns {@link DefaultExoPlayerErrorHandler}, return a subclass thereof if you override
    */
-  protected AnalyticsListener createPlayerErrorHandler(MediaSourceLifeCycle mediaSourceLifeCycle) {
+  protected DefaultExoPlayerErrorHandler createPlayerErrorHandler(MediaSourceLifeCycle mediaSourceLifeCycle) {
     List<DefaultExoPlayerErrorHandler.PlaybackExceptionRecovery> errorHandlers = getDefaultPlaybackExceptionHandlers(
         mediaSourceLifeCycle);
 
-    return new DefaultExoPlayerErrorHandler(errorHandlers);
+    DefaultExoPlayerErrorHandler defaultExoPlayerErrorHandler = new DefaultExoPlayerErrorHandler(errorHandlers);
+    defaultExoPlayerErrorHandler.playerErrorHandlerListener = playerErrorHandlerListener;
+    return defaultExoPlayerErrorHandler;
   }
 
   /**
@@ -175,7 +194,10 @@ public class SimpleExoPlayerFactory implements DefaultExoPlayerErrorHandler.Play
    */
   protected List<DefaultExoPlayerErrorHandler.PlaybackExceptionRecovery> getDefaultPlaybackExceptionHandlers(
       MediaSourceLifeCycle mediaSourceLifeCycle) {
-    return Arrays.asList(this, mediaSourceLifeCycle);
+    return Arrays.asList(
+        new AudioTrackInitPlayerErrorHandler(this),
+        mediaSourceLifeCycle,
+        new HdmiPlayerErrorHandler(this, context));
   }
 
   // Public API Methods
@@ -198,6 +220,8 @@ public class SimpleExoPlayerFactory implements DefaultExoPlayerErrorHandler.Play
       mediaSourceLifeCycle = null;
       trackSelector = null;
       trackSelectionFactory.setTrickPlayControl(null);
+      playerErrorHandler.releaseResources();
+      playerErrorHandler = null;
     }
   }
 
@@ -239,7 +263,8 @@ public class SimpleExoPlayerFactory implements DefaultExoPlayerErrorHandler.Play
     trickPlayControl.setPlayer(player);
     player.setPlayWhenReady(playWhenReady);
     player.addAnalyticsListener(new EventLogger(trackSelector));
-    player.addAnalyticsListener(createPlayerErrorHandler(mediaSourceLifeCycle));
+    playerErrorHandler = createPlayerErrorHandler(mediaSourceLifeCycle);
+    player.addAnalyticsListener(playerErrorHandler);
     return player;
   }
 
@@ -248,10 +273,11 @@ public class SimpleExoPlayerFactory implements DefaultExoPlayerErrorHandler.Play
    * called {@link #createPlayer(boolean, boolean)}
    *
    * @param url - URL to play
+   * @param drmInfo - DRM information
    * @param enableChunkless - flag to enable chunkless prepare, TODO - will make this default
    */
-  public void playUrl(Uri url, boolean enableChunkless) {
-    mediaSourceLifeCycle.playUrl(url, enableChunkless);
+  public void playUrl(Uri url, DrmInfo drmInfo, boolean enableChunkless) {
+    mediaSourceLifeCycle.playUrl(url, drmInfo, enableChunkless);
   }
 
   /**
@@ -267,15 +293,7 @@ public class SimpleExoPlayerFactory implements DefaultExoPlayerErrorHandler.Play
 
   // Track Selection
 
-  /**
-   * Updates track selection to prefer tunneling or regular video pipeline,
-   * this can be called before the player is created.  If the player is
-   * created it will force an immediate track selection.
-   *
-   * Note, this setting persists across player create/destroy
-   *
-   * @param enableTunneling - true to prefer tunneled decoder (if available)
-   */
+  @Override
   public void setTunnelingMode(boolean enableTunneling) {
     int tunnelingSessionId = enableTunneling
             ? C.generateAudioSessionIdV21(context) : C.AUDIO_SESSION_ID_UNSET;
@@ -284,6 +302,13 @@ public class SimpleExoPlayerFactory implements DefaultExoPlayerErrorHandler.Play
     builder.setTunnelingAudioSessionId(tunnelingSessionId);
 
     commitTrackSelectionParameters(builder);
+  }
+
+
+  @Override
+  public boolean isTunnelingMode() {
+    return player != null && player.getPlaybackState() != Player.STATE_ENDED
+        && currentParameters.tunnelingAudioSessionId != C.AUDIO_SESSION_ID_UNSET;
   }
 
   /**
@@ -606,32 +631,12 @@ public class SimpleExoPlayerFactory implements DefaultExoPlayerErrorHandler.Play
     return selection;
   }
 
+
   @Override
-  public boolean recoverFrom(ExoPlaybackException e) {
-    boolean handled = false;
-
-    if (e.type == ExoPlaybackException.TYPE_RENDERER) {
-      Exception renderException = e.getRendererException();
-      if (renderException instanceof AudioSink.InitializationException) {
-        setTunnelingMode(false);
-        player.retry();
-
-        handled = true;
-      } else if (renderException instanceof AudioSink.WriteException) {
-        AudioSink.WriteException writeException = (AudioSink.WriteException) renderException;
-        if (writeException.errorCode == android.media.AudioTrack.ERROR_DEAD_OBJECT) {
-
-          DefaultTrackSelector.Parameters savedParameters = currentParameters;
-          setRendererState(C.TRACK_TYPE_AUDIO, false);
-          Log.d("ExoPlayer", "AudioSink.WriteException - reset player with prepare");
-          setCurrentParameters(savedParameters);
-          handled = mediaSourceLifeCycle.restartPlaybackAtLastPosition();
-        }
-
-      }
+  public void retryPlayback() {
+    if (player != null) {
+      player.retry();
     }
-
-    return handled;
   }
 
   private void commitTrackSelectionParameters(DefaultTrackSelector.ParametersBuilder builder) {

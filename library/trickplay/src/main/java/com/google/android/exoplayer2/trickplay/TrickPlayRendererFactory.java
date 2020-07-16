@@ -125,7 +125,7 @@ class TrickPlayRendererFactory extends DefaultRenderersFactory {
       if (trickPlay.useTrickPlayRendering()) {
         long elapsedRealtimeNowUs = System.nanoTime() / 1000;
         boolean nextFrameIsDue = lastRenderTimeUs == C.TIME_UNSET || (elapsedRealtimeNowUs - lastRenderTimeUs) >= targetInterFrameTimeUs;
-        Log.d(TAG, "readSource() -  readPosUs: " + getReadingPositionUs() + " lastRenderTimeUs: " + lastRenderTimeUs + " frameDue: " + nextFrameIsDue + " formatRequired: " + formatRequired + " track: " + formatHolder.format.id);
+        Log.d(TAG, "readSource() -  readPosUs: " + getReadingPositionUs() + " lastRenderTimeUs: " + lastRenderTimeUs + " frameDue: " + nextFrameIsDue + " formatRequired: " + formatRequired + " track: " + Format.toLogString(formatHolder.format));
 
         if (nextFrameIsDue) {
           result = super.readSource(formatHolder, buffer, formatRequired);

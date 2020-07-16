@@ -17,8 +17,8 @@ package com.google.android.exoplayer2.ext.cronet;
 
 import static com.google.common.truth.Truth.assertThat;
 import static org.junit.Assert.fail;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyString;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
@@ -38,9 +38,9 @@ import com.google.android.exoplayer2.upstream.HttpDataSource;
 import com.google.android.exoplayer2.upstream.HttpDataSource.HttpDataSourceException;
 import com.google.android.exoplayer2.upstream.TransferListener;
 import com.google.android.exoplayer2.util.Clock;
-import com.google.android.exoplayer2.util.Predicate;
 import com.google.android.exoplayer2.util.Util;
 import java.io.IOException;
+import java.io.InterruptedIOException;
 import java.net.SocketTimeoutException;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
@@ -48,6 +48,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
@@ -57,10 +58,10 @@ import org.chromium.net.CronetEngine;
 import org.chromium.net.NetworkException;
 import org.chromium.net.UrlRequest;
 import org.chromium.net.UrlResponseInfo;
-import org.chromium.net.impl.UrlResponseInfoImpl;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.mockito.ArgumentMatchers;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
@@ -85,7 +86,6 @@ public final class CronetDataSourceTest {
 
   @Mock private UrlRequest.Builder mockUrlRequestBuilder;
   @Mock private UrlRequest mockUrlRequest;
-  @Mock private Predicate<String> mockContentTypePredicate;
   @Mock private TransferListener mockTransferListener;
   @Mock private Executor mockExecutor;
   @Mock private NetworkException mockNetworkException;
@@ -95,21 +95,25 @@ public final class CronetDataSourceTest {
   private boolean redirectCalled;
 
   @Before
-  public void setUp() throws Exception {
+  public void setUp() {
     MockitoAnnotations.initMocks(this);
+
+    HttpDataSource.RequestProperties defaultRequestProperties =
+        new HttpDataSource.RequestProperties();
+    defaultRequestProperties.set("defaultHeader1", "defaultValue1");
+    defaultRequestProperties.set("defaultHeader2", "defaultValue2");
+
     dataSourceUnderTest =
         new CronetDataSource(
             mockCronetEngine,
             mockExecutor,
-            mockContentTypePredicate,
             TEST_CONNECT_TIMEOUT_MS,
             TEST_READ_TIMEOUT_MS,
-            true, // resetTimeoutOnRedirects
+            /* resetTimeoutOnRedirects= */ true,
             Clock.DEFAULT,
-            null,
-            false);
+            defaultRequestProperties,
+            /* handleSetCookieRequests= */ false);
     dataSourceUnderTest.addTransferListener(mockTransferListener);
-    when(mockContentTypePredicate.evaluate(anyString())).thenReturn(true);
     when(mockCronetEngine.newUrlRequestBuilder(
             anyString(), any(UrlRequest.Callback.class), any(Executor.class)))
         .thenReturn(mockUrlRequestBuilder);
@@ -136,15 +140,62 @@ public final class CronetDataSourceTest {
 
   private UrlResponseInfo createUrlResponseInfoWithUrl(String url, int statusCode) {
     ArrayList<Map.Entry<String, String>> responseHeaderList = new ArrayList<>();
-    responseHeaderList.addAll(testResponseHeader.entrySet());
-    return new UrlResponseInfoImpl(
-        Collections.singletonList(url),
-        statusCode,
-        null, // httpStatusText
-        responseHeaderList,
-        false, // wasCached
-        null, // negotiatedProtocol
-        null); // proxyServer
+    Map<String, List<String>> responseHeaderMap = new HashMap<>();
+    for (Map.Entry<String, String> entry : testResponseHeader.entrySet()) {
+      responseHeaderList.add(entry);
+      responseHeaderMap.put(entry.getKey(), Collections.singletonList(entry.getValue()));
+    }
+    return new UrlResponseInfo() {
+      @Override
+      public String getUrl() {
+        return url;
+      }
+
+      @Override
+      public List<String> getUrlChain() {
+        return Collections.singletonList(url);
+      }
+
+      @Override
+      public int getHttpStatusCode() {
+        return statusCode;
+      }
+
+      @Override
+      public String getHttpStatusText() {
+        return null;
+      }
+
+      @Override
+      public List<Map.Entry<String, String>> getAllHeadersAsList() {
+        return responseHeaderList;
+      }
+
+      @Override
+      public Map<String, List<String>> getAllHeaders() {
+        return responseHeaderMap;
+      }
+
+      @Override
+      public boolean wasCached() {
+        return false;
+      }
+
+      @Override
+      public String getNegotiatedProtocol() {
+        return null;
+      }
+
+      @Override
+      public String getProxyServer() {
+        return null;
+      }
+
+      @Override
+      public long getReceivedByteCount() {
+        return 0;
+      }
+    };
   }
 
   @Test
@@ -193,18 +244,59 @@ public final class CronetDataSourceTest {
   }
 
   @Test
-  public void testRequestHeadersSet() throws HttpDataSourceException {
+  public void testRequestSetsRangeHeader() throws HttpDataSourceException {
     testDataSpec = new DataSpec(Uri.parse(TEST_URL), 1000, 5000, null);
     mockResponseStartSuccess();
-
-    dataSourceUnderTest.setRequestProperty("firstHeader", "firstValue");
-    dataSourceUnderTest.setRequestProperty("secondHeader", "secondValue");
 
     dataSourceUnderTest.open(testDataSpec);
     // The header value to add is current position to current position + length - 1.
     verify(mockUrlRequestBuilder).addHeader("Range", "bytes=1000-5999");
-    verify(mockUrlRequestBuilder).addHeader("firstHeader", "firstValue");
-    verify(mockUrlRequestBuilder).addHeader("secondHeader", "secondValue");
+  }
+
+  @Test
+  public void testRequestHeadersSet() throws HttpDataSourceException {
+
+    Map<String, String> headersSet = new HashMap<>();
+    doAnswer(
+            (invocation) -> {
+              String key = invocation.getArgument(0);
+              String value = invocation.getArgument(1);
+              headersSet.put(key, value);
+              return null;
+            })
+        .when(mockUrlRequestBuilder)
+        .addHeader(ArgumentMatchers.anyString(), ArgumentMatchers.anyString());
+
+    dataSourceUnderTest.setRequestProperty("defaultHeader2", "dataSourceOverridesDefault");
+    dataSourceUnderTest.setRequestProperty("dataSourceHeader1", "dataSourceValue1");
+    dataSourceUnderTest.setRequestProperty("dataSourceHeader2", "dataSourceValue2");
+
+    Map<String, String> dataSpecRequestProperties = new HashMap<>();
+    dataSpecRequestProperties.put("defaultHeader3", "dataSpecOverridesAll");
+    dataSpecRequestProperties.put("dataSourceHeader2", "dataSpecOverridesDataSource");
+    dataSpecRequestProperties.put("dataSpecHeader1", "dataSpecValue1");
+    testDataSpec =
+        new DataSpec(
+            /* uri= */ Uri.parse(TEST_URL),
+            /* httpMethod= */ DataSpec.HTTP_METHOD_GET,
+            /* httpBody= */ null,
+            /* absoluteStreamPosition= */ 1000,
+            /* position= */ 1000,
+            /* length= */ 5000,
+            /* key= */ null,
+            /* flags= */ 0,
+            dataSpecRequestProperties);
+    mockResponseStartSuccess();
+
+    dataSourceUnderTest.open(testDataSpec);
+
+    assertThat(headersSet.get("defaultHeader1")).isEqualTo("defaultValue1");
+    assertThat(headersSet.get("defaultHeader2")).isEqualTo("dataSourceOverridesDefault");
+    assertThat(headersSet.get("defaultHeader3")).isEqualTo("dataSpecOverridesAll");
+    assertThat(headersSet.get("dataSourceHeader1")).isEqualTo("dataSourceValue1");
+    assertThat(headersSet.get("dataSourceHeader2")).isEqualTo("dataSpecOverridesDataSource");
+    assertThat(headersSet.get("dataSpecHeader1")).isEqualTo("dataSpecValue1");
+
     verify(mockUrlRequest).start();
   }
 
@@ -238,10 +330,30 @@ public final class CronetDataSourceTest {
       fail("HttpDataSource.HttpDataSourceException expected");
     } catch (HttpDataSourceException e) {
       // Check for connection not automatically closed.
-      assertThat(e.getCause() instanceof UnknownHostException).isFalse();
+      assertThat(e).hasCauseThat().isNotInstanceOf(UnknownHostException.class);
       verify(mockUrlRequest, never()).cancel();
       verify(mockTransferListener, never())
           .onTransferStart(dataSourceUnderTest, testDataSpec, /* isNetwork= */ true);
+    }
+  }
+
+  @Test
+  public void open_ifBodyIsSetWithoutContentTypeHeader_fails() {
+    testDataSpec =
+        new DataSpec(
+            /* uri= */ Uri.parse(TEST_URL),
+            /* postBody= */ new byte[1024],
+            /* absoluteStreamPosition= */ 200,
+            /* position= */ 200,
+            /* length= */ 1024,
+            /* key= */ "key",
+            /* flags= */ 0);
+
+    try {
+      dataSourceUnderTest.open(testDataSpec);
+      fail();
+    } catch (IOException expected) {
+      // Expected
     }
   }
 
@@ -256,7 +368,7 @@ public final class CronetDataSourceTest {
       fail("HttpDataSource.HttpDataSourceException expected");
     } catch (HttpDataSourceException e) {
       // Check for connection not automatically closed.
-      assertThat(e.getCause() instanceof UnknownHostException).isTrue();
+      assertThat(e).hasCauseThat().isInstanceOf(UnknownHostException.class);
       verify(mockUrlRequest, never()).cancel();
       verify(mockTransferListener, never())
           .onTransferStart(dataSourceUnderTest, testDataSpec, /* isNetwork= */ true);
@@ -272,7 +384,7 @@ public final class CronetDataSourceTest {
       dataSourceUnderTest.open(testDataSpec);
       fail("HttpDataSource.HttpDataSourceException expected");
     } catch (HttpDataSourceException e) {
-      assertThat(e instanceof HttpDataSource.InvalidResponseCodeException).isTrue();
+      assertThat(e).isInstanceOf(HttpDataSource.InvalidResponseCodeException.class);
       // Check for connection not automatically closed.
       verify(mockUrlRequest, never()).cancel();
       verify(mockTransferListener, never())
@@ -283,16 +395,23 @@ public final class CronetDataSourceTest {
   @Test
   public void testRequestOpenValidatesContentTypePredicate() {
     mockResponseStartSuccess();
-    when(mockContentTypePredicate.evaluate(anyString())).thenReturn(false);
+
+    ArrayList<String> testedContentTypes = new ArrayList<>();
+    dataSourceUnderTest.setContentTypePredicate(
+        (String input) -> {
+          testedContentTypes.add(input);
+          return false;
+        });
 
     try {
       dataSourceUnderTest.open(testDataSpec);
       fail("HttpDataSource.HttpDataSourceException expected");
     } catch (HttpDataSourceException e) {
-      assertThat(e instanceof HttpDataSource.InvalidContentTypeException).isTrue();
+      assertThat(e).isInstanceOf(HttpDataSource.InvalidContentTypeException.class);
       // Check for connection not automatically closed.
       verify(mockUrlRequest, never()).cancel();
-      verify(mockContentTypePredicate).evaluate(TEST_CONTENT_TYPE);
+      assertThat(testedContentTypes).hasSize(1);
+      assertThat(testedContentTypes.get(0)).isEqualTo(TEST_CONTENT_TYPE);
     }
   }
 
@@ -552,6 +671,260 @@ public final class CronetDataSourceTest {
   }
 
   @Test
+  public void testRequestReadByteBufferTwice() throws HttpDataSourceException {
+    mockResponseStartSuccess();
+    mockReadSuccess(0, 16);
+
+    dataSourceUnderTest.open(testDataSpec);
+
+    ByteBuffer returnedBuffer = ByteBuffer.allocateDirect(8);
+    int bytesRead = dataSourceUnderTest.read(returnedBuffer);
+    assertThat(bytesRead).isEqualTo(8);
+    returnedBuffer.flip();
+    assertThat(copyByteBufferToArray(returnedBuffer)).isEqualTo(buildTestDataArray(0, 8));
+
+    // Use a wrapped ByteBuffer instead of direct for coverage.
+    returnedBuffer.rewind();
+    bytesRead = dataSourceUnderTest.read(returnedBuffer);
+    returnedBuffer.flip();
+    assertThat(copyByteBufferToArray(returnedBuffer)).isEqualTo(buildTestDataArray(8, 8));
+    assertThat(bytesRead).isEqualTo(8);
+
+    // Separate cronet calls for each read.
+    verify(mockUrlRequest, times(2)).read(any(ByteBuffer.class));
+    verify(mockTransferListener, times(2))
+        .onBytesTransferred(dataSourceUnderTest, testDataSpec, /* isNetwork= */ true, 8);
+  }
+
+  @Test
+  public void testRequestIntermixRead() throws HttpDataSourceException {
+    mockResponseStartSuccess();
+    // Chunking reads into parts 6, 7, 8, 9.
+    mockReadSuccess(0, 30);
+
+    dataSourceUnderTest.open(testDataSpec);
+
+    ByteBuffer returnedBuffer = ByteBuffer.allocateDirect(6);
+    int bytesRead = dataSourceUnderTest.read(returnedBuffer);
+    returnedBuffer.flip();
+    assertThat(copyByteBufferToArray(returnedBuffer)).isEqualTo(buildTestDataArray(0, 6));
+    assertThat(bytesRead).isEqualTo(6);
+
+    byte[] returnedBytes = new byte[7];
+    bytesRead += dataSourceUnderTest.read(returnedBytes, 0, 7);
+    assertThat(returnedBytes).isEqualTo(buildTestDataArray(6, 7));
+    assertThat(bytesRead).isEqualTo(6 + 7);
+
+    returnedBuffer = ByteBuffer.allocateDirect(8);
+    bytesRead += dataSourceUnderTest.read(returnedBuffer);
+    returnedBuffer.flip();
+    assertThat(copyByteBufferToArray(returnedBuffer)).isEqualTo(buildTestDataArray(13, 8));
+    assertThat(bytesRead).isEqualTo(6 + 7 + 8);
+
+    returnedBytes = new byte[9];
+    bytesRead += dataSourceUnderTest.read(returnedBytes, 0, 9);
+    assertThat(returnedBytes).isEqualTo(buildTestDataArray(21, 9));
+    assertThat(bytesRead).isEqualTo(6 + 7 + 8 + 9);
+
+    // First ByteBuffer call. The first byte[] call populates enough bytes for the rest.
+    verify(mockUrlRequest, times(2)).read(any(ByteBuffer.class));
+    verify(mockTransferListener, times(1))
+        .onBytesTransferred(dataSourceUnderTest, testDataSpec, /* isNetwork= */ true, 6);
+    verify(mockTransferListener, times(1))
+        .onBytesTransferred(dataSourceUnderTest, testDataSpec, /* isNetwork= */ true, 7);
+    verify(mockTransferListener, times(1))
+        .onBytesTransferred(dataSourceUnderTest, testDataSpec, /* isNetwork= */ true, 8);
+    verify(mockTransferListener, times(1))
+        .onBytesTransferred(dataSourceUnderTest, testDataSpec, /* isNetwork= */ true, 9);
+  }
+
+  @Test
+  public void testSecondRequestNoContentLengthReadByteBuffer() throws HttpDataSourceException {
+    mockResponseStartSuccess();
+    testResponseHeader.put("Content-Length", Long.toString(1L));
+    mockReadSuccess(0, 16);
+
+    // First request.
+    dataSourceUnderTest.open(testDataSpec);
+    ByteBuffer returnedBuffer = ByteBuffer.allocateDirect(8);
+    dataSourceUnderTest.read(returnedBuffer);
+    dataSourceUnderTest.close();
+
+    testResponseHeader.remove("Content-Length");
+    mockReadSuccess(0, 16);
+
+    // Second request.
+    dataSourceUnderTest.open(testDataSpec);
+    returnedBuffer = ByteBuffer.allocateDirect(16);
+    returnedBuffer.limit(10);
+    int bytesRead = dataSourceUnderTest.read(returnedBuffer);
+    assertThat(bytesRead).isEqualTo(10);
+    returnedBuffer.limit(returnedBuffer.capacity());
+    bytesRead = dataSourceUnderTest.read(returnedBuffer);
+    assertThat(bytesRead).isEqualTo(6);
+    returnedBuffer.rewind();
+    bytesRead = dataSourceUnderTest.read(returnedBuffer);
+    assertThat(bytesRead).isEqualTo(C.RESULT_END_OF_INPUT);
+  }
+
+  @Test
+  public void testRangeRequestWith206ResponseReadByteBuffer() throws HttpDataSourceException {
+    mockResponseStartSuccess();
+    mockReadSuccess(1000, 5000);
+    testUrlResponseInfo = createUrlResponseInfo(206); // Server supports range requests.
+    testDataSpec = new DataSpec(Uri.parse(TEST_URL), 1000, 5000, null);
+
+    dataSourceUnderTest.open(testDataSpec);
+
+    ByteBuffer returnedBuffer = ByteBuffer.allocateDirect(16);
+    int bytesRead = dataSourceUnderTest.read(returnedBuffer);
+    assertThat(bytesRead).isEqualTo(16);
+    returnedBuffer.flip();
+    assertThat(copyByteBufferToArray(returnedBuffer)).isEqualTo(buildTestDataArray(1000, 16));
+    verify(mockTransferListener)
+        .onBytesTransferred(dataSourceUnderTest, testDataSpec, /* isNetwork= */ true, 16);
+  }
+
+  @Test
+  public void testRangeRequestWith200ResponseReadByteBuffer() throws HttpDataSourceException {
+    // Tests for skipping bytes.
+    mockResponseStartSuccess();
+    mockReadSuccess(0, 7000);
+    testUrlResponseInfo = createUrlResponseInfo(200); // Server does not support range requests.
+    testDataSpec = new DataSpec(Uri.parse(TEST_URL), 1000, 5000, null);
+
+    dataSourceUnderTest.open(testDataSpec);
+
+    ByteBuffer returnedBuffer = ByteBuffer.allocateDirect(16);
+    int bytesRead = dataSourceUnderTest.read(returnedBuffer);
+    assertThat(bytesRead).isEqualTo(16);
+    returnedBuffer.flip();
+    assertThat(copyByteBufferToArray(returnedBuffer)).isEqualTo(buildTestDataArray(1000, 16));
+    verify(mockTransferListener)
+        .onBytesTransferred(dataSourceUnderTest, testDataSpec, /* isNetwork= */ true, 16);
+  }
+
+  @Test
+  public void testReadByteBufferWithUnsetLength() throws HttpDataSourceException {
+    testResponseHeader.remove("Content-Length");
+    mockResponseStartSuccess();
+    mockReadSuccess(0, 16);
+
+    dataSourceUnderTest.open(testDataSpec);
+
+    ByteBuffer returnedBuffer = ByteBuffer.allocateDirect(16);
+    returnedBuffer.limit(8);
+    int bytesRead = dataSourceUnderTest.read(returnedBuffer);
+    returnedBuffer.flip();
+    assertThat(copyByteBufferToArray(returnedBuffer)).isEqualTo(buildTestDataArray(0, 8));
+    assertThat(bytesRead).isEqualTo(8);
+    verify(mockTransferListener)
+        .onBytesTransferred(dataSourceUnderTest, testDataSpec, /* isNetwork= */ true, 8);
+  }
+
+  @Test
+  public void testReadByteBufferReturnsWhatItCan() throws HttpDataSourceException {
+    mockResponseStartSuccess();
+    mockReadSuccess(0, 16);
+
+    dataSourceUnderTest.open(testDataSpec);
+
+    ByteBuffer returnedBuffer = ByteBuffer.allocateDirect(24);
+    int bytesRead = dataSourceUnderTest.read(returnedBuffer);
+    returnedBuffer.flip();
+    assertThat(copyByteBufferToArray(returnedBuffer)).isEqualTo(buildTestDataArray(0, 16));
+    assertThat(bytesRead).isEqualTo(16);
+    verify(mockTransferListener)
+        .onBytesTransferred(dataSourceUnderTest, testDataSpec, /* isNetwork= */ true, 16);
+  }
+
+  @Test
+  public void testOverreadByteBuffer() throws HttpDataSourceException {
+    testDataSpec = new DataSpec(Uri.parse(TEST_URL), 0, 16, null);
+    testResponseHeader.put("Content-Length", Long.toString(16L));
+    mockResponseStartSuccess();
+    mockReadSuccess(0, 16);
+
+    dataSourceUnderTest.open(testDataSpec);
+
+    ByteBuffer returnedBuffer = ByteBuffer.allocateDirect(8);
+    int bytesRead = dataSourceUnderTest.read(returnedBuffer);
+    assertThat(bytesRead).isEqualTo(8);
+    returnedBuffer.flip();
+    assertThat(copyByteBufferToArray(returnedBuffer)).isEqualTo(buildTestDataArray(0, 8));
+
+    // The current buffer is kept if not completely consumed by DataSource reader.
+    returnedBuffer = ByteBuffer.allocateDirect(6);
+    bytesRead += dataSourceUnderTest.read(returnedBuffer);
+    assertThat(bytesRead).isEqualTo(14);
+    returnedBuffer.flip();
+    assertThat(copyByteBufferToArray(returnedBuffer)).isEqualTo(buildTestDataArray(8, 6));
+
+    // 2 bytes left at this point.
+    returnedBuffer = ByteBuffer.allocateDirect(8);
+    bytesRead += dataSourceUnderTest.read(returnedBuffer);
+    assertThat(bytesRead).isEqualTo(16);
+    returnedBuffer.flip();
+    assertThat(copyByteBufferToArray(returnedBuffer)).isEqualTo(buildTestDataArray(14, 2));
+
+    // Called on each.
+    verify(mockUrlRequest, times(3)).read(any(ByteBuffer.class));
+    verify(mockTransferListener, times(1))
+        .onBytesTransferred(dataSourceUnderTest, testDataSpec, /* isNetwork= */ true, 8);
+    verify(mockTransferListener, times(1))
+        .onBytesTransferred(dataSourceUnderTest, testDataSpec, /* isNetwork= */ true, 6);
+    verify(mockTransferListener, times(1))
+        .onBytesTransferred(dataSourceUnderTest, testDataSpec, /* isNetwork= */ true, 2);
+
+    // Now we already returned the 16 bytes initially asked.
+    // Try to read again even though all requested 16 bytes are already returned.
+    // Return C.RESULT_END_OF_INPUT
+    returnedBuffer = ByteBuffer.allocateDirect(16);
+    int bytesOverRead = dataSourceUnderTest.read(returnedBuffer);
+    assertThat(bytesOverRead).isEqualTo(C.RESULT_END_OF_INPUT);
+    assertThat(returnedBuffer.position()).isEqualTo(0);
+    // C.RESULT_END_OF_INPUT should not be reported though the TransferListener.
+    verify(mockTransferListener, never())
+        .onBytesTransferred(
+            dataSourceUnderTest, testDataSpec, /* isNetwork= */ true, C.RESULT_END_OF_INPUT);
+    // Number of calls to cronet should not have increased.
+    verify(mockUrlRequest, times(3)).read(any(ByteBuffer.class));
+    // Check for connection not automatically closed.
+    verify(mockUrlRequest, never()).cancel();
+    assertThat(bytesRead).isEqualTo(16);
+  }
+
+  @Test
+  public void testClosedMeansClosedReadByteBuffer() throws HttpDataSourceException {
+    mockResponseStartSuccess();
+    mockReadSuccess(0, 16);
+
+    int bytesRead = 0;
+    dataSourceUnderTest.open(testDataSpec);
+
+    ByteBuffer returnedBuffer = ByteBuffer.allocateDirect(16);
+    returnedBuffer.limit(8);
+    bytesRead += dataSourceUnderTest.read(returnedBuffer);
+    returnedBuffer.flip();
+    assertThat(copyByteBufferToArray(returnedBuffer)).isEqualTo(buildTestDataArray(0, 8));
+    assertThat(bytesRead).isEqualTo(8);
+
+    dataSourceUnderTest.close();
+    verify(mockTransferListener)
+        .onTransferEnd(dataSourceUnderTest, testDataSpec, /* isNetwork= */ true);
+
+    try {
+      bytesRead += dataSourceUnderTest.read(returnedBuffer);
+      fail();
+    } catch (IllegalStateException e) {
+      // Expected.
+    }
+
+    // 16 bytes were attempted but only 8 should have been successfully read.
+    assertThat(bytesRead).isEqualTo(8);
+  }
+
+  @Test
   public void testConnectTimeout() throws InterruptedException {
     long startTimeMs = SystemClock.elapsedRealtime();
     final ConditionVariable startCondition = buildUrlRequestStartedCondition();
@@ -565,8 +938,8 @@ public final class CronetDataSourceTest {
           fail();
         } catch (HttpDataSourceException e) {
           // Expected.
-          assertThat(e instanceof CronetDataSource.OpenException).isTrue();
-          assertThat(e.getCause() instanceof SocketTimeoutException).isTrue();
+          assertThat(e).isInstanceOf(CronetDataSource.OpenException.class);
+          assertThat(e).hasCauseThat().isInstanceOf(SocketTimeoutException.class);
           assertThat(((CronetDataSource.OpenException) e).cronetConnectionStatus)
               .isEqualTo(TEST_CONNECTION_STATUS);
           timedOutLatch.countDown();
@@ -603,8 +976,8 @@ public final class CronetDataSourceTest {
               fail();
             } catch (HttpDataSourceException e) {
               // Expected.
-              assertThat(e instanceof CronetDataSource.OpenException).isTrue();
-              assertThat(e.getCause() instanceof CronetDataSource.InterruptedIOException).isTrue();
+              assertThat(e).isInstanceOf(CronetDataSource.OpenException.class);
+              assertThat(e).hasCauseThat().isInstanceOf(InterruptedIOException.class);
               assertThat(((CronetDataSource.OpenException) e).cronetConnectionStatus)
                   .isEqualTo(TEST_INVALID_CONNECTION_STATUS);
               timedOutLatch.countDown();
@@ -674,8 +1047,8 @@ public final class CronetDataSourceTest {
           fail();
         } catch (HttpDataSourceException e) {
           // Expected.
-          assertThat(e instanceof CronetDataSource.OpenException).isTrue();
-          assertThat(e.getCause() instanceof SocketTimeoutException).isTrue();
+          assertThat(e).isInstanceOf(CronetDataSource.OpenException.class);
+          assertThat(e).hasCauseThat().isInstanceOf(SocketTimeoutException.class);
           openExceptions.getAndIncrement();
           timedOutLatch.countDown();
         }
@@ -734,7 +1107,6 @@ public final class CronetDataSourceTest {
         new CronetDataSource(
             mockCronetEngine,
             mockExecutor,
-            mockContentTypePredicate,
             TEST_CONNECT_TIMEOUT_MS,
             TEST_READ_TIMEOUT_MS,
             true, // resetTimeoutOnRedirects
@@ -765,13 +1137,12 @@ public final class CronetDataSourceTest {
         new CronetDataSource(
             mockCronetEngine,
             mockExecutor,
-            mockContentTypePredicate,
             TEST_CONNECT_TIMEOUT_MS,
             TEST_READ_TIMEOUT_MS,
-            true, // resetTimeoutOnRedirects
+            /* resetTimeoutOnRedirects= */ true,
             Clock.DEFAULT,
-            null,
-            true);
+            /* defaultRequestProperties= */ null,
+            /* handleSetCookieRequests= */ true);
     dataSourceUnderTest.addTransferListener(mockTransferListener);
     dataSourceUnderTest.setRequestProperty("Content-Type", TEST_CONTENT_TYPE);
 
@@ -804,13 +1175,12 @@ public final class CronetDataSourceTest {
         new CronetDataSource(
             mockCronetEngine,
             mockExecutor,
-            mockContentTypePredicate,
             TEST_CONNECT_TIMEOUT_MS,
             TEST_READ_TIMEOUT_MS,
-            true, // resetTimeoutOnRedirects
+            /* resetTimeoutOnRedirects= */ true,
             Clock.DEFAULT,
-            null,
-            true);
+            /* defaultRequestProperties= */ null,
+            /* handleSetCookieRequests= */ true);
     dataSourceUnderTest.addTransferListener(mockTransferListener);
     mockSingleRedirectSuccess();
     mockFollowRedirectSuccess();
@@ -856,6 +1226,36 @@ public final class CronetDataSourceTest {
   }
 
   @Test
+  public void testReadByteBufferFailure() throws HttpDataSourceException {
+    mockResponseStartSuccess();
+    mockReadFailure();
+
+    dataSourceUnderTest.open(testDataSpec);
+    ByteBuffer returnedBuffer = ByteBuffer.allocateDirect(8);
+    try {
+      dataSourceUnderTest.read(returnedBuffer);
+      fail("dataSourceUnderTest.read() returned, but IOException expected");
+    } catch (IOException e) {
+      // Expected.
+    }
+  }
+
+  @Test
+  public void testReadNonDirectedByteBufferFailure() throws HttpDataSourceException {
+    mockResponseStartSuccess();
+    mockReadFailure();
+
+    dataSourceUnderTest.open(testDataSpec);
+    byte[] returnedBuffer = new byte[8];
+    try {
+      dataSourceUnderTest.read(ByteBuffer.wrap(returnedBuffer));
+      fail("dataSourceUnderTest.read() returned, but IllegalArgumentException expected");
+    } catch (IllegalArgumentException e) {
+      // Expected.
+    }
+  }
+
+  @Test
   public void testReadInterrupted() throws HttpDataSourceException, InterruptedException {
     mockResponseStartSuccess();
     dataSourceUnderTest.open(testDataSpec);
@@ -872,7 +1272,38 @@ public final class CronetDataSourceTest {
               fail();
             } catch (HttpDataSourceException e) {
               // Expected.
-              assertThat(e.getCause() instanceof CronetDataSource.InterruptedIOException).isTrue();
+              assertThat(e).hasCauseThat().isInstanceOf(InterruptedIOException.class);
+              timedOutLatch.countDown();
+            }
+          }
+        };
+    thread.start();
+    startCondition.block();
+
+    assertNotCountedDown(timedOutLatch);
+    // Now we interrupt.
+    thread.interrupt();
+    timedOutLatch.await();
+  }
+
+  @Test
+  public void testReadByteBufferInterrupted() throws HttpDataSourceException, InterruptedException {
+    mockResponseStartSuccess();
+    dataSourceUnderTest.open(testDataSpec);
+
+    final ConditionVariable startCondition = buildReadStartedCondition();
+    final CountDownLatch timedOutLatch = new CountDownLatch(1);
+    ByteBuffer returnedBuffer = ByteBuffer.allocateDirect(8);
+    Thread thread =
+        new Thread() {
+          @Override
+          public void run() {
+            try {
+              dataSourceUnderTest.read(returnedBuffer);
+              fail();
+            } catch (HttpDataSourceException e) {
+              // Expected.
+              assertThat(e).hasCauseThat().isInstanceOf(InterruptedIOException.class);
               timedOutLatch.countDown();
             }
           }
@@ -1063,5 +1494,18 @@ public final class CronetDataSourceTest {
     }
     testBuffer.flip();
     return testBuffer;
+  }
+
+  // Returns a copy of what is remaining in the src buffer from the current position to capacity.
+  private static byte[] copyByteBufferToArray(ByteBuffer src) {
+    if (src == null) {
+      return null;
+    }
+    byte[] copy = new byte[src.remaining()];
+    int index = 0;
+    while (src.hasRemaining()) {
+      copy[index++] = src.get();
+    }
+    return copy;
   }
 }

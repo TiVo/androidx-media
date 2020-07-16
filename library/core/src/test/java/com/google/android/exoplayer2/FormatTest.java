@@ -58,6 +58,7 @@ public final class FormatTest {
             /* containerMimeType= */ MimeTypes.APPLICATION_M3U8,
             MimeTypes.AUDIO_AAC,
             null,
+            /* metadata= */ null,
             /* bitrate= */ Format.NO_VALUE,
             1,
             /* sampleRate= */ Format.NO_VALUE,
@@ -130,7 +131,8 @@ public final class FormatTest {
             /* encoderDelay= */ 1001,
             /* encoderPadding= */ 1002,
             "language",
-            /* accessibilityChannel= */ Format.NO_VALUE);
+            /* accessibilityChannel= */ Format.NO_VALUE,
+            /* exoMediaCryptoType= */ null);
 
     Parcel parcel = Parcel.obtain();
     formatToParcel.writeToParcel(parcel, 0);

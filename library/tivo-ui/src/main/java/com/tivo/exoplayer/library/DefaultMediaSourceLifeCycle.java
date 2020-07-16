@@ -3,6 +3,7 @@ package com.tivo.exoplayer.library;
 
 import android.content.Context;
 import android.net.Uri;
+import android.os.Build;
 import androidx.annotation.Nullable;
 import com.google.android.exoplayer2.ExoPlaybackException;
 import com.google.android.exoplayer2.ExoPlayerLibraryInfo;
@@ -17,6 +18,9 @@ import com.google.android.exoplayer2.upstream.DefaultDataSourceFactory;
 import com.google.android.exoplayer2.upstream.DefaultHttpDataSourceFactory;
 import com.google.android.exoplayer2.upstream.HttpDataSource;
 import com.google.android.exoplayer2.util.Log;
+
+import java.io.File;
+import java.lang.reflect.Constructor;
 
 /**
  * Manages creation and the lifecycle of playback of an ExoPlayer {@link MediaSource}
@@ -56,10 +60,10 @@ public class DefaultMediaSourceLifeCycle implements MediaSourceLifeCycle, Analyt
   }
 
   @Override
-  public void playUrl(Uri uri, boolean enableChunkless) {
+  public void playUrl(Uri uri, DrmInfo drmInfo, boolean enableChunkless) {
     Log.d("ExoPlayer", "play URL " + uri);
 
-    MediaSource mediaSource = buildMediaSource(uri, buildDataSourceFactory(), enableChunkless);
+    MediaSource mediaSource = buildMediaSource(uri, buildDataSourceFactory(drmInfo), enableChunkless);
     playMediaSource(mediaSource);
   }
 
@@ -83,11 +87,11 @@ public class DefaultMediaSourceLifeCycle implements MediaSourceLifeCycle, Analyt
    * The DataSource is used to build a {@link MediaSource} for loading and playing a
    * URL.
    *
-   * TODO - will need DRM type parameter to allow creating factory for VCAS
+   * @param drmInfo DRM specific metadata to create DRM aware data source factory
    *
    * @return factory to produce DataSource objects.
    */
-  protected DataSource.Factory buildDataSourceFactory() {
+  protected DataSource.Factory buildDataSourceFactory(DrmInfo drmInfo) {
     String userAgent = getUserAgentPrefix();
 
     userAgent += "-" + ExoPlayerLibraryInfo.VERSION;
@@ -96,14 +100,45 @@ public class DefaultMediaSourceLifeCycle implements MediaSourceLifeCycle, Analyt
     HttpDataSource.Factory upstreamFactory = new DefaultHttpDataSourceFactory(userAgent);
     DataSource.Factory factory = new DefaultDataSourceFactory(context, upstreamFactory);
 
-// TODO - integrate the VCAS DRM, standalone applications may need to verify files access, hopefull
-// will not need the native library directory
-//
-// Create the singleton "Verimatrix DRM" data source factory
-//    factory = new VerimatrixDataSourceFactory
-//        (dataSourceFactory, getFilesDir(), getNativeLibraryDir());
+    if (drmInfo instanceof VcasDrmInfo) {
+      VcasDrmInfo vDrmInfo = (VcasDrmInfo)drmInfo;
+      if (Build.VERSION.SDK_INT >= 22) {
+        // Create the singleton "Verimatrix DRM" data source factory
+        Class<?> clazz =
+                null;
+        try {
+          clazz = Class.forName("com.tivo.exoplayer.vcas.VerimatrixDataSourceFactory");
+          Constructor<?> constructor =
+                  clazz.getConstructor(
+                          DataSource.Factory.class,
+                          String.class, String.class,
+                          String.class, String.class,
+                          String.class, boolean.class);
 
-    return factory;
+          String filesDir = vDrmInfo.getStoreDir();
+          File folder = new File(filesDir);
+          if (!folder.exists()) {
+            folder.mkdirs();
+          }
+          DataSource.Factory vfactory = (DataSource.Factory) constructor
+                  .newInstance(upstreamFactory,
+                          filesDir,
+                          context.getApplicationInfo().nativeLibraryDir,
+                          context.getApplicationInfo().sourceDir,
+                          vDrmInfo.getCaId(),
+                          vDrmInfo.getBootAddr(),
+                          vDrmInfo.isDebugOn());
+          factory = vfactory;
+        } catch (ClassNotFoundException e) {
+          Log.e(TAG, "Couldn't instantiate VCAS factory");
+        } catch (NoSuchMethodException e) {
+          Log.e(TAG, "No matching VCAS constructor");
+        } catch (Exception e) {
+          Log.e(TAG, "VCAS instantiation failed: ", e);
+        }
+      }
+    }
+  return factory;
   }
 
   /**
@@ -186,7 +221,7 @@ public class DefaultMediaSourceLifeCycle implements MediaSourceLifeCycle, Analyt
   /**
    * After the player reads the initial M3u8 and parses it, the timeline is created.
    * Report the first such of these events, following a {@link MediaSource} change
-   * (via {@link #playUrl(Uri, boolean)} call to any {@link MediaSourceEventCallback} listener
+   * (via {@link #playUrl(Uri, DrmInfo, boolean)} call to any {@link MediaSourceEventCallback} listener
    *
    * @param eventTime The event time.
    * @param reason The reason for the timeline change.

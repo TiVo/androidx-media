@@ -139,10 +139,8 @@ public class GeekStatsOverlay implements AnalyticsListener, Runnable {
 
     if (visibility == View.VISIBLE) {
       containingView.setVisibility(View.INVISIBLE);
-      stop();
     } else {
       containingView.setVisibility(View.VISIBLE);
-      start();
     }
   }
 
@@ -273,6 +271,9 @@ public class GeekStatsOverlay implements AnalyticsListener, Runnable {
         } else {
           display = String.format(Locale.getDefault(),
               "id:(%s) - %dx%d@%.3f", format.id, format.width, format.height, mbps);
+        }
+        if ((format.roleFlags & C.ROLE_FLAG_TRICK_PLAY) != 0) {
+          display += " (ifrm)";
         }
       } else if (isAudioOnlyFormat(format)) {
         String mimeType = format.sampleMimeType;

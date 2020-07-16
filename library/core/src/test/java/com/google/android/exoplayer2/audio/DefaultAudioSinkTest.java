@@ -16,8 +16,8 @@
 package com.google.android.exoplayer2.audio;
 
 import static com.google.common.truth.Truth.assertThat;
-import static org.robolectric.annotation.Config.NEWEST_SDK;
 import static org.robolectric.annotation.Config.OLDEST_SDK;
+import static org.robolectric.annotation.Config.TARGET_SDK;
 
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import com.google.android.exoplayer2.C;
@@ -65,6 +65,13 @@ public final class DefaultAudioSinkTest {
             AudioCapabilities.DEFAULT_AUDIO_CAPABILITIES,
             new DefaultAudioSink.DefaultAudioProcessorChain(teeAudioProcessor),
             /* enableConvertHighResIntPcmToFloat= */ false);
+  }
+
+  @Test
+  public void handlesSpecializedAudioProcessorArray() {
+    defaultAudioSink =
+        new DefaultAudioSink(
+            AudioCapabilities.DEFAULT_AUDIO_CAPABILITIES, new TeeAudioProcessor[0]);
   }
 
   @Test
@@ -185,7 +192,7 @@ public final class DefaultAudioSinkTest {
         .isFalse();
   }
 
-  @Config(minSdk = 21, maxSdk = NEWEST_SDK)
+  @Config(minSdk = 21, maxSdk = TARGET_SDK)
   @Test
   public void supportsFloatOutputFromApi21() {
     assertThat(defaultAudioSink.supportsOutput(CHANNEL_COUNT_STEREO, C.ENCODING_PCM_FLOAT))

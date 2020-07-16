@@ -25,6 +25,7 @@ import android.text.style.BackgroundColorSpan;
 import android.text.style.ForegroundColorSpan;
 import android.text.style.StyleSpan;
 import android.text.style.UnderlineSpan;
+import androidx.annotation.Nullable;
 import com.google.android.exoplayer2.C;
 import com.google.android.exoplayer2.Format;
 import com.google.android.exoplayer2.text.Cue;
@@ -152,7 +153,8 @@ public final class Cea708Decoder extends CeaDecoder {
   private DtvCcPacket currentDtvCcPacket;
   private int currentWindow;
 
-  public Cea708Decoder(int accessibilityChannel, List<byte[]> initializationData) {
+  // TODO: Retrieve isWideAspectRatio from initializationData and use it.
+  public Cea708Decoder(int accessibilityChannel, @Nullable List<byte[]> initializationData) {
     ccData = new ParsableByteArray();
     serviceBlockPacket = new ParsableBitArray();
     selectedServiceNumber = accessibilityChannel == Format.NO_VALUE ? 1 : accessibilityChannel;
@@ -1250,11 +1252,52 @@ public final class Cea708Decoder extends CeaDecoder {
 
   }
 
-  protected void clearStuckCaptions()
-  {
-    // Do nothing for CEA-708.
-    // As per spec CEA-708 Caption text sequences shall be terminated by either the start of a new
-    // DTVCC Command, or with an ASCII ETX (End of Text) (0x03) character when no other DTVCC
-    // Commands follow.
+  /** A {@link Cue} for CEA-708. */
+  private static final class Cea708CueInfo {
+
+    public final Cue cue;
+
+    /** The priority of the cue box. */
+    public final int priority;
+
+    /**
+     * @param text See {@link Cue#text}.
+     * @param textAlignment See {@link Cue#textAlignment}.
+     * @param line See {@link Cue#line}.
+     * @param lineType See {@link Cue#lineType}.
+     * @param lineAnchor See {@link Cue#lineAnchor}.
+     * @param position See {@link Cue#position}.
+     * @param positionAnchor See {@link Cue#positionAnchor}.
+     * @param size See {@link Cue#size}.
+     * @param windowColorSet See {@link Cue#windowColorSet}.
+     * @param windowColor See {@link Cue#windowColor}.
+     * @param priority See (@link #priority}.
+     */
+    public Cea708CueInfo(
+        CharSequence text,
+        Alignment textAlignment,
+        float line,
+        @Cue.LineType int lineType,
+        @AnchorType int lineAnchor,
+        float position,
+        @AnchorType int positionAnchor,
+        float size,
+        boolean windowColorSet,
+        int windowColor,
+        int priority) {
+      this.cue =
+          new Cue(
+              text,
+              textAlignment,
+              line,
+              lineType,
+              lineAnchor,
+              position,
+              positionAnchor,
+              size,
+              windowColorSet,
+              windowColor);
+      this.priority = priority;
+    }
   }
 }

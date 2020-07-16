@@ -34,6 +34,8 @@ public class DefaultExoPlayerErrorHandler implements AnalyticsListener {
   private static final String TAG = "ExoPlayerErrorHandler";
   private final List<PlaybackExceptionRecovery> handlers;
 
+  @Nullable protected PlayerErrorHandlerListener playerErrorHandlerListener;
+
   /**
    * If you add a handler to the list it must implement this interface.
    */
@@ -47,6 +49,19 @@ public class DefaultExoPlayerErrorHandler implements AnalyticsListener {
      * @return true to stop the recovery chain (assumes your handler recovered from it)
      */
     boolean recoverFrom(ExoPlaybackException e);
+
+
+    /**
+     * Called when playback starts (or restarts) successfully to allow stateful
+     * error recover (e.g. retry count based) to reset any internal state.
+     */
+    default void recoveryComplete() {};
+
+    /**
+     * Called when the {@link SimpleExoPlayerFactory} destroys the player, use this
+     * to release any listeners
+     */
+    default void releaseResources() {};
   }
 
   /**
@@ -59,6 +74,23 @@ public class DefaultExoPlayerErrorHandler implements AnalyticsListener {
    */
   public DefaultExoPlayerErrorHandler(List<PlaybackExceptionRecovery> handlers) {
     this.handlers = handlers;
+  }
+
+  public void releaseResources() {
+    for (PlaybackExceptionRecovery handler : handlers) {
+      handler.releaseResources();
+    }
+  }
+
+  @Override
+  public void onPlayerStateChanged(EventTime eventTime, boolean playWhenReady, int playbackState) {
+    // Any playback state change to READY resets error state
+    if (playbackState == Player.STATE_READY) {
+
+      for (PlaybackExceptionRecovery handler : handlers) {
+        handler.recoveryComplete();
+      }
+    }
   }
 
   @Override
@@ -89,6 +121,9 @@ public class DefaultExoPlayerErrorHandler implements AnalyticsListener {
    */
   protected void playerErrorProcessed(EventTime eventTime, ExoPlaybackException error, boolean recovered) {
     Log.d(TAG, "playerError was processed, " + (recovered ? "recovery succeed" : "recovery failed."));
+    if (playerErrorHandlerListener != null) {
+      playerErrorHandlerListener.playerErrorProcessed(eventTime, error, recovered);
+    }
   }
 
   @Override
@@ -96,215 +131,6 @@ public class DefaultExoPlayerErrorHandler implements AnalyticsListener {
       MediaSourceEventListener.MediaLoadData mediaLoadData, IOException error,
       boolean wasCanceled) {
     Log.d(TAG, "onLoadError - URL: " + loadEventInfo.uri + " io error: "+error);
-  }
-
-  // Implement balance of AnalyticsListener to keep lime tools happy
-
-
-  @Override
-  public void onPlayerStateChanged(EventTime eventTime, boolean playWhenReady, int playbackState) {
-
-  }
-
-  @Override
-  public void onTimelineChanged(EventTime eventTime, int reason) {
-
-  }
-
-  @Override
-  public void onPositionDiscontinuity(EventTime eventTime, int reason) {
-
-  }
-
-  @Override
-  public void onSeekStarted(EventTime eventTime) {
-
-  }
-
-  @Override
-  public void onSeekProcessed(EventTime eventTime) {
-
-  }
-
-  @Override
-  public void onPlaybackParametersChanged(EventTime eventTime,
-      PlaybackParameters playbackParameters) {
-
-  }
-
-  @Override
-  public void onRepeatModeChanged(EventTime eventTime, int repeatMode) {
-
-  }
-
-  @Override
-  public void onShuffleModeChanged(EventTime eventTime, boolean shuffleModeEnabled) {
-
-  }
-
-  @Override
-  public void onLoadingChanged(EventTime eventTime, boolean isLoading) {
-
-  }
-
-  @Override
-  public void onTracksChanged(EventTime eventTime, TrackGroupArray trackGroups,
-      TrackSelectionArray trackSelections) {
-
-  }
-
-  @Override
-  public void onLoadStarted(EventTime eventTime,
-      MediaSourceEventListener.LoadEventInfo loadEventInfo,
-      MediaSourceEventListener.MediaLoadData mediaLoadData) {
-
-  }
-
-  @Override
-  public void onLoadCompleted(EventTime eventTime,
-      MediaSourceEventListener.LoadEventInfo loadEventInfo,
-      MediaSourceEventListener.MediaLoadData mediaLoadData) {
-
-  }
-
-  @Override
-  public void onLoadCanceled(EventTime eventTime,
-      MediaSourceEventListener.LoadEventInfo loadEventInfo,
-      MediaSourceEventListener.MediaLoadData mediaLoadData) {
-
-  }
-
-  @Override
-  public void onDownstreamFormatChanged(EventTime eventTime,
-      MediaSourceEventListener.MediaLoadData mediaLoadData) {
-
-  }
-
-  @Override
-  public void onUpstreamDiscarded(EventTime eventTime,
-      MediaSourceEventListener.MediaLoadData mediaLoadData) {
-
-  }
-
-  @Override
-  public void onMediaPeriodCreated(EventTime eventTime) {
-
-  }
-
-  @Override
-  public void onMediaPeriodReleased(EventTime eventTime) {
-
-  }
-
-  @Override
-  public void onReadingStarted(EventTime eventTime) {
-
-  }
-
-  @Override
-  public void onBandwidthEstimate(EventTime eventTime, int totalLoadTimeMs, long totalBytesLoaded,
-      long bitrateEstimate) {
-
-  }
-
-  @Override
-  public void onSurfaceSizeChanged(EventTime eventTime, int width, int height) {
-
-  }
-
-  @Override
-  public void onMetadata(EventTime eventTime, Metadata metadata) {
-
-  }
-
-  @Override
-  public void onDecoderEnabled(EventTime eventTime, int trackType,
-      DecoderCounters decoderCounters) {
-
-  }
-
-  @Override
-  public void onDecoderInitialized(EventTime eventTime, int trackType, String decoderName,
-      long initializationDurationMs) {
-
-  }
-
-  @Override
-  public void onDecoderInputFormatChanged(EventTime eventTime, int trackType, Format format) {
-
-  }
-
-  @Override
-  public void onDecoderDisabled(EventTime eventTime, int trackType,
-      DecoderCounters decoderCounters) {
-
-  }
-
-  @Override
-  public void onAudioSessionId(EventTime eventTime, int audioSessionId) {
-
-  }
-
-  @Override
-  public void onAudioAttributesChanged(EventTime eventTime, AudioAttributes audioAttributes) {
-
-  }
-
-  @Override
-  public void onVolumeChanged(EventTime eventTime, float volume) {
-
-  }
-
-  @Override
-  public void onAudioUnderrun(EventTime eventTime, int bufferSize, long bufferSizeMs,
-      long elapsedSinceLastFeedMs) {
-
-  }
-
-  @Override
-  public void onDroppedVideoFrames(EventTime eventTime, int droppedFrames, long elapsedMs) {
-
-  }
-
-  @Override
-  public void onVideoSizeChanged(EventTime eventTime, int width, int height,
-      int unappliedRotationDegrees, float pixelWidthHeightRatio) {
-
-  }
-
-  @Override
-  public void onRenderedFirstFrame(EventTime eventTime, @Nullable Surface surface) {
-
-  }
-
-  @Override
-  public void onDrmSessionAcquired(EventTime eventTime) {
-
-  }
-
-  @Override
-  public void onDrmKeysLoaded(EventTime eventTime) {
-
-  }
-
-  @Override
-  public void onDrmSessionManagerError(EventTime eventTime, Exception error) {
-
-  }
-
-  @Override
-  public void onDrmKeysRestored(EventTime eventTime) {
-
-  }
-
-  @Override
-  public void onDrmKeysRemoved(EventTime eventTime) {
-
-  }
-
-  @Override
-  public void onDrmSessionReleased(EventTime eventTime) {
-
   }
 }
 

@@ -18,20 +18,37 @@ package com.google.android.exoplayer2.metadata;
 import android.os.Parcel;
 import android.os.Parcelable;
 import androidx.annotation.Nullable;
+import com.google.android.exoplayer2.Format;
 import com.google.android.exoplayer2.util.Util;
 import java.util.Arrays;
 import java.util.List;
-import org.checkerframework.checker.nullness.compatqual.NullableType;
 
 /**
  * A collection of metadata entries.
  */
 public final class Metadata implements Parcelable {
 
-  /**
-   * A metadata entry.
-   */
-  public interface Entry extends Parcelable {}
+  /** A metadata entry. */
+  public interface Entry extends Parcelable {
+
+    /**
+     * Returns the {@link Format} that can be used to decode the wrapped metadata in {@link
+     * #getWrappedMetadataBytes()}, or null if this Entry doesn't contain wrapped metadata.
+     */
+    @Nullable
+    default Format getWrappedMetadataFormat() {
+      return null;
+    }
+
+    /**
+     * Returns the bytes of the wrapped metadata in this Entry, or null if it doesn't contain
+     * wrapped metadata.
+     */
+    @Nullable
+    default byte[] getWrappedMetadataBytes() {
+      return null;
+    }
+  }
 
   private final Entry[] entries;
 
@@ -39,19 +56,15 @@ public final class Metadata implements Parcelable {
    * @param entries The metadata entries.
    */
   public Metadata(Entry... entries) {
-    this.entries = entries == null ? new Entry[0] : entries;
+    this.entries = entries;
   }
 
   /**
    * @param entries The metadata entries.
    */
   public Metadata(List<? extends Entry> entries) {
-    if (entries != null) {
-      this.entries = new Entry[entries.size()];
-      entries.toArray(this.entries);
-    } else {
-      this.entries = new Entry[0];
-    }
+    this.entries = new Entry[entries.size()];
+    entries.toArray(this.entries);
   }
 
   /* package */ Metadata(Parcel in) {
@@ -100,9 +113,10 @@ public final class Metadata implements Parcelable {
    * @return The metadata instance with the appended entries.
    */
   public Metadata copyWithAppendedEntries(Entry... entriesToAppend) {
-    @NullableType Entry[] merged = Arrays.copyOf(entries, entries.length + entriesToAppend.length);
-    System.arraycopy(entriesToAppend, 0, merged, entries.length, entriesToAppend.length);
-    return new Metadata(Util.castNonNullTypeArray(merged));
+    if (entriesToAppend.length == 0) {
+      return this;
+    }
+    return new Metadata(Util.nullSafeArrayConcatenation(entries, entriesToAppend));
   }
 
   @Override
@@ -120,6 +134,11 @@ public final class Metadata implements Parcelable {
   @Override
   public int hashCode() {
     return Arrays.hashCode(entries);
+  }
+
+  @Override
+  public String toString() {
+    return "entries=" + Arrays.toString(entries);
   }
 
   // Parcelable implementation.

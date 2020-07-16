@@ -29,7 +29,8 @@
     <enum name="none" value="0"/>
     <enum name="surface_view" value="1"/>
     <enum name="texture_view" value="2"/>
-    <enum name="spherical_view" value="3"/>
+    <enum name="spherical_gl_surface_view" value="3"/>
+    <enum name="video_decoder_gl_surface_view" value="4"/>
   </attr>
 
   <!-- Must be kept in sync with RepeatModeUtil -->
@@ -76,8 +77,8 @@
       <enum name="always" value="2"/>
     </attr>
     <attr name="keep_content_on_player_reset" format="boolean"/>
+    <attr name="use_sensor_rotation" format="boolean"/>
     <attr name="player_layout_id" format="reference"/>
-
     <attr name="surface_type"/>
     <!-- AspectRatioFrameLayout attributes -->
     <attr name="resize_mode"/>

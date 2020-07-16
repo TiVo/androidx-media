@@ -42,6 +42,11 @@ android {
             jniDebuggable = true
         }
     }
+
+    packagingOptions {
+        doNotStrip "**/*.so"
+    }
+
 }
 
 dependencies {
@@ -55,5 +60,6 @@ dependencies {
     implementation project(modulePrefix + 'library-trickplay')
     implementation project(modulePrefix + 'library-tivo-ui')
     implementation 'com.android.support.constraint:constraint-layout:1.1.3'
+    implementation 'com.tivo.android.exoplayer:verimatrix:4.3.5-0.2'
 }
 

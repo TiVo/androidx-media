@@ -75,14 +75,19 @@ public class TrackInfoSelectionDialog extends DialogFragment {
     if (nameProvider == null) {
       nameProvider = new DefaultTrackNameProvider(getResources());
     }
-    List<String> trackNames = new ArrayList<>();
-    for (TrackInfo choice : choices) {
-      trackNames.add(choice.setDescWithProvider(nameProvider));
+    CharSequence trackNames[] = new CharSequence[choices.size()];
+    int selectedTrackIndex = -1;
+    for (int i = 0; i < trackNames.length; i++) {
+      TrackInfo choice = choices.get(i);
+      trackNames[i] = choice.setDescWithProvider(nameProvider);
+      if (choice.isSelected) {
+        selectedTrackIndex = i;
+      }
     }
 
     AlertDialog.Builder builder = new AlertDialog.Builder(getActivity());
     builder.setTitle(title);
-    builder.setItems(trackNames.toArray(new String[0]), (dialog, which) -> {
+    builder.setSingleChoiceItems(trackNames, selectedTrackIndex, (dialog, which) -> {
       exoPlayerFactory.selectTrack(choices.get(which));
     });
     return builder.create();
