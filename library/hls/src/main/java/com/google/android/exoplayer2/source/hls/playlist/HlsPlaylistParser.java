@@ -857,7 +857,7 @@ public final class HlsPlaylistParser implements ParsingLoadable.Parser<HlsPlayli
     }
 
     // BUGS in some HLS servers produce bad times.  If the program date time
-    // resulted in a playlist which ends in the FUTURE, do not use this
+    // resulted in a playlist which ends in the FUTURE (1 minute), do not use this
     // playlist
     if ((playlistStartTimeUs > 0) && (segments.size() > 0)) {
         long nowMs = System.currentTimeMillis();
@@ -865,10 +865,10 @@ public final class HlsPlaylistParser implements ParsingLoadable.Parser<HlsPlayli
         long lastSegmentEndTimeMs =
             ((playlistStartTimeUs + lastSegment.relativeStartTimeUs +
               lastSegment.durationUs) / 1000);
-        if (lastSegmentEndTimeMs > (nowMs + 1000)) {
+        if (lastSegmentEndTimeMs > (nowMs + (60 * 1000))) {
             throw new IOException
                 ("Bad playlist start time: " +
-                 (playlistStartTimeUs / 1000) + " (ms)");
+                 (playlistStartTimeUs / 1000) + " (ms) lastSegment end time: " + lastSegmentEndTimeMs + " (ms)");
         }
     }
     return new HlsMediaPlaylist(
