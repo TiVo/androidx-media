@@ -4,6 +4,7 @@ import android.net.Uri;
 import androidx.annotation.Nullable;
 import com.google.android.exoplayer2.ExoPlaybackException;
 import com.google.android.exoplayer2.source.MediaSource;
+import com.google.android.exoplayer2.source.UnrecognizedInputFormatException;
 
 public interface MediaSourceLifeCycle extends
     DefaultExoPlayerErrorHandler.PlaybackExceptionRecovery {
@@ -17,8 +18,9 @@ public interface MediaSourceLifeCycle extends
    * @param uri - URI (must be HTTP[x] schema, to play with HLS
    * @param drmInfo - DRM information
    * @param enableChunkless - sets the chunkless prepare option on mediasource
+   * @throws UnrecognizedInputFormatException - if the URI is not in a supported container format.
    */
-  void playUrl(Uri uri, DrmInfo drmInfo, boolean enableChunkless);
+  void playUrl(Uri uri, DrmInfo drmInfo, boolean enableChunkless) throws UnrecognizedInputFormatException;
 
   /**
    * Set (or remove for null) a callback to notified when the MediaSource is prepared initially.

@@ -36,6 +36,7 @@ import com.google.android.exoplayer2.analytics.AnalyticsListener;
 import com.google.android.exoplayer2.analytics.PlaybackStats;
 import com.google.android.exoplayer2.analytics.PlaybackStatsListener;
 import com.google.android.exoplayer2.demo.TrackSelectionDialog;
+import com.google.android.exoplayer2.source.UnrecognizedInputFormatException;
 import com.google.android.exoplayer2.drm.HttpMediaDrmCallback;
 import com.google.android.exoplayer2.trackselection.DefaultTrackSelector;
 import com.google.android.exoplayer2.trickplay.TrickPlayControl;
@@ -628,7 +629,11 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
     currentUri = uri;
     outputProtectionMonitor.refreshState();
     Log.d(TAG, "playUri() playUri: '" + uri + "' - chunkless: " + enableChunkless);
-    exoPlayerFactory.playUrl(uri, drmInfo, enableChunkless);
+    try {
+      exoPlayerFactory.playUrl(uri, drmInfo, enableChunkless);
+    } catch (UnrecognizedInputFormatException e) {
+      showError("Can't play URI: " + uri, e);
+    }
   }
 
   private void toggleTrickPlayBar() {
