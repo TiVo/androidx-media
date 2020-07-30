@@ -2,8 +2,7 @@
 
 ### 2.11.6-0.3 - Alpha (not released)
 *   Merge fix for PARTDEFECT-3462:
-    *   allowing up to 1 minute of Android STB clock drift
-        to avoid V555: Bad playlist start time error on live playback (Seems to be due to clock drift between client and CDN)
+    *  As CDN has fixed timing issues of #EXT-X-PROG-DATE-TIME, need to remove Bad PlayList exception
 
 ### 2.11.6-0.2 - Alpha (not released)
 
