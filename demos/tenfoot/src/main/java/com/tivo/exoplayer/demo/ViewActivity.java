@@ -25,7 +25,6 @@ import android.widget.Toast;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.fragment.app.DialogFragment;
-import androidx.fragment.app.FragmentActivity;
 import com.google.android.exoplayer2.C;
 import com.google.android.exoplayer2.Format;
 import com.google.android.exoplayer2.Player;
@@ -45,6 +44,7 @@ import com.google.android.exoplayer2.ui.TimeBar;
 import com.google.android.exoplayer2.util.EventLogger;
 import com.tivo.exoplayer.library.DrmInfo;
 import com.tivo.exoplayer.library.GeekStatsOverlay;
+import com.tivo.exoplayer.library.OutputProtectionMonitor;
 import com.tivo.exoplayer.library.SimpleExoPlayerFactory;
 import com.tivo.exoplayer.library.VcasDrmInfo;
 import com.tivo.exoplayer.library.tracks.TrackInfo;
@@ -102,46 +102,8 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
 
   private boolean isAudioRenderOn = true;
 
-  private BroadcastReceiver hdmiHotPlugReceiver = new BroadcastReceiver() {
+  private OutputProtectionMonitor outputProtectionMonitor;
 
-    @Override
-    public void onReceive(Context context, Intent intent) {
-      // pause video
-      String action = intent.getAction();
-
-      switch (action) {
-        case ACTION_HDMI_AUDIO_PLUG :
-          int plugState = intent.getIntExtra(EXTRA_AUDIO_PLUG_STATE, -1);
-          switch (plugState) {
-            case 1:
-              Log.d("HDMI", "HDMI Hotplug - plugged in");
-              WindowManager windowManager = (WindowManager) context.getSystemService(WINDOW_SERVICE);
-              int displayFlags = 0;
-              if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.JELLY_BEAN_MR1) {
-                displayFlags = windowManager.getDefaultDisplay().getFlags();
-              }
-              if ((displayFlags & (Display.FLAG_SECURE | Display.FLAG_SUPPORTS_PROTECTED_BUFFERS)) !=
-                  ((Display.FLAG_SECURE | Display.FLAG_SUPPORTS_PROTECTED_BUFFERS))) {
-                Log.d("HDMI", "Insecure display plugged in");
-              } else {
-                Log.d("HDMI", "Secure display plugged in - flags: " + displayFlags);
-              }
-              break;
-
-            case 0:
-              // TODO - disable audio track to allow playback in QE test environment
-              break;
-
-          }
-          break;
-
-        case ACTION_HEADSET_PLUG:
-          // TODO - might want to alter audio path on some platforms for this
-          break;
-
-      }
-    }
-  };
   private GeekStatsOverlay geekStats;
   private PlaybackStatsListener playbackStats;
   private AccessibilityHelper accessibilityHelper;
@@ -244,6 +206,11 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
         initialSeek = C.POSITION_UNSET;
       }
     });
+
+    final OutputProtectionMonitor.ProtectionChangedListener opmStateCallback = (isSecure) ->
+            Log.i(TAG, "Output protection is: " + (isSecure ? "ON" : "OFF"));
+
+    outputProtectionMonitor = new OutputProtectionMonitor(context, OutputProtectionMonitor.HDCP_1X, opmStateCallback);
   }
 
   @Override
@@ -294,6 +261,8 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
       }
     });
     player.addAnalyticsListener(playbackStats);
+
+    outputProtectionMonitor.start();
 
     processIntent(getIntent());
   }
@@ -376,13 +345,11 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
     Log.d(TAG, "onResume() called");
     IntentFilter filter = new IntentFilter();
     filter.addAction(ACTION_HDMI_AUDIO_PLUG);
-    registerReceiver(hdmiHotPlugReceiver, filter);
   }
 
    @Override
    public void onPause() {
      super.onPause();
-     unregisterReceiver(hdmiHotPlugReceiver);
    }
 
    @Override
@@ -391,6 +358,8 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
      Log.d(TAG, "onStop() called");
      stopPlaybackIfPlaying();
      exoPlayerFactory.releasePlayer();
+
+     outputProtectionMonitor.stop();
    }
 
   protected void stopPlaybackIfPlaying() {
@@ -638,6 +607,7 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
     boolean enableChunkless = getIntent().getBooleanExtra(CHUNKLESS_PREPARE, false);
     stopPlaybackIfPlaying();
     currentUri = uri;
+    outputProtectionMonitor.refreshState();
     Log.d(TAG, "playUri() playUri: '" + uri + "' - chunkless: " + enableChunkless);
     exoPlayerFactory.playUrl(uri, drmInfo, enableChunkless);
   }
