@@ -10,7 +10,9 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
+import android.annotation.SuppressLint;
 import android.provider.Settings;
 import android.util.Log;
 import android.util.Pair;
@@ -147,7 +149,6 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
     }
   }
   // Activity lifecycle
-
   @Override
   public void onCreate(Bundle savedInstanceState) {
     super.onCreate(savedInstanceState);
@@ -262,7 +263,9 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
     });
     player.addAnalyticsListener(playbackStats);
 
-    outputProtectionMonitor.start();
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR2) {
+        outputProtectionMonitor.start();
+    }
 
     processIntent(getIntent());
   }
@@ -359,7 +362,10 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
      stopPlaybackIfPlaying();
      exoPlayerFactory.releasePlayer();
 
-     outputProtectionMonitor.stop();
+     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR2) {
+        outputProtectionMonitor.stop();
+     }
+
    }
 
   protected void stopPlaybackIfPlaying() {
