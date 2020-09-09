@@ -1,4 +1,8 @@
 # Field Triage of Player Issues #
+
+[TOC]
+
+
 ## Summary ##
 This guide is intended to support the TiVo PSO team efforts to diagnose video playback issues with the ExoPlayer player in the TiVo managed streamer application.
 
@@ -339,8 +343,31 @@ Alternately, if you only have the APK, look in the APK `res/values/strings.xml` 
 
 #### Playback
 
-During VTP playback you should see i-Frame only segment loads (see [Segment and Playlist Loading](#segment-and-playlist-loading)).  
+During VTP playback you should see i-Frame only segment loads (see [Segment and Playlist Loading](#segment-and-playlist-loading)) in both forward and reverse mode.  
 
+In forward mode the player attempts to display frames at a target frame rate of approximately 7 - 10 frames per second to support this the client should be able to download i-Frames with a load duration of under 100ms.  If this is not achieved playback will not reach the speed requested (because of network stalls are delays to produce the content), the Hydra UI does not provide any visual feedback of this buffering.
+
+For reverse mode, the player is unable to take advantage of any buffering of segments, so while time movement will proceed at the requested rate, fewer (if any) frames will be displayed if the load duration of the i-Frame segments is > 100ms.
+
+#### Optimizing Origin Configuration
+
+Apple's [HLS Authoring Spec](https://developer.apple.com/documentation/http_live_streaming/hls_authoring_specification_for_apple_devices) Section 6 Trick Play contains information on this.  What follows is discussion on each of the sections with focus on the constraints of the current supported origin servers.
+
+> 6.6. You SHOULD provide multiple I-frame Media Playlists with different bit rates.
+
+The current supported origin servers (Vecima / Velocix) do not support multiple i-Frame only playlists so this is not possible.  As such it is critical to pick a resolution and compression level that is compatible with the network capabilities to the clients.
+
+> 6.3. Alternatively, you MAY use the I-frames from your normal content, but trick play performance is improved with a higher density of I-frames.
+
+This is true to a point, Apple optimizes the spec to Apple TV (where there is only a single fast forward rate that is 7x).  For the speeds TiVo supports 2-3 second GOP interval is as small as you want, longer inter-iframe durations may be required if network performance will not support.  Again, with only one i-Frame only playlist possible, this choice will be a tradeoff.
+
+> 6.4. If you provide multiple bit rates at the same spatial resolution for your regular video, you SHOULD create the I-frame playlist for that resolution from the same source used for the lowest bit rate in that group.
+
+This is a MUST for TiVo trick-play.  There is no benefit to higher bit rate i-Frames, in fact if the desired performance cannot be achieved with an HD (720 or higher) variant it is better to choose a lower resolution
+
+> 6.5. The bit rate of I-frame playlists SHOULD be the bit rate of a normal playlist of the same resolution times the fps of the I-frame playlist divided by eight. (See I-Frame Bit Rates Versus Normal Bit Rates.)
+
+This allows the player to confidently switch to the I-Frame playlist from the same spacial resolution normal playlist it is currently playing without risk of exceeded the measured bandwidth (the 1/8 is based on the Apple trick play rate, so for TiVo it should be even less!)  
 
 <div id="errorcodes-and-messages"/>
 ## ErrorCodes and Messages ##
@@ -420,6 +447,20 @@ Or (less likely, but possible) a bug in the VCAS Android Client
 In all of these cases, determine the playlist that contained the bad segment and use curl to load a copy of the playlist to include in the bug.
 
 
+
+<div id="v511" />
+### V511 - DRM Error
+This is caused by error code 32 () from VCAS
+
+````
+09-09 16:23:23.973  4168  7024 E VerimatrixDataSourceFactoryNative: Decrypt failure for uniqueIdentifier ea7fbfec-df51-3b69-9440-66aee8d0e731, vcasBootAddress acsm.vmx.cdvr.tds.net:8042, keyUri https://204.246.13.3/CAB/keyfile?s=22806&r=209999901&t=DTV&p=1599693443&kc=f9fd429cf23111eaa9d220677cd75cf4&kd=a164d80b400a8ef14598fab7fd416d67, dataLen 66176: 32
+09-09 16:23:23.975  4168  7024 I VMK     : vmk_enalbe: 0
+09-09 16:23:23.975  4168  7024 I VMK     : vmk_close
+09-09 16:23:23.975  4168  7024 E VerimatrixDataSourceFactoryNative: Deleting /data/user/0/com.tivo.hydra.app//vstore.dat
+````
+
+
+
 <div id="v552" />
 ### V552 - Playlist Stuck
 This is the *Playlist is stuck* error.  The playlist URI is included in the analytics log message, eg:
@@ -428,9 +469,124 @@ This is the *Playlist is stuck* error.  The playlist URI is included in the anal
 02-25 13:01:44.306  6028  6062 I clientcore: [diagnostics] ILogger \{ "M" : "StreamAnalyticsLogger: processSessionError: true/PLAYER_PLAYLIST_STUCK/3205/Playlist is stuck, uri [http://204.246.15.164/wp/cdvr1.prod.cdvr.tds.net/246293/YzF0d3c5YWhzbTBqaXdteXF2dW8/vxfmt=dp/h_3bfcafdc15a5ed5e7d8e470c12ce3edc/var3960000/vid/playlist.m3u8?device_profile=hls_hlsdrm_verimatrix]", "dvrTsn" : "tsn:A8F0000081AB5F1", "loggingVersion" : "1.0.5" }\
 ````
 
-This occurs because the origin server is failing to update a live playlist regularly (note a *live* playlist is any playlist without an [end tag](https://tools.ietf.org/html/draft-pantos-hls-rfc8216bis-04#section-4.4.3.4)).  The player polls the playlist for updates, as long as the playlist is *live*.  It is required for one of the following to change or the playlist is considered stuck:
+This occurs because the origin server is failing to update a live playlist regularly (note a *live* playlist is any playlist without an [EXT-X-END](https://tools.ietf.org/html/draft-pantos-hls-rfc8216bis-04#section-4.4.3.4)).  The player considers the following variables:
 
-1. The playlist [Media Sequence Number](https://tools.ietf.org/html/draft-pantos-hls-rfc8216bis-04#section-4.4.3.2) for the new playlist is greater than the last loaded playlist (this would be live, not live event where old segments don't age out)
-2. The segment count of the new playlist is greater than the last loaded playlist (this occurs for type EVENT live playlists)
-3. The segment counts are equal, but the new playlist just had an end tag added (a Live playlist transitions to an ended EVENT
+1. The *Media Sequence Number* (MSN), is used to keep track of what segments have been removed from the live playlist, the origin responsibility is defined in [Section 6.2.2 Live Playlists](https://tools.ietf.org/html/draft-pantos-hls-rfc8216bis-04#section-6.2.2) first paragraph
+2. The segment count (SegCnt) (this will increase for type EVENT live playlists, for regular live it stays the same as window size)
+3. If the live or EVENT playback is ended (when origin adds an <code>EXT-X-END</code> to a live playlist)
 
+The player polls the playlist for updates (according to the rules in [Pantos Section 6.4.4](https://tools.ietf.org/html/draft-pantos-hls-rfc8216bis-04#section-6.3.4) and checks if the playlist updated.  Three factors imply a reloaded playlist was an update:
+
+
+Each time the player re-loads the playlist it check for *playlist updated*, that is one of these three case must be true:
+
+1. MSN<sub>Reloaded Playlist</sub> > MSN<sub>Previous Playlist</sub>
+2. SegCnt<sub>Reloaded Playlist</sub> > SegCnt<sub>Previous Playlist</sub>
+3. EXT-X-END<sub>Reloaded Playlist</sub> is present and EXT-X-END<sub>Previous Playlist</sub> was not 
+
+Case 1 is the normal live case (the window slides, old segments are removed),   Case 2 only occurs for live "EVENT", in that case old segments don't age out.  Case 3 is when the live EVENT ends.   Note, after case 3 the player stops reloading the playlist (so trivially it cannot be "stuck" after this)
+
+
+<div id="v553" />
+### V553 - Playlist Reset
+This issue occurs during live playback when the player throws a [PlaylistResetException](https://exoplayer.dev/doc/reference/com/google/android/exoplayer2/source/hls/playlist/HlsPlaylistTracker.PlaylistResetException.html), the playlist URI is included in the analytics log message.   The StreamAnalyticsLogger log message is similar to playlist stuck, except the event is PLAYER\_PLAYLIST\_RESET
+
+Similar to [V552 Playlist Stuck](#v552) error, except in this case the Origin Server has reset the [Media Sequence Number](https://tools.ietf.org/html/draft-pantos-hls-rfc8216bis-04#section-4.4.3.2) (MSN) during live playback so that it does not follow the behavior required by [Section 6.2.2 Live Playlists](https://tools.ietf.org/html/draft-pantos-hls-rfc8216bis-04#section-6.2.2).  
+
+The player reports this when it determines after a playlist re-load where the playlist did not  update (see [V552 Playlist Stuck](#v552)) and the following condition is true
+
+> MSN<sub>Reloaded Playlist</sub> + SegCnt<sub>Reloaded Playlist</sub> < MSN<sub>Previous Playlist</sub> 
+
+Basically, the MSN jumped backward.
+
+If this error occurs report it to the Origin Server vendor including the time and playlist URL from the log.
+
+
+<div id="v554" />
+### V554 - Sample Queue Mapping Failed
+This issue occurs when there is a mismatch between the metadata in the HLS playlist (EXT-X-MEDIA and CODECS).  Only ExoPlayer versions that enable [chunkless prepare support](https://medium.com/google-exoplayer/faster-hls-preparation-f6611aa15ea6) for faster channel change can report this error.  The error will include a `SampleQueueMappingException` in the logs that reports the mime type that is missing from the media.
+
+Example with missing audio (audio/mp4a-latm) source data
+
+````
+com.google.android.exoplayer2.source.hls.SampleQueueMappingException: Unable to bind a sample queue to TrackGroup with mime type audio/mp4a-latm.
+at com.google.android.exoplayer2.source.hls.HlsSampleStream.maybeThrowError(HlsSampleStream.java:64)
+at com.google.android.exoplayer2.BaseRenderer.maybeThrowStreamError(BaseRenderer.java:134)
+at com.google.android.exoplayer2.ExoPlayerImplInternal.doSomeWork(ExoPlayerImplInternal.java:584)
+at com.google.android.exoplayer2.ExoPlayerImplInternal.handleMessage(ExoPlayerImplInternal.java:326)
+at android.os.Handler.dispatchMessage(Handler.java:102)
+at android.os.Looper.loop(Looper.java:193)
+at android.os.HandlerThread.run(HandlerThread.java:65)
+
+````
+
+To fix this issue the Origin Server must either:
+
+1. Remove the audio codec CODECS attribute in the variants (mp4a-latm is AAC audio, codec mp4a.40.x, [Mp4 Object Types](https://mp4ra.org/#/object_types))
+2. Add an EXT-X-MEDIA with a source playlist for the missing mime type
+
+Note this can also occur if the playlist is improperly authored for multiple audio streams, see details in [ExoPlayer Issue 7877](https://github.com/google/ExoPlayer/issues/7877)
+
+<div id="v555" />
+### V555 - Source Error
+This is a catch all for any ExoPlayer playback exception that is not covered by one of the V5xx errors.
+
+You must look in the log files to determine the specific root cause.  The most common presentation of this error is a failure to download a playlist or segment (after multiple retries).  In this case the logs will include the URL, eg
+
+````
+03-31 12:35:16.968 E/ExoPlayerPlayer( 6834): HTTP error is due to invalid response code: 404
+03-31 12:35:16.968 E/ExoPlayerPlayer( 6834): Response message: Not Found
+03-31 12:35:16.968 E/ExoPlayerPlayer( 6834):    Access-Control-Allow-Credentials: true
+03-31 12:35:16.968 E/ExoPlayerPlayer( 6834):    Access-Control-Allow-Headers: *
+03-31 12:35:16.968 E/ExoPlayerPlayer( 6834):    Access-Control-Allow-Methods: GET, HEAD, OPTIONS
+03-31 12:35:16.968 E/ExoPlayerPlayer( 6834):    Access-Control-Allow-Origin: *
+03-31 12:35:16.968 E/ExoPlayerPlayer( 6834):    Access-Control-Expose-Headers: Server,range,Content-Length,Content-Range
+03-31 12:35:16.968 E/ExoPlayerPlayer( 6834):    Connection: keep-alive
+03-31 12:35:16.968 E/ExoPlayerPlayer( 6834):    Content-Length: 345
+03-31 12:35:16.968 E/ExoPlayerPlayer( 6834):    Content-Type: text/html
+03-31 12:35:16.968 E/ExoPlayerPlayer( 6834):    Date: Tue, 31 Mar 2020 16:35:21 GMT
+03-31 12:35:16.968 E/ExoPlayerPlayer( 6834):    Server: ATS/7.1.4
+03-31 12:35:16.968 E/ExoPlayerPlayer( 6834):    Set-Cookie: TRACKID=f1e293589e33d52c86ab0a428bb0850b; Path=/; Version=1
+03-31 12:35:16.968 E/ExoPlayerPlayer( 6834):    X-Android-Received-Millis: 1585672516957
+03-31 12:35:16.968 E/ExoPlayerPlayer( 6834):    X-Android-Response-Source: NETWORK 404
+03-31 12:35:16.968 E/ExoPlayerPlayer( 6834):    X-Android-Selected-Protocol: http/1.1
+03-31 12:35:16.968 E/ExoPlayerPlayer( 6834):    X-Android-Sent-Millis: 1585672516378
+03-31 12:35:16.968 E/ExoPlayerPlayer( 6834):    null: HTTP/1.1 404 Not Found
+03-31 12:35:16.969 E/ExoPlayerPlayer( 6834): For uri [http://rr.vod.rcn.net:8080/LINEAR/rolling-buffer/hgtvhd__tp1-1008007-hgtvhd-216188244416653010-66692689-1585098000-158509992000000001/hgtvhd__tp1-1008007-hgtvhd-216188244416653010-66692689-1585098000-158509992000000001.m4m/transmux/index.m3u8?ccur_st=0&ccur_et=1860&ccur_svc_type=rec&eprefix=lts&source_channel_id=hgtvhd]: onPlayerError (source):
+````
+
+
+<div id="v556" />
+### V556 - Audio Configuration Error
+This error is most likely a mismatch between the audio tracks the origin server presents and what the streamer STB supports.
+
+Match the playlist presented by the origin server with the encoding spec, if it is compliant file a bug with the STB platform vendor
+
+
+<div id="v557" />
+### V557 - Audio Track Initialization Error
+This error is an STB platform error, it is reported when ExoPlayer fails to initialize the AudioTrack (may occur at any point during playback if there is an error writing audio).
+
+The TiVO ExoPlayer shared error recovery attempts to recover from some of these by re-tyring the initialization.  Here is an example log entry:
+
+````
+04-27 13:17:46.593 4155 7254 E IAudioFlinger: createTrack returned error -38
+04-27 13:17:46.593 4155 7254 E AudioTrack: AudioFlinger could not create track, status: -38 output 0
+04-27 13:17:46.594 4155 7254 E AudioTrack-JNI: Error -38 initializing AudioTrack
+04-27 13:17:46.594 4155 7254 D AudioTrack: no metrics gathered, track status=-38
+04-27 13:17:46.598 4155 7254 E android.media.AudioTrack: Error code -20 when initializing AudioTrack.
+04-27 13:17:46.622 3125 3975 I bcm-audio: Audio output stream closed, stream = 0xaea36c00
+04-27 13:17:46.636 4155 7254 E ExoPlayerImplInternal: Playback error.
+04-27 13:17:46.636 4155 7254 E ExoPlayerImplInternal: com.google.android.exoplayer2.ExoPlaybackException: com.google.android.exoplayer2.audio.AudioSink$InitializationException: AudioTrack init failed: 0, Config(48000, 12, 40000)
+04-27 13:17:46.636 4155 7254 E ExoPlayerImplInternal: at com.google.android.exoplayer2.audio.MediaCodecAudioRenderer.processOutputBuffer(MediaCodecAudioRenderer.java:738)
+04-27 13:17:46.636 4155 7254 E ExoPlayerImplInternal
+````
+This error is caused by issues in the underlying STB platform implementation of Android's MediaCodec, report the issue to the STB vendor
+
+<div id="v558" />
+### V558 - Audio Write Error
+This error occurs when the HDMI connection is lost (hot plug) and audio playback is in tunneled mode on the Broadcom STB platforms.  
+
+The player should recover and retry with tunneling disabled  until the HDMI is online.
+
+Jira issue [PARTDEFECT-1874](https://jira.tivo.com/browse/PARTDEFECT-1874) details the resolution steps for this issue.
