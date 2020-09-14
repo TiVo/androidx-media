@@ -7,16 +7,16 @@ All contributions to ExoPlayer must go to lengths to share as much as is legally
 ## Initial Setup ##
 
 ### Setting Up Your Local Git ###
-You need to setup access to this ExoPlayer private github, use the bot in the [#github Slack group](https://tivo.slack.com/archives/C6M9TSXH8) for this.
+You need to setup access to this [ExoPlayer private github](https://github.com/tivocorp/exoplayerprvt), use the bot in the [#github Slack group](https://tivo.slack.com/archives/C6M9TSXH8) for this.
 
-Next, clone this repository, then setup remotes for the GitHub repositories we track for ExoPlayer development.  From the command-line:
+Next, clone the exoplayerpvt repository, then setup remotes for the other GitHub repositories we track for ExoPlayer development.  From the command-line:
 
 ```
 mkdir ExoPlayer
 cd ExoPlayer
-git clone -o tivo-pvt https://github.com/TiVo/ExoPlayer .
+git clone -o tivo-pvt https://github.com/tivocorp/exoplayerprvt .
 ```
-At this point you will have one *origin* remmote that is named `tivo-pvt` as upstream to this repository.
+At this point you will have one *origin* remote that is named `tivo-pvt` and your local git repository on your workstation
 
 If you are working on code that will ultimately be shared with the ExoPlayer opensource (the most likely case), it is helpful to setup additional remotes to the two public GitHub repositories we will work with
 
