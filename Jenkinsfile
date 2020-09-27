@@ -34,8 +34,8 @@ pipeline {
         ./gradlew clean
         ./gradlew demo-tenfoot:build library-core:build library-dash:build library-hls:build library-tivo-ui:build library-trickplay:build library-ui:build
 
-        if [[ $CHANGE_BRANCH =~ streamer-*  ||  $CHANGE_BRANCH =~ release-* ]] ; then
-          echo "Publishing Build - $CHANGE_BRANCH"
+        if [[ $BRANCH_NAME =~ streamer-*  ||  $BRANCH_NAME =~ release-* ]] ; then
+          echo "Publishing Build - $BRANCH_NAME"
           ./gradlew publish -PREPO_USER_NAME=build -PREPO_PASSWORD=buildcode
         fi
         '''
