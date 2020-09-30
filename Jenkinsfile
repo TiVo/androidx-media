@@ -4,7 +4,7 @@ svcId = 'exoplayerprvt'
 
 
 pipeline { 
-  agent none
+  agent any
 
   options {
     timeout(time: 1, unit: 'HOURS')
@@ -12,7 +12,7 @@ pipeline {
   }
 
   stages {
-    stage("Build") {
+    stage("Environment Setup") {
       agent { label 'linux-android' }
 
       steps { 
@@ -30,20 +30,123 @@ pipeline {
 
         $ANDROID_SDK_ROOT/tools/bin/sdkmanager --list | sed -e '/Available Packages/q'
         pwd
+        '''
+      }
+    }
 
-        ./gradlew clean
-        ./gradlew demo-tenfoot:build library-core:build library-dash:build library-hls:build library-tivo-ui:build library-trickplay:build library-ui:build
+    // Build first, everything in ExoPlayer depends on this
+    stage("Build ExoPlayer core") {
+      agent { label 'linux-android' }
 
-        if [[ $BRANCH_NAME =~ streamer-*  ||  $BRANCH_NAME =~ release-* ]] ; then
-          echo "Publishing Build - $BRANCH_NAME"
-          ./gradlew publish -PREPO_USER_NAME=build -PREPO_PASSWORD=buildcode
-        fi
+      steps {
+        script {
+          try {
+            sh './gradlew library-core:build'
+          } finally {
+            junit 'library/core/buildout/test-results/testReleaseUnitTest/TEST-*.xml'
+          }
+        }
+      }
+    }
+
+    // ExoPlayer internal libraries -- all depend on core, never each other
+    stage("Build ExoPlayer Libraries") {
+      parallel {
+        stage("Build HLS Library") {
+          agent { label 'linux-android' }
+
+          steps {
+            script {
+              try {
+                sh './gradlew library-hls:build'
+              } finally {
+                junit 'library/hls/buildout/test-results/testReleaseUnitTest/TEST-*.xml'
+              }
+            }
+          }
+        }
+
+        stage("Build DASH Library") {
+          agent { label 'linux-android' }
+
+          steps {
+            script {
+              try {
+                sh './gradlew library-dash:build'
+              } finally {
+                junit 'library/dash/buildout/test-results/testReleaseUnitTest/TEST-*.xml'
+              }
+            }
+          }
+        }
+
+        stage("Build UI Library") {
+          agent { label 'linux-android' }
+
+          steps {
+            script {
+              try {
+                sh './gradlew library-ui:build'
+              } finally {
+                junit 'library/ui/buildout/test-results/testReleaseUnitTest/TEST-*.xml'
+              }
+            }
+          }
+        }
+      }
+    }
+
+    // Tivo libraries external to ExoPlayer depend on ExoPlayer core and libraries
+    stage("Build TiVo Libraries") {
+      agent { label 'linux-android' }
+
+      steps {
+        script {
+          try {
+            sh './gradlew library-tivo-ui:build '
+            sh './gradlew library-trickplay:build'
+          } finally {
+// Will fail until there are unit tests ;-)
+//            junit 'library/trickplay/buildout/test-results/testReleaseUnitTest/TEST-*.xml'
+//            junit 'library/trickplay/tivo-ui/test-results/testReleaseUnitTest/TEST-*.xml'
+          }
+        }
+      }
+    }
+
+    stage("Topic Branch Build") {
+      when {
+        anyOf {
+          branch pattern: "t-*"
+        }
+      }
+      steps {
+        // Anything we might want to do for topic branches...
+        echo "Topic Branch name: ${env.BRANCH_NAME}"
+      }
+    }
+
+    stage("Publish Build") {
+      agent { label 'linux-android' }
+
+      when {
+        beforeAgent true
+        anyOf {
+          branch pattern: "release-*"
+          branch "release"
+        }
+      }
+      steps {
+        sh '''
+        version="$(./gradlew -q -b gradle_util.gradle resolveProperties --prop=rootProject.releaseVersion)"
+        echo "Publishing release build from branch: ${env.BRANCH_NAME} - version: $version"
+        ./gradlew publish -PREPO_USER_NAME=build -PREPO_PASSWORD=buildcode
         '''
       }
     }
   }
 
-  post { 
+  post {
     success {
       print( "Yay SUCCESS ..." )
       script { 
