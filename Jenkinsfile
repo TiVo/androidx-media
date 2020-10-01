@@ -4,13 +4,17 @@ svcId = 'exoplayerprvt'
 
 
 pipeline { 
-  agent any
+  agent none
 
   options {
     timeout(time: 1, unit: 'HOURS')
     buildDiscarder(logRotator(daysToKeepStr: '15', numToKeepStr: '10'))
   }
-
+  environment {
+    ANDROID_SDK_ROOT = "/home/build/Android/sdk"
+    PATH = "$PATH:$ANDROID_SDK_ROOT/tools/bin:$ANDROID_SDK_ROOT/platform-tools"
+  }
+  
   stages {
     stage("Environment Setup") {
       agent { label 'linux-android' }
@@ -37,6 +41,9 @@ pipeline {
     // Build first, everything in ExoPlayer depends on this
     stage("Build ExoPlayer core") {
       agent { label 'linux-android' }
+      options {
+        skipDefaultCheckout()
+      }
 
       steps {
         script {
@@ -54,6 +61,9 @@ pipeline {
       parallel {
         stage("Build HLS Library") {
           agent { label 'linux-android' }
+          options {
+            skipDefaultCheckout()
+          }
 
           steps {
             script {
@@ -68,6 +78,9 @@ pipeline {
 
         stage("Build DASH Library") {
           agent { label 'linux-android' }
+          options {
+            skipDefaultCheckout()
+          }
 
           steps {
             script {
@@ -82,6 +95,9 @@ pipeline {
 
         stage("Build UI Library") {
           agent { label 'linux-android' }
+          options {
+            skipDefaultCheckout()
+          }
 
           steps {
             script {
@@ -99,6 +115,9 @@ pipeline {
     // Tivo libraries external to ExoPlayer depend on ExoPlayer core and libraries
     stage("Build TiVo Libraries") {
       agent { label 'linux-android' }
+      options {
+        skipDefaultCheckout()
+      }
 
       steps {
         script {
@@ -114,20 +133,11 @@ pipeline {
       }
     }
 
-    stage("Topic Branch Build") {
-      when {
-        anyOf {
-          branch pattern: "t-*"
-        }
-      }
-      steps {
-        // Anything we might want to do for topic branches...
-        echo "Topic Branch name: ${env.BRANCH_NAME}"
-      }
-    }
-
     stage("Publish Build") {
       agent { label 'linux-android' }
+      options {
+        skipDefaultCheckout()
+      }
 
       when {
         beforeAgent true
