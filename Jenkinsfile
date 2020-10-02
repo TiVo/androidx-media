@@ -143,6 +143,7 @@ pipeline {
             beforeAgent true
             anyOf {
               branch pattern: "release-*"
+              branch pattern: "streamer-*"
               branch "release"
             }
           }
