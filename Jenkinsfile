@@ -150,7 +150,7 @@ pipeline {
           steps {
             sh '''
             version="$(./gradlew -q -b gradle_util.gradle resolveProperties --prop=rootProject.releaseVersion)"
-            echo "Publishing release build from branch: ${env.BRANCH_NAME} - version: $version"
+            echo "Publishing release build from branch: $BRANCH_NAME - version: $version"
             ./gradlew publish -PREPO_USER_NAME=build -PREPO_PASSWORD=buildcode
             '''
           }
