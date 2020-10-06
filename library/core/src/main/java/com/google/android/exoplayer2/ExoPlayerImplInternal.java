@@ -174,6 +174,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
   private final PlaybackInfoUpdateListener playbackInfoUpdateListener;
   private final MediaPeriodQueue queue;
   private final MediaSourceList mediaSourceList;
+  private final long releaseTimeoutMs;
 
   @SuppressWarnings("unused")
   private SeekParameters seekParameters;
@@ -197,7 +198,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
   private int nextPendingMessageIndexHint;
   private boolean deliverPendingMessageAtStartPositionRequired;
 
-  private long releaseTimeoutMs;
   private boolean throwWhenStuckBuffering;
 
   public ExoPlayerImplInternal(
@@ -210,6 +210,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
       boolean shuffleModeEnabled,
       @Nullable AnalyticsCollector analyticsCollector,
       SeekParameters seekParameters,
+      long releaseTimeoutMs,
       boolean pauseAtEndOfWindow,
       Looper applicationLooper,
       Clock clock,
@@ -223,6 +224,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
     this.repeatMode = repeatMode;
     this.shuffleModeEnabled = shuffleModeEnabled;
     this.seekParameters = seekParameters;
+    this.releaseTimeoutMs = releaseTimeoutMs;
     this.pauseAtEndOfWindow = pauseAtEndOfWindow;
     this.clock = clock;
 
@@ -255,10 +257,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
     internalPlaybackThread.start();
     playbackLooper = internalPlaybackThread.getLooper();
     handler = clock.createHandler(playbackLooper, this);
-  }
-
-  public void experimentalSetReleaseTimeoutMs(long releaseTimeoutMs) {
-    this.releaseTimeoutMs = releaseTimeoutMs;
   }
 
   public void experimentalDisableThrowWhenStuckBuffering() {
@@ -369,6 +367,12 @@ import java.util.concurrent.atomic.AtomicBoolean;
     handler.obtainMessage(MSG_SEND_MESSAGE, message).sendToTarget();
   }
 
+  /**
+   * Sets the foreground mode.
+   *
+   * @param foregroundMode Whether foreground mode should be enabled.
+   * @return Whether the operations succeeded. If false, the operation timed out.
+   */
   public synchronized boolean setForegroundMode(boolean foregroundMode) {
     if (released || !internalPlaybackThread.isAlive()) {
       return true;
@@ -381,26 +385,22 @@ import java.util.concurrent.atomic.AtomicBoolean;
       handler
           .obtainMessage(MSG_SET_FOREGROUND_MODE, /* foregroundMode */ 0, 0, processedFlag)
           .sendToTarget();
-      if (releaseTimeoutMs > 0) {
-        waitUninterruptibly(/* condition= */ processedFlag::get, releaseTimeoutMs);
-      } else {
-        waitUninterruptibly(/* condition= */ processedFlag::get);
-      }
+      waitUninterruptibly(/* condition= */ processedFlag::get, releaseTimeoutMs);
       return processedFlag.get();
     }
   }
 
+  /**
+   * Releases the player.
+   *
+   * @return Whether the release succeeded. If false, the release timed out.
+   */
   public synchronized boolean release() {
     if (released || !internalPlaybackThread.isAlive()) {
       return true;
     }
-
     handler.sendEmptyMessage(MSG_RELEASE);
-    if (releaseTimeoutMs > 0) {
-      waitUninterruptibly(/* condition= */ () -> released, releaseTimeoutMs);
-    } else {
-      waitUninterruptibly(/* condition= */ () -> released);
-    }
+    waitUninterruptibly(/* condition= */ () -> released, releaseTimeoutMs);
     return released;
   }
 
@@ -571,29 +571,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
   }
 
   // Private methods.
-
-  /**
-   * Blocks the current thread until a condition becomes true.
-   *
-   * <p>If the current thread is interrupted while waiting for the condition to become true, this
-   * method will restore the interrupt <b>after</b> the condition became true.
-   *
-   * @param condition The condition.
-   */
-  private synchronized void waitUninterruptibly(Supplier<Boolean> condition) {
-    boolean wasInterrupted = false;
-    while (!condition.get()) {
-      try {
-        wait();
-      } catch (InterruptedException e) {
-        wasInterrupted = true;
-      }
-    }
-    if (wasInterrupted) {
-      // Restore the interrupted status.
-      Thread.currentThread().interrupt();
-    }
-  }
 
   /**
    * Blocks the current thread until a condition becomes true or the specified amount of time has

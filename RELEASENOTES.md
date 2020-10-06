@@ -2,6 +2,7 @@
 
 ### 2.12.3-1.1-dev (Not yet released) ###
 
+* Time out on release to prevent ANRs if an underlying platform call is stuck (#4352).
 * Fix bug [PARTDEFECT-6244](https://jira.tivo.com/browse/PARTDEFECT-6244) - End of CEA608 stream not recogized,
   [c128f7e799](https://github.com/tivocorp/exoplayerprvt/commit/c128f7e799) - Fixing bad merge. The CeaDecoder.java missed a line during 2.12.3 integration
 * Update StuckPlaylistErrorRecovery with functioning support for 2.12.+ (note this is not yet used in Hydra) [55c9edac8b](https://github.com/tivocorp/exoplayerprvt/commit/55c9edac8b)
