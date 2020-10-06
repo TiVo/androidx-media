@@ -12,7 +12,7 @@ pipeline {
   }
 
   stages {
-    stage("Build") {
+    stage("Environment Setup") {
       agent { label 'linux-android' }
 
       steps { 
@@ -30,20 +30,137 @@ pipeline {
 
         $ANDROID_SDK_ROOT/tools/bin/sdkmanager --list | sed -e '/Available Packages/q'
         pwd
-
-        ./gradlew clean
-        ./gradlew demo-tenfoot:build library-core:build library-dash:build library-hls:build library-tivo-ui:build library-trickplay:build library-ui:build
-
-        if [[ $BRANCH_NAME =~ streamer-*  ||  $BRANCH_NAME =~ release-* ]] ; then
-          echo "Publishing Build - $BRANCH_NAME"
-          ./gradlew publish -PREPO_USER_NAME=build -PREPO_PASSWORD=buildcode
-        fi
         '''
       }
     }
+
+    stage("Perform Build") {
+      agent { label 'linux-android' }
+
+      environment {
+        ANDROID_SDK_ROOT = "/home/build/Android/sdk"
+        PATH = "$PATH:$ANDROID_SDK_ROOT/tools/bin:$ANDROID_SDK_ROOT/platform-tools"
+      }
+
+      stages {
+
+        // Build first, everything in ExoPlayer depends on this
+        stage("Build ExoPlayer core") {
+          options {
+            skipDefaultCheckout()
+          }
+
+          steps {
+            script {
+              try {
+                sh './gradlew library-core:build'
+              } finally {
+                junit 'library/core/buildout/test-results/testReleaseUnitTest/TEST-*.xml'
+              }
+            }
+          }
+        }
+
+        // ExoPlayer internal libraries -- all depend on core, never each other
+        stage("Build ExoPlayer Libraries") {
+          parallel {
+            stage("Build HLS Library") {
+              options {
+                skipDefaultCheckout()
+              }
+
+              steps {
+                script {
+                  try {
+                    sh './gradlew library-hls:build'
+                  } finally {
+                    junit 'library/hls/buildout/test-results/testReleaseUnitTest/TEST-*.xml'
+                  }
+                }
+              }
+            }
+
+            stage("Build DASH Library") {
+              options {
+                skipDefaultCheckout()
+              }
+
+              steps {
+                script {
+                  try {
+                    sh './gradlew library-dash:build'
+                  } finally {
+                    junit 'library/dash/buildout/test-results/testReleaseUnitTest/TEST-*.xml'
+                  }
+                }
+              }
+            }
+
+            stage("Build UI Library") {
+              options {
+                skipDefaultCheckout()
+              }
+
+              steps {
+                script {
+                  try {
+                    sh './gradlew library-ui:build'
+                  } finally {
+                    junit 'library/ui/buildout/test-results/testReleaseUnitTest/TEST-*.xml'
+                  }
+                }
+              }
+            }
+          }
+        }
+
+        // Tivo libraries external to ExoPlayer depend on ExoPlayer core and libraries
+        stage("Build TiVo Libraries") {
+          options {
+            skipDefaultCheckout()
+          }
+
+          steps {
+            script {
+              try {
+                sh './gradlew library-tivo-ui:build '
+                sh './gradlew library-trickplay:build'
+              } finally {
+// Will fail until there are unit tests ;-)
+//            junit 'library/trickplay/buildout/test-results/testReleaseUnitTest/TEST-*.xml'
+//            junit 'library/trickplay/tivo-ui/test-results/testReleaseUnitTest/TEST-*.xml'
+              }
+            }
+          }
+        }
+
+        stage("Publish Build") {
+          options {
+            skipDefaultCheckout()
+          }
+
+          when {
+            beforeAgent true
+            anyOf {
+              branch pattern: "release-*"
+              branch pattern: "streamer-*"
+              branch "release"
+            }
+          }
+          steps {
+            sh '''
+            version="$(./gradlew -q -b gradle_util.gradle resolveProperties --prop=rootProject.releaseVersion)"
+            echo "Publishing release build from branch: ${env.BRANCH_NAME} - version: $version"
+            ./gradlew publish -PREPO_USER_NAME=build -PREPO_PASSWORD=buildcode
+            '''
+          }
+        }
+      }
+
+    }
   }
 
-  post { 
+  post {
     success {
       print( "Yay SUCCESS ..." )
       script { 
