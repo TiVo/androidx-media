@@ -447,10 +447,62 @@ Or (less likely, but possible) a bug in the VCAS Android Client
 In all of these cases, determine the playlist that contained the bad segment and use curl to load a copy of the playlist to include in the bug.
 
 
+<div id="V475" />
+### V475 - DRM Error &mdash; Invalid reply
+
+This issue is caused by VCAS client returning error code 6 ("Bad Reply") to a key request (encrypt).
+
+Check in the VCAS console if the CA Device ID for the client has been disabled.
+
+
+<div id="V479" />
+### V479 - DRM Error &mdash; Device Not Entitled
+
+The issue is that the CA Device ID is not in VCAS (note this is a legacy VisualOn error code, but ExoPlayer uses the same message).
+
+You should see in the logs something like:
+
+````
+09-21 11:09:29.815 24861 25141 E VerimatrixDataSourceFactoryNative: ConnectAndProvisionDevice failed: 10
+09-21 11:09:29.816 24861 25141 E VerimatrixDataSourceFactoryNative: Connect/provision failure for uniqueIdentifier 0cfcda5d-57ae-369b-98aa-3a80aa661cad, vcasBootAddress devvcas02.tivo.com:8042, keyUri https://devvcas02.tivo.com/CAB/keyfile?s=866&r=ktvu&t=DTV&p=1600711200&Kd=AE5110F31B4F5DD42FB0318165F26292&Kc=6F17C025FB9D11EA83AD005056B79EEA, dataLen 66192: 5010
+09-21 11:09:29.816 24861 25141 E VerimatrixDataSourceFactory: Failed in Verimatrix provisioning with code: 5010
+````
+
+The __5010__ is broken down as 10 is the VCAS error code (10 NotEntitled &mdash; Device not entitled) and _5000_ is the VCAS API call:
+
+Code  | VCAS API
+------------- | -------------
+1000 | InitializeCommonResources()
+2000 | VerifyHandshake()
+3000 | SetUniqueIdentifier()
+4000 | SetVCASCommunicationHandlerSettings()
+5000 | ConnectAndProvisionDevice()
+
+Look at the VCAS server logs searching for the IBI "Boot Request" lines for your device searching by CA Device ID (in this example: `oDQflbF+K8aCEqDSo5JiL6+FWiEcdoqUKIdP/jZcTCgM0PBuUTnwLPBNVAEqcCiu` (aka Network Device ID))
+
+````
+2020-10-06T13:01:39.428000-07:00 devvcas02.tivo.com IBI[http-nio-8042-exec-6] DEBUG | InternetTVBootInterfaceImpl.sendBootRequest(-1) | Boot url: /CAB/BOOT?
+2020-10-06T13:01:39.429000-07:00 devvcas02.tivo.com IBI[http-nio-8042-exec-6] DEBUG | BootResponse.validate(-1) | Content length: 1024
+2020-10-06T13:01:39.437000-07:00 devvcas02.tivo.com IBI[http-nio-8042-exec-6] DEBUG | BootResponse.validate(-1) | Decrypted boot body: 168    /CAB/BOOT?n=69544060&version=1,2,3,4,5,7,8&vdis=[PD:<Network Device Id>{oDQflbF+K8aCEqDSo5JiL6+FWiEcdoqUKIdP/jZcTCgM0PBuUTnwLPBNVAEqcCiu}PD]&client=Verimatrix-ViewRight-Web-4.3.5.0-VMK.PI20.2-csl2-web_android- ...
+
+````
+
+Verimatrix IBI will call OTT "StoreDeviceInfo" You should then see lines like this:
+
+````
+2020-10-06T13:01:39.441939-07:00 devvcas02 OTT[14205]: DEBUG | Process(VCAS041153) | S:005056B79EEA - Started processing the Store Device Info Request
+...
+2020-10-06T13:01:39.450330-07:00 devvcas02 OTT[14205]: INFO | GetNetworkInfo(VCAS002852) | S:005056B79EEA - Found Network for device [PD:<Network Device Id>{oDQflbF+K8aCEqDSo5JiL6+FWiEcdoqUKIdP/jZcTCgM0PBuUTnwLPBNVAEqcCiu}PD]
+2020-10-06T13:01:39.450561-07:00 devvcas02 OTT[14205]: DEBUG | SetDeviceInfo(VCAS041280) | S:005056B79EEA - Successfully processed the Store Device Info request
+````
+
+If you do not see the device is found and in the network then the error is in service.
+
 
 <div id="v511" />
-### V511 - DRM Error
-This is caused by error code 32 () from VCAS
+### V511 - DRM library key file not entitled
+
+This is caused when VCAS error code 32 (KeyFileNotEntitled &mdash; Key file not entitled) is returned by the streamer player client's decrypt call into VCAS.  Basically VCAS gets an error from the server when it attempts to decrypt content.  The client side log contains something like:
 
 ````
 09-09 16:23:23.973  4168  7024 E VerimatrixDataSourceFactoryNative: Decrypt failure for uniqueIdentifier ea7fbfec-df51-3b69-9440-66aee8d0e731, vcasBootAddress acsm.vmx.cdvr.tds.net:8042, keyUri https://204.246.13.3/CAB/keyfile?s=22806&r=209999901&t=DTV&p=1599693443&kc=f9fd429cf23111eaa9d220677cd75cf4&kd=a164d80b400a8ef14598fab7fd416d67, dataLen 66176: 32
@@ -458,8 +510,58 @@ This is caused by error code 32 () from VCAS
 09-09 16:23:23.975  4168  7024 I VMK     : vmk_close
 09-09 16:23:23.975  4168  7024 E VerimatrixDataSourceFactoryNative: Deleting /data/user/0/com.tivo.hydra.app//vstore.dat
 ````
+The issue is caused by lack of content entitlement data in VCAS, that is likely to mean there is a mismatch between what TiVo service has for the client device and Verimatrix server.  To triage look at the Vermiatrix logs
 
+Here look at the *keyUri* the value for _r_ (209999901) is the VCAS *networkContentId*.  In the Vermatrix.log on the VCAS server you search for this specific key request and evaluate if there are failures:
 
+````
+12/30/2016 15:42:18.091 - vcas - OTT - VCAS040034 - I - S:080027DAB7AF - [5196]Execute: URL path: /CAB/keyfile, Query: r=1234&t=DTV&p=0&wowzasessionid=1743785732&v=2cIkmtqkTAaRVfg3eq1mrLrT6C8%3d
+````
+
+If the key request succeeded expect to see lines like this logged for the request by Vermiatrix OTT 
+
+````
+12/30/2016 15:42:18.095 - vcas - OTT - VCAS000414 - I - C:2cIkmtqkTAaRVfg3eq1mrLrT6C8= - [5196]AuthorizeDTV: The OTT device is authorized for Content ID: 1234
+````
+
+<div id="v526" />
+### V526 - DRM Error &mdash; Global Security Policy
+
+This error is reported when the device makes it "Boot Request" to Verimatrix and IBI determines the device is Jailbroken.
+
+For this VCAS global security policy has been set to not allow jailbroken devices, this is the default for VCAS:
+
+> Global Policy is configured in /opt/vcas/internetTV/etc/OTT/OTT.INI file in ACSM server. It is sent to the ViewRight Web Client Library for iOS / Android upon boot request.
+> 
+> 0 = disallow rooted / jailbroken devices (default)
+> 1 = allow rooted / jailbroken devices
+
+<div id="v527" />
+### V527 - DRM Error &mdash; Asset Policy
+
+This error is reported if VCAS is configured to allow Jailbroken devices (unlikely) and a specific asset is set to require non-jail broken devices.  This is VCAS error code 48 AssetPolicySecurityError
+
+Similar to the [V511](#v511) error this is reported on a key request, you should see:
+
+````
+09-09 16:23:23.973  4168  7024 E VerimatrixDataSourceFactoryNative: Decrypt failure for uniqueIdentifier ea7fbfec-df51-3b69-9440-66aee8d0e731, vcasBootAddress acsm.vmx.cdvr.tds.net:8042, keyUri https://204.246.13.3/CAB/keyfile?s=22806&r=209999901&t=DTV&p=1599693443&kc=f9fd429cf23111eaa9d220677cd75cf4&kd=a164d80b400a8ef14598fab7fd416d67, dataLen 66176: 48
+````
+
+As in V511, look at the *keyUri* the value for _r_ (209999901) is the VCAS *networkContentId*.  Look in VCAS OMI console (GUI) to see if the per-asset security policy is set for this content.
+
+<div id="v529" />
+### V529 - Can't Play &mdash; Bad State
+
+This error is reported if VCAS client fails to store the VCAS Communication settings, we have an open bug report to Verimatrix to find the root cause for this, [Bug 241317](https://support.verimatrix.com/hc/en-us/requests/241317)
+
+The client log will be:
+
+````
+09-21 11:09:29.815 24861 25141 E VerimatrixDataSourceFactoryNative: Failed to set communication handler settings to devvcas02.tivo.com:8042, /sdcard/VR -- 50
+09-21 11:09:29.816 24861 25141 E VerimatrixDataSourceFactory: Failed in Verimatrix provisioning with code: 4050
+````
+
+T.B.S. - how to fix this
 
 <div id="v552" />
 ### V552 - Playlist Stuck
