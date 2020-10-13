@@ -14,16 +14,15 @@ public interface PlayerErrorHandlerListener {
 
   /**
    * The {@link DefaultExoPlayerErrorHandler} handles playback errors reported via the
-   * {@link AnalyticsListener#onPlayerError(AnalyticsListener.EventTime, ExoPlaybackException)} by calling
+   * {@link com.google.android.exoplayer2.Player.EventListener#onPlayerError(ExoPlaybackException)} by calling
    * {@link DefaultExoPlayerErrorHandler.PlaybackExceptionRecovery} implementations in turn until one
    * recovers from the error or their are none left.
    *
    * This method is called at the end of that sequence to allow listeners to log errors or stop playback
    * in the case the error was not recovered.
    *
-   * @param eventTime time and details for the error event.
    * @param error the actual reported {@link ExoPlaybackException}
    * @param recovered true if a recovery PlaybackExceptionRecovery recovered from the error
    */
-  void playerErrorProcessed(AnalyticsListener.EventTime eventTime, ExoPlaybackException error, boolean recovered);
+  void playerErrorProcessed(ExoPlaybackException error, boolean recovered);
 }

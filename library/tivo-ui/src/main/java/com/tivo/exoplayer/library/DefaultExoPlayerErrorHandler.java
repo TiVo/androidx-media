@@ -23,13 +23,12 @@ import java.util.List;
  * method.  The errors reported to this method may be recovered, the player is transitions to the
  * {@link Player#STATE_IDLE} and playback stops.
  *
- * This handler listens to the {@link AnalyticsListener}  interface
- * which includes events from the {@link Player.EventListener} as well as the
- * {@link com.google.android.exoplayer2.source.MediaSourceEventListener} events which indicate
- * load errors that may eventually become ExoPlaybackExceptions.
+ * This handler listens to the @link Player.EventListener} and calls handlers that implement
+ * {@link PlaybackExceptionRecovery}, in the order added until the list is exhausted or one of
+ * the handlers returns true from {@link PlaybackExceptionRecovery#recoverFrom(ExoPlaybackException)}
  *
  */
-public class DefaultExoPlayerErrorHandler implements AnalyticsListener {
+public class DefaultExoPlayerErrorHandler implements Player.EventListener {
 
   private static final String TAG = "ExoPlayerErrorHandler";
   private final List<PlaybackExceptionRecovery> handlers;
@@ -83,7 +82,7 @@ public class DefaultExoPlayerErrorHandler implements AnalyticsListener {
   }
 
   @Override
-  public void onPlayerStateChanged(EventTime eventTime, boolean playWhenReady, int playbackState) {
+  public void onPlayerStateChanged(boolean playWhenReady, int playbackState) {
     // Any playback state change to READY resets error state
     if (playbackState == Player.STATE_READY) {
 
@@ -95,8 +94,8 @@ public class DefaultExoPlayerErrorHandler implements AnalyticsListener {
 
   @Override
   @CallSuper
-  public void onPlayerError(EventTime eventTime, ExoPlaybackException error) {
-    Log.w(TAG, "onPlayerError: eventTime: " + eventTime + ", error: " + error);
+  public void onPlayerError(ExoPlaybackException error) {
+    Log.w(TAG, "onPlayerError: error: " + error);
     boolean recovered = false;
 
     for (PlaybackExceptionRecovery handler : handlers) {
@@ -107,30 +106,22 @@ public class DefaultExoPlayerErrorHandler implements AnalyticsListener {
       }
     }
 
-    playerErrorProcessed(eventTime, error, recovered);
+    playerErrorProcessed(error, recovered);
   }
 
   /**
    * This is the hook for subclasses to be notified of the playback error
-   * from {@link #onPlayerError(EventTime, ExoPlaybackException)} and the status of attempts to
+   * from {@link #onPlayerError(ExoPlaybackException)} and the status of attempts to
    * recover from the error.
    *
-   * @param eventTime time and details for the error event.
    * @param error the acutal reported {@link ExoPlaybackException}
    * @param recovered true if recovery handler handled the error
    */
-  protected void playerErrorProcessed(EventTime eventTime, ExoPlaybackException error, boolean recovered) {
+  protected void playerErrorProcessed(ExoPlaybackException error, boolean recovered) {
     Log.d(TAG, "playerError was processed, " + (recovered ? "recovery succeed" : "recovery failed."));
     if (playerErrorHandlerListener != null) {
-      playerErrorHandlerListener.playerErrorProcessed(eventTime, error, recovered);
+      playerErrorHandlerListener.playerErrorProcessed(error, recovered);
     }
-  }
-
-  @Override
-  public void onLoadError(EventTime eventTime, MediaSourceEventListener.LoadEventInfo loadEventInfo,
-      MediaSourceEventListener.MediaLoadData mediaLoadData, IOException error,
-      boolean wasCanceled) {
-    Log.d(TAG, "onLoadError - URL: " + loadEventInfo.uri + " io error: "+error);
   }
 }
 

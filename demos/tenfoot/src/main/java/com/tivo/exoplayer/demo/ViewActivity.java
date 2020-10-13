@@ -157,7 +157,7 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
     Context context = getApplicationContext();
 
     SimpleExoPlayerFactory.initializeLogging(context, DEFAULT_LOG_LEVEL);
-    exoPlayerFactory = new SimpleExoPlayerFactory(context, (eventTime, error, recovered) -> {
+    exoPlayerFactory = new SimpleExoPlayerFactory(context, (error, recovered) -> {
       if (! recovered) {
         showError("Un-recovered Playback Error", error);
       }
