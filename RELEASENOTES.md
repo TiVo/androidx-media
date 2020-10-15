@@ -1,7 +1,14 @@
 # Release notes #
 
+### 2.11.6-1.0
+   * Fix for [PARTDEFECT-4642](https://jira.tivo.com/browse/PARTDEFECT-4642), released in streamer-1-7, fixes
+     issues with pass-thru surround audio and external audio devices.  This also fixes Google's 
+     issue [#7788](https://github.com/google/ExoPlayer/issues/7788)
+   * Update API in `library-tivo-ui` class `DefaultExoPlayerErrorHandler`.  Now implements `Player.EventListener`
+     to avoid modifying player state in an `AnalyticsListener`
+
 ### 2.11.6-0.3 - Alpha (not released)
-*   Merge fix for PARTDEFECT-3462:
+    *   Merge fix for PARTDEFECT-3462:
     *  As CDN has fixed timing issues of #EXT-X-PROG-DATE-TIME, need to remove Bad PlayList exception
 
 ### 2.11.6-0.2 - Alpha (not released)
