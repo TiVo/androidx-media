@@ -253,7 +253,7 @@ These conditions taken together:
 * segment fetching is still happening, or
 * segment fetching has stopped but the playlist is still updating or there is already 50 seconds of playback buffer
 
-Indicate that a discontinuity or timestamp issues is the cause.  The only way really to be sure is to capture the section of rolling buffer (or the VOD asset) that caused the stall.  You can use the [m3u8_download](https://github.com/tivocorp/m3u8_utils) utility to do this or the stream validator.
+Indicate that a discontinuity or timestamp issues is the cause.  The only way really to be sure is to capture the section of rolling buffer (or the VOD asset) that caused the stall.  You can use the [m3u8_download](https://github.com/tivocorp/m3u8_utils) utility to do this. As an alternative, the [Stream Validator](https://github.com/tivocorp/hls-stream-validator) can be used.
 
 Otherwise look to the sections either on [Buffering Issues](#buffering-issues) or [Live Playlist Stalls](#live-playlist-stalls) for the root cause.
 
