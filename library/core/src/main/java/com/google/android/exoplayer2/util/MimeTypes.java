@@ -199,6 +199,29 @@ public final class MimeTypes {
   }
 
   /**
+   * Returns whether the given {@code codecs} string contains a codec which corresponds to the given
+   * {@code mimeType}.
+   *
+   * @param codecs An RFC 6381 codecs string.
+   * @param mimeType A MIME type to look for.
+   * @return Whether the given {@code codecs} string contains a codec which corresponds to the given
+   *     {@code mimeType}.
+   */
+  public static boolean containsCodecsCorrespondingToMimeType(
+      @Nullable String codecs, String mimeType) {
+    if (codecs == null) {
+      return false;
+    }
+    String[] codecList = Util.splitCodecs(codecs);
+    for (String codec : codecList) {
+      if (mimeType.equals(getMediaMimeType(codec))) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /**
    * Derives a audio sample mimeType from a codecs attribute.
    *
    * @param codecs The codecs attribute.
