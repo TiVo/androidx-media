@@ -58,6 +58,37 @@ public final class MimeTypesTest {
   }
 
   @Test
+  public void getCodecsCorrespondingToMimeType_returnsCorrectResult() {
+    assertThat(
+            MimeTypes.getCodecsCorrespondingToMimeType(
+                /* codecs= */ "avc1.4D5015,ac-3,mp4a.40.2,avc1.4D4015", MimeTypes.AUDIO_AAC))
+        .isEqualTo("mp4a.40.2");
+    assertThat(
+            MimeTypes.getCodecsCorrespondingToMimeType(
+                /* codecs= */ "avc1.4D5015,ac-3,mp4a.40.2,avc1.4D4015", MimeTypes.VIDEO_H264))
+        .isEqualTo("avc1.4D5015,avc1.4D4015");
+    assertThat(
+            MimeTypes.getCodecsCorrespondingToMimeType(
+                /* codecs= */ "avc1.4D5015,ac-3,mp4a.40.2,avc1.4D4015", MimeTypes.AUDIO_AC3))
+        .isEqualTo("ac-3");
+    assertThat(
+            MimeTypes.getCodecsCorrespondingToMimeType(
+                /* codecs= */ "unknown-codec,ac-3,mp4a.40.2,avc1.4D4015", MimeTypes.AUDIO_AC3))
+        .isEqualTo("ac-3");
+
+    assertThat(
+            MimeTypes.getCodecsCorrespondingToMimeType(
+                /* codecs= */ "avc1.4D5015,ac-3,mp4a.40.2,avc1.4D4015", MimeTypes.VIDEO_H265))
+        .isNull();
+    assertThat(
+            MimeTypes.getCodecsCorrespondingToMimeType(
+                /* codecs= */ "avc1.4D5015,ac-3,mp4a.40.2,avc1.4D4015", null))
+        .isNull();
+    assertThat(MimeTypes.getCodecsCorrespondingToMimeType(/* codecs= */ null, MimeTypes.AUDIO_AAC))
+        .isNull();
+  }
+
+  @Test
   public void testGetMediaMimeType_fromValidCodecs_returnsCorrectMimeType() {
     assertThat(MimeTypes.getMediaMimeType("avc1")).isEqualTo(MimeTypes.VIDEO_H264);
     assertThat(MimeTypes.getMediaMimeType("avc1.42E01E")).isEqualTo(MimeTypes.VIDEO_H264);
