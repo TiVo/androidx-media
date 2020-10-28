@@ -552,7 +552,7 @@ As in V511, look at the *keyUri* the value for _r_ (209999901) is the VCAS *netw
 <div id="v529" />
 ### V529 - Can't Play &mdash; Bad State
 
-This error is reported if VCAS client fails to store the VCAS Communication settings, we have an open bug report to Verimatrix to find the root cause for this, [Bug 241317](https://support.verimatrix.com/hc/en-us/requests/241317)
+This error is reported if VCAS client fails in the call to store the VCAS Communication settings (`SetVCASCommunicationHandlerSettings()`).
 
 The client log will be:
 
@@ -560,8 +560,8 @@ The client log will be:
 09-21 11:09:29.815 24861 25141 E VerimatrixDataSourceFactoryNative: Failed to set communication handler settings to devvcas02.tivo.com:8042, /sdcard/VR -- 50
 09-21 11:09:29.816 24861 25141 E VerimatrixDataSourceFactory: Failed in Verimatrix provisioning with code: 4050
 ````
+The older (streamer-1.7) versions of the VCAS client code do blanket retry on failures.  The VCAS client code will return this error if the client re-trying an error returned previously from `SetVCASCommunicationHandlerSettings()`.  The `SetVCASCommunicationHandlerSettings()` checks for rooted boxes and returns error [V526](#v526) or [V527](#v527), if the app retries on this error it will this V529 error on each subsequent retry.  
 
-T.B.S. - how to fix this
 
 <div id="v552" />
 ### V552 - Playlist Stuck
