@@ -102,6 +102,9 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
   public static final String DRM_WV_PROXY = "wv_proxy";
   public static final String DRM_VCAS_VUID = "vcas_vuid";
 
+  public static final String DRM_SCHEME_VCAS = "vcas";
+  public static final String DRM_SCHEME_WIDEVINE = "widevine";
+
   protected Uri[] uris;
 
   private int currentChannel;
@@ -706,24 +709,6 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
 
   // Internal methods
 
-  private HttpMediaDrmCallback createMediaDrmCallback(
-          String licenseUrl, String[] keyRequestPropertiesArray) {
-    HttpDataSource.Factory licenseDataSourceFactory =
-            new DefaultHttpDataSourceFactory
-                    (Util.getUserAgent(getApplicationContext(),
-                            Build.BRAND + " " + Build.MODEL + " " + Build.DEVICE + " TiVo"));
-
-    HttpMediaDrmCallback drmCallback =
-            new HttpMediaDrmCallback(licenseUrl, licenseDataSourceFactory);
-    if (keyRequestPropertiesArray != null) {
-      for (int i = 0; i < keyRequestPropertiesArray.length - 1; i += 2) {
-        drmCallback.setKeyRequestProperty(keyRequestPropertiesArray[i],
-                keyRequestPropertiesArray[i + 1]);
-      }
-    }
-    return drmCallback;
-  }
-
   private void processIntent(Intent intent) {
     String action = intent.getAction();
     uris = new Uri[0];
@@ -748,7 +733,7 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
     boolean enableTunneling = getIntent().getBooleanExtra(ENABLE_TUNNELED_PLAYBACK, false);
     exoPlayerFactory.setTunnelingMode(enableTunneling);
 
-    if ("vcas".equals(getIntent().getStringExtra(DRM_SCHEME))) {
+    if (DRM_SCHEME_VCAS.equals(getIntent().getStringExtra(DRM_SCHEME))) {
       String vcasAddr = getIntent().getStringExtra(DRM_VCAS_ADDR);
       String vcasCaId = getIntent().getStringExtra(DRM_VCAS_CA_ID);
       String storeDir = "/sdcard/demoVR";
@@ -764,7 +749,7 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
 
       Log.d(TAG, String.format("Requested Verimatrix DRM with addr:%s CAID:%s storage:%s", vcasAddr, vcasCaId, storeDir));
       drmInfo = new VcasDrmInfo(vcasAddr, vcasCaId, storeDir, true);
-    } else if ("widevine".equals(getIntent().getStringExtra(DRM_SCHEME))) {
+    } else if (DRM_SCHEME_WIDEVINE.equals(getIntent().getStringExtra(DRM_SCHEME))) {
       String wvProxy = getIntent().getStringExtra(DRM_WV_PROXY);
       String vuid = getIntent().getStringExtra(DRM_VCAS_VUID);
 
@@ -777,7 +762,7 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
       }
       drmInfo = new WidevineDrmInfo(wvProxy, keyRequestProps);
     } else {
-      drmInfo = new DrmInfo(DrmInfo.DrmType.CLEAR);
+      drmInfo = new DrmInfo(DrmInfo.CLEAR);
     }
 
 

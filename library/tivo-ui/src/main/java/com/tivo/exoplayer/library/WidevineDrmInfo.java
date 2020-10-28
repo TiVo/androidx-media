@@ -9,7 +9,7 @@ public class WidevineDrmInfo extends DrmInfo {
 
     public WidevineDrmInfo(String proxy, String[] keyRequestProps)
     {
-         super(DrmType.WIDEVINE);
+         super(WIDEVINE);
          this.proxyUrl = proxy;
          this.keyRequestProps = keyRequestProps;
     }
