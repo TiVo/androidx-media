@@ -5,11 +5,18 @@ import android.content.Context;
 import android.net.Uri;
 import android.os.Build;
 import androidx.annotation.Nullable;
+import com.google.android.exoplayer2.C;
 import com.google.android.exoplayer2.ExoPlaybackException;
 import com.google.android.exoplayer2.ExoPlayerLibraryInfo;
 import com.google.android.exoplayer2.Player;
 import com.google.android.exoplayer2.SimpleExoPlayer;
 import com.google.android.exoplayer2.analytics.AnalyticsListener;
+import com.google.android.exoplayer2.drm.DefaultDrmSessionManager;
+import com.google.android.exoplayer2.drm.DrmSessionManager;
+import com.google.android.exoplayer2.drm.ExoMediaCrypto;
+import com.google.android.exoplayer2.drm.FrameworkMediaDrm;
+import com.google.android.exoplayer2.drm.HttpMediaDrmCallback;
+import com.google.android.exoplayer2.drm.MediaDrmCallback;
 import com.google.android.exoplayer2.source.BehindLiveWindowException;
 import com.google.android.exoplayer2.source.MediaSource;
 import com.google.android.exoplayer2.source.hls.HlsMediaSource;
@@ -63,7 +70,7 @@ public class DefaultMediaSourceLifeCycle implements MediaSourceLifeCycle, Analyt
   public void playUrl(Uri uri, DrmInfo drmInfo, boolean enableChunkless) {
     Log.d("ExoPlayer", "play URL " + uri);
 
-    MediaSource mediaSource = buildMediaSource(uri, buildDataSourceFactory(drmInfo), enableChunkless);
+    MediaSource mediaSource = buildMediaSource(uri, drmInfo, buildDataSourceFactory(drmInfo), enableChunkless);
     playMediaSource(mediaSource);
   }
 
@@ -96,49 +103,56 @@ public class DefaultMediaSourceLifeCycle implements MediaSourceLifeCycle, Analyt
 
     userAgent += "-" + ExoPlayerLibraryInfo.VERSION;
 
-
     HttpDataSource.Factory upstreamFactory = new DefaultHttpDataSourceFactory(userAgent);
-    DataSource.Factory factory = new DefaultDataSourceFactory(context, upstreamFactory);
 
+    // Currently Verimatrix ViewRight CAS is plugged in at the DataSource level,
+    // If the library can provide the decrypting key then decryption can be done at
+    // MediaSource level using DrmSessionManager with Clearkey DRM scheme.
     if (drmInfo instanceof VcasDrmInfo) {
-      VcasDrmInfo vDrmInfo = (VcasDrmInfo)drmInfo;
-      if (Build.VERSION.SDK_INT >= 22) {
-        // Create the singleton "Verimatrix DRM" data source factory
-        Class<?> clazz =
-                null;
-        try {
-          clazz = Class.forName("com.tivo.exoplayer.vcas.VerimatrixDataSourceFactory");
-          Constructor<?> constructor =
-                  clazz.getConstructor(
-                          DataSource.Factory.class,
-                          String.class, String.class,
-                          String.class, String.class,
-                          String.class, boolean.class);
+        return buildVcasDataSourceFactory((VcasDrmInfo)drmInfo, upstreamFactory);
+    }
 
-          String filesDir = vDrmInfo.getStoreDir();
-          File folder = new File(filesDir);
-          if (!folder.exists()) {
-            folder.mkdirs();
-          }
-          DataSource.Factory vfactory = (DataSource.Factory) constructor
-                  .newInstance(upstreamFactory,
-                          filesDir,
-                          context.getApplicationInfo().nativeLibraryDir,
-                          context.getApplicationInfo().sourceDir,
-                          vDrmInfo.getCaId(),
-                          vDrmInfo.getBootAddr(),
-                          vDrmInfo.isDebugOn());
-          factory = vfactory;
-        } catch (ClassNotFoundException e) {
-          Log.e(TAG, "Couldn't instantiate VCAS factory");
-        } catch (NoSuchMethodException e) {
-          Log.e(TAG, "No matching VCAS constructor");
-        } catch (Exception e) {
-          Log.e(TAG, "VCAS instantiation failed: ", e);
+    return new DefaultDataSourceFactory(context, upstreamFactory);
+  }
+
+  private DataSource.Factory buildVcasDataSourceFactory(VcasDrmInfo vDrmInfo,
+                                                        HttpDataSource.Factory upstreamFactory) {
+    if (Build.VERSION.SDK_INT >= 22) {
+      // Create the singleton "Verimatrix DRM" data source factory
+      Class<?> clazz =
+              null;
+      try {
+        clazz = Class.forName("com.tivo.exoplayer.vcas.VerimatrixDataSourceFactory");
+        Constructor<?> constructor =
+                clazz.getConstructor(
+                        DataSource.Factory.class,
+                        String.class, String.class,
+                        String.class, String.class,
+                        String.class, boolean.class);
+
+        String filesDir = vDrmInfo.getStoreDir();
+        File folder = new File(filesDir);
+        if (!folder.exists()) {
+          folder.mkdirs();
         }
+        DataSource.Factory vfactory = (DataSource.Factory) constructor
+                .newInstance(upstreamFactory,
+                        filesDir,
+                        context.getApplicationInfo().nativeLibraryDir,
+                        context.getApplicationInfo().sourceDir,
+                        vDrmInfo.getCaId(),
+                        vDrmInfo.getBootAddr(),
+                        vDrmInfo.isDebugOn());
+        return vfactory;
+      } catch (ClassNotFoundException e) {
+        Log.e(TAG, "Couldn't instantiate VCAS factory");
+      } catch (NoSuchMethodException e) {
+        Log.e(TAG, "No matching VCAS constructor");
+      } catch (Exception e) {
+        Log.e(TAG, "VCAS instantiation failed: ", e);
       }
     }
-  return factory;
+    return null;
   }
 
   /**
@@ -149,7 +163,6 @@ public class DefaultMediaSourceLifeCycle implements MediaSourceLifeCycle, Analyt
   protected String getUserAgentPrefix() {
     return "TiVoExoPlayer";
   }
-
 
   /**
    * Built the MediaSource for the Uri (assumed for now to be HLS)
@@ -162,17 +175,42 @@ public class DefaultMediaSourceLifeCycle implements MediaSourceLifeCycle, Analyt
    *          See <a href="https://medium.com/google-exoplayer/faster-hls-preparation-f6611aa15ea6">Faster HLS Prepare</a>
    * @return an {@link MediaSource} ready to pass to {@link com.google.android.exoplayer2.SimpleExoPlayer#prepare(MediaSource)}
    */
-  protected MediaSource buildMediaSource(Uri uri, DataSource.Factory dataSourceFactory,
+  protected MediaSource buildMediaSource(Uri uri, DrmInfo drmInfo, DataSource.Factory dataSourceFactory,
       boolean enableChunkless) {
-    HlsMediaSource.Factory factory = new HlsMediaSource.Factory(dataSourceFactory);
 
-    // TODO - integrate VCAS DRM
-    //
-    //    // Create the singleton "Verimatrix DRM" media source factory
-    //    gVerimatrixMediaSourceFactory = new HlsMediaSource.Factory
-    //        (gVerimatrixDataSourceFactory);
+      HlsMediaSource.Factory factory = new HlsMediaSource.Factory(dataSourceFactory);
 
+    if (Build.VERSION.SDK_INT >= 18) {
+      if (drmInfo instanceof WidevineDrmInfo) {
+        WidevineDrmInfo wDrmInfo = (WidevineDrmInfo) drmInfo;
+        // setup DrmSessionManager
+
+        MediaDrmCallback mediaDrmCallback =
+                createMediaDrmCallback(wDrmInfo.getProxyUrl(), wDrmInfo.getKeyRequestProps());
+        DrmSessionManager<ExoMediaCrypto> drmSessionManager =
+                new DefaultDrmSessionManager.Builder()
+                        .setUuidAndExoMediaDrmProvider(C.WIDEVINE_UUID, FrameworkMediaDrm.DEFAULT_PROVIDER)
+                        .setMultiSession(false)
+                        .build(mediaDrmCallback);
+        factory.setDrmSessionManager(drmSessionManager);
+      }
+    }
     return factory.setAllowChunklessPreparation(enableChunkless).createMediaSource(uri);
+  }
+
+  private HttpMediaDrmCallback createMediaDrmCallback(
+          String licenseUrl, String[] keyRequestPropertiesArray) {
+    HttpDataSource.Factory licenseDataSourceFactory =
+            new DefaultHttpDataSourceFactory(getUserAgentPrefix());
+    HttpMediaDrmCallback drmCallback =
+            new HttpMediaDrmCallback(licenseUrl, licenseDataSourceFactory);
+    if (keyRequestPropertiesArray != null) {
+      for (int i = 0; i < keyRequestPropertiesArray.length - 1; i += 2) {
+        drmCallback.setKeyRequestProperty(keyRequestPropertiesArray[i],
+                keyRequestPropertiesArray[i + 1]);
+      }
+    }
+    return drmCallback;
   }
 
   @Override

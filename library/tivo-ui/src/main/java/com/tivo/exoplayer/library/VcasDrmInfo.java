@@ -7,7 +7,7 @@ public class VcasDrmInfo extends DrmInfo {
 
     public VcasDrmInfo(String bootAddr, String caId,
                        String storeDir, boolean debugOn) {
-        super(DrmType.VCAS);
+        super(VCAS);
         this.bootAddr = bootAddr;
         this.caId = caId;
         this.storeDir = storeDir;

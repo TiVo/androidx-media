@@ -36,6 +36,7 @@ import com.google.android.exoplayer2.analytics.AnalyticsListener;
 import com.google.android.exoplayer2.analytics.PlaybackStats;
 import com.google.android.exoplayer2.analytics.PlaybackStatsListener;
 import com.google.android.exoplayer2.demo.TrackSelectionDialog;
+import com.google.android.exoplayer2.drm.HttpMediaDrmCallback;
 import com.google.android.exoplayer2.trackselection.DefaultTrackSelector;
 import com.google.android.exoplayer2.trickplay.TrickPlayControl;
 import com.google.android.exoplayer2.trickplay.TrickPlayEventListener;
@@ -43,16 +44,22 @@ import com.google.android.exoplayer2.ui.PlayerControlView;
 import com.google.android.exoplayer2.ui.PlayerView;
 import com.google.android.exoplayer2.ui.SubtitleView;
 import com.google.android.exoplayer2.ui.TimeBar;
+import com.google.android.exoplayer2.upstream.DefaultHttpDataSourceFactory;
+import com.google.android.exoplayer2.upstream.HttpDataSource;
 import com.google.android.exoplayer2.util.EventLogger;
+import com.google.android.exoplayer2.util.Util;
 import com.tivo.exoplayer.library.DrmInfo;
 import com.tivo.exoplayer.library.GeekStatsOverlay;
 import com.tivo.exoplayer.library.OutputProtectionMonitor;
 import com.tivo.exoplayer.library.SimpleExoPlayerFactory;
 import com.tivo.exoplayer.library.VcasDrmInfo;
+import com.tivo.exoplayer.library.WidevineDrmInfo;
 import com.tivo.exoplayer.library.tracks.TrackInfo;
 import java.io.File;
 import java.io.IOException;
 import com.tivo.exoplayer.library.util.AccessibilityHelper;
+
+import java.security.cert.Extension;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -92,6 +99,11 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
   public static final String DRM_SCHEME = "drm_scheme";
   public static final String DRM_VCAS_CA_ID = "vcas_ca_id";
   public static final String DRM_VCAS_ADDR = "vcas_addr";
+  public static final String DRM_WV_PROXY = "wv_proxy";
+  public static final String DRM_VCAS_VUID = "vcas_vuid";
+
+  public static final String DRM_SCHEME_VCAS = "vcas";
+  public static final String DRM_SCHEME_WIDEVINE = "widevine";
 
   protected Uri[] uris;
 
@@ -721,7 +733,7 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
     boolean enableTunneling = getIntent().getBooleanExtra(ENABLE_TUNNELED_PLAYBACK, false);
     exoPlayerFactory.setTunnelingMode(enableTunneling);
 
-    if ("vcas".equals(getIntent().getStringExtra(DRM_SCHEME))) {
+    if (DRM_SCHEME_VCAS.equals(getIntent().getStringExtra(DRM_SCHEME))) {
       String vcasAddr = getIntent().getStringExtra(DRM_VCAS_ADDR);
       String vcasCaId = getIntent().getStringExtra(DRM_VCAS_CA_ID);
       String storeDir = "/sdcard/demoVR";
@@ -737,8 +749,20 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
 
       Log.d(TAG, String.format("Requested Verimatrix DRM with addr:%s CAID:%s storage:%s", vcasAddr, vcasCaId, storeDir));
       drmInfo = new VcasDrmInfo(vcasAddr, vcasCaId, storeDir, true);
+    } else if (DRM_SCHEME_WIDEVINE.equals(getIntent().getStringExtra(DRM_SCHEME))) {
+      String wvProxy = getIntent().getStringExtra(DRM_WV_PROXY);
+      String vuid = getIntent().getStringExtra(DRM_VCAS_VUID);
+
+      Log.d(TAG, String.format("Requested Widevine DRM with addr:%s VUID:%s", wvProxy, vuid));
+
+      String[] keyRequestProps = null;
+
+      if (vuid != null) {
+          keyRequestProps = new String[] {"VUID", vuid};
+      }
+      drmInfo = new WidevineDrmInfo(wvProxy, keyRequestProps);
     } else {
-      drmInfo = new DrmInfo(DrmInfo.DrmType.CLEAR);
+      drmInfo = new DrmInfo(DrmInfo.CLEAR);
     }
 
 
