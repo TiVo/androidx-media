@@ -2,7 +2,6 @@ package com.tivo.exoplayer.demo;
 
 import android.app.AlertDialog;
 import android.app.Dialog;
-import android.content.DialogInterface;
 import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -12,9 +11,10 @@ import androidx.annotation.Nullable;
 import androidx.fragment.app.DialogFragment;
 import com.google.android.exoplayer2.ui.DefaultTrackNameProvider;
 import com.google.android.exoplayer2.ui.TrackNameProvider;
+import com.google.android.exoplayer2.util.MimeTypes;
 import com.tivo.exoplayer.library.SimpleExoPlayerFactory;
 import com.tivo.exoplayer.library.tracks.TrackInfo;
-import java.util.ArrayList;
+
 import java.util.List;
 
 /**
@@ -75,21 +75,39 @@ public class TrackInfoSelectionDialog extends DialogFragment {
     if (nameProvider == null) {
       nameProvider = new DefaultTrackNameProvider(getResources());
     }
-    CharSequence trackNames[] = new CharSequence[choices.size()];
-    int selectedTrackIndex = -1;
-    for (int i = 0; i < trackNames.length; i++) {
-      TrackInfo choice = choices.get(i);
+    CharSequence trackNames[] = new CharSequence[choices.size() + 1];
+    trackNames[0] = "None";
+    // Assume none is selected
+    int currentSelectedTrackIndex = 0;
+
+    for (int i = 1; i < trackNames.length; i++) {
+      TrackInfo choice = choices.get(i - 1);
       trackNames[i] = choice.setDescWithProvider(nameProvider);
       if (choice.isSelected) {
-        selectedTrackIndex = i;
+        currentSelectedTrackIndex = i;
       }
     }
 
     AlertDialog.Builder builder = new AlertDialog.Builder(getActivity());
     builder.setTitle(title);
-    builder.setSingleChoiceItems(trackNames, selectedTrackIndex, (dialog, which) -> {
-      exoPlayerFactory.selectTrack(choices.get(which));
+    builder.setSingleChoiceItems(trackNames, currentSelectedTrackIndex, (dialog, which) -> {
+      setSelectedTrackIndex(which);
+      dismiss();
     });
+    builder.setNegativeButton("Cancel", (dialog, which) -> {
+      dismiss();
+    });
+
     return builder.create();
+  }
+
+  private void setSelectedTrackIndex(int which) {
+    if (which == 0) {   // None choice
+      exoPlayerFactory.setRendererState(choices.get(0).type, true);
+    } else {
+      TrackInfo trackInfo = choices.get(which - 1);
+      exoPlayerFactory.setRendererState(trackInfo.type, false);
+      exoPlayerFactory.selectTrack(trackInfo);
+    }
   }
 }
