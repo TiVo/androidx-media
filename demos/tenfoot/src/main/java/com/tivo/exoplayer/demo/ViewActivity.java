@@ -547,18 +547,18 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
             break;
 
           case KeyEvent.KEYCODE_5:
-            exoPlayerFactory.setRendererState(C.TRACK_TYPE_AUDIO, ! isAudioRenderOn);
-            isAudioRenderOn = ! isAudioRenderOn;
+//            exoPlayerFactory.setRendererState(C.TRACK_TYPE_AUDIO, ! isAudioRenderOn);
+//            isAudioRenderOn = ! isAudioRenderOn;
 
-//            geekStats.toggleVisible();
-//            List<TrackInfo> audioTracks = exoPlayerFactory.getAvailableAudioTracks();
-//            if (audioTracks.size() > 0) {
-//              DialogFragment dialog =
-//                  TrackInfoSelectionDialog
-//                      .createForChoices("Select Audio", audioTracks, exoPlayerFactory);
-//              dialog.show(getSupportFragmentManager(), null);
-//            }
-//            handled = true;
+            geekStats.toggleVisible();
+            List<TrackInfo> audioTracks = exoPlayerFactory.getAvailableAudioTracks();
+            if (audioTracks.size() > 0) {
+              DialogFragment dialog =
+                  TrackInfoSelectionDialog
+                      .createForChoices("Select Audio", audioTracks, exoPlayerFactory);
+              dialog.show(getSupportFragmentManager(), null);
+            }
+            handled = true;
             break;
 
           case KeyEvent.KEYCODE_8:
