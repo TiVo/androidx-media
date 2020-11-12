@@ -1,5 +1,11 @@
 # Release notes #
 
+### 2.11.6-1.1
+   * Cherry-pick and back port fix in [ExoPlayer Issue 7877](https://github.com/google/ExoPlayer/issues/7877),
+     this fixes the multiple audio formats in CODEC issue for [PARTDEFECT-4142](https://jira.tivo.com/browse/PARTDEFECT-4142)
+   * Add support for Widevine to the API in `library-tivo-ui` for `playUrl()` to include specifying Widevine
+     `DrmInfo`.  Update the tenfoot-demo app to use this API for Widevine playback
+
 ### 2.11.6-1.0
    * Fix for [PARTDEFECT-4642](https://jira.tivo.com/browse/PARTDEFECT-4642), released in streamer-1-7, fixes
      issues with pass-thru surround audio and external audio devices.  This also fixes Google's 

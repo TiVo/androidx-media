@@ -1284,12 +1284,12 @@ import org.checkerframework.checker.nullness.qual.RequiresNonNull;
         playlistFormat.channelCount != Format.NO_VALUE
             ? playlistFormat.channelCount
             : sampleFormat.channelCount;
-    int sampleTrackType = MimeTypes.getTrackType(sampleFormat.sampleMimeType);
-    String codecs = Util.getCodecsOfType(playlistFormat.codecs, sampleTrackType);
-    String mimeType = MimeTypes.getMediaMimeType(codecs);
-    if (mimeType == null) {
-      mimeType = sampleFormat.sampleMimeType;
-    }
+    @Nullable
+    String codecs =
+            MimeTypes.getCodecsCorrespondingToMimeType(
+                    playlistFormat.codecs, sampleFormat.sampleMimeType);
+    @Nullable String mimeType = MimeTypes.getMediaMimeType(codecs);
+
     return sampleFormat.copyWithContainerInfo(
         playlistFormat.id,
         playlistFormat.label,
