@@ -55,7 +55,7 @@ pipeline {
               try {
                 sh './gradlew library-core:build'
               } finally {
-                junit 'library/core/buildout/test-results/testReleaseUnitTest/TEST-*.xml'
+                junit allowEmptyResults: true, testResults: 'library/core/buildout/test-results/testReleaseUnitTest/TEST-*.xml'
               }
             }
           }
@@ -74,7 +74,7 @@ pipeline {
                   try {
                     sh './gradlew library-hls:build'
                   } finally {
-                    junit 'library/hls/buildout/test-results/testReleaseUnitTest/TEST-*.xml'
+                    junit allowEmptyResults: true, testResults: 'library/hls/buildout/test-results/testReleaseUnitTest/TEST-*.xml'
                   }
                 }
               }
@@ -90,7 +90,7 @@ pipeline {
                   try {
                     sh './gradlew library-dash:build'
                   } finally {
-                    junit 'library/dash/buildout/test-results/testReleaseUnitTest/TEST-*.xml'
+                    junit allowEmptyResults: true, testResults: 'library/dash/buildout/test-results/testReleaseUnitTest/TEST-*.xml'
                   }
                 }
               }
@@ -106,7 +106,7 @@ pipeline {
                   try {
                     sh './gradlew library-ui:build'
                   } finally {
-                    junit 'library/ui/buildout/test-results/testReleaseUnitTest/TEST-*.xml'
+                    junit allowEmptyResults: true, testResults: 'library/ui/buildout/test-results/testReleaseUnitTest/TEST-*.xml'
                   }
                 }
               }
@@ -126,9 +126,8 @@ pipeline {
                 sh './gradlew library-tivo-ui:build '
                 sh './gradlew library-trickplay:build'
               } finally {
-// Will fail until there are unit tests ;-)
-//            junit 'library/trickplay/buildout/test-results/testReleaseUnitTest/TEST-*.xml'
-//            junit 'library/trickplay/tivo-ui/test-results/testReleaseUnitTest/TEST-*.xml'
+                junit allowEmptyResults: true, testResults: 'library/trickplay/buildout/test-results/testReleaseUnitTest/TEST-*.xml'
+                junit allowEmptyResults: true, testResults: 'library/trickplay/tivo-ui/test-results/testReleaseUnitTest/TEST-*.xml'
               }
             }
           }
