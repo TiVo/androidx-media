@@ -21,15 +21,53 @@ Start with the [Log Analysis](#log-analysis) section to broadly understand ExoPl
 
 <div id="log-analysis"/>
 ## Log Analysis ##
-ExoPlayer logs playback state using the [EventLogger](https://exoplayer.dev/doc/reference/com/google/android/exoplayer2/util/EventLogger.html), you can refer to this java doc for specifics on all the events. The TiVo version of this class modifies it to include additional logging.
+ExoPlayer logs playback state using the [EventLogger](https://exoplayer.dev/doc/reference/com/google/android/exoplayer2/util/EventLogger.html), you can refer to this java doc for specifics on all the events. The TiVo version of this class modifies it to include additional logging.  For MR releases of Hydra the default logging level for ExoPlayer is set to INFO, the only EventLogger events logged at INFO or higher are `loadFailed` and [Playback State](#playback-state)
+
+### Enabling Logging ###
+As stated above the default logging level for Hydra MR releases is INFO, so much of the EventLogger events are turned off.  
+
+In order to turn these on you need to push a marker file to the streamer box with `ADB` to override the logging level to ALL.  The file is located in the App's private external storage area `/sdcard/Android/data/<package-id>/files`  For example, for the Hydra app that is
+
+```
+/sdcard/Android/data/com.tivo.hydra.app/files
+```
+
+To set logging level to all, connect to the device shell with `adb shell` and use:
+
+```
+mkdir -p /sdcard/Android/data/com.tivo.hydra.app/files
+cat > exo.properties
+debugLevel=0
+^D
+```
+
+The level values are:
+
+```java
+  /** Log level to log all messages. */
+  public static final int LOG_LEVEL_ALL = 0;
+  /** Log level to only log informative, warning and error messages. */
+  public static final int LOG_LEVEL_INFO = 1;
+  /** Log level to only log warning and error messages. */
+  public static final int LOG_LEVEL_WARNING = 2;
+  /** Log level to only log error messages. */
+  public static final int LOG_LEVEL_ERROR = 3;
+  /** Log level to disable all logging. */
+  public static final int LOG_LEVEL_OFF = Integer.MAX_VALUE;
+```
+
 
 ### General Format ###
 
 ````
-... EventLogger: loadStarted [eventTime=4048.52, mediaPos=575.76, window=0, period=0, <additional description>]
+... loadStarted [eventTime=664.63, mediaPos=1776.94, buffered=17.74, window=0, period=0, ...]
 ````
 
-Time and position are in seconds, `eventTime` is the time since playback began, `mediaPos` is the current playback position (see [Timeline](#timeline) section)
+Time, position and buffered valuesare in seconds.
+
+* `eventTime` is the time since playback began.
+* `mediaPos` is the current playback position (see [Timeline](#timeline) section)
+* `buffered` is the number of seconds of media currently buffered
 
 The *\<additional description\>* text is detailed under each specific log entry.
 
@@ -42,7 +80,7 @@ The timeline event reports the playlist updates, the playlist defines the seek b
 An example VOD timeline event:
 
 ````
-07-20 11:56:04.493 25219 25219 D EventLogger: timeline [eventTime=9222.35, mediaPos=0.00, window=0, periodCount=1, windowCount=1, reason=PREPARED
+07-20 11:56:04.493 25219 25219 D EventLogger: timeline [eventTime=9222.35, mediaPos=0.00, buffered=0.0, window=0, periodCount=1, windowCount=1, reason=PREPARED
 07-20 11:56:04.493 25219 25219 D EventLogger:   period [1807.81]
 07-20 11:56:04.493 25219 25219 D EventLogger:   window [1807.81, true, false]
 07-20 11:56:04.493 25219 25219 D EventLogger: ]
@@ -55,7 +93,7 @@ Live and Event timeline events are more interesting, these must occur no less fr
 Update here will have `reason=DYNAMIC`, an example timeline update for live:
 
 ````
-07-20 12:08:28.315 25219 25219 D EventLogger: timeline [eventTime=9966.17, mediaPos=569.35, window=0, period=0, periodCount=1, windowCount=1, reason=DYNAMIC
+07-20 12:08:28.315 25219 25219 D EventLogger: timeline [eventTime=9966.17, mediaPos=569.35, buffered=13.65, window=0, period=0, periodCount=1, windowCount=1, reason=DYNAMIC
 07-20 12:08:28.315 25219 25219 D EventLogger:   period [?]
 07-20 12:08:28.315 25219 25219 D EventLogger:   window [594.59, true, true]
 07-20 12:08:28.315 25219 25219 D EventLogger: ]
@@ -68,12 +106,12 @@ For live the playback position (`mediaPos`) should remain near the edge of the w
 
 The player starts 3 segments from the window edge for live (for 6 second segments, that is 18 seconds).  The player will drift closer or further from the live edge depending on how regular the origin server updates the playlist and how fresh the edge cached copy of the playlist is.
 
-<div  id="playback-state"/>
+<div id="playback-state"/>
 #### Playback State
 Each time playback state changes this event is logged
 
 ````
-EventLogger: state [eventTime=10729.90, mediaPos=571.45, window=0, period=0, true, READY]
+EventLogger: state [eventTime=10729.90, mediaPos=571.45, buffered=13.65, window=0, period=0, true, READY]
 ````
 
 The *\<additional description\>* text show the play/pause state (true is playing, false is paused) and the playback state ("READY" in the example).  Playback states are detailed in [Player state](https://exoplayer.dev/doc/reference-v1/com/google/android/exoplayer/ExoPlayer.html#State).  During playback it will be either "READY" (playing) or "BUFFERING" (waiting for segments to load).
@@ -121,6 +159,35 @@ EventLogger: loadCompleted - load-duration: 129ms, URI: http://live1.nokia.tivo.
 ````
 
 Live playlist loads should trigger a [Timeline](#timeline) update event, if not the origin/transcoder is not producing new segments quickly enough which can result in stalls.
+
+<div id="load-error"/>
+#### Load Error Logging
+
+The `EventLogger` logs all load errors at ERROR logging level, both fatal and non-fatal.  This is a multi-line log that includes the exception traceback with the error that caused the load to fail.  An example for a 404 error on an audio segment load is:
+
+````
+11-24 13:30:09.898  9690  9690 E EventLogger: internalError [eventTime=237.33, mediaPos=208.30, buffered=49.99, window=0, period=0, loadError - URL: http://stevemasmacbook.attlocal.net/video/SingleProfile/AUDIO_eng-Surround_def_YES/CCURStream_CMTHD0-10_T1596069935460000~D6006000.tsa
+11-24 13:30:09.898  9690  9690 E EventLogger:   com.google.android.exoplayer2.upstream.HttpDataSource$InvalidResponseCodeException: Response code: 404
+11-24 13:30:09.898  9690  9690 E EventLogger:       at com.google.android.exoplayer2.upstream.DefaultHttpDataSource.open(DefaultHttpDataSource.java:300)
+````
+
+The `InvalidResponseCodeException` is the error for all non-200 HTTP status returns.  Note the buffered level here is > 0 so this error will be re-tried by ExoPlayer until there is no buffer left (playback has stalled).   ExoPlayer (unlike VisualOn) does not skip segments that fail to load, if continued retries still fail to load a segment playback will stop, turning the load error into a fatal error, once the player has played out all of the buffered data.
+
+The retry does a backoff delay based on the count of retries, the algorithm is:
+
+````java
+delayMs = Math.min((errorCount - 1) * 1000, 5000);
+````
+
+So sequence is 0s, 1s, 2s, ..., 5s, 5s
+
+It is possible for ExoPlayer to continue retrying when it is in the buffering state depending on the setting for [getMinimumLoadableRetryCount()](https://exoplayer.dev/doc/reference/com/google/android/exoplayer2/upstream/LoadErrorHandlingPolicy.html#getMinimumLoadableRetryCount-int-), this value is 3 by default, at least 3 retries will be done for a request.  Assuming the error occurs in 1 second from making the request that sequence would take 6 seconds:
+
+````Java 
+ firstRequest = 1000                    // 1000
+ secondRequest = (2 - 1) * 1000 + 1000  // 2000
+ secondRequest = (3 - 1) * 1000 + 1000  // 3000
+````
 
 <div id="level-shift-logging"/>
 #### Level Shift Logging
