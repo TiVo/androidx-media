@@ -1,5 +1,9 @@
 # Release notes #
 
+### 2.11.6-1.2
+    * CEA 708 Decoder refactoring to meet the spec and pass the Sarnoff test streams. 
+      The pull request [#4595](https://github.com/google/ExoPlayer/pull/4595) is brought in to our code base. dditonally a few workarounds and fixes are added. 
+
 ### 2.11.6-1.1
    * Cherry-pick and back port fix in [ExoPlayer Issue 7877](https://github.com/google/ExoPlayer/issues/7877),
      this fixes the multiple audio formats in CODEC issue for [PARTDEFECT-4142](https://jira.tivo.com/browse/PARTDEFECT-4142)
