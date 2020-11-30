@@ -101,7 +101,7 @@ public class EventLogger implements AnalyticsListener {
   @Override
   public void onPlayerStateChanged(
       EventTime eventTime, boolean playWhenReady, @Player.State int state) {
-    logd(eventTime, "state", playWhenReady + ", " + getStateString(state));
+    logi(eventTime, "state", playWhenReady + ", " + getStateString(state));
   }
 
   @Override
@@ -415,7 +415,7 @@ public class EventLogger implements AnalyticsListener {
       MediaLoadData mediaLoadData,
       IOException error,
       boolean wasCanceled) {
-    printInternalError(eventTime, "loadError", error);
+    printInternalError(eventTime, "loadError - URL: " + loadEventInfo.uri, error);
   }
 
   @Override
@@ -535,6 +535,15 @@ public class EventLogger implements AnalyticsListener {
   }
 
   /**
+   * Logs an info message.
+   *
+   * @param msg The message to log.
+   */
+  protected void logi(String msg) {
+    Log.i(tag, msg);
+  }
+
+  /**
    * Logs an error message.
    *
    * @param msg The message to log.
@@ -547,6 +556,10 @@ public class EventLogger implements AnalyticsListener {
 
   private void logd(EventTime eventTime, String eventName) {
     logd(getEventString(eventTime, eventName, /* eventDescription= */ null, /* throwable= */ null));
+  }
+
+  private void logi(EventTime eventTime, String eventName, String eventDescription) {
+    logi(getEventString(eventTime, eventName, eventDescription, /* throwable= */ null));
   }
 
   private void logd(EventTime eventTime, String eventName, String eventDescription) {
@@ -606,6 +619,8 @@ public class EventLogger implements AnalyticsListener {
         + getTimeString(eventTime.realtimeMs - startTimeMs)
         + ", mediaPos="
         + getTimeString(eventTime.currentPlaybackPositionMs)
+        + ", buffered="
+        + getTimeString(eventTime.totalBufferedDurationMs)
         + ", "
         + windowPeriodString;
   }
