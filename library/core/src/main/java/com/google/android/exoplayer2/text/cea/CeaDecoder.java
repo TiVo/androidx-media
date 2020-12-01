@@ -15,6 +15,7 @@
  */
 package com.google.android.exoplayer2.text.cea;
 
+import android.util.Log;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import com.google.android.exoplayer2.C;
@@ -26,6 +27,7 @@ import com.google.android.exoplayer2.text.SubtitleInputBuffer;
 import com.google.android.exoplayer2.text.SubtitleOutputBuffer;
 import com.google.android.exoplayer2.util.Assertions;
 import java.util.ArrayDeque;
+import java.util.LinkedList;
 import java.util.PriorityQueue;
 
 /**
@@ -33,16 +35,22 @@ import java.util.PriorityQueue;
  */
 /* package */ abstract class CeaDecoder implements SubtitleDecoder {
 
+  private static final String TAG = "CeaDecoder";
   private static final int NUM_INPUT_BUFFERS = 10;
-  private static final int NUM_OUTPUT_BUFFERS = 2;
+  private static final int NUM_OUTPUT_BUFFERS = 16;
+  private static final int MIN_REORDER_DELAY = NUM_INPUT_BUFFERS / 2;
 
   private final ArrayDeque<CeaInputBuffer> availableInputBuffers;
   private final ArrayDeque<SubtitleOutputBuffer> availableOutputBuffers;
   private final PriorityQueue<CeaInputBuffer> queuedInputBuffers;
+  private final LinkedList<SubtitleOutputBuffer> queuedOutputBuffers;
 
   private CeaInputBuffer dequeuedInputBuffer;
-  private long playbackPositionUs;
+  protected long playbackPositionUs;
   private long queuedInputBufferCount;
+
+  private long lastDecodedTimestampUs;
+  private boolean isEndOfStream;
 
   public CeaDecoder() {
     availableInputBuffers = new ArrayDeque<>();
@@ -54,6 +62,7 @@ import java.util.PriorityQueue;
       availableOutputBuffers.add(new CeaOutputBuffer());
     }
     queuedInputBuffers = new PriorityQueue<>();
+    queuedOutputBuffers = new LinkedList<>();
   }
 
   @Override
@@ -77,7 +86,9 @@ import java.util.PriorityQueue;
   @Override
   public void queueInputBuffer(SubtitleInputBuffer inputBuffer) throws SubtitleDecoderException {
     Assertions.checkArgument(inputBuffer == dequeuedInputBuffer);
-    if (inputBuffer.isDecodeOnly()) {
+    isEndOfStream = inputBuffer.isEndOfStream();
+    if (inputBuffer.isDecodeOnly() ||
+            (inputBuffer.timeUs < lastDecodedTimestampUs)) {
       // We can drop this buffer early (i.e. before it would be decoded) as the CEA formats allow
       // for decoding to begin mid-stream.
       releaseInputBuffer(dequeuedInputBuffer);
@@ -90,14 +101,15 @@ import java.util.PriorityQueue;
 
   @Override
   public SubtitleOutputBuffer dequeueOutputBuffer() throws SubtitleDecoderException {
-    if (availableOutputBuffers.isEmpty()) {
-      return null;
-    }
+
     // iterate through all available input buffers whose timestamps are less than or equal
     // to the current playback position; processing input buffers for future content should
     // be deferred until they would be applicable
     while (!queuedInputBuffers.isEmpty()
         && queuedInputBuffers.peek().timeUs <= playbackPositionUs) {
+      if(!isEndOfStream && queuedInputBuffers.size() < MIN_REORDER_DELAY) {
+        break;
+      }
       CeaInputBuffer inputBuffer = queuedInputBuffers.poll();
 
       // If the input buffer indicates we've reached the end of the stream, we can
@@ -109,25 +121,13 @@ import java.util.PriorityQueue;
         return outputBuffer;
       }
 
+      lastDecodedTimestampUs = inputBuffer.timeUs;
       decode(inputBuffer);
-
-      // check if we have any caption updates to report
-      if (isNewSubtitleDataAvailable()) {
-        // Even if the subtitle is decode-only; we need to generate it to consume the data so it
-        // isn't accidentally prepended to the next subtitle
-        Subtitle subtitle = createSubtitle();
-        if (!inputBuffer.isDecodeOnly()) {
-          SubtitleOutputBuffer outputBuffer = availableOutputBuffers.pollFirst();
-          outputBuffer.setContent(inputBuffer.timeUs, subtitle, Format.OFFSET_SAMPLE_RELATIVE);
-          releaseInputBuffer(inputBuffer);
-          return outputBuffer;
-        }
-      }
 
       releaseInputBuffer(inputBuffer);
     }
 
-    return null;
+    return queuedOutputBuffers.pollFirst();
   }
 
   private void releaseInputBuffer(CeaInputBuffer inputBuffer) {
@@ -140,10 +140,25 @@ import java.util.PriorityQueue;
     availableOutputBuffers.add(outputBuffer);
   }
 
+  public void onNewSubtitleDataAvailable(long timeUs) {
+    if (isNewSubtitleDataAvailable()) {
+      SubtitleOutputBuffer outputBuffer = availableOutputBuffers.pollFirst();
+      if (outputBuffer != null) {
+        Subtitle subtitle = createSubtitle();
+        outputBuffer.setContent(timeUs, subtitle, Format.OFFSET_SAMPLE_RELATIVE);
+        queuedOutputBuffers.add(outputBuffer);
+      } else {
+        Log.w(TAG, "Insufficient Output Buffers for subtitle!!!");
+      }
+    }
+  }
+
   @Override
   public void flush() {
     queuedInputBufferCount = 0;
     playbackPositionUs = 0;
+    lastDecodedTimestampUs = 0;
+    isEndOfStream = false;
     while (!queuedInputBuffers.isEmpty()) {
       releaseInputBuffer(queuedInputBuffers.poll());
     }

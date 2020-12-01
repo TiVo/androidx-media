@@ -1,5 +1,13 @@
 # Release notes #
 
+### 2.11.6-1.2
+
+* CEA 708 Decoder refactoring to meet the spec and pass the Sarnoff test streams. 
+      This includes parts of pull request [#4595](https://github.com/google/ExoPlayer/pull/4595)
+* Update EventLogger to include URL in loadError and log info for playback state changes [dd2150f05](https://github.com/tivocorp/exoplayerprvt/commit/dd2150f05)
+* Fix build to not fail if there are no unit test results ([3622ade3d](https://github.com/tivocorp/exoplayerprvt/commit/3622ade3d))
+* Cherry-pick change [7dfdde9](https://github.com/google/ExoPlayer/commit/7dfdde9) from Google dev-v2, fixes to retry audio track init errors when there is a track change with AC-3 Pass-thru before reporting a playback error.
+
 ### 2.11.6-1.1
    * Cherry-pick and back port fix in [ExoPlayer Issue 7877](https://github.com/google/ExoPlayer/issues/7877),
      this fixes the multiple audio formats in CODEC issue for [PARTDEFECT-4142](https://jira.tivo.com/browse/PARTDEFECT-4142)
@@ -14,8 +22,8 @@
      to avoid modifying player state in an `AnalyticsListener`
 
 ### 2.11.6-0.3 - Alpha (not released)
-    *   Merge fix for PARTDEFECT-3462:
-    *  As CDN has fixed timing issues of #EXT-X-PROG-DATE-TIME, need to remove Bad PlayList exception
+*   Merge fix for PARTDEFECT-3462:
+*  As CDN has fixed timing issues of #EXT-X-PROG-DATE-TIME, need to remove Bad PlayList exception
 
 ### 2.11.6-0.2 - Alpha (not released)
 
