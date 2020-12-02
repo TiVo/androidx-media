@@ -88,4 +88,13 @@
     app:switchPadding="8dp"
     android:layout_marginBottom="10dp"
     />
+  <Switch
+          android:id="@+id/geek_stats_switch"
+          android:layout_width="wrap_content"
+          android:layout_height="wrap_content"
+          android:layoutDirection="rtl"
+          android:text="Geek Stats"
+          app:switchPadding="8dp"
+          android:layout_marginBottom="10dp"
+          android:checked="true"/>
 </LinearLayout>
