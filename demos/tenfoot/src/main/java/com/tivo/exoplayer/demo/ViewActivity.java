@@ -96,6 +96,7 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
   public static final String URI_LIST_EXTRA = "uri_list";
   public static final String CHUNKLESS_PREPARE = "chunkless";
   public static final String INITIAL_SEEK = "start_at";
+  public static final String SHOW_GEEK_STATS = "show_geek";
   public static final String DRM_SCHEME = "drm_scheme";
   public static final String DRM_VCAS_CA_ID = "vcas_ca_id";
   public static final String DRM_VCAS_ADDR = "vcas_addr";
@@ -728,6 +729,11 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
     } else {
       showToast(getString(R.string.unexpected_intent_action, action));
       finish();
+    }
+
+    boolean showGeekStats = getIntent().getBooleanExtra(SHOW_GEEK_STATS, true);
+    if (! showGeekStats) {
+      geekStats.toggleVisible();
     }
 
     boolean enableTunneling = getIntent().getBooleanExtra(ENABLE_TUNNELED_PLAYBACK, false);
