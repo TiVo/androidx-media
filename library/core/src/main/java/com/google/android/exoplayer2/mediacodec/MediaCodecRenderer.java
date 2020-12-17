@@ -1269,6 +1269,11 @@ public abstract class MediaCodecRenderer extends BaseRenderer {
   protected void onInputFormatChanged(FormatHolder formatHolder) throws ExoPlaybackException {
     waitingForFirstSampleInFormat = true;
     Format newFormat = Assertions.checkNotNull(formatHolder.format);
+    if (newFormat.sampleMimeType == null) {
+      // If the new format is invalid, it is either a media bug or it is not intended to be played.
+      // See also https://github.com/google/ExoPlayer/issues/8283.
+      throw createRendererException(new IllegalArgumentException(), newFormat);
+    }
     if (formatHolder.includesDrmSession) {
       setSourceDrmSession((DrmSession<FrameworkMediaCrypto>) formatHolder.drmSession);
     } else {
