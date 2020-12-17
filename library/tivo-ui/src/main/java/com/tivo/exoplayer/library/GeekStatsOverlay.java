@@ -377,7 +377,8 @@ public class GeekStatsOverlay implements AnalyticsListener, Runnable {
     boolean isAudioOnly = false;
     if (format != null) {
       String[] codecs = Util.splitCodecs(format.codecs);
-      isAudioOnly = codecs.length == 1 && MimeTypes.isAudio(MimeTypes.getMediaMimeType(codecs[0]));
+      isAudioOnly = codecs.length == 1 && MimeTypes.isAudio(MimeTypes.getMediaMimeType(codecs[0]))
+              || MimeTypes.isAudio(format.sampleMimeType);
     }
     return isAudioOnly;
   }

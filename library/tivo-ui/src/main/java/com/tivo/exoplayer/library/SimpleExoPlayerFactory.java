@@ -15,6 +15,7 @@ import com.google.android.exoplayer2.RenderersFactory;
 import com.google.android.exoplayer2.SimpleExoPlayer;
 import com.google.android.exoplayer2.source.TrackGroup;
 import com.google.android.exoplayer2.source.TrackGroupArray;
+import com.google.android.exoplayer2.source.UnrecognizedInputFormatException;
 import com.google.android.exoplayer2.trackselection.DefaultTrackSelector;
 import com.google.android.exoplayer2.trackselection.IFrameAwareAdaptiveTrackSelection;
 import com.google.android.exoplayer2.trackselection.MappingTrackSelector;
@@ -275,8 +276,9 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
    * @param url - URL to play
    * @param drmInfo - DRM information
    * @param enableChunkless - flag to enable chunkless prepare, TODO - will make this default
+   * @throws UnrecognizedInputFormatException - if the URI is not in a supported container format.
    */
-  public void playUrl(Uri url, DrmInfo drmInfo, boolean enableChunkless) {
+  public void playUrl(Uri url, DrmInfo drmInfo, boolean enableChunkless) throws UnrecognizedInputFormatException {
     mediaSourceLifeCycle.playUrl(url, drmInfo, enableChunkless);
   }
 

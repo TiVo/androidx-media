@@ -19,6 +19,9 @@ import com.google.android.exoplayer2.drm.HttpMediaDrmCallback;
 import com.google.android.exoplayer2.drm.MediaDrmCallback;
 import com.google.android.exoplayer2.source.BehindLiveWindowException;
 import com.google.android.exoplayer2.source.MediaSource;
+import com.google.android.exoplayer2.source.MediaSourceFactory;
+import com.google.android.exoplayer2.source.ProgressiveMediaSource;
+import com.google.android.exoplayer2.source.UnrecognizedInputFormatException;
 import com.google.android.exoplayer2.source.hls.HlsMediaSource;
 import com.google.android.exoplayer2.upstream.DataSource;
 import com.google.android.exoplayer2.upstream.DefaultDataSourceFactory;
@@ -26,6 +29,7 @@ import com.google.android.exoplayer2.upstream.DefaultHttpDataSourceFactory;
 import com.google.android.exoplayer2.upstream.HttpDataSource;
 import com.google.android.exoplayer2.util.Log;
 
+import com.google.android.exoplayer2.util.Util;
 import java.io.File;
 import java.lang.reflect.Constructor;
 
@@ -67,7 +71,7 @@ public class DefaultMediaSourceLifeCycle implements MediaSourceLifeCycle, Analyt
   }
 
   @Override
-  public void playUrl(Uri uri, DrmInfo drmInfo, boolean enableChunkless) {
+  public void playUrl(Uri uri, DrmInfo drmInfo, boolean enableChunkless) throws UnrecognizedInputFormatException {
     Log.d("ExoPlayer", "play URL " + uri);
 
     MediaSource mediaSource = buildMediaSource(uri, drmInfo, buildDataSourceFactory(drmInfo), enableChunkless);
@@ -170,15 +174,30 @@ public class DefaultMediaSourceLifeCycle implements MediaSourceLifeCycle, Analyt
    * The player glue layer should save this for error recovery (if re-prepare is required)
    *
    * @param uri - URL for the HLS master playlist
+   * @param drmInfo DRM specific metadata, {@link DrmInfo}, to create DRM aware data source factory and/or DrmSessionManager
    * @param dataSourceFactory - factory to create a {@link DataSource} to load data from the HLS resouces
    * @param enableChunkless - if true HLS will prepare 'chunkless'
    *          See <a href="https://medium.com/google-exoplayer/faster-hls-preparation-f6611aa15ea6">Faster HLS Prepare</a>
    * @return an {@link MediaSource} ready to pass to {@link com.google.android.exoplayer2.SimpleExoPlayer#prepare(MediaSource)}
+   * @throws UnrecognizedInputFormatException - if the URI is not in a supported container format.
    */
   protected MediaSource buildMediaSource(Uri uri, DrmInfo drmInfo, DataSource.Factory dataSourceFactory,
-      boolean enableChunkless) {
+      boolean enableChunkless) throws UnrecognizedInputFormatException {
 
-      HlsMediaSource.Factory factory = new HlsMediaSource.Factory(dataSourceFactory);
+    MediaSourceFactory factory = null;
+    @C.ContentType int type = Util.inferContentType(uri);
+    switch (type) {
+      case C.TYPE_HLS:
+        factory = new HlsMediaSource.Factory(dataSourceFactory)
+            .setAllowChunklessPreparation(enableChunkless);
+        break;
+      case C.TYPE_OTHER:
+        factory =  new ProgressiveMediaSource.Factory(dataSourceFactory);
+        break;
+      case C.TYPE_DASH:   // TODO - add library dependency for DashMediaSource.Factory
+      case C.TYPE_SS: // TODO - If we want to support SmoothStreaming, add SSDataSource dependency
+        throw new UnrecognizedInputFormatException("Source is not a supported container format (type: " + type + ")", uri);
+    }
 
     if (Build.VERSION.SDK_INT >= 18) {
       if (drmInfo instanceof WidevineDrmInfo) {
@@ -195,7 +214,7 @@ public class DefaultMediaSourceLifeCycle implements MediaSourceLifeCycle, Analyt
         factory.setDrmSessionManager(drmSessionManager);
       }
     }
-    return factory.setAllowChunklessPreparation(enableChunkless).createMediaSource(uri);
+    return factory.createMediaSource(uri);
   }
 
   private HttpMediaDrmCallback createMediaDrmCallback(
