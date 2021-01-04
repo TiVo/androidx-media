@@ -118,6 +118,32 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
 
   private boolean isAudioRenderOn = true;
 
+  private class ScrubHandler implements TimeBar.OnScrubListener {
+
+    private final TrickPlayControl control;
+
+    ScrubHandler(TrickPlayControl control) {
+      this.control = control;
+    }
+
+    @Override
+    public void onScrubStart(TimeBar timeBar, long position) {
+      control.setTrickMode(TrickPlayControl.TrickMode.SCRUB);
+    }
+
+    @Override
+    public void onScrubMove(TimeBar timeBar, long position) {
+      control.scrubSeek(position);
+    }
+
+    @Override
+    public void onScrubStop(TimeBar timeBar, long position, boolean canceled) {
+      control.setTrickMode(TrickPlayControl.TrickMode.NORMAL);
+    }
+  }
+
+  private @Nullable ScrubHandler currentScrubHandler;
+
   private OutputProtectionMonitor outputProtectionMonitor;
 
   private GeekStatsOverlay geekStats;
@@ -190,6 +216,7 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
     playerView = findViewById(R.id.player_view);
     playerView.setControllerVisibilityListener(this);
     playerView.requestFocus();
+    playerView.setShowBuffering(PlayerView.SHOW_BUFFERING_WHEN_PLAYING);
     timeBar = playerView.findViewById(R.id.exo_progress);
     timeBar.setKeyTimeIncrement(10_000);
 
@@ -256,6 +283,9 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
     SimpleExoPlayer player = exoPlayerFactory.createPlayer(false, false);
 
     TrickPlayControl trickPlayControl = exoPlayerFactory.getCurrentTrickPlayControl();
+    currentScrubHandler = new ScrubHandler(trickPlayControl);
+    timeBar.addListener(currentScrubHandler);
+
     trickPlayControl.addEventListener(new TrickPlayEventListener() {
       @Override
       public void playlistMetadataValid(boolean isMetadataValid) {
@@ -372,6 +402,10 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
    @Override
    public void onStop() {
      super.onStop();
+     if (currentScrubHandler != null) {
+       timeBar.removeListener(currentScrubHandler);
+     }
+     currentScrubHandler = null;
      Log.d(TAG, "onStop() called");
      stopPlaybackIfPlaying();
      exoPlayerFactory.releasePlayer();

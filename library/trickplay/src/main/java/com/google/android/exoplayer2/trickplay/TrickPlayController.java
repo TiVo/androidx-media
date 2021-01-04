@@ -60,6 +60,8 @@ class TrickPlayController implements TrickPlayControlInternal {
 
     private SeekBasedTrickPlay currentHandler = null;
 
+    private ScrubTrickPlay scrubTrickPlay = null;
+
     private Map<TrickMode, Float> speedsForMode;
 
     private boolean isSmoothPlayAvailable = false;
@@ -614,7 +616,7 @@ class TrickPlayController implements TrickPlayControlInternal {
 
     @Override
     public TrickPlayDirection getCurrentTrickDirection() {
-        return directionForMode(getCurrentTrickMode());
+        return TrickPlayControl.directionForMode(getCurrentTrickMode());
     }
 
     @Override
@@ -640,13 +642,28 @@ class TrickPlayController implements TrickPlayControlInternal {
 
                 Log.d(TAG, "setTrickMode(" + newMode + ") previous mode: " + previousMode);
 
-                if (newMode == TrickMode.NORMAL) {
-                    lastRendersCount = switchTrickModeToNormal(previousMode);
-                } else {
-                    switchTrickPlaySpeed(newMode, previousMode);
-                    lastRendersCount = 0;
-                }
+                switch (newMode) {
+                    case NORMAL:
+                        lastRendersCount = switchTrickModeToNormal(previousMode);
+                        break;
 
+                    case SCRUB:
+                        if (scrubTrickPlay != null) {
+                            scrubTrickPlay.scrubStop();
+                        } else {
+                            scrubTrickPlay = new ScrubTrickPlay(player, this);
+                        }
+                        switchTrickPlaySpeed(TrickMode.SCRUB, previousMode);
+                        scrubTrickPlay.scrubStart();
+                        lastRendersCount = 0;
+                        break;
+
+                    default:
+                        switchTrickPlaySpeed(newMode, previousMode);
+                        lastRendersCount = 0;
+                        break;
+
+                }
             } else {
                 Log.d(TAG, "setTrickMode(" + newMode + ") not possible because of currentPosition");
             }
@@ -676,7 +693,17 @@ class TrickPlayController implements TrickPlayControlInternal {
         return success;
     }
 
-    /////
+    @Override
+    public boolean scrubSeek(long positionMs) {
+        if (getCurrentTrickDirection() != TrickPlayDirection.SCRUB) {
+            throw new IllegalArgumentException("scrubSeek() is only valid in TrickPlay mode SCRUB, call setTrickMode(SCRUB) first");
+        }
+
+        return scrubTrickPlay.scrubSeek(positionMs);
+    }
+
+
+/////
     // Internal API - used privately in the trickplay library
     ////
 
@@ -751,6 +778,10 @@ class TrickPlayController implements TrickPlayControlInternal {
         long currentPosition = player.getCurrentPosition();
         Log.d(TAG, "Stop trickplay at media time " + currentPosition + " parameters: " + player.getPlaybackParameters().speed + " prev mode: "+ previousMode);
 
+        if (previousMode == TrickMode.SCRUB) {
+            scrubTrickPlay.scrubStop();
+            scrubTrickPlay = null;
+        }
         resetTrickPlayState(false);
 
         setTrackSelectionForTrickPlay(TrickMode.NORMAL, previousMode);
@@ -806,7 +837,9 @@ class TrickPlayController implements TrickPlayControlInternal {
      * @return true if it is possible to use {@link Player#setPlaybackParameters(PlaybackParameters)} to trickplay
      */
     private boolean usePlaybackSpeedTrickPlay(TrickMode mode) {
-        return (directionForMode(mode) == TrickPlayControl.TrickPlayDirection.FORWARD) && isSmoothPlayAvailable();
+        boolean modeAllowsPlayback =
+            TrickPlayControl.directionForMode(mode) == TrickPlayDirection.FORWARD || TrickPlayControl.directionForMode(mode) == TrickPlayDirection.SCRUB;
+        return modeAllowsPlayback && isSmoothPlayAvailable();
     }
 
 
@@ -857,27 +890,13 @@ class TrickPlayController implements TrickPlayControlInternal {
             case NORMAL:
                 speed = 1.0f;
                 break;
+
+            case SCRUB:
+                speed = 1.0f;   // set to 1, but effectively 0 as player is paused each seek
+                break;
         }
 
         return speed;
-    }
-
-    private static TrickPlayDirection directionForMode(TrickMode mode) {
-        TrickPlayDirection direction = TrickPlayControl.TrickPlayDirection.NONE;
-
-        switch (mode) {
-            case FF1:
-            case FF2:
-            case FF3:
-                direction = TrickPlayControl.TrickPlayDirection.FORWARD;
-                break;
-            case FR1:
-            case FR2:
-            case FR3:
-                direction = TrickPlayControl.TrickPlayDirection.REVERSE;
-                break;
-        }
-        return  direction;
     }
 
     private synchronized void setCurrentTrickMode(TrickMode mode) {
@@ -959,7 +978,7 @@ class TrickPlayController implements TrickPlayControlInternal {
         // TODO - trickplay reverse, as well as being behind the live window can leave the
         // TODO - current position negative, the code below works as expected in this case, but note well.
         //
-        TrickPlayDirection direction = directionForMode(requestedMode);
+        TrickPlayDirection direction = TrickPlayControl.directionForMode(requestedMode);
         switch (direction) {
             case FORWARD:
                 int tolerance = (int) (100 * getSpeedFor(requestedMode));

@@ -1,6 +1,10 @@
 # Release notes #
 ### 2.11.6-2.0-dev (not-released) 
 
+* Update Trick-Play API to include scrub seek mode.  This is a 
+backward compatible update to `TrickPlayControl` API. Details are in the commit: 
+[613d38c436 - Update the TrickPlayControl API to include methods for scrub trickplay](https://github.com/tivocorp/exoplayerprvt/commit/613d38c436)
+
 * Add support for streams with no container (not DASH, SS or HLS).  This allows supporting some audio only broadcasts / podcasts (eg [Securenet Systems](https://www.securenetsystems.net)) that are packaged as naked transport streams. Commits
    * [6c062cce8](https://github.com/tivocorp/exoplayerprvt/commit/86c062cce8) Fix to get metadata from mime type...
    * [d4296973a7](https://github.com/tivocorp/exoplayerprvt/commit/d4296973a7) Add support for audio only channels.
