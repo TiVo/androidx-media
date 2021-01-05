@@ -4,6 +4,7 @@
 
 
 ## Summary ##
+
 This guide is intended to support the TiVo PSO team efforts to diagnose video playback issues with the ExoPlayer player in the TiVo managed streamer application.
 
 In this guide we will explore each of the following areas:
@@ -21,9 +22,11 @@ Start with the [Log Analysis](#log-analysis) section to broadly understand ExoPl
 
 <div id="log-analysis"/>
 ## Log Analysis ##
+
 ExoPlayer logs playback state using the [EventLogger](https://exoplayer.dev/doc/reference/com/google/android/exoplayer2/util/EventLogger.html), you can refer to this java doc for specifics on all the events. The TiVo version of this class modifies it to include additional logging.  For MR releases of Hydra the default logging level for ExoPlayer is set to INFO, the only EventLogger events logged at INFO or higher are `loadFailed` and [Playback State](#playback-state)
 
 ### Enabling Logging ###
+
 As stated above the default logging level for Hydra MR releases is INFO, so much of the EventLogger events are turned off.  
 
 In order to turn these on you need to push a marker file to the streamer box with `ADB` to override the logging level to ALL.  The file is located in the App's private external storage area `/sdcard/Android/data/<package-id>/files`  For example, for the Hydra app that is
@@ -74,7 +77,8 @@ The *\<additional description\>* text is detailed under each specific log entry.
 ### Specific Log Entires ###
 
 <div id="timeline" />
-#### Timeline
+#### Timeline ####
+
 The timeline event reports the playlist updates, the playlist defines the seek boundary.  There are three types of timelines, Live, Event and VOD.
 
 An example VOD timeline event:
@@ -107,7 +111,8 @@ For live the playback position (`mediaPos`) should remain near the edge of the w
 The player starts 3 segments from the window edge for live (for 6 second segments, that is 18 seconds).  The player will drift closer or further from the live edge depending on how regular the origin server updates the playlist and how fresh the edge cached copy of the playlist is.
 
 <div id="playback-state"/>
-#### Playback State
+#### Playback State ####
+
 Each time playback state changes this event is logged
 
 ````
@@ -117,7 +122,7 @@ EventLogger: state [eventTime=10729.90, mediaPos=571.45, buffered=13.65, window=
 The *\<additional description\>* text show the play/pause state (true is playing, false is paused) and the playback state ("READY" in the example).  Playback states are detailed in [Player state](https://exoplayer.dev/doc/reference-v1/com/google/android/exoplayer/ExoPlayer.html#State).  During playback it will be either "READY" (playing) or "BUFFERING" (waiting for segments to load).
 
 <div id="segment-and-playlist-loading"/>
-#### Segment and Playlist Loading
+#### Segment and Playlist Loading ####
 
 ExoPlayer logs commencement and completion events for loading playlists and segments.
 
@@ -161,7 +166,7 @@ EventLogger: loadCompleted - load-duration: 129ms, URI: http://live1.nokia.tivo.
 Live playlist loads should trigger a [Timeline](#timeline) update event, if not the origin/transcoder is not producing new segments quickly enough which can result in stalls.
 
 <div id="load-error"/>
-#### Load Error Logging
+#### Load Error Logging ####
 
 The `EventLogger` logs all load errors at ERROR logging level, both fatal and non-fatal.  This is a multi-line log that includes the exception traceback with the error that caused the load to fail.  An example for a 404 error on an audio segment load is:
 
@@ -190,7 +195,8 @@ It is possible for ExoPlayer to continue retrying when it is in the buffering st
 ````
 
 <div id="level-shift-logging"/>
-#### Level Shift Logging
+#### Level Shift Logging ####
+
 ExoPlayer makes level change decisions each time it starts before it starts to load a new video segment.  There are two log messages that indicate the level has changed.
 
 1. *loadingFormatChanged* &mdash; Indicates a level shift has occurred and a new Format (variant) segment load is starting
@@ -215,7 +221,8 @@ EventLogger: videoFormatChanged - Old: 2 - 720x480@2570336 New: 5 - 1280x720@113
 This simply always follows the loading format change.
 
 <div id="bandwidth-estimate-logging"/>
-#### Bandwidth Estimate Logging
+#### Bandwidth Estimate Logging ####
+
 The bandwidth estimation algorithm uses a weighted moving average (average is actually the median of the sample data set) of samples to measure the available bandwidth.  The samples are weighted by size (so video has more effect then audio for example) and time decayed (newer take precedence over older).  
 
 An example log messages is shown below:
@@ -231,7 +238,7 @@ The bandwidth estimate log messages *\<additional description>* text contains:
 * *estimate* &mdash; the updated bandwidth estimate after adding the sample to the sample data set.  This is the number ExoPlayer uses for level selection.
 
 <div id="track-selection-logging"/>
-#### Track Selection Logging
+#### Track Selection Logging ####
 
 Track selection logging shows the current set tracks that are available from the playlist and which are enabled.
 
@@ -326,7 +333,8 @@ Otherwise look to the sections either on [Buffering Issues](#buffering-issues) o
 
 
 <div id="live-playlist-stalls" />
-##### Live Playlist Stalls
+##### Live Playlist Stalls #####
+
 During live playback timely updates to the current active playlist are essential to maintaining an adequate media buffer.  First look at the [Timeline](#timeline) logging section.  The timeline events must happen at regular intervals with a second of the segment duration.   Each second the timeline update is late is a second of lost buffer.
 
 These two conditions together indicate the origin / transcoder has stopped producing live content.
@@ -338,7 +346,7 @@ Periodic delays in updates can cause stalls, a persistent delay will eventually 
 
 
 <div id="buffering-issues"/>
-##### Buffering Issues
+##### Buffering Issues #####
 
 Quite simply, playback stalls when there are no buffered samples.  This occurs for one of two reasons:
 
@@ -356,7 +364,7 @@ This is common on playback startup (when, of course, there is no buffer to start
 These are in order of most likely to least likely to occur, the third case is only really possible if the MSO covers to wide a geography or has chosen connectivity partners poorly.
 
 <div id="timestamp-issues" />
-##### Timestamp Issues
+##### Timestamp Issues #####
 
 ExoPlayer synchronizes the active media streams; video and text/captions if enabled to the audio stream. This synchronization is based on timestamps in the media segments.
 
@@ -368,7 +376,7 @@ Either:
 Audio plays continuously (while not buffering or paused) at the sample rate specified in the encoding, and Android reports the current audio playback time to ExoPlayer, and ExoPlayer matches this to video frames (and text if enabled) timestamps to determine the frame to show.
 
 <div id="discontinuity-issues" />
-##### Discontinuity Issues
+##### Discontinuity Issues #####
 
 Un-reported timestamp discontinuities are extremely likely to cause playback freezes.  For example, consider the following sequence of events:
 
@@ -394,7 +402,8 @@ Macroblocking is a video source issue, their is nothing the player can do to cor
 
 ### Visual Trick-Play ###
 
-#### Enablement
+#### Enablement ####
+
 Visual Trick-Play (VTP) is supported by ExoPlayer, for Hydra there is an APK customization switch to determine if it is actually enabled or not.
 
 Two things must be true for VTP on a platform:
@@ -408,7 +417,7 @@ To determine if the APK is *specialized* for the MSO to enable VTP, check the co
 
 Alternately, if you only have the APK, look in the APK `res/values/strings.xml` for the string `USE_VISUAL_TRICKPLAY` this must be present and true.
 
-#### Playback
+#### Playback ####
 
 During VTP playback you should see i-Frame only segment loads (see [Segment and Playlist Loading](#segment-and-playlist-loading)) in both forward and reverse mode.  
 
@@ -416,7 +425,7 @@ In forward mode the player attempts to display frames at a target frame rate of 
 
 For reverse mode, the player is unable to take advantage of any buffering of segments, so while time movement will proceed at the requested rate, fewer (if any) frames will be displayed if the load duration of the i-Frame segments is > 100ms.
 
-#### Optimizing Origin Configuration
+#### Optimizing Origin Configuration ####
 
 Apple's [HLS Authoring Spec](https://developer.apple.com/documentation/http_live_streaming/hls_authoring_specification_for_apple_devices) Section 6 Trick Play contains information on this.  What follows is discussion on each of the sections with focus on the constraints of the current supported origin servers.
 
@@ -442,7 +451,8 @@ This allows the player to confidently switch to the I-Frame playlist from the sa
 In this section we will explore select UI error overlays from the [TiVo Experience 4 Error Codes and Messages](https://confluence.tivo.com/display/PSRR/Mira+4.10?preview=%2F160300940%2F160300941%2FTiVoExperience4_Error_Codes_and_Messages_ALL_27FEB2020+%281%29.pdf) that playback errors and describe how to determine the root cause by examining provisioning and logs.
 
 <div id="V549" />
-### V549 - Download Error
+### V549 - Download Error ###
+
 This error is reported pre-flight if:
 
 1. The master playlist fails to load.  
@@ -473,7 +483,8 @@ HttpDataSource$HttpDataSourceException: Unable to connect to https://acsm.telus.
 This indicates a VCAS encrypted channel was not correctly marked in the 
 
 <div id="v551" />
-### V551 - Parser Failed
+### V551 - Parser Failed ###
+
 ExoPlayer reports this error when the player throws a `ParserException.`  This error is always the result of a failure in the origin server and/or the stream.
 
 The origin server produces and ExoPlayer parses:
@@ -495,7 +506,8 @@ The error:
 Indicates the HLS playlist returned is invalid, use curl to capture the playlist, (look at the section [Segment and Playlist Loading](#segment-and-playlist-loading) for how to find the playlist URL.
 
 
-##### Corrupted Segment
+##### Corrupted Segment #####
+
 Search back in the log from the line where the exception was thrown (e.g.):
 
 ````
@@ -515,7 +527,7 @@ In all of these cases, determine the playlist that contained the bad segment and
 
 
 <div id="V475" />
-### V475 - DRM Error &mdash; Invalid reply
+### V475 - DRM Error &mdash; Invalid reply ###
 
 This issue is caused by VCAS client returning error code 6 ("Bad Reply") to a key request (encrypt).
 
@@ -523,7 +535,7 @@ Check in the VCAS console if the CA Device ID for the client has been disabled.
 
 
 <div id="V479" />
-### V479 - DRM Error &mdash; Device Not Entitled
+### V479 - DRM Error &mdash; Device Not Entitled ###
 
 The issue is that the CA Device ID is not in VCAS (note this is a legacy VisualOn error code, but ExoPlayer uses the same message).
 
@@ -567,7 +579,7 @@ If you do not see the device is found and in the network then the error is in se
 
 
 <div id="v511" />
-### V511 - DRM library key file not entitled
+### V511 - DRM library key file not entitled ###
 
 This is caused when VCAS error code 32 (KeyFileNotEntitled &mdash; Key file not entitled) is returned by the streamer player client's decrypt call into VCAS.  Basically VCAS gets an error from the server when it attempts to decrypt content.  The client side log contains something like:
 
@@ -592,7 +604,7 @@ If the key request succeeded expect to see lines like this logged for the reques
 ````
 
 <div id="v526" />
-### V526 - DRM Error &mdash; Global Security Policy
+### V526 - DRM Error &mdash; Global Security Policy ###
 
 This error is reported when the device makes it "Boot Request" to Verimatrix and IBI determines the device is Jailbroken.
 
@@ -604,7 +616,7 @@ For this VCAS global security policy has been set to not allow jailbroken device
 > 1 = allow rooted / jailbroken devices
 
 <div id="v527" />
-### V527 - DRM Error &mdash; Asset Policy
+### V527 - DRM Error &mdash; Asset Policy ###
 
 This error is reported if VCAS is configured to allow Jailbroken devices (unlikely) and a specific asset is set to require non-jail broken devices.  This is VCAS error code 48 AssetPolicySecurityError
 
@@ -617,7 +629,7 @@ Similar to the [V511](#v511) error this is reported on a key request, you should
 As in V511, look at the *keyUri* the value for _r_ (209999901) is the VCAS *networkContentId*.  Look in VCAS OMI console (GUI) to see if the per-asset security policy is set for this content.
 
 <div id="v529" />
-### V529 - Can't Play &mdash; Bad State
+### V529 - Can't Play &mdash; Bad State ###
 
 This error is reported if VCAS client fails in the call to store the VCAS Communication settings (`SetVCASCommunicationHandlerSettings()`).
 
@@ -631,7 +643,8 @@ The older (streamer-1.7) versions of the VCAS client code do blanket retry on fa
 
 
 <div id="v552" />
-### V552 - Playlist Stuck
+### V552 - Playlist Stuck ###
+
 This is the *Playlist is stuck* error.  The playlist URI is included in the analytics log message, eg:
 
 ````
@@ -657,7 +670,8 @@ Case 1 is the normal live case (the window slides, old segments are removed),   
 
 
 <div id="v553" />
-### V553 - Playlist Reset
+### V553 - Playlist Reset ###
+
 This issue occurs during live playback when the player throws a [PlaylistResetException](https://exoplayer.dev/doc/reference/com/google/android/exoplayer2/source/hls/playlist/HlsPlaylistTracker.PlaylistResetException.html), the playlist URI is included in the analytics log message.   The StreamAnalyticsLogger log message is similar to playlist stuck, except the event is PLAYER\_PLAYLIST\_RESET
 
 Similar to [V552 Playlist Stuck](#v552) error, except in this case the Origin Server has reset the [Media Sequence Number](https://tools.ietf.org/html/draft-pantos-hls-rfc8216bis-04#section-4.4.3.2) (MSN) during live playback so that it does not follow the behavior required by [Section 6.2.2 Live Playlists](https://tools.ietf.org/html/draft-pantos-hls-rfc8216bis-04#section-6.2.2).  
@@ -672,7 +686,8 @@ If this error occurs report it to the Origin Server vendor including the time an
 
 
 <div id="v554" />
-### V554 - Sample Queue Mapping Failed
+### V554 - Sample Queue Mapping Failed ###
+
 This issue occurs when there is a mismatch between the metadata in the HLS playlist (EXT-X-MEDIA and CODECS).  Only ExoPlayer versions that enable [chunkless prepare support](https://medium.com/google-exoplayer/faster-hls-preparation-f6611aa15ea6) for faster channel change can report this error.  The error will include a `SampleQueueMappingException` in the logs that reports the mime type that is missing from the media.
 
 Example with missing audio (audio/mp4a-latm) source data
@@ -697,7 +712,8 @@ To fix this issue the Origin Server must either:
 Note this can also occur if the playlist is improperly authored for multiple audio streams, see details in [ExoPlayer Issue 7877](https://github.com/google/ExoPlayer/issues/7877)
 
 <div id="v555" />
-### V555 - Source Error
+### V555 - Source Error ###
+
 This is a catch all for any ExoPlayer playback exception that is not covered by one of the V5xx errors.
 
 You must look in the log files to determine the specific root cause.  The most common presentation of this error is a failure to download a playlist or segment (after multiple retries).  In this case the logs will include the URL, eg
@@ -726,14 +742,16 @@ You must look in the log files to determine the specific root cause.  The most c
 
 
 <div id="v556" />
-### V556 - Audio Configuration Error
+### V556 - Audio Configuration Error ###
+
 This error is most likely a mismatch between the audio tracks the origin server presents and what the streamer STB supports.
 
 Match the playlist presented by the origin server with the encoding spec, if it is compliant file a bug with the STB platform vendor
 
 
 <div id="v557" />
-### V557 - Audio Track Initialization Error
+### V557 - Audio Track Initialization Error ###
+
 This error is an STB platform error, it is reported when ExoPlayer fails to initialize the AudioTrack (may occur at any point during playback if there is an error writing audio).
 
 The TiVO ExoPlayer shared error recovery attempts to recover from some of these by re-tyring the initialization.  Here is an example log entry:
@@ -753,7 +771,8 @@ The TiVO ExoPlayer shared error recovery attempts to recover from some of these 
 This error is caused by issues in the underlying STB platform implementation of Android's MediaCodec, report the issue to the STB vendor
 
 <div id="v558" />
-### V558 - Audio Write Error
+### V558 - Audio Write Error ###
+
 This error occurs when the HDMI connection is lost (hot plug) and audio playback is in tunneled mode on the Broadcom STB platforms.  
 
 The player should recover and retry with tunneling disabled  until the HDMI is online.
