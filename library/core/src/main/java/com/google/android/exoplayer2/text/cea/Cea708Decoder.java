@@ -251,7 +251,9 @@ public final class Cea708Decoder extends CeaDecoder {
         // This byte-pair isn't valid, ignore it and continue.
         continue;
       }
-      Log.d(TAG, "decode: cc1: " + String.format("%X", ccData1) + " cc2: " + String.format("%X", ccData2));
+      if (DEBUG) {
+        Log.d(TAG, "decode: cc1: " + String.format("%X", ccData1) + " cc2: " + String.format("%X", ccData2));
+      }
       if (ccType == DTVCC_PACKET_START) {
         finishCCPacket();
 
