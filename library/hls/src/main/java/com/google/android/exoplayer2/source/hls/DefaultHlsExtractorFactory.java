@@ -156,7 +156,8 @@ public final class DefaultHlsExtractorFactory implements HlsExtractorFactory {
 
     if (!(extractorByFileExtension instanceof FragmentedMp4Extractor)) {
       FragmentedMp4Extractor fragmentedMp4Extractor =
-          createFragmentedMp4Extractor(timestampAdjuster, format, muxedCaptionFormats);
+          createFragmentedMp4Extractor(timestampAdjuster, format, muxedCaptionFormats,
+                  exposeCea608WhenMissingDeclarations);
       if (sniffQuietly(fragmentedMp4Extractor, extractorInput)) {
         return buildResult(fragmentedMp4Extractor);
       }
@@ -205,7 +206,8 @@ public final class DefaultHlsExtractorFactory implements HlsExtractorFactory {
         || lastPathSegment.startsWith(M4_FILE_EXTENSION_PREFIX, lastPathSegment.length() - 4)
         || lastPathSegment.startsWith(MP4_FILE_EXTENSION_PREFIX, lastPathSegment.length() - 5)
         || lastPathSegment.startsWith(CMF_FILE_EXTENSION_PREFIX, lastPathSegment.length() - 5)) {
-      return createFragmentedMp4Extractor(timestampAdjuster, format, muxedCaptionFormats);
+      return createFragmentedMp4Extractor(timestampAdjuster, format, muxedCaptionFormats,
+              exposeCea608WhenMissingDeclarations);
     } else {
       // For any other file extension, we assume TS format.
       return createTsExtractor(
@@ -265,7 +267,19 @@ public final class DefaultHlsExtractorFactory implements HlsExtractorFactory {
   private static FragmentedMp4Extractor createFragmentedMp4Extractor(
       TimestampAdjuster timestampAdjuster,
       Format format,
-      @Nullable List<Format> muxedCaptionFormats) {
+      @Nullable List<Format> muxedCaptionFormats,
+      boolean exposeCea608WhenMissingDeclarations) {
+    if ((muxedCaptionFormats == null ) && exposeCea608WhenMissingDeclarations) {
+      // The playlist does not provide any closed caption information. We preemptively declare a
+      // closed caption track on channel 0.
+      muxedCaptionFormats =
+              Collections.singletonList(
+                      Format.createTextSampleFormat(
+                              /* id= */ null,
+                              MimeTypes.APPLICATION_CEA608,
+                              /* selectionFlags= */ 0,
+                              /* language= */ null));
+    }
     // Only enable the EMSG TrackOutput if this is the 'variant' track (i.e. the main one) to avoid
     // creating a separate EMSG track for every audio track in a video stream.
     return new FragmentedMp4Extractor(
