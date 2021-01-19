@@ -1,6 +1,9 @@
 # Release notes #
 ### 2.11.6-2.0-dev (not-released) 
 
+* Add support for fMP4 playlist does not provide any closed caption information. We preemptively declare a closed caption track on channel 0. The TsExtractor already does this way and hence keeping Fmp4Extractor simpilar to TsExtractor.
+[cc72a4c](https://github.com/tivocorp/exoplayerprvt/commit/cc72a4c41847287fdf3fbadd970ecefdf3dd0e06)
+
 * Update Trick-Play API to include scrub seek mode.  This is a 
 backward compatible update to `TrickPlayControl` API. Details are in the commit: 
 [613d38c436 - Update the TrickPlayControl API to include methods for scrub trickplay](https://github.com/tivocorp/exoplayerprvt/commit/613d38c436)
