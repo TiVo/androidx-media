@@ -49,6 +49,8 @@ import com.google.android.exoplayer2.upstream.DefaultLoadErrorHandlingPolicy;
 import com.google.android.exoplayer2.upstream.LoadErrorHandlingPolicy;
 import com.google.android.exoplayer2.upstream.TransferListener;
 import com.google.android.exoplayer2.util.Assertions;
+import com.google.android.exoplayer2.util.Util;
+
 import java.io.IOException;
 import java.lang.annotation.Documented;
 import java.lang.annotation.Retention;
@@ -97,6 +99,7 @@ public final class HlsMediaSource extends BaseMediaSource
     private DrmSessionManager<?> drmSessionManager;
     private LoadErrorHandlingPolicy loadErrorHandlingPolicy;
     private boolean allowChunklessPreparation;
+    private long defaultLiveOffsetUs = C.TIME_UNSET;
     @MetadataType private int metadataType;
     private boolean useSessionKeys;
     private boolean isCreateCalled;
@@ -258,6 +261,31 @@ public final class HlsMediaSource extends BaseMediaSource
     }
 
     /**
+     * Set the default live offset in microseconds.
+     *
+     * The value is processed the same as the HLS
+     * <a href="https://tools.ietf.org/html/rfc8216#section-4.3.5.2">EXT-X-START</a> with the
+     * PRECISE=no.  That is a negative time is how far back from the live window size to start,
+     * positive is from the begining of the live window.  If the HLS server specifies an EXT-X-START
+     * then this value is ignored, in other words the precidence is:
+     *
+     * <ol>
+     *     <li>Offset requested by EXT-X-START</li>
+     *     <li>Default value set via this API</li>
+     *     <li>Hard-coded default (3 segments back from the duration of the live window)</li>
+     * </ol>
+     *
+     *
+     * @param offsetUs - offset in microseconds
+     * @return This factory, to allow chaining
+     */
+    public Factory setDefaultLiveOffset(long offsetUs) {
+      Assertions.checkState(!isCreateCalled);
+      this.defaultLiveOffsetUs = offsetUs;
+      return this;
+    }
+
+    /**
      * Sets the type of metadata to extract from the HLS source (defaults to {@link
      * #METADATA_TYPE_ID3}).
      *
@@ -352,6 +380,7 @@ public final class HlsMediaSource extends BaseMediaSource
           playlistTrackerFactory.createTracker(
               hlsDataSourceFactory, loadErrorHandlingPolicy, playlistParserFactory),
           allowChunklessPreparation,
+          defaultLiveOffsetUs,
           metadataType,
           useSessionKeys,
           tag);
@@ -378,6 +407,7 @@ public final class HlsMediaSource extends BaseMediaSource
   private final DrmSessionManager<?> drmSessionManager;
   private final LoadErrorHandlingPolicy loadErrorHandlingPolicy;
   private final boolean allowChunklessPreparation;
+  private final long defaultLiveOffsetUs;
   private final @MetadataType int metadataType;
   private final boolean useSessionKeys;
   private final HlsPlaylistTracker playlistTracker;
@@ -394,6 +424,7 @@ public final class HlsMediaSource extends BaseMediaSource
       LoadErrorHandlingPolicy loadErrorHandlingPolicy,
       HlsPlaylistTracker playlistTracker,
       boolean allowChunklessPreparation,
+      long defaultLiveOffsetUs,
       @MetadataType int metadataType,
       boolean useSessionKeys,
       @Nullable Object tag) {
@@ -405,6 +436,7 @@ public final class HlsMediaSource extends BaseMediaSource
     this.loadErrorHandlingPolicy = loadErrorHandlingPolicy;
     this.playlistTracker = playlistTracker;
     this.allowChunklessPreparation = allowChunklessPreparation;
+    this.defaultLiveOffsetUs = defaultLiveOffsetUs;
     this.metadataType = metadataType;
     this.useSessionKeys = useSessionKeys;
     this.tag = tag;
@@ -481,17 +513,25 @@ public final class HlsMediaSource extends BaseMediaSource
           playlist.hasEndTag ? offsetFromInitialStartTimeUs + playlist.durationUs : C.TIME_UNSET;
       List<HlsMediaPlaylist.Segment> segments = playlist.segments;
       if (windowDefaultStartPositionUs == C.TIME_UNSET) {
-        windowDefaultStartPositionUs = 0;
-        if (!segments.isEmpty()) {
-          int defaultStartSegmentIndex = Math.max(0, segments.size() - 3);
-          // We attempt to set the default start position to be at least twice the target duration
-          // behind the live edge.
-          long minStartPositionUs = playlist.durationUs - playlist.targetDurationUs * 2;
-          while (defaultStartSegmentIndex > 0
-              && segments.get(defaultStartSegmentIndex).relativeStartTimeUs > minStartPositionUs) {
-            defaultStartSegmentIndex--;
+        if (defaultLiveOffsetUs == C.TIME_UNSET) {
+          windowDefaultStartPositionUs = 0;
+          if (!segments.isEmpty()) {
+            int defaultStartSegmentIndex = Math.max(0, segments.size() - 3);
+            // We attempt to set the default start position to be at least twice the target duration
+            // behind the live edge.
+            long minStartPositionUs = playlist.durationUs - playlist.targetDurationUs * 2;
+            while (defaultStartSegmentIndex > 0
+                    && segments.get(defaultStartSegmentIndex).relativeStartTimeUs > minStartPositionUs) {
+              defaultStartSegmentIndex--;
+            }
+            windowDefaultStartPositionUs = segments.get(defaultStartSegmentIndex).relativeStartTimeUs;
           }
-          windowDefaultStartPositionUs = segments.get(defaultStartSegmentIndex).relativeStartTimeUs;
+
+        } else {
+          windowDefaultStartPositionUs =
+                  defaultLiveOffsetUs > 0 ? defaultLiveOffsetUs : playlist.durationUs + defaultLiveOffsetUs;
+          windowDefaultStartPositionUs =
+                  Util.constrainValue(windowDefaultStartPositionUs, 0, playlist.durationUs - playlist.targetDurationUs);
         }
       }
       timeline =

@@ -1,6 +1,10 @@
 # Release notes #
-### 2.11.6-2.0-dev (not-released) 
+### 2.11.6-2.0 (2021-01-25) 
 
+* Add method, `setDefaultLiveOffset()` to set the live-offset to the `HlsMediaSource.Factory`
+  the use case is to allow Client-Core to set this with an MSO specific setting from the APK
+  specializer when an MSO has clients that are not capable of dealing with the limited buffering
+  for the default (3rd segment back from live).
 * Add support for fMP4 playlist does not provide any closed caption information. We preemptively declare a closed caption track on channel 0. The TsExtractor already does this way and hence keeping Fmp4Extractor simpilar to TsExtractor.
 [cc72a4c](https://github.com/tivocorp/exoplayerprvt/commit/cc72a4c41847287fdf3fbadd970ecefdf3dd0e06)
 
