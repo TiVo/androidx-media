@@ -262,7 +262,7 @@ public class GeekStatsOverlay implements AnalyticsListener, Runnable {
 
     if (format != null) {
       int bps = format.bitrate;
-      float mbps = bps / 1_000_000.0f;
+      float mbps = (float) (bps / (1_024.0 * 1_024.0));
 
       if (isVideoFormat(format)) {
         if (bps == -1) {
