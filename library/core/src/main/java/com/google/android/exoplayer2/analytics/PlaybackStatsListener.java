@@ -92,9 +92,13 @@ public final class PlaybackStatsListener
    * @param callback An optional callback for finished {@link PlaybackStats}.
    */
   public PlaybackStatsListener(boolean keepHistory, @Nullable Callback callback) {
+    this(keepHistory, new DefaultPlaybackSessionManager(), callback);
+  }
+
+  public PlaybackStatsListener(boolean keepHistory, PlaybackSessionManager sessionManager, @Nullable Callback callback) {
     this.callback = callback;
     this.keepHistory = keepHistory;
-    sessionManager = new DefaultPlaybackSessionManager();
+    this.sessionManager = sessionManager;
     playbackStatsTrackers = new HashMap<>();
     sessionStartEventTimes = new HashMap<>();
     finishedPlaybackStats = PlaybackStats.EMPTY;
