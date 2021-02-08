@@ -406,7 +406,6 @@ public final class Cea608Decoder extends CeaDecoder {
       // Strip the parity bit from each byte to get CC data.
       byte ccData1 = (byte) (ccByte1 & 0x7F);
       byte ccData2 = (byte) (ccByte2 & 0x7F);
-      Log.d(TAG, "decode: cc1: " + String.format("%X", ccData1) + " cc2: " + String.format("%X", ccData2));
       if (ccData1 == 0 && ccData2 == 0) {
         // Ignore empty captions.
         continue;
@@ -918,7 +917,6 @@ public final class Cea608Decoder extends CeaDecoder {
         // The cue is empty.
         return null;
       }
-      Log.d(TAG, "cueString: " + cueString);
 
       int positionAnchor;
 
