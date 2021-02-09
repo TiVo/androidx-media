@@ -268,6 +268,9 @@ public final class Cea608Decoder extends CeaDecoder {
 
   private long lastCueUpdateUs;
 
+  // This flag is used to track the control word EOC followed by an EDM. If an EOC followes EDM,
+  // the working memory also needs to be cleared to avoid stale caption on screen.
+  private boolean fControlWordEdmSeen;
   /**
    * Constructs an instance.
    *
@@ -403,7 +406,6 @@ public final class Cea608Decoder extends CeaDecoder {
       // Strip the parity bit from each byte to get CC data.
       byte ccData1 = (byte) (ccByte1 & 0x7F);
       byte ccData2 = (byte) (ccByte2 & 0x7F);
-
       if (ccData1 == 0 && ccData2 == 0) {
         // Ignore empty captions.
         continue;
@@ -586,6 +588,7 @@ public final class Cea608Decoder extends CeaDecoder {
 
     switch (cc2) {
       case CTRL_ERASE_DISPLAYED_MEMORY:
+        fControlWordEdmSeen = true;
         cues = Collections.emptyList();
         if (captionMode == CC_MODE_ROLL_UP || captionMode == CC_MODE_PAINT_ON) {
           resetCueBuilders();
@@ -597,8 +600,15 @@ public final class Cea608Decoder extends CeaDecoder {
         break;
       case CTRL_END_OF_CAPTION:
         cues = getDisplayCues();
-        resetCueBuilders();
+        // As per CEA-608 section C.10 Style Switching (Regulatory), on receiving EOC,
+        // force the decoder into pop-on style
+        setCaptionMode(CC_MODE_POP_ON);
         onNewSubtitleDataAvailable(inputTimestampUs);  // update screen
+        if (fControlWordEdmSeen) {
+          // clear the working memory only if this is after an ERASE_DISPLAYED_MEMORY. Otherwise,
+          // the caption accumulated in working memory might be cleared before getting displaed
+          resetCueBuilders();
+        }
         break;
       case CTRL_CARRIAGE_RETURN:
         // carriage returns only apply to rollup captions; don't bother if we don't have anything
@@ -686,6 +696,7 @@ public final class Cea608Decoder extends CeaDecoder {
     currentCueBuilder.reset(captionMode);
     cueBuilders.clear();
     cueBuilders.add(currentCueBuilder);
+    fControlWordEdmSeen = false;
   }
 
   private void maybeUpdateIsInCaptionService(byte cc1, byte cc2) {
