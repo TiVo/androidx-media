@@ -2,13 +2,8 @@ package com.tivo.exoplayer.library.metrics;
 
 import android.app.Activity;
 import android.util.Log;
-import android.util.Pair;
-import androidx.annotation.Nullable;
 import androidx.annotation.VisibleForTesting;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 import com.google.android.exoplayer2.C;
@@ -34,47 +29,8 @@ public class ManagePlaybackMetrics {
 
     private final PlaybackStatsListener playbackStatsListener;
     private PlaybackMetrics currentPlaybackMetrics;
-    private Clock clock;
+    private final Clock clock;
     private final MetricsPlaybackSessionManager sessionManager;
-
-    /**
-     * The latest (dev-v2) branch of ExoPlayer replaces the <pre>Pair<EventTime, Format></pre> with
-     * an actual class.  Once we upgrade to version of ExoPlayer with this object simply delete this
-     * class and import the ExoPlayer one
-     */
-    public static final class EventTimeAndFormat {
-        public final AnalyticsListener.EventTime eventTime;
-        @Nullable
-        public final Format format;
-
-        private EventTimeAndFormat(AnalyticsListener.EventTime eventTime, @Nullable Format format) {
-            this.eventTime = eventTime;
-            this.format = format;
-        }
-        public static List<EventTimeAndFormat> fromPairList(List<Pair<AnalyticsListener.EventTime, Format>> pairList) {
-            List<EventTimeAndFormat> list = new ArrayList<>(pairList.size());
-            for (Pair<AnalyticsListener.EventTime, Format> pair : pairList) {
-                list.add(new EventTimeAndFormat(pair.first, pair.second));
-            }
-            return list;
-        }
-    }
-    public static final class EventTimeAndPlaybackState {
-        public final AnalyticsListener.EventTime eventTime;
-        public final int playbackState;
-
-        public EventTimeAndPlaybackState(AnalyticsListener.EventTime eventTime, int playbackState) {
-            this.eventTime = eventTime;
-            this.playbackState = playbackState;
-        }
-        public static List<EventTimeAndPlaybackState> fromPairList(List<Pair<AnalyticsListener.EventTime, Integer>> pairList) {
-            List<EventTimeAndPlaybackState> list = new ArrayList<>(pairList.size());
-            for (Pair<AnalyticsListener.EventTime, Integer> pair : pairList) {
-                list.add(new EventTimeAndPlaybackState(pair.first, pair.second));
-            }
-            return list;
-        }
-    }
 
 
     /**
@@ -114,33 +70,40 @@ public class ManagePlaybackMetrics {
     }
 
     /**
-     * Set the a new playback metrics object to collect playback metrics into, return current one if any
+     * Set the a new playback metrics object to collect playback metrics into, return any
+     * current one (if previously set) with the values filled in since the list call to
+     * this method.
      *
      * @param playbackMetrics new {@link PlaybackMetrics} object to begin collection for
+     * @return PlaybackMetrics with valid values since the last call to this method, or null if no prior metrics
      */
     public PlaybackMetrics setCurrentPlaybackMetrics(PlaybackMetrics playbackMetrics) {
         PlaybackMetrics priorMetrics = currentPlaybackMetrics;
         currentPlaybackMetrics = playbackMetrics;
         playbackMetrics.initialize(clock.elapsedRealtime(), priorMetrics);
 
-        if (priorMetrics != null) {
-            // TODO get the current stats from the session and update the metrics from them
-//            playbackMetrics.updateValuesFromStats(...);
-        }
+        fillInPlaybackMetrics(priorMetrics);
         return priorMetrics;
     }
 
+    /**
+     * Get the current state of the PlaybackMetrics, with values since the last call
+     * to {@link #setCurrentPlaybackMetrics(PlaybackMetrics)}.
+     *
+     * @return current PlaybackMetrics from last reset to current time, or null if setPlaybackMetrics was not called.
+     */
     public PlaybackMetrics getUpdatedPlaybackMetrics() {
-        PlaybackStats stats = playbackStatsListener.getPlaybackStats();
-        long currentRealtime = clock.elapsedRealtime();
-        if (currentPlaybackMetrics == null) {
-            currentPlaybackMetrics = new PlaybackMetrics();
-            currentPlaybackMetrics.initialize(currentRealtime, null);
-        }
-        currentPlaybackMetrics.updateValuesFromStats(stats, currentRealtime);
+        fillInPlaybackMetrics(currentPlaybackMetrics);
         return currentPlaybackMetrics;
     }
 
+    private void fillInPlaybackMetrics(PlaybackMetrics priorMetrics) {
+        if (priorMetrics != null) {
+            PlaybackStats stats = playbackStatsListener.getPlaybackStats();
+            long currentRealtime = clock.elapsedRealtime();
+            priorMetrics.updateValuesFromStats(stats, currentRealtime);
+        }
+    }
 
     protected void playbackStatsUpdate(AnalyticsListener.EventTime sessionStartTime, PlaybackStats stats) {
         StringBuilder sb = new StringBuilder();
@@ -172,7 +135,7 @@ public class ManagePlaybackMetrics {
 
         MetricsPlaybackSessionManager.SessionInformation sessionInformation =
                 sessionManager.getSessionInformationFor(sessionStartTime.realtimeMs);
-        Map<Format, Long> timeInFormat = getTimeInFormat(stats, clock.elapsedRealtime());
+        Map<Format, Long> timeInFormat = PlaybackStatsExtension.getPlayingTimeInFormat(stats, C.TIME_UNSET);
 
         String currentUri = sessionInformation.getSessionUrl();
 
@@ -184,46 +147,6 @@ public class ManagePlaybackMetrics {
                 Log.d(TAG, "  " + EventLogger.getVideoLevelStr(entry.getKey()) + " played for " + entry.getValue() + " ms total");
             }
         }
-    }
-
-    /**
-     * Using the video format history in the {@link PlaybackStats}, determine the total amount of time
-     * in each variant (@link {@link Format} objects describe each variant).  Note this is time includes
-     * time in playing, buffering or paused states in the formats
-     *
-     * It is assumed that this initial format change for the starting format is included the
-     * {@link PlaybackStats#videoFormatHistory} for the specified playback stats
-     *
-     * @param stats PlaybackStats to analyze and get formats
-     * @param toTime ending time, time in last format change to this time is included with that format
-     * @return a Map, keyed by each Format (Variant) with the time in ms spent "playing" (includes paused, buffering)
-     */
-    static Map<Format, Long> getTimeInFormat(PlaybackStats stats, long toTime) {
-        HashMap<Format, Long> timeInFormat = new HashMap<>();
-        long lastFormatChangeTime = C.TIME_UNSET;
-        EventTimeAndFormat lastFormatEvent = null;
-        for (EventTimeAndFormat formatEvent : EventTimeAndFormat.fromPairList(stats.videoFormatHistory)) {
-            Long time = timeInFormat.get(formatEvent.format);
-            if (time == null) {
-                time = 0L;
-                timeInFormat.put(formatEvent.format, time);     // placeholder
-            }
-            if (lastFormatEvent != null) {
-                time = timeInFormat.get(lastFormatEvent.format);
-                time += formatEvent.eventTime.realtimeMs - lastFormatChangeTime;
-                timeInFormat.put(lastFormatEvent.format, time);
-            }
-            lastFormatChangeTime = formatEvent.eventTime.realtimeMs;
-            lastFormatEvent = formatEvent;
-        }
-
-        if (lastFormatEvent != null) {
-            Long time = timeInFormat.get(lastFormatEvent.format);
-            time += toTime - lastFormatChangeTime;
-            timeInFormat.put(lastFormatEvent.format, time);
-        }
-
-        return timeInFormat;
     }
 
 }

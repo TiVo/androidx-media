@@ -20,6 +20,7 @@ public class PlaybackMetrics {
     private long droppedFramesCount;
     private float avgVideoBitrate;
     private float avgNetworkBitrateMbps;
+    private long totalPlaybackTime;
 
 
     /**
@@ -47,11 +48,12 @@ public class PlaybackMetrics {
         // TODO compute values
         startingTimestamp = currentElapsedTime;
 
-        timeInVideoFormat = ManagePlaybackMetrics.getTimeInFormat(playbackStats, currentElapsedTime);
+        timeInVideoFormat = PlaybackStatsExtension.getPlayingTimeInFormat(playbackStats, currentElapsedTime);
         avgVideoBitrate = bpsToMbps(playbackStats.getMeanVideoFormatBitrate());
         avgNetworkBitrateMbps = bpsToMbps(playbackStats.getMeanBandwidth());
         profileShiftCount = playbackStats.videoFormatHistory.size();
         droppedFramesCount = playbackStats.totalDroppedFrames;
+        totalPlaybackTime = playbackStats.getTotalPlayTimeMs();
     }
 
     private float bpsToMbps(int meanVideoFormatBitrate) {
@@ -103,5 +105,15 @@ public class PlaybackMetrics {
      */
     public Map<Format, Long> getTimeInVideoFormat() {
         return timeInVideoFormat;
+    }
+
+    /**
+     * Get the total playback time since the start of the session.  Playback time is time actually playing,
+     * that is not counting paused, buffering, trick-play, etc.
+     *
+     * @return time playing in milliseconds
+     */
+    public long getTotalPlaybackTimeMs() {
+        return totalPlaybackTime;
     }
 }

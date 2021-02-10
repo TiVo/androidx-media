@@ -43,9 +43,7 @@ dependencies {
     implementation project(modulePrefix + 'library-trickplay')
     implementation project(modulePrefix + 'library-ui')
     testImplementation project(modulePrefix + 'testutils')
-    testImplementation 'androidx.test:core:' + androidxTestCoreVersion
-    testImplementation 'androidx.test.ext:junit:' + androidxTestJUnitVersion
-    testImplementation 'com.google.truth:truth:' + truthVersion
+    testImplementation 'org.robolectric:robolectric:' + robolectricVersion
     compileOnly 'org.checkerframework:checker-qual:' + checkerframeworkVersion
     compileOnly 'org.checkerframework:checker-compat-qual:' + checkerframeworkVersion
 }
