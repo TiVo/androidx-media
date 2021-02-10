@@ -292,7 +292,7 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
   protected void stopPlaybackIfPlaying() {
     SimpleExoPlayer currentPlayer = exoPlayerFactory.getCurrentPlayer();
     if (currentPlayer != null) {
-      if (! (currentPlayer.getPlaybackState() == Player.STATE_ENDED || currentPlayer.getPlaybackState() == Player.STATE_IDLE)) {
+      if (currentPlayer.getPlaybackState() != Player.STATE_IDLE) {
         Log.d(TAG, "Stop and dump stats for current playback URI: '" + currentUri + "'");
         currentPlayer.stop();
         statsManager.endAllSessions();
