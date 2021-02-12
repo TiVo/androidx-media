@@ -42,7 +42,7 @@ public class TivoCryptDataSourceFactory implements DataSource.Factory {
   // delegateFactory is the DataSource.Factory which will create the
   // upstream data sources.
   public TivoCryptDataSourceFactory(DataSource.Factory delegateFactory, String wbKey,
-      Context context) {
+      Context context, String deviceKey) {
     mDelegateFactory = delegateFactory;
     mContext = context;
     mWBKey = wbKey;
@@ -50,7 +50,7 @@ public class TivoCryptDataSourceFactory implements DataSource.Factory {
     // Load the native library so that we can call the native methods
     if (wbKey != null) {
       if (TivoCryptSsUtil.loadLibrary(TivoCryptSsUtil.SS_DRM_LIB_NAME)) {
-        int resultCode = TivoCryptSsUtil.initLibrary(mContext);
+        int resultCode = TivoCryptSsUtil.initLibrary(mContext, deviceKey);
         if (TivoCryptSsUtil.isRootDeviceDetectionFatal(resultCode)) {
           LogError("streaming rooted device");//TODO error handling later
         } else if (TivoCryptSsUtil.isRootDeviceDetectionIgnored(resultCode)) {
