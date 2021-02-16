@@ -13,6 +13,8 @@ import com.google.android.exoplayer2.analytics.AnalyticsListener;
 import com.google.android.exoplayer2.analytics.DefaultPlaybackSessionManager;
 import com.google.android.exoplayer2.analytics.PlaybackStats;
 import com.google.android.exoplayer2.analytics.PlaybackStatsListener;
+import com.google.android.exoplayer2.trickplay.TrickPlayControl;
+import com.google.android.exoplayer2.trickplay.TrickPlayEventListener;
 import com.google.android.exoplayer2.util.Clock;
 import com.google.android.exoplayer2.util.EventLogger;
 
@@ -28,33 +30,55 @@ public class ManagePlaybackMetrics {
     private static final String TAG = "ManagePlaybackMetrics";
 
     private final PlaybackStatsListener playbackStatsListener;
+    private SimpleExoPlayer currentPlayer;
     private PlaybackMetrics currentPlaybackMetrics;
     private final Clock clock;
+    private TrickPlayControl trickPlayControl;
     private final MetricsPlaybackSessionManager sessionManager;
 
+
+    private class TrickPlayMetricsHelper implements TrickPlayEventListener, AnalyticsListener {
+        private TrickPlayMetrics currentTrickPlayMetrics;
+        private PlaybackStatsListener trickPlayStatsListener;
+
+        @Override
+        public void trickPlayModeChanged(TrickPlayControl.TrickMode newMode, TrickPlayControl.TrickMode prevMode) {
+            if (prevMode == TrickPlayControl.TrickMode.NORMAL) {
+                currentPlayer.removeAnalyticsListener(playbackStatsListener);
+                currentPlayer.addAnalyticsListener(this);
+            } else if (newMode == TrickPlayControl.TrickMode.NORMAL) {
+                currentPlayer.removeAnalyticsListener(this);
+                currentPlayer.addAnalyticsListener(playbackStatsListener);
+            }
+        }
+
+        @Override
+        public void trickFrameRendered(long frameRenderTimeUs) {
+
+        }
+
+    }
 
     /**
      * Create and associate with a player.
      *
      * @param player - the SimpleExoPlayer to manage playback metrics for
-     * @param clock - instance of {@link Clock} used for the player, or test instance
+     * @param trickPlayControl - trickplay control in use by the player
      */
-    public ManagePlaybackMetrics(SimpleExoPlayer player, Clock clock) {
-        this(clock);
-        player.addAnalyticsListener(playbackStatsListener);
+    public ManagePlaybackMetrics(SimpleExoPlayer player, TrickPlayControl trickPlayControl) {
+        this(Clock.DEFAULT, trickPlayControl, player);        // The Clock can be overriden for testing
     }
 
     @VisibleForTesting
-    ManagePlaybackMetrics(Clock clock) {
+    ManagePlaybackMetrics(Clock clock, TrickPlayControl trickPlayControl, SimpleExoPlayer player) {
+        this.currentPlayer = player;
         this.clock = clock;
+        this.trickPlayControl = trickPlayControl;
         sessionManager = new MetricsPlaybackSessionManager(new DefaultPlaybackSessionManager());
         playbackStatsListener =
                 new PlaybackStatsListener(true, sessionManager, (eventTime, playbackStats) -> playbackStatsUpdate(eventTime, playbackStats));
-    }
-
-    @VisibleForTesting
-    PlaybackStatsListener getPlaybackStatsListener() {
-        return playbackStatsListener;
+        trickPlayControl.addEventListener(new TrickPlayMetricsHelper());
+        player.addAnalyticsListener(playbackStatsListener);
     }
 
     /**

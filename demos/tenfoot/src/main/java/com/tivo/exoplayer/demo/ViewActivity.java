@@ -33,7 +33,6 @@ import com.google.android.exoplayer2.ui.PlayerControlView;
 import com.google.android.exoplayer2.ui.PlayerView;
 import com.google.android.exoplayer2.ui.SubtitleView;
 import com.google.android.exoplayer2.ui.TimeBar;
-import com.google.android.exoplayer2.util.Clock;
 import com.tivo.exoplayer.library.DrmInfo;
 import com.tivo.exoplayer.library.GeekStatsOverlay;
 import com.tivo.exoplayer.library.OutputProtectionMonitor;
@@ -248,7 +247,7 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
 
     playerView.setPlayer(player);
     geekStats.setPlayer(player, trickPlayControl);
-    statsManager = new ManagePlaybackMetrics(player, Clock.DEFAULT);    // TODO - might want Clock passed to player
+    statsManager = new ManagePlaybackMetrics(player, trickPlayControl);
 
     statsManager.setCurrentPlaybackMetrics(new PlaybackMetrics());
 

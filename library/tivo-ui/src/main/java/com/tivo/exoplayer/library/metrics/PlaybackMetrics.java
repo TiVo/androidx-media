@@ -21,6 +21,8 @@ public class PlaybackMetrics {
     private float avgVideoBitrate;
     private float avgNetworkBitrateMbps;
     private long totalPlaybackTime;
+    private long avgRebufferTime;
+    private float rebufferCount;
 
 
     /**
@@ -54,6 +56,8 @@ public class PlaybackMetrics {
         profileShiftCount = playbackStats.videoFormatHistory.size();
         droppedFramesCount = playbackStats.totalDroppedFrames;
         totalPlaybackTime = playbackStats.getTotalPlayTimeMs();
+        avgRebufferTime = playbackStats.getMeanRebufferTimeMs();
+        rebufferCount = playbackStats.getMeanRebufferCount();
     }
 
     private float bpsToMbps(int meanVideoFormatBitrate) {
@@ -84,8 +88,43 @@ public class PlaybackMetrics {
         return avgVideoBitrate;
     }
 
+    /**
+     * Returns the average (mean) network bandwidth based on from measurements of media transfers for all
+     * the media that comprises the current playing streams.   This values is smoothed by the player's
+     * bandwidth meter to use in ABR selection of the streams.
+     *
+     * This tracks {@link #getAvgVideoBitrate()} as when this values increases, the ABR should select a
+     * higher variant bitrate
+     *
+     * @return network bandwidth observed over the session in Mbps
+     */
     public float getAvgNetworkBandwidth() {
         return avgNetworkBitrateMbps;
+    }
+
+    /**
+     * Number of times playback paused for re-buffering (buffered media duration less than threshold).  Note this
+     * excludes buffering for:
+     *
+     * <ol>
+     *     <li>Initial playback startup</li>
+     *     <li>Restarting playback after a seek</li>
+     *     <li>Buffering during trickplay</li>
+     * </ol>
+     *
+     * @return count of rebufferings
+     */
+    public float getRebufferCount() {
+        return rebufferCount;
+    }
+
+    /**
+     * Ratio of playback time to time rebuffering.
+     *
+     * @return avg rebuffering time
+     */
+    public long getAvgRebufferTime() {
+        return avgRebufferTime;
     }
 
     /**
