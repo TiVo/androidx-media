@@ -13,8 +13,8 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 
 public class TivoCryptSsUtil {
-  private static final String TAG = "SsDrm";
-  public static final String SS_DRM_LIB_NAME = "ssDrm";
+  private static final String TAG = "TivoCrypt";
+  public static final String SS_DRM_LIB_NAME = "tivoCrypt";
 
   public static final int A_FAILED = 100;
   public static final int B_FAILED = 200;
