@@ -233,7 +233,6 @@ public class TivoCryptDataSourceFactory implements DataSource.Factory {
 
     public int read(byte[] buffer, int offset, int readLength)
         throws IOException {
-      LogMsg("read called with offset =" + offset + " readLength = " + readLength);
       // ExoPlayer docs say that read() should return 0 if readLength is
       // 0, no matter the state of the DataSource otherwise.
       if (readLength == 0) {
