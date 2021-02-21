@@ -5,11 +5,16 @@
 package com.tivo.android.utils;
 import android.content.Context;
 import android.util.Log;
+
+import java.io.UnsupportedEncodingException;
 import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 
 public class TivoCryptSsUtil {
-  private static final String TAG = "SsDrm";
-  public static final String SS_DRM_LIB_NAME = "ssDrm";
+  private static final String TAG = "TivoCrypt";
+  public static final String SS_DRM_LIB_NAME = "tivoCrypt";
 
   public static final int A_FAILED = 100;
   public static final int B_FAILED = 200;
@@ -19,6 +24,8 @@ public class TivoCryptSsUtil {
   public static final int F_FAILED = 600;
   public static final int G_FAILED = 700;
   public static final int LIBRARY_LOAD_ERROR = 800;
+
+  public static final int SSDRM_AES_KEY_LENGTH_BYTES = 16; // bytes
 
   /**
    * sets the white-box key into the DRM module.
@@ -41,7 +48,7 @@ public class TivoCryptSsUtil {
    * Initialization of native layer
    * @return 0 if success else 1
    */
-  private static native int init(Context context);
+  private static native int init(Context context, byte[] deviceAesKey);
 
   /**
    * encrypts the data.
@@ -86,8 +93,51 @@ public class TivoCryptSsUtil {
     return true;
   }
 
-  public static int initLibrary(Context context) {
-    return init(context);
+  public static int initLibrary(Context context, String deviceKey) {
+    byte[] key = getDeviceKeyBytes(deviceKey);
+    printKey(key);
+    return init(context, key);
+  }
+
+  private static void printKey(byte[] key) {
+    StringBuilder builder = new StringBuilder();
+    for (byte b : key) {
+      int unsignedInt = (b & 0xFF);
+      builder.append(unsignedInt).append(" ");
+    }
+    Log.d(TAG, "Key being passed to native layer is: " + builder.toString());
+  }
+
+
+  private static byte[] getDeviceKeyBytes(String deviceKey) {
+    MessageDigest md = null;
+
+    try {
+      md = MessageDigest.getInstance("SHA-256");
+    } catch (NoSuchAlgorithmException e) {
+      Log.e(TAG, "Algorigthm to create digest not found.", e);
+    }
+
+    if (md != null) {
+      byte[] key = new byte[SSDRM_AES_KEY_LENGTH_BYTES];
+
+      byte[] digest = new byte[0];
+      try {
+        digest = md.digest(deviceKey.getBytes("UTF-8"));
+      } catch (UnsupportedEncodingException e) {
+        e.printStackTrace();
+      }
+
+      if (digest.length < SSDRM_AES_KEY_LENGTH_BYTES) {
+        return new byte[0];
+      }
+
+      System.arraycopy(digest, 0, key, 0, SSDRM_AES_KEY_LENGTH_BYTES);
+
+      return key;
+    } else {
+      return new byte[0];
+    }
   }
 
   public static boolean isRootDeviceDetectionFatal(int errorCode) {
