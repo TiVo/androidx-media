@@ -1,4 +1,8 @@
 # Release notes #
+#### 2.11.6-2.1-dev (Not Yet Released)
+
+* Support for TiVo Crypt for mobile, [b8bdebd5e5](https://github.com/tivocorp/exoplayerprvt/commit/b8bdebd5e5) - SsUtil init with Device key from platform.  Pending story [MOBILE-15762](https://jira.tivo.com/browse/MOBILE-15762) to enable using this in the tenfoot demo app and other Android applications.
+
 ### 2.11.6-2.0 (2021-01-25) 
 
 * Add method, `setDefaultLiveOffset()` to set the live-offset to the `HlsMediaSource.Factory`
