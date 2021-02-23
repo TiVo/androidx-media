@@ -15,13 +15,15 @@ public class DrmInfo {
     @IntDef({
             CLEAR,
             WIDEVINE,
-            VCAS
+            VCAS,
+            TIVO_CRYPT
     })
     public @interface DrmType {}
 
     public static final int CLEAR = 0;
     public static final int VCAS = 1;
     public static final int WIDEVINE = 2;
+    public static final int TIVO_CRYPT = 3;
 
 
     public DrmInfo(@DrmType int drmType) {
