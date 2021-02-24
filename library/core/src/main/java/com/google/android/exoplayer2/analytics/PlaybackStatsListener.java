@@ -399,7 +399,8 @@ public final class PlaybackStatsListener
 
   @Override
   public void onDroppedVideoFrames(EventTime eventTime, int droppedFrames, long elapsedMs) {
-    maybeAddSession(eventTime);
+    // removed session create here, never makes sense.  Future versions (dev-v2) have completely changed
+    // this logic.
     for (String session : playbackStatsTrackers.keySet()) {
       if (sessionManager.belongsToSession(eventTime, session)) {
         playbackStatsTrackers.get(session).onDroppedVideoFrames(droppedFrames);

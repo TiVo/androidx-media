@@ -18,6 +18,7 @@ package com.google.android.exoplayer2.analytics;
 import static com.google.common.truth.Truth.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -212,6 +213,56 @@ public final class PlaybackStatsListenerTest {
 
   }
 
+  @Test
+  public void testSessionNotCreatedOnStop() {
+    SystemClock.setCurrentTimeMillis(0);
+    PlaybackStatsListener.Callback callback = mock(PlaybackStatsListener.Callback.class);
+    DefaultPlaybackSessionManager sessionManager = new DefaultPlaybackSessionManager();
+    PlaybackStatsListener playbackStatsListener =
+            new PlaybackStatsListener(true, sessionManager, callback);
+
+    PlaybackSessionManager.Listener listenerMock = mock(PlaybackSessionManager.Listener.class);
+    sessionManager.setListener(listenerMock);
+
+    playbackStatsListener.onTimelineChanged(
+            TEST_EVENT_TIME, Player.TIMELINE_CHANGE_REASON_DYNAMIC);
+
+    SystemClock.setCurrentTimeMillis(TEST_EVENT_TIME.realtimeMs + 100);
+    playbackStatsListener.onPlayerStateChanged(createEventTime(TEST_EVENT_TIME.realtimeMs + 100), true, Player.STATE_READY);
+    verify(listenerMock, times(1)).onSessionCreated(any(), any());
+
+    // Player.stop() sets the state to idle and clears the timeline to an EMPTY timeline, this should not create a session
+    playbackStatsListener.onPlayerStateChanged(createEventTime(0), true, Player.STATE_IDLE);
+    playbackStatsListener.onTimelineChanged(EMPTY_TIMELINE_EVENT_TIME, Player.TIMELINE_CHANGE_REASON_RESET);
+    verify(listenerMock, times(1)).onSessionCreated(any(), any());
+  }
+
+
+  @Test
+  public void testSessionNotCreatedByDroppedFrame_afterStop() {
+    SystemClock.setCurrentTimeMillis(0);
+    PlaybackStatsListener.Callback callback = mock(PlaybackStatsListener.Callback.class);
+    DefaultPlaybackSessionManager sessionManager = new DefaultPlaybackSessionManager();
+    PlaybackStatsListener playbackStatsListener =
+            new PlaybackStatsListener(true, sessionManager, callback);
+
+    PlaybackSessionManager.Listener listenerMock = mock(PlaybackSessionManager.Listener.class);
+    sessionManager.setListener(listenerMock);
+
+    playbackStatsListener.onTimelineChanged(
+            TEST_EVENT_TIME, Player.TIMELINE_CHANGE_REASON_DYNAMIC);
+
+    SystemClock.setCurrentTimeMillis(TEST_EVENT_TIME.realtimeMs + 100);
+    playbackStatsListener.onPlayerStateChanged(createEventTime(TEST_EVENT_TIME.realtimeMs + 100), true, Player.STATE_READY);
+    verify(listenerMock, times(1)).onSessionCreated(any(), any());
+
+    // Player.stop() sets the state to idle and clears the timeline to an EMPTY timeline, this should not create a session
+    playbackStatsListener.onPlayerStateChanged(createEventTime(TEST_EVENT_TIME.realtimeMs + 100), true, Player.STATE_IDLE);
+    playbackStatsListener.onTimelineChanged(EMPTY_TIMELINE_EVENT_TIME, Player.TIMELINE_CHANGE_REASON_RESET);
+
+    playbackStatsListener.onDroppedVideoFrames(createEventTime(TEST_EVENT_TIME.realtimeMs + 100), 1, 20);
+    verify(listenerMock, times(1)).onSessionCreated(any(), any());
+  }
 
   private static MediaSourceEventListener.MediaLoadData createMediaLoad(Format format) {
     int type = MimeTypes.getTrackType(format.sampleMimeType);

@@ -8,8 +8,10 @@ import com.google.android.exoplayer2.analytics.PlaybackStatsListener;
 import com.google.android.exoplayer2.trickplay.TrickPlayControl;
 import com.google.android.exoplayer2.trickplay.TrickPlayEventListener;
 import com.google.android.exoplayer2.util.Clock;
+import com.google.android.exoplayer2.util.Log;
 
 class TrickPlayMetricsHelper implements TrickPlayEventListener, PlaybackStatsListener.Callback {
+    private static final String TAG = "TrickPlayMetricsHelper";
     private final MetricsEventListener metricsEventCallback;
     private TrickPlayMetrics currentTrickPlayMetrics;
     private PlaybackStatsListener trickPlayStatsListener;
@@ -26,6 +28,8 @@ class TrickPlayMetricsHelper implements TrickPlayEventListener, PlaybackStatsLis
 
     @Override
     public void trickPlayModeChanged(TrickPlayControl.TrickMode newMode, TrickPlayControl.TrickMode prevMode) {
+        Log.d(TAG, "trickPlayModeChanged() from : " + prevMode + " to: " + newMode + " - currentTrickPLayMetrics: " + currentTrickPlayMetrics);
+
         switch (TrickPlayControl.directionForMode(newMode)) {
             case REVERSE:
             case FORWARD:
@@ -64,6 +68,8 @@ class TrickPlayMetricsHelper implements TrickPlayEventListener, PlaybackStatsLis
      */
     @Override
     public void onPlaybackStatsReady(AnalyticsListener.EventTime eventTime, PlaybackStats playbackStats) {
+        Log.d(TAG, "onPlaybackStatsReady() - currentTrickPLayMetrics: " + currentTrickPlayMetrics);
+
         AnalyticsListener.EventTime endedEventTime =
                 new AnalyticsListener.EventTime(clock.elapsedRealtime(), Timeline.EMPTY, 0, null,
                 0, currentPlayer.getCurrentPosition(), 0);
@@ -77,6 +83,7 @@ class TrickPlayMetricsHelper implements TrickPlayEventListener, PlaybackStatsLis
     // Private methods
 
     private void createNewTrickPlaySession(TrickPlayControl.TrickMode newMode, TrickPlayControl.TrickMode prevMode) {
+        Log.d(TAG, "Create a new trickplay session.");
         endCurrentTrickPlaySession();
         currentTrickPlayMetrics = metricsEventCallback.createEmptyTrickPlayMetrics(newMode, prevMode);
         trickPlayStatsListener = new PlaybackStatsListener(true, this);
@@ -85,14 +92,20 @@ class TrickPlayMetricsHelper implements TrickPlayEventListener, PlaybackStatsLis
 
 
     /**
-     * remove the current listener for trickplay stats, if any and end it's playback session to flush events.
+     * Called to end the current trickplay session.  If it's not already ended (trickPlayStatsListener is active) then
+     * remove the listener, and ff the session has not already ended (as could have happened for abandoning a trick-play
+     * in progress with a channel change or new URL), then call finish the session
      */
     private void endCurrentTrickPlaySession() {
-        // Remove current listener and flush the session to create and log the trickplay stats
-        //
+
+        // Remove the Trick-play PlaybackStatsListener if any
         if (trickPlayStatsListener != null) {
             currentPlayer.removeAnalyticsListener(trickPlayStatsListener);
-            trickPlayStatsListener.finishAllSessions();
+
+            // If the session has not already ended, end it
+            if (currentTrickPlayMetrics != null) {
+                trickPlayStatsListener.finishAllSessions();
+            }
             trickPlayStatsListener = null;
         }
     }

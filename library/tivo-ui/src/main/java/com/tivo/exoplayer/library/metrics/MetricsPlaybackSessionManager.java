@@ -11,8 +11,10 @@ import com.google.android.exoplayer2.analytics.AnalyticsListener;
 import com.google.android.exoplayer2.analytics.PlaybackSessionManager;
 import com.google.android.exoplayer2.source.MediaSource;
 import com.google.android.exoplayer2.source.hls.HlsManifest;
+import com.google.android.exoplayer2.util.Log;
 
 public class MetricsPlaybackSessionManager implements PlaybackSessionManager {
+    private static final String TAG = "MetricsPlaybackSessionManager";
 
     private @Nullable String currentSessionId;
     private final PlaybackSessionManager delegate;
@@ -55,14 +57,17 @@ public class MetricsPlaybackSessionManager implements PlaybackSessionManager {
 
         @Override
         public void onSessionCreated(AnalyticsListener.EventTime eventTime, String sessionId) {
+            Log.d(TAG, "session created, id: " + sessionId + " " + timelineDebugString(eventTime));
             delegateListener.onSessionCreated(eventTime, sessionId);
             SessionInformation info = new SessionInformation(eventTime.realtimeMs);
             sessionsById.put(sessionId, info);
             sessionsByCreateTime.put(eventTime.realtimeMs, info);
+            info.setSessionUrl(getUrlFromTimeline(eventTime.timeline));
         }
 
         @Override
         public void onSessionActive(AnalyticsListener.EventTime eventTime, String sessionId) {
+            Log.d(TAG, "session active, id: " + sessionId + " " + timelineDebugString(eventTime));
             currentSessionId = sessionId;
             delegateListener.onSessionActive(eventTime, sessionId);
         }
@@ -74,11 +79,13 @@ public class MetricsPlaybackSessionManager implements PlaybackSessionManager {
 
         @Override
         public void onSessionFinished(AnalyticsListener.EventTime eventTime, String sessionId, boolean automaticTransitionToNextPlayback) {
+            Log.d(TAG, "session finished, id: " + sessionId + " " + timelineDebugString(eventTime));
             delegateListener.onSessionFinished(eventTime, sessionId, automaticTransitionToNextPlayback);
             SessionInformation info = sessionsById.remove(sessionId);
             if (info != null) {
                 sessionsByCreateTime.remove(info.creationTime);
             }
+            currentSessionId = null;
         }
     }
 
@@ -116,27 +123,24 @@ public class MetricsPlaybackSessionManager implements PlaybackSessionManager {
 
     @Override
     public void updateSessions(AnalyticsListener.EventTime eventTime) {
-        delegate.updateSessions(eventTime);
+        Timeline timeline = eventTime.timeline;
+        if (timeline != Timeline.EMPTY) {
+            delegate.updateSessions(eventTime);
+        }
     }
 
     @Override
     public void handleTimelineUpdate(AnalyticsListener.EventTime eventTime) {
-        delegate.handleTimelineUpdate(eventTime);
         Timeline timeline = eventTime.timeline;
-        if (! timeline.isEmpty()) {
-            SessionInformation sessionInfo = getCurrentSessionInformation();
-            if (sessionInfo != null && sessionInfo.getSessionUrl() == null) {
-                Timeline.Window window = timeline.getWindow(0, new Timeline.Window());
-
-                // TODO - this works for HLS, need something different for DASH.
-                // This assumes a SinglePeriodTimeline (so that there is one PlaybackSessionManager session per prepare)
-                if (window.manifest instanceof HlsManifest) {
-                    HlsManifest manifest = (HlsManifest) window.manifest;
-                    sessionInfo.setSessionUrl(manifest.masterPlaylist.baseUri);
-                }
-            }
+        if (timeline == Timeline.EMPTY) {
+            Log.d(TAG, "timelineUpdated - was reset to EMPTY, eventTime: " + eventTime.realtimeMs + " sessionId: " + currentSessionId);
+//        } else {
+//            String url = getUrlFromTimeline(timeline);
+//            Log.d(TAG, "timelineUpdated - with URL: " + url + " , eventTime: " + eventTime.realtimeMs + " sessionId: " + currentSessionId);
         }
+        delegate.handleTimelineUpdate(eventTime);
     }
+
 
     @Override
     public void handlePositionDiscontinuity(AnalyticsListener.EventTime eventTime, int reason) {
@@ -146,5 +150,39 @@ public class MetricsPlaybackSessionManager implements PlaybackSessionManager {
     @Override
     public void finishAllSessions(AnalyticsListener.EventTime eventTime) {
         delegate.finishAllSessions(eventTime);
+    }
+
+
+    private String getUrlFromTimeline(Timeline timeline) {
+        Timeline.Window window = timeline.getWindow(0, new Timeline.Window());
+        String url = null;
+        // TODO - this works for HLS, need something different for DASH.
+        // This assumes a SinglePeriodTimeline (so that there is one PlaybackSessionManager session per prepare)
+        if (window.manifest instanceof HlsManifest) {
+            HlsManifest manifest = (HlsManifest) window.manifest;
+            url = manifest.masterPlaylist.baseUri;
+        }
+        return url;
+    }
+
+    private String timelineDebugString(AnalyticsListener.EventTime eventTime) {
+        String value = "";
+        Timeline timeline = eventTime.timeline;
+        if (timeline.isEmpty()) {
+            value = "empty timeline, at realtimeMs: " + eventTime.realtimeMs;
+        } else {
+            Timeline.Window window = timeline.getWindow(0, new Timeline.Window());
+
+            value = "active timeline, at realtimeMs: " + eventTime.realtimeMs;
+
+            String url = getUrlFromTimeline(timeline);
+            if (url == null) {
+                value += " no URL";
+            } else {
+                value += " " + url;
+            }
+        }
+        return value;
+
     }
 }

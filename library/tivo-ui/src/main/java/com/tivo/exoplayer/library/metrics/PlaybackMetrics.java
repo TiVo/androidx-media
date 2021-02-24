@@ -12,6 +12,7 @@ import com.google.android.exoplayer2.util.Clock;
 import com.google.android.exoplayer2.util.Log;
 import static com.google.android.exoplayer2.analytics.PlaybackStats.PLAYBACK_STATE_ABANDONED;
 import static com.google.android.exoplayer2.analytics.PlaybackStats.PLAYBACK_STATE_ENDED;
+import static com.google.android.exoplayer2.analytics.PlaybackStats.PLAYBACK_STATE_NOT_STARTED;
 import static com.google.android.exoplayer2.analytics.PlaybackStats.PLAYBACK_STATE_STOPPED;
 
 /**
@@ -91,6 +92,7 @@ public class PlaybackMetrics {
             switch (playbackStateAtTime) {
                 case PLAYBACK_STATE_ABANDONED:
                 case PLAYBACK_STATE_STOPPED:
+                case PLAYBACK_STATE_NOT_STARTED:
                     endReason = EndReason.USER_ENDED;
                     break;
 
