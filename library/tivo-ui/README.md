@@ -89,3 +89,12 @@ The internals of this module are extensible, two factory methods in the `SimpleE
 The `SimpleExoPlayerFactory` method `createMediaSourceLifeCycle()` creates the implementation of this interface.  This object is responsible for creating the `MediaSource` and recovering any playback errors that are `MediaSource` related (eg. `BehindLiveWindowException`).  
 
 Clients can either extend `DefaultMediaSourceLifeCycle` to customize the implementation or create their own.
+
+### TivoCrypt DRM
+
+Integration of TivoCrypt DRM can be done with `DefaultMediaSourceLifeCycle`. TivoCrypt DRM requires a native library hosted in artifactory.
+To include the native library we need to make following changes in build.gradle,
+```
+compile(group: 'com.tivo.android.tivocrypt', name: 'tivoCrypt', version: '1.0', classifier: "release", ext: 'aar')
+```
+Need to create `TivoCryptDrmInfo` with required values and call `DefaultMediaSourceLifeCycle.playUrl()`.
