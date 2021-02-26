@@ -1,19 +1,36 @@
 package com.tivo.exoplayer.library.metrics;
 
+import android.annotation.SuppressLint;
+import android.util.Pair;
 import androidx.annotation.Nullable;
 
+import java.util.HashMap;
 import java.util.Map;
 
 import com.google.android.exoplayer2.C;
 import com.google.android.exoplayer2.ExoPlaybackException;
 import com.google.android.exoplayer2.Format;
+import com.google.android.exoplayer2.analytics.AnalyticsListener;
 import com.google.android.exoplayer2.analytics.PlaybackStats;
 import com.google.android.exoplayer2.util.Clock;
+import com.google.android.exoplayer2.util.EventLogger;
 import com.google.android.exoplayer2.util.Log;
 import static com.google.android.exoplayer2.analytics.PlaybackStats.PLAYBACK_STATE_ABANDONED;
+import static com.google.android.exoplayer2.analytics.PlaybackStats.PLAYBACK_STATE_BUFFERING;
 import static com.google.android.exoplayer2.analytics.PlaybackStats.PLAYBACK_STATE_ENDED;
+import static com.google.android.exoplayer2.analytics.PlaybackStats.PLAYBACK_STATE_FAILED;
+import static com.google.android.exoplayer2.analytics.PlaybackStats.PLAYBACK_STATE_INTERRUPTED_BY_AD;
+import static com.google.android.exoplayer2.analytics.PlaybackStats.PLAYBACK_STATE_JOINING_BACKGROUND;
+import static com.google.android.exoplayer2.analytics.PlaybackStats.PLAYBACK_STATE_JOINING_FOREGROUND;
 import static com.google.android.exoplayer2.analytics.PlaybackStats.PLAYBACK_STATE_NOT_STARTED;
+import static com.google.android.exoplayer2.analytics.PlaybackStats.PLAYBACK_STATE_PAUSED;
+import static com.google.android.exoplayer2.analytics.PlaybackStats.PLAYBACK_STATE_PAUSED_BUFFERING;
+import static com.google.android.exoplayer2.analytics.PlaybackStats.PLAYBACK_STATE_PLAYING;
+import static com.google.android.exoplayer2.analytics.PlaybackStats.PLAYBACK_STATE_SEEKING;
+import static com.google.android.exoplayer2.analytics.PlaybackStats.PLAYBACK_STATE_SEEK_BUFFERING;
 import static com.google.android.exoplayer2.analytics.PlaybackStats.PLAYBACK_STATE_STOPPED;
+import static com.google.android.exoplayer2.analytics.PlaybackStats.PLAYBACK_STATE_SUPPRESSED;
+import static com.google.android.exoplayer2.analytics.PlaybackStats.PLAYBACK_STATE_SUPPRESSED_BUFFERING;
 
 /**
  * Produces the required metrics from the TiVo OI Dashboard.  The PlaybackSessionManager expect an instance (or
@@ -34,7 +51,8 @@ public class PlaybackMetrics {
     private float rebufferCount;
     private long initialPlaybackStartDelay;
     private Exception endedWithError;
-    private EndReason endReason;
+    private EndReason endReason = EndReason.NONE;
+    private CurrentState currentState = CurrentState.UNKNOWN;
     private long totalTrickPlayTime;
     private int trickPlayCount;
 
@@ -46,6 +64,14 @@ public class PlaybackMetrics {
         USER_ENDED          /** User loaded annother URL or changed channel */
     }
 
+    public enum CurrentState {
+        UNKNOWN,                    /** No state yet recorded */
+        PLAYBACK_STARTING,          /** Awaiting first buffering complete. */
+        PLAYBACK_STARTED,           /** Currently playing (includes seek, pause, etc) */
+        BUFFERING,
+        FAILED,
+        DONE
+    }
     /**
      * Called by the {@link ManagePlaybackMetrics} to initialize a new set of PlaybackMetrics.
      *
@@ -67,6 +93,7 @@ public class PlaybackMetrics {
      * @param playbackStats used to compute the metric values
      * @param currentElapsedTime current {@link Clock#elapsedRealtime()}
      */
+    @SuppressLint("SwitchIntDef")
     void updateValuesFromStats(PlaybackStats playbackStats, long currentElapsedTime) {
         // TODO compute values
         startingTimestamp = currentElapsedTime;
@@ -83,8 +110,11 @@ public class PlaybackMetrics {
 
         if (playbackStats.fatalErrorHistory.size() > 0) {
             endedWithError = playbackStats.fatalErrorHistory.get(0).second;
+        } else {
+            endedWithError = null;
         }
         int playbackStateAtTime = playbackStats.getPlaybackStateAtTime(currentElapsedTime);
+
 
         if (endedWithError != null) {
             endReason = EndReason.ERROR;
@@ -92,7 +122,6 @@ public class PlaybackMetrics {
             switch (playbackStateAtTime) {
                 case PLAYBACK_STATE_ABANDONED:
                 case PLAYBACK_STATE_STOPPED:
-                case PLAYBACK_STATE_NOT_STARTED:
                     endReason = EndReason.USER_ENDED;
                     break;
 
@@ -101,17 +130,67 @@ public class PlaybackMetrics {
                     break;
 
                 default:
-                    endReason = EndReason.NONE;
+                    endReason = EndReason.NONE;     // Default to not ended
                     break;
-
             }
         }
 
-        Log.d(TAG, "updateValuesFromStats: endedWithError: " + endedWithError + " endState: " + playbackStateAtTime);
 
+        switch (playbackStateAtTime) {
+            case PLAYBACK_STATE_NOT_STARTED:
+                currentState = CurrentState.UNKNOWN;
+                break;
+
+            case PLAYBACK_STATE_JOINING_BACKGROUND:
+            case PLAYBACK_STATE_JOINING_FOREGROUND:
+                currentState = CurrentState.PLAYBACK_STARTING;
+                break;
+
+            case PLAYBACK_STATE_PLAYING:
+            case PLAYBACK_STATE_PAUSED:
+            case PLAYBACK_STATE_SEEKING:
+                currentState = CurrentState.PLAYBACK_STARTED;
+                break;
+
+            case PLAYBACK_STATE_BUFFERING:
+            case PLAYBACK_STATE_PAUSED_BUFFERING:
+            case PLAYBACK_STATE_SEEK_BUFFERING:
+            case PLAYBACK_STATE_SUPPRESSED:
+            case PLAYBACK_STATE_SUPPRESSED_BUFFERING:
+                currentState = CurrentState.BUFFERING;
+                break;
+
+            case PLAYBACK_STATE_FAILED:
+                currentState = CurrentState.FAILED;
+                break;
+
+            case PLAYBACK_STATE_ENDED:
+            case PLAYBACK_STATE_STOPPED:
+            case PLAYBACK_STATE_ABANDONED:
+                currentState = CurrentState.DONE;
+                break;
+
+            case PLAYBACK_STATE_INTERRUPTED_BY_AD:      // Not posssible
+                break;
+        }
+
+        if (endReason == EndReason.NONE) {
+            Log.d(TAG, "updateValuesFromStats() - playing, time: " + currentElapsedTime + " currentState: " + currentState + " from playbackState: " + playbackStateAtTime);
+        } else {
+            Log.d(TAG, "updateValuesFromStats() - ended, time: " + currentElapsedTime + " endedWithError: " + endedWithError + " endState: " + playbackStateAtTime);
+        }
     }
 
-    public void addTrickPlayTime(long trickPlayTime) {
+    // Debug method
+    private void dumpStateHistory(PlaybackStats playbackStats) {
+        for(Pair<AnalyticsListener.EventTime, Integer> pair : playbackStats.playbackStateHistory) {
+            android.util.Log.d(TAG, "event: " + ManagePlaybackMetrics.eventDebug(pair.first) + " state: " + pair.second);
+        }
+    }
+
+    // Internal methods
+
+    void addTrickPlayTime(long trickPlayTime) {
         trickPlayCount++;
         totalTrickPlayTime += trickPlayTime;
     }
@@ -121,13 +200,47 @@ public class PlaybackMetrics {
         return (float) ((float) meanBitrate / 1_000_000.0);
     }
 
+
+    /**
+     * Get the set of metrics tracked in this object in a Map, suitable for serializing to JSON
+     * and logging or passing to an API
+     *
+     * @return Metrics with string keys and numeric or collection values.
+     */
+    public Map<String, Object> getMetricsAsMap() {
+        Map<String, Object> loggedStats = new HashMap<>();
+        loggedStats.put("startDelayMs", getInitialPlaybackStartDelay());
+        loggedStats.put("totalPlayingTimeMs", getTotalPlaybackTimeMs());
+        loggedStats.put("totalTrickPlayTimeMs", getTotalTrickPlayTime());
+        loggedStats.put("formatChanges", getProfileShiftCount());
+        loggedStats.put("avgRebufferingTimeMs", getAvgRebufferTime());
+        loggedStats.put("avgVideoBitrate", getAvgVideoBitrate());
+        loggedStats.put("avgBandwidthMbps", getAvgNetworkBitrate());
+        loggedStats.put("endedFor", getEndReason().toString());
+        if (getEndReason() == EndReason.ERROR) {
+            loggedStats.put("playbackError", getEndedWithError().toString());
+        }
+
+        Map<Format, Long> timeInFormat = getTimeInVideoFormat();
+        if (timeInFormat != null) {
+            Map<String, Long> timeInVariant = new HashMap<>();
+
+            for (Map.Entry<Format, Long> entry : timeInFormat.entrySet()) {
+                timeInVariant.put(EventLogger.getVideoLevelStr(entry.getKey()), entry.getValue());
+            }
+            loggedStats.put("timeInFormats", timeInVariant);
+        }
+        return loggedStats;
+    }
+
+
     /**
      * Number of number of decoded video frames dropped.  Frames are dropped because they
      * are decoded to late (more than 30ms past the current render time) for their time to render.
      *
      * @return count of dropped frames since the session began
      */
-    public long getDroppedFramesCount() {
+    public long getVideoFramesDropped() {
         return droppedFramesCount;
     }
 
@@ -219,9 +332,9 @@ public class PlaybackMetrics {
      * Return a Map with the total time spent in each of the {@link Format}'s
      * TODO - move this to ExoPlayer's core playback stats and make it only playing time
      *
-     * @return Map of video {@link Format} objects with the total time (including not playing) in each
+     * @return Map of video {@link Format} objects with the total time (including not playing) in each, null if no stats captured
      */
-    public Map<Format, Long> getTimeInVideoFormat() {
+    public @Nullable Map<Format, Long> getTimeInVideoFormat() {
         return timeInVideoFormat;
     }
 

@@ -4,10 +4,15 @@ import com.google.android.exoplayer2.analytics.PlaybackStats;
 import com.google.android.exoplayer2.trickplay.TrickPlayControl;
 
 /**
- * Callback interface for {@link PlaybackMetrics} and {@link TrickPlayMetrics} lifecycle events
+ * Callback interface for the metrics objects ({@link PlaybackMetrics} and {@link TrickPlayMetrics}) lifecycle
+ * events.
  *
- * This interface is the main interface to allow {@link ManagePlaybackMetrics} to communicate with
- * external clients.
+ * Implementor is informed of session start and end as well as given the option to create their
+ * own subclasses of the metrics objects.
+ *
+ * This interface, along with {@link PlaybackMetricsManagerApi} are the main interfaces for
+ * external clients, so changes should only be made in a backward compatible fashion (only add
+ * new methods and deprecate old if there are signature changes required).
  */
 public interface MetricsEventListener {
 
@@ -40,7 +45,7 @@ public interface MetricsEventListener {
      * Default creates the base class.
      *
      * This method is called-back from the {@link ManagePlaybackMetrics} when the client requests updated
-     * metrics via {@link ManagePlaybackMetrics#getUpdatedPlaybackMetrics()}.  Having a factory callback is
+     * metrics via {@link ManagePlaybackMetrics#createOrReturnCurrent()}.  Having a factory callback is
      * simply for symmetry with the TrickPlayMetrics creation.
      *
      * @return object returned from {@link #createEmptyPlaybackMetrics()} filled in with metrics. Type cast is
@@ -48,16 +53,18 @@ public interface MetricsEventListener {
      */
     default PlaybackMetrics createEmptyPlaybackMetrics() { return new PlaybackMetrics(); }
 
+
     /**
-     * Called when the current playback session ends (due to an error, channel change, or end of content)
-     * with the {@link PlaybackMetrics} for that session
+     * This callback is triggered when the current playback session ends (due to an error, channel change, or end of content).
      *
-     * @param stats the {@link PlaybackStats} used for filling in the metrics, preference is to use metrics
-     * @param sessionInformation {@link MetricsPlaybackSessionManager.SessionInformation} information about the active session
-     * @param metrics object returned from {@link #createEmptyPlaybackMetrics()} filled in with metrics. Type cast is
-     *         required to the type you return from the create method (generics would make this so messy, not worth it)
+     * It fills in the current {@link PlaybackMetrics}, that is the last one obtained from {@link #createEmptyPlaybackMetrics()}
+     * with the current state of playback.  The implementer of this method should take this last chance to log the
+     * statistics in the object.
+     *
+     * @param playbackMetrics - final playback metrics filled in from the session end
+     * @param playUrl - the top level playback URL that started the session.
      */
-    default void playbackMetricsAvailable(PlaybackStats stats, MetricsPlaybackSessionManager.SessionInformation sessionInformation, PlaybackMetrics metrics) {}
+    default void playbackMetricsAvailable(PlaybackMetrics playbackMetrics, String playUrl) {};
 
     /**
      * Notification measurement is now starting to measure trick-play playback
@@ -69,4 +76,5 @@ public interface MetricsEventListener {
      * Notification trick-play playback measurement is ending, may restore regular playback measurement
      */
     default void exitingTrickPlayMeasurement() {}
+
 }

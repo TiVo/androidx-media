@@ -11,14 +11,12 @@ import android.os.Build;
 import android.os.Bundle;
 import android.provider.Settings;
 import android.util.Log;
-import android.util.Pair;
 import android.view.KeyEvent;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.accessibility.CaptioningManager;
 import android.widget.Toast;
-import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.fragment.app.DialogFragment;
@@ -27,12 +25,9 @@ import com.google.android.exoplayer2.Format;
 import com.google.android.exoplayer2.Player;
 import com.google.android.exoplayer2.SimpleExoPlayer;
 import com.google.android.exoplayer2.Timeline;
-import com.google.android.exoplayer2.analytics.AnalyticsListener;
 import com.google.android.exoplayer2.analytics.PlaybackStats;
 import com.google.android.exoplayer2.demo.TrackSelectionDialog;
-import com.google.android.exoplayer2.source.SinglePeriodTimeline;
 import com.google.android.exoplayer2.source.UnrecognizedInputFormatException;
-import com.google.android.exoplayer2.source.hls.HlsManifest;
 import com.google.android.exoplayer2.trackselection.DefaultTrackSelector;
 import com.google.android.exoplayer2.trickplay.TrickPlayControl;
 import com.google.android.exoplayer2.trickplay.TrickPlayEventListener;
@@ -40,7 +35,6 @@ import com.google.android.exoplayer2.ui.PlayerControlView;
 import com.google.android.exoplayer2.ui.PlayerView;
 import com.google.android.exoplayer2.ui.SubtitleView;
 import com.google.android.exoplayer2.ui.TimeBar;
-import com.google.android.exoplayer2.util.Clock;
 import com.google.android.exoplayer2.util.EventLogger;
 import com.tivo.exoplayer.library.DrmInfo;
 import com.tivo.exoplayer.library.GeekStatsOverlay;
@@ -52,13 +46,12 @@ import com.tivo.exoplayer.library.metrics.ManagePlaybackMetrics;
 import com.tivo.exoplayer.library.metrics.MetricsEventListener;
 import com.tivo.exoplayer.library.metrics.MetricsPlaybackSessionManager;
 import com.tivo.exoplayer.library.metrics.PlaybackMetrics;
-import com.tivo.exoplayer.library.metrics.TrickPlayMetrics;
+import com.tivo.exoplayer.library.metrics.PlaybackMetricsManagerApi;
 import com.tivo.exoplayer.library.tracks.TrackInfo;
 import java.io.File;
 import java.io.IOException;
 import com.tivo.exoplayer.library.util.AccessibilityHelper;
 
-import java.sql.Time;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -113,7 +106,7 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
   private boolean isTrickPlaybarShowing = false;
 
   private boolean isAudioRenderOn = true;
-  private ManagePlaybackMetrics statsManager;
+  private PlaybackMetricsManagerApi statsManager;
 
   private class LoggingPlaybackMetrics extends PlaybackMetrics {
 
@@ -284,11 +277,6 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
                 return new LoggingPlaybackMetrics();
               }
 
-              @Override
-              public void playbackMetricsAvailable(PlaybackStats stats, MetricsPlaybackSessionManager.SessionInformation sessionInformation, PlaybackMetrics metrics) {
-                LoggingPlaybackMetrics loggingPlaybackMetrics = (LoggingPlaybackMetrics) metrics;
-                loggingPlaybackMetrics.logResults(stats, sessionInformation);
-              }
             })
             .build();
 
@@ -305,22 +293,28 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
     StringBuilder sb = new StringBuilder();
     sb.append("\n  ");
     sb.append("total time:  ");
-    sb.append(stats.getTotalElapsedTimeMs());sb.append("ms");
+    sb.append(stats.getTotalElapsedTimeMs());
+    sb.append("ms");
     sb.append("\n  ");
     sb.append("startup time:  ");
-    sb.append(metrics.getInitialPlaybackStartDelay());sb.append("ms");
+    sb.append(metrics.getInitialPlaybackStartDelay());
+    sb.append("ms");
     sb.append("\n  ");
     sb.append("playing time:  ");
-    sb.append(metrics.getTotalPlaybackTimeMs());sb.append("ms");
+    sb.append(metrics.getTotalPlaybackTimeMs());
+    sb.append("ms");
     sb.append("\n  ");
     sb.append("paused time:  ");
-    sb.append(stats.getTotalPausedTimeMs());sb.append("ms");
+    sb.append(stats.getTotalPausedTimeMs());
+    sb.append("ms");
     sb.append("\n  ");
     sb.append("re-buffering time:  ");
-    sb.append(stats.getTotalRebufferTimeMs());sb.append("ms");
+    sb.append(stats.getTotalRebufferTimeMs());
+    sb.append("ms");
     sb.append("\n  ");
     sb.append("trick-play time:  ");
-    sb.append(metrics.getTotalTrickPlayTime());sb.append("ms");
+    sb.append(metrics.getTotalTrickPlayTime());
+    sb.append("ms");
     sb.append("\n  ");
     sb.append("format changes:  ");
     sb.append(stats.videoFormatHistory.size());
@@ -354,30 +348,6 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
         Log.d(TAG, "  " + EventLogger.getVideoLevelStr(entry.getKey()) + " played for " + entry.getValue() + " ms total");
       }
     }
-
-    // DEBUG
-    for (Pair<AnalyticsListener.EventTime, Integer> pair : stats.playbackStateHistory) {
-      Log.d(TAG, "event: " + eventDebug(pair.first) + " state: " + pair.second);
-    }
-  }
-
-  private String eventDebug(AnalyticsListener.EventTime first) {
-    String timelineStr = "";
-    if (first.timeline.isEmpty()) {
-      timelineStr = "empty";
-    } else {
-      Timeline timeline = first.timeline;
-      Timeline.Window window = timeline.getWindow(0, new Timeline.Window());
-
-      // TODO - this works for HLS, need something different for DASH.
-      // This assumes a SinglePeriodTimeline (so that there is one PlaybackSessionManager session per prepare)
-      if (window.manifest instanceof HlsManifest) {
-        HlsManifest manifest = (HlsManifest) window.manifest;
-        timelineStr = "url: " + manifest.masterPlaylist.baseUri;
-      }
-    }
-
-    return timelineStr + " at " + first.realtimeMs;
   }
 
   @Override

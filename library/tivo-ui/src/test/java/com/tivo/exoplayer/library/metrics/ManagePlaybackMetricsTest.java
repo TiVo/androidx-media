@@ -34,7 +34,7 @@ import com.google.android.exoplayer2.util.Clock;
 public class ManagePlaybackMetricsTest {
 
     // Object being tested.
-    private ManagePlaybackMetrics manageMetrics;
+    private PlaybackMetricsManagerApi manageMetrics;
 
     // Mock player to capture the current analytics listener
     @Mock
@@ -104,7 +104,8 @@ public class ManagePlaybackMetricsTest {
         analyticsListener.onPlayerStateChanged(createEventTime(400), true, Player.STATE_READY);
         SystemClock.setCurrentTimeMillis(500);
 
-        PlaybackMetrics metrics = manageMetrics.getUpdatedPlaybackMetrics();
+        PlaybackMetrics metrics = manageMetrics.createOrReturnCurrent();
+        manageMetrics.updateFromCurrentStats(metrics);
         assertThat(metrics.getTotalTrickPlayTime()).isEqualTo(300 - 225);
         assertThat(metrics.getTrickPlayCount()).isEqualTo(1);
 
@@ -129,7 +130,8 @@ public class ManagePlaybackMetricsTest {
 
         SystemClock.setCurrentTimeMillis(225);
 
-        PlaybackMetrics metrics = manageMetrics.getUpdatedPlaybackMetrics();
+        PlaybackMetrics metrics = manageMetrics.createOrReturnCurrent();
+        manageMetrics.updateFromCurrentStats(metrics);
         Map<Format, Long> results = metrics.getTimeInVideoFormat();
         assertThat(results.keySet().size()).isEqualTo(1);
         assertThat(results.get(formats[0])).isNotNull();
@@ -145,7 +147,8 @@ public class ManagePlaybackMetricsTest {
         analyticsListener.onPlayerStateChanged(createEventTime(800), true, Player.STATE_ENDED);
 
         SystemClock.setCurrentTimeMillis(850);  // after last event
-        metrics = manageMetrics.getUpdatedPlaybackMetrics();
+        metrics = manageMetrics.createOrReturnCurrent();
+        manageMetrics.updateFromCurrentStats(metrics);
 
         long[] expected = {
                 (230 - 200) + (500 - 360),
@@ -193,7 +196,8 @@ public class ManagePlaybackMetricsTest {
 
         SystemClock.setCurrentTimeMillis(1000);
         analyticsListener.onPlayerStateChanged(createEventTime(1000), true, Player.STATE_ENDED);
-        PlaybackMetrics metrics = manageMetrics.getUpdatedPlaybackMetrics();
+        PlaybackMetrics metrics = manageMetrics.createOrReturnCurrent();
+        manageMetrics.updateFromCurrentStats(metrics);
 
         // Expect half the time in format 0 and half in format 1
         float expected = (formats[0].bitrate/1_000_000.0f + formats[1].bitrate/1_000_000.0f) / 2;
@@ -211,7 +215,8 @@ public class ManagePlaybackMetricsTest {
         SystemClock.setCurrentTimeMillis(660);
         analyticsListener.onPlayerStateChanged(createEventTime(660), true, Player.STATE_ENDED);
 
-        PlaybackMetrics metrics = manageMetrics.getUpdatedPlaybackMetrics();
+        PlaybackMetrics metrics = new PlaybackMetrics();
+        manageMetrics.updateFromCurrentStats(metrics);
 
         // Two loads, both 1MB avg is the total loaded / total time to load it
         float expected = (float) ((2.0 * 8) / (0.2 + 0.4));

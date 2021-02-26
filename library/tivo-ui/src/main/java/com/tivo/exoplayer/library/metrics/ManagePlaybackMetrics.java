@@ -2,22 +2,22 @@ package com.tivo.exoplayer.library.metrics;
 
 import android.app.Activity;
 import android.util.Log;
+import android.util.Pair;
 import androidx.annotation.VisibleForTesting;
 
-import java.util.HashMap;
 import java.util.Map;
 
 import org.json.JSONObject;
 
-import com.google.android.exoplayer2.Format;
 import com.google.android.exoplayer2.SimpleExoPlayer;
+import com.google.android.exoplayer2.Timeline;
 import com.google.android.exoplayer2.analytics.AnalyticsListener;
 import com.google.android.exoplayer2.analytics.DefaultPlaybackSessionManager;
 import com.google.android.exoplayer2.analytics.PlaybackStats;
 import com.google.android.exoplayer2.analytics.PlaybackStatsListener;
+import com.google.android.exoplayer2.source.hls.HlsManifest;
 import com.google.android.exoplayer2.trickplay.TrickPlayControl;
 import com.google.android.exoplayer2.util.Clock;
-import com.google.android.exoplayer2.util.EventLogger;
 
 /**
  * Manages collection and producing {@link PlaybackMetrics} for use in an operational intelligence dashboard
@@ -27,13 +27,12 @@ import com.google.android.exoplayer2.util.EventLogger;
  * The concept is to abstract all reference to ExoPlayer classes and interfaces behind this class and the
  * {@link PlaybackMetrics} it produces.
  */
-public class ManagePlaybackMetrics {
+public class ManagePlaybackMetrics implements PlaybackMetricsManagerApi {
     private static final String TAG = "ManagePlaybackMetrics";
 
     private final MetricsEventListener eventListener;
     private final SimpleExoPlayer currentPlayer;
     private final Clock clock;
-    private final TrickPlayControl trickPlayControl;
     private final MetricsPlaybackSessionManager sessionManager;
 
     private PlaybackStatsListener playbackStatsListener;
@@ -49,7 +48,7 @@ public class ManagePlaybackMetrics {
         /**
          * Base builder for creating a {@link ManagePlaybackMetrics} with required arguments.
          *
-         * @param player - player metrics are managed for
+         * @param player           - player metrics are managed for
          * @param trickPlayControl - trickplay control associated with the player
          */
         public Builder(SimpleExoPlayer player, TrickPlayControl trickPlayControl) {
@@ -64,9 +63,9 @@ public class ManagePlaybackMetrics {
         }
 
         /**
-         * This callback is used to allow the client to create subclasses of the base
-         * metrics objects ({@link PlaybackMetrics} and {@link TrickPlayMetrics}) as well
-         * as report events when the metrics are available with updated values.
+         * This callback is used to allow the client to create subclasses of the base metrics objects ({@link
+         * PlaybackMetrics} and {@link TrickPlayMetrics}) as well as report events when the metrics are available with
+         * updated values.
          *
          * @param callback call back for reporting metrics events.
          */
@@ -75,7 +74,7 @@ public class ManagePlaybackMetrics {
             return this;
         }
 
-        public ManagePlaybackMetrics build() {
+        public PlaybackMetricsManagerApi build() {
             Clock finalClock = clock == null ? Clock.DEFAULT : this.clock;
             MetricsEventListener listener = this.callback == null ? new MetricsEventListener() {} : callback;
             return new ManagePlaybackMetrics(finalClock, trickPlayControl, player, listener);
@@ -85,7 +84,6 @@ public class ManagePlaybackMetrics {
     private ManagePlaybackMetrics(Clock clock, TrickPlayControl trickPlayControl, SimpleExoPlayer player, MetricsEventListener callback) {
         this.currentPlayer = player;
         this.clock = clock;
-        this.trickPlayControl = trickPlayControl;
         eventListener = callback;
         sessionManager = new MetricsPlaybackSessionManager(new DefaultPlaybackSessionManager());
         playbackStatsListener =
@@ -124,54 +122,32 @@ public class ManagePlaybackMetrics {
                 0, null, position, position, 0);
     }
 
-    /**
-     * This method will trigger the final {@link #playbackStatsUpdate(AnalyticsListener.EventTime, PlaybackStats)} event
-     * and end the current stats session.
-     *
-     * It should be called when:
-     * <ol>
-     *     <li>There is a fatal player error reported.</li>
-     *     <li>Prior to releasing the player - (e.g. in the {@link Activity} lifecycle method, onStop or destory).</li>
-     * </ol>
-     *
-     */
+    @Override
     public void endAllSessions() {
         playbackStatsListener.finishAllSessions();
     }
 
-    /**
-     * Sets a "lap counter" reset in the PlaybackMetrics, so values that are accumulated only from
-     * the last call to this method to the call to {@link #getUpdatedPlaybackMetrics()} are accounted
-     * properly.
-     *
-     * TODO - is this needed still?
-     */
+    @Override
     public void resetPlaybackMetrics() {
         if (currentPlaybackMetrics != null) {
             PlaybackMetrics priorMetrics = currentPlaybackMetrics;
             currentPlaybackMetrics = eventListener.createEmptyPlaybackMetrics();
             currentPlaybackMetrics.initialize(clock.elapsedRealtime(), priorMetrics);
+            // TODO - if we need to reset, here's where we clear the currentPlaybackMetrics
         }
     }
 
-    /**
-     * Get the current PlaybackMetrics, with values since the start of the
-     * current playback session to now.
-     *
-     * Any values that are only accumulated since the last reset are just deltas since the reset.
-     *
-     * @return current PlaybackMetrics filled in with stats from the current session.
-     */
-    public PlaybackMetrics getUpdatedPlaybackMetrics() {
-        createOrReturnCurrent();
+    @Override
+    public boolean updateFromCurrentStats(PlaybackMetrics metrics) {
         PlaybackStats stats = playbackStatsListener.getPlaybackStats();
         if (stats != null) {
-            fillInPlaybackMetrics(createOrReturnCurrent(), stats);
+            fillInPlaybackMetrics(metrics, stats);
         }
-        return currentPlaybackMetrics;
+        return stats != null;
     }
 
-    private PlaybackMetrics createOrReturnCurrent() {
+    @Override
+    public synchronized PlaybackMetrics createOrReturnCurrent() {
         if (currentPlaybackMetrics == null) {
             currentPlaybackMetrics = eventListener.createEmptyPlaybackMetrics();
         }
@@ -191,34 +167,34 @@ public class ManagePlaybackMetrics {
         MetricsPlaybackSessionManager.SessionInformation sessionInformation =
                 sessionManager.getSessionInformationFor(sessionStartTime.realtimeMs);
 
-        Map<String, Object> loggedStats = new HashMap<>();
-        loggedStats.put("totalTimeMs", stats.getTotalElapsedTimeMs());
-        loggedStats.put("startDelayMs", playbackMetrics.getInitialPlaybackStartDelay());
-        loggedStats.put("totalPlayingTimeMs", playbackMetrics.getTotalPlaybackTimeMs());
-        loggedStats.put("totalPausedTimeMs", stats.getTotalPausedTimeMs());
-        loggedStats.put("totalSeekTimeMs", stats.getTotalSeekTimeMs());
-        loggedStats.put("totalRebufferTimeMs", stats.getTotalRebufferTimeMs());
-        loggedStats.put("totalTrickPlayTimeMs", playbackMetrics.getTotalTrickPlayTime());
-        loggedStats.put("formatChanges", playbackMetrics.getProfileShiftCount());
-        loggedStats.put("avgRebufferingTimeMs", playbackMetrics.getAvgRebufferTime());
-        loggedStats.put("avgVideoBitrate", playbackMetrics.getAvgVideoBitrate());
-        loggedStats.put("avgBandwidthMbps", playbackMetrics.getAvgNetworkBitrate());
-        loggedStats.put("endedFor", playbackMetrics.getEndReason().toString());
-        if (playbackMetrics.getEndReason() == PlaybackMetrics.EndReason.ERROR) {
-            loggedStats.put("playbackError", currentPlaybackMetrics.getEndedWithError().toString());
-        }
+        Map<String, Object> loggedStats = playbackMetrics.getMetricsAsMap();
 
-        Map<Format, Long> timeInFormat = playbackMetrics.getTimeInVideoFormat();
-        Map<String, Long> timeInVariant = new HashMap<>();
-        for (Map.Entry<Format, Long> entry : timeInFormat.entrySet()) {
-            timeInVariant.put(EventLogger.getVideoLevelStr(entry.getKey()), entry.getValue());
-        }
-        loggedStats.put("timeInFormats", timeInVariant);
+        loggedStats.put("totalTimeMs", stats.getTotalElapsedTimeMs());
+        loggedStats.put("totalPausedTimeMs", stats.getTotalPausedTimeMs());
+        loggedStats.put("totalRebufferTimeMs", stats.getTotalRebufferTimeMs());
+
+
         JSONObject jsonObject = new JSONObject(loggedStats);
         Log.i(TAG, "session end stats, URL: " + sessionInformation.getSessionUrl() + " stats: " + jsonObject.toString());
-
-        eventListener.playbackMetricsAvailable(stats, sessionInformation, playbackMetrics);
-
+        eventListener.playbackMetricsAvailable(playbackMetrics, sessionInformation.getSessionUrl());
     }
 
+    static String eventDebug(AnalyticsListener.EventTime first) {
+        String timelineStr = "";
+        if (first.timeline.isEmpty()) {
+            timelineStr = "empty";
+        } else {
+            Timeline timeline = first.timeline;
+            Timeline.Window window = timeline.getWindow(0, new Timeline.Window());
+
+            // TODO - this works for HLS, need something different for DASH.
+            // This assumes a SinglePeriodTimeline (so that there is one PlaybackSessionManager session per prepare)
+            if (window.manifest instanceof HlsManifest) {
+                HlsManifest manifest = (HlsManifest) window.manifest;
+                timelineStr = "url: " + manifest.masterPlaylist.baseUri;
+            }
+        }
+
+        return timelineStr + " at " + first.realtimeMs;
+    }
 }
