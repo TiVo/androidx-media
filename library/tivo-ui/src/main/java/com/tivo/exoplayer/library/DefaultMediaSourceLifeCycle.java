@@ -30,6 +30,8 @@ import com.google.android.exoplayer2.upstream.HttpDataSource;
 import com.google.android.exoplayer2.util.Log;
 
 import com.google.android.exoplayer2.util.Util;
+import com.tivo.exoplayer.tivocrypt.TivoCryptDataSourceFactory;
+
 import java.io.File;
 import java.lang.reflect.Constructor;
 
@@ -114,9 +116,16 @@ public class DefaultMediaSourceLifeCycle implements MediaSourceLifeCycle, Analyt
     // MediaSource level using DrmSessionManager with Clearkey DRM scheme.
     if (drmInfo instanceof VcasDrmInfo) {
         return buildVcasDataSourceFactory((VcasDrmInfo)drmInfo, upstreamFactory);
+    } else if (drmInfo instanceof TivoCryptDrmInfo) {
+      return buildTivoCryptDataSourceFactory((TivoCryptDrmInfo) drmInfo, upstreamFactory);
     }
 
     return new DefaultDataSourceFactory(context, upstreamFactory);
+  }
+
+  private DataSource.Factory buildTivoCryptDataSourceFactory(TivoCryptDrmInfo drmInfo, HttpDataSource.Factory upstreamFactory) {
+
+    return new TivoCryptDataSourceFactory(upstreamFactory, drmInfo.getWbKey(), drmInfo.getContext(), drmInfo.getDeviceKey());
   }
 
   private DataSource.Factory buildVcasDataSourceFactory(VcasDrmInfo vDrmInfo,
