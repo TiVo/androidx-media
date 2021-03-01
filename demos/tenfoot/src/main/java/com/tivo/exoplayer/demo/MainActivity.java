@@ -236,6 +236,7 @@ public class MainActivity extends FragmentActivity {
 
   @Override
   protected void onNewIntent(Intent intent) {
+    super.onNewIntent(intent);
     processIntent(intent);
   }
 

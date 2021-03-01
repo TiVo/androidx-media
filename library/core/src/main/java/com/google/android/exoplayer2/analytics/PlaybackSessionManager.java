@@ -23,8 +23,11 @@ import com.google.android.exoplayer2.source.MediaSource.MediaPeriodId;
 /**
  * Manager for active playback sessions.
  *
- * <p>The manager keeps track of the association between window index and/or media period id to
- * session identifier.
+ * <p>The manager creates and keeps track of the playback session, identified by a session identifier, that
+ * is associated with an {@link Timeline} encapsulated in an {@link EventTime}</p>
+ *
+ * <p>The {@link DefaultPlaybackSessionManager} implements this by tracking the association
+ * between window index and/or media period id to session identifier.
  */
 public interface PlaybackSessionManager {
 

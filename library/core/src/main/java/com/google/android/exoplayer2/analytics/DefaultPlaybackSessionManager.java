@@ -130,7 +130,12 @@ public final class DefaultPlaybackSessionManager implements PlaybackSessionManag
         }
       }
     }
-    handlePositionDiscontinuity(eventTime, Player.DISCONTINUITY_REASON_INTERNAL);
+
+    // TODO - don't start new session on Player.stop(), this is handled differently in later versions (2.13 or later)
+    // so consider that when merging this change.
+    if (eventTime.timeline != Timeline.EMPTY) {
+      handlePositionDiscontinuity(eventTime, Player.DISCONTINUITY_REASON_INTERNAL);
+    }
   }
 
   @Override

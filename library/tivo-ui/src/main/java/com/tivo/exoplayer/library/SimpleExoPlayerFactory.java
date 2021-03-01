@@ -23,6 +23,7 @@ import com.google.android.exoplayer2.trackselection.TrackSelection;
 import com.google.android.exoplayer2.trackselection.TrackSelectionArray;
 import com.google.android.exoplayer2.trickplay.TrickPlayControl;
 import com.google.android.exoplayer2.trickplay.TrickPlayControlFactory;
+import com.google.android.exoplayer2.util.Clock;
 import com.google.android.exoplayer2.util.EventLogger;
 import com.google.android.exoplayer2.util.Log;
 import com.google.android.exoplayer2.util.MimeTypes;
@@ -257,7 +258,12 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
     trackSelectionFactory.setTrickPlayControl(trickPlayControl);
     RenderersFactory renderersFactory = trickPlayControl.createRenderersFactory(context);
     LoadControl loadControl = trickPlayControl.createLoadControl(new DefaultLoadControl());
-    player = ExoPlayerFactory.newSimpleInstance(context, renderersFactory, trackSelector, loadControl);
+
+    player = new SimpleExoPlayer.Builder(context, renderersFactory)
+            .setTrackSelector(trackSelector)
+            .setLoadControl(loadControl)
+            .build();
+
 
     mediaSourceLifeCycle = createMediaSourceLifeCycle();
 

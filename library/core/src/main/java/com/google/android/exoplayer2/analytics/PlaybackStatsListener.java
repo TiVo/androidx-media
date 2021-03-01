@@ -92,9 +92,13 @@ public final class PlaybackStatsListener
    * @param callback An optional callback for finished {@link PlaybackStats}.
    */
   public PlaybackStatsListener(boolean keepHistory, @Nullable Callback callback) {
+    this(keepHistory, new DefaultPlaybackSessionManager(), callback);
+  }
+
+  public PlaybackStatsListener(boolean keepHistory, PlaybackSessionManager sessionManager, @Nullable Callback callback) {
     this.callback = callback;
     this.keepHistory = keepHistory;
-    sessionManager = new DefaultPlaybackSessionManager();
+    this.sessionManager = sessionManager;
     playbackStatsTrackers = new HashMap<>();
     sessionStartEventTimes = new HashMap<>();
     finishedPlaybackStats = PlaybackStats.EMPTY;
@@ -395,7 +399,8 @@ public final class PlaybackStatsListener
 
   @Override
   public void onDroppedVideoFrames(EventTime eventTime, int droppedFrames, long elapsedMs) {
-    maybeAddSession(eventTime);
+    // removed session create here, never makes sense.  Future versions (dev-v2) have completely changed
+    // this logic.
     for (String session : playbackStatsTrackers.keySet()) {
       if (sessionManager.belongsToSession(eventTime, session)) {
         playbackStatsTrackers.get(session).onDroppedVideoFrames(droppedFrames);
