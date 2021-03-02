@@ -209,13 +209,16 @@ public class PlaybackMetrics {
      */
     public Map<String, Object> getMetricsAsMap() {
         Map<String, Object> loggedStats = new HashMap<>();
-        loggedStats.put("startDelayMs", getInitialPlaybackStartDelay());
+        loggedStats.put("initialPlaybackStartDelay", getInitialPlaybackStartDelay());
         loggedStats.put("totalPlayingTimeMs", getTotalPlaybackTimeMs());
         loggedStats.put("totalTrickPlayTimeMs", getTotalTrickPlayTime());
-        loggedStats.put("formatChanges", getProfileShiftCount());
+        loggedStats.put("trickPlayCount", getTrickPlayCount());
+        loggedStats.put("profileShiftCount", getProfileShiftCount());
+        loggedStats.put("rebufferCount", getRebufferCount());
         loggedStats.put("avgRebufferingTimeMs", getAvgRebufferTime());
         loggedStats.put("avgVideoBitrate", getAvgVideoBitrate());
         loggedStats.put("avgBandwidthMbps", getAvgNetworkBitrate());
+        loggedStats.put("videoFramesDropped", getVideoFramesDropped());
         loggedStats.put("endedFor", getEndReason().toString());
         if (getEndReason() == EndReason.ERROR) {
             loggedStats.put("playbackError", getEndedWithError().toString());

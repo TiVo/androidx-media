@@ -1,5 +1,7 @@
 package com.tivo.exoplayer.library.metrics;
 
+import java.util.Map;
+
 import com.google.android.exoplayer2.analytics.AnalyticsListener;
 import com.google.android.exoplayer2.analytics.PlaybackStats;
 import com.google.android.exoplayer2.trickplay.TrickPlayControl;
@@ -25,6 +27,7 @@ public class TrickPlayMetrics extends PlaybackMetrics {
     private final TrickPlayControl.TrickMode currentMode;
     private final TrickPlayControl.TrickMode prevMode;
     private float observedPlaybackSpeed;
+    private float expectedPlaybackSpeed;
 
     public TrickPlayMetrics(TrickPlayControl.TrickMode currentMode, TrickPlayControl.TrickMode prevMode) {
         this.currentMode = currentMode;
@@ -39,6 +42,10 @@ public class TrickPlayMetrics extends PlaybackMetrics {
      */
     void incrRenderedFrames(long renderTimeUs) {
         totalRenderedFrames++;
+    }
+
+    void setExpectedPlaybackSpeed(float speed) {
+        expectedPlaybackSpeed = speed;
     }
 
     /**
@@ -62,10 +69,62 @@ public class TrickPlayMetrics extends PlaybackMetrics {
         return observedPlaybackSpeed;
     }
 
+    /**
+     * Expected (target) playback rate for this trick-play session.  Note this is only really meaninful
+     * for single TrickMode session.  TODO - if we want multi-mode will need more complicate weighted average
+     *
+     * @return float expected speed for the current mode ({@link #currentMode} )
+     */
+    public float getExpectedPlaybackSpeed() {
+        return expectedPlaybackSpeed;
+    }
+
+    /**
+     * The trick-play mode this set of metrics cover.
+     *
+     * @return the current mode for this set of metrics
+     */
+    public TrickPlayControl.TrickMode getCurrentMode() {
+        return currentMode;
+    }
+
+    /**
+     * The trickplay mode active (or NORMAL if none) just before this set of metrics
+     *
+     * @return previous trick play mode.
+     */
+    public TrickPlayControl.TrickMode getPrevMode() {
+        return prevMode;
+    }
+
+    /**
+     * True if these metrics are inside of a larger trick-play sequence (ie change from FF1 to FF2)
+     * @return
+     */
+    public boolean isIntraTrickPlayChange() {
+        return TrickPlayControl.directionForMode(prevMode) != TrickPlayControl.TrickPlayDirection.NONE && TrickPlayControl.directionForMode(currentMode) != TrickPlayControl.TrickPlayDirection.NONE;
+    }
+    /**
+     * Extend to add TrickPlay specific metrics.
+     *
+     * @return
+     */
+    @Override
+    public Map<String, Object> getMetricsAsMap() {
+        Map<String, Object> trickplayMetrics = super.getMetricsAsMap();
+        trickplayMetrics.put("prevMode", prevMode.toString());
+        trickplayMetrics.put("currentMode", currentMode.toString());
+        trickplayMetrics.put("expectedTrickPlaySpeed", getExpectedPlaybackSpeed());
+        trickplayMetrics.put("observedTrickPlaySpeed", getObservedPlaybackSpeed());
+        trickplayMetrics.put("renderedFramesCount", getRenderedFramesCount());
+
+        return trickplayMetrics;
+    }
+
     void updateOnSessionEnd(PlaybackStats playbackStats, AnalyticsListener.EventTime startEventTime, AnalyticsListener.EventTime endEventTime) {
         super.updateValuesFromStats(playbackStats, startEventTime.realtimeMs);
 
-        long positionDeltaMs = Math.abs(endEventTime.currentPlaybackPositionMs - startEventTime.currentPlaybackPositionMs);
+        long positionDeltaMs = endEventTime.currentPlaybackPositionMs - startEventTime.currentPlaybackPositionMs;
         long timeDeltaMs = endEventTime.realtimeMs - startEventTime.realtimeMs;
         observedPlaybackSpeed = (float) positionDeltaMs / (float) timeDeltaMs;
     }

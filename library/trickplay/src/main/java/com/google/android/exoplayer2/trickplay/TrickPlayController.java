@@ -308,7 +308,7 @@ class TrickPlayController implements TrickPlayControlInternal {
 
         @Override
         public void handleMessage(Message msg) {
-            if (currentTrickMode != TrickMode.NORMAL) {
+            if (currentTrickMode != TrickMode.NORMAL && player != null) {
                 Timeline timeline = player.getCurrentTimeline();
                 exitTrickPlayIfTimelineExceeded(timeline);
                 sendEmptyMessageDelayed(0, 1000);
