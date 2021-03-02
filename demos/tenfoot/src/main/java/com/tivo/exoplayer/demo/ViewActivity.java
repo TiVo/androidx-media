@@ -4,6 +4,7 @@ import static android.media.AudioManager.ACTION_HDMI_AUDIO_PLUG;
 import static android.media.AudioManager.ACTION_HEADSET_PLUG;
 import static android.media.AudioManager.EXTRA_AUDIO_PLUG_STATE;
 
+import 	android.content.ActivityNotFoundException;
 import android.app.AlertDialog;
 import android.content.BroadcastReceiver;
 import android.content.Context;
@@ -51,6 +52,7 @@ import com.google.android.exoplayer2.util.EventLogger;
 import com.google.android.exoplayer2.util.Util;
 import com.tivo.exoplayer.library.DrmInfo;
 import com.tivo.exoplayer.library.GeekStatsOverlay;
+import com.tivo.exoplayer.library.HDMIHotplugReceiver;
 import com.tivo.exoplayer.library.OutputProtectionMonitor;
 import com.tivo.exoplayer.library.SimpleExoPlayerFactory;
 import com.tivo.exoplayer.library.VcasDrmInfo;
@@ -145,6 +147,7 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
   private @Nullable ScrubHandler currentScrubHandler;
 
   private OutputProtectionMonitor outputProtectionMonitor;
+  private HDMIHotplugReceiver mHDMIPluggedReceiver;
 
   private GeekStatsOverlay geekStats;
   private PlaybackStatsListener playbackStats;
@@ -253,6 +256,28 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
             Log.i(TAG, "Output protection is: " + (isSecure ? "ON" : "OFF"));
 
     outputProtectionMonitor = new OutputProtectionMonitor(context, OutputProtectionMonitor.HDCP_1X, opmStateCallback);
+
+    mHDMIPluggedReceiver = new HDMIHotplugReceiver(context, new HDMIHotplugReceiver.HotplugListener() {
+      @Override
+      public void hotPlugEventReceived(boolean plugged) {
+          if (plugged) {
+            Log.d(TAG, "HDMI Hotplug plugged in");
+          } else {
+            Log.d(TAG, "HDMI Hotplug unplugged");
+            // Experimental. The UX requirement is to transit to home screen.
+            Intent intent = new Intent(Intent.ACTION_MAIN);
+            intent.addCategory(Intent.CATEGORY_HOME);
+            try {
+              startActivity(intent);
+            } catch (ActivityNotFoundException e) {
+              Log.d(TAG,"Failed to send Home intent");
+            }
+          }
+      }
+    });
+    if (mHDMIPluggedReceiver != null) {
+      mHDMIPluggedReceiver.register();
+    }
   }
 
   @Override
@@ -436,6 +461,10 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
       exoPlayerFactory = null;
       geekStats = null;
       playbackStats = null;
+    }
+    if (mHDMIPluggedReceiver != null) {
+      mHDMIPluggedReceiver.unregister();
+      mHDMIPluggedReceiver = null;
     }
   }
 
