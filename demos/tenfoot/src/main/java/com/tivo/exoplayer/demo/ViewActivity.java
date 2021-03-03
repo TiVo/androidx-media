@@ -38,6 +38,7 @@ import com.google.android.exoplayer2.ui.TimeBar;
 import com.google.android.exoplayer2.util.EventLogger;
 import com.tivo.exoplayer.library.DrmInfo;
 import com.tivo.exoplayer.library.GeekStatsOverlay;
+import com.tivo.exoplayer.library.HDMIHotplugReceiver;
 import com.tivo.exoplayer.library.OutputProtectionMonitor;
 import com.tivo.exoplayer.library.SimpleExoPlayerFactory;
 import com.tivo.exoplayer.library.VcasDrmInfo;
@@ -146,6 +147,7 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
   private @Nullable ScrubHandler currentScrubHandler;
 
   private OutputProtectionMonitor outputProtectionMonitor;
+  private HDMIHotplugReceiver mHDMIPluggedReceiver;
 
   private GeekStatsOverlay geekStats;
   private AccessibilityHelper accessibilityHelper;
@@ -222,6 +224,20 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
             Log.i(TAG, "Output protection is: " + (isSecure ? "ON" : "OFF"));
 
     outputProtectionMonitor = new OutputProtectionMonitor(context, OutputProtectionMonitor.HDCP_1X, opmStateCallback);
+
+    mHDMIPluggedReceiver = new HDMIHotplugReceiver(context, new HDMIHotplugReceiver.HotplugListener() {
+      @Override
+      public void hotPlugEventReceived(boolean plugged) {
+          if (plugged) {
+            Log.d(TAG, "HDMI Hotplug plugged in");
+          } else {
+            Log.d(TAG, "HDMI Hotplug unplugged");
+          }
+      }
+    });
+    if (mHDMIPluggedReceiver != null) {
+      mHDMIPluggedReceiver.register();
+    }
   }
 
   @Override
@@ -401,6 +417,10 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
       playerView = null;
       exoPlayerFactory = null;
       geekStats = null;
+    }
+    if (mHDMIPluggedReceiver != null) {
+      mHDMIPluggedReceiver.unregister();
+      mHDMIPluggedReceiver = null;
     }
   }
 
