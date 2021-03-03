@@ -264,14 +264,6 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
             Log.d(TAG, "HDMI Hotplug plugged in");
           } else {
             Log.d(TAG, "HDMI Hotplug unplugged");
-            // Experimental. The UX requirement is to transit to home screen.
-            Intent intent = new Intent(Intent.ACTION_MAIN);
-            intent.addCategory(Intent.CATEGORY_HOME);
-            try {
-              startActivity(intent);
-            } catch (ActivityNotFoundException e) {
-              Log.d(TAG,"Failed to send Home intent");
-            }
           }
       }
     });

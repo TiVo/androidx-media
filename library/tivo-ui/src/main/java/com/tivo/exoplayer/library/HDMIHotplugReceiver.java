@@ -4,10 +4,9 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.os.Handler;
 import androidx.annotation.Nullable;
 import com.google.android.exoplayer2.util.Log;
-import java.util.Timer;
-import java.util.TimerTask;
 
 public class HDMIHotplugReceiver {
 
@@ -22,79 +21,71 @@ public class HDMIHotplugReceiver {
 
     private final Context context;
     private final HotplugListener hotPlugListener;
-    @Nullable
-    private final BroadcastReceiver mHDMIPluggedReceiver;
+    private final BroadcastReceiver hdmiHotplugBroadcastReceiver;
     private boolean registered;
-    boolean mHDMIPlugged;
+    boolean hdmiPlugged;
+
+    private Handler handler = new Handler();
+
+    private Runnable sendEvent = new Runnable() {
+        @Override
+        public void run() {
+            Log.d(TAG, "sendEvent Waited for 10 seconds");
+            hotPlugListener.hotPlugEventReceived(hdmiPlugged);
+            handler.removeCallbacks(sendEvent);
+        }
+    };
 
     public HDMIHotplugReceiver(Context context, HotplugListener listener) {
         this.context = context;
         this.hotPlugListener = listener;
-        mHDMIPluggedReceiver = new HDMIHotplugBroadcastReceiver();
+        hdmiHotplugBroadcastReceiver = new HDMIHotplugBroadcastReceiver();
         registered =false;
     }
-    public void register()
-    {
+    public void register() {
         if (registered) {
             return;
         }
         registered = true;
-        if(mHDMIPluggedReceiver != null) {
-            IntentFilter hdmiIntentFilter = new IntentFilter();
-            hdmiIntentFilter.addAction(HDMI_PLUGGED_EVENT);
-            context.registerReceiver(mHDMIPluggedReceiver, hdmiIntentFilter);
-        }
+        IntentFilter hdmiIntentFilter = new IntentFilter();
+        hdmiIntentFilter.addAction(HDMI_PLUGGED_EVENT);
+        context.registerReceiver(hdmiHotplugBroadcastReceiver, hdmiIntentFilter);
         Log.d(TAG, "Registered");
     }
     public void unregister() {
         if (!registered) {
             return;
         }
-        if(mHDMIPluggedReceiver != null) {
-            context.unregisterReceiver(mHDMIPluggedReceiver);
-        }
+        context.unregisterReceiver(hdmiHotplugBroadcastReceiver);
         registered = false;
         Log.d(TAG, "UnRegistered");
     }
-    private void onHotplugEventReceived()
-    {
+    private void onHotplugEventReceived() {
         if (registered) {
-            if (!mHDMIPlugged) {
+            if (hdmiPlugged) {
+                Log.d(TAG, "onHotplugEventReceived sending HotPlug plugged in");
+                hotPlugListener.hotPlugEventReceived(hdmiPlugged);
+            }
+            else {
                 // During TV on there will be multiple plug/unplug events.
                 // It stabilizes within 10 seconds. So, delay sending unplug event to make
                 // sure its real unPlug
-                sendDelayedEvent();
-            }
-            else {
-                Log.d(TAG, "onHotplugEventReceived sending HotPlug plugged in");
-                hotPlugListener.hotPlugEventReceived(mHDMIPlugged);
+                handler.postDelayed(sendEvent, 10000);
             }
         }
     }
-    private void sendDelayedEvent() {
-        TimerTask task = new TimerTask() {
-            public void run() {
-                Log.d(TAG, "sendDelayedEvent Waited for 10 seconds");
-                hotPlugListener.hotPlugEventReceived(mHDMIPlugged);
-                cancel();
-            }
-        };
-        Timer timer = new Timer("Timer");
 
-        timer.scheduleAtFixedRate(task, 10000L, 10000L);
-    }
-
-    public class HDMIHotplugBroadcastReceiver extends BroadcastReceiver {
+    private class HDMIHotplugBroadcastReceiver extends BroadcastReceiver {
 
         @Override
         public void onReceive(Context context, Intent intent) {
             if (intent.getAction().equals(HDMI_PLUGGED_EVENT)) {
                 if (intent.getIntExtra(HDMI_PLUGGED_STATE, -1) == 1)
                 {
-                    mHDMIPlugged = true;
+                    hdmiPlugged = true;
                     Log.d(TAG, "onReceive HDMI Hotplug - plugged in");
                 } else {
-                    mHDMIPlugged = false;
+                    hdmiPlugged = false;
                     Log.d(TAG, "onReceive HDMI Hotplug - unplugged");
                 }
                 onHotplugEventReceived();
