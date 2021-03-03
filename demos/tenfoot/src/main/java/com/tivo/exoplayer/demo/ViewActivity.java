@@ -4,7 +4,6 @@ import static android.media.AudioManager.ACTION_HDMI_AUDIO_PLUG;
 import static android.media.AudioManager.ACTION_HEADSET_PLUG;
 import static android.media.AudioManager.EXTRA_AUDIO_PLUG_STATE;
 
-import 	android.content.ActivityNotFoundException;
 import android.app.AlertDialog;
 import android.content.BroadcastReceiver;
 import android.content.Context;
