@@ -1,4 +1,10 @@
 # Release notes #
+### 2.11.6-2.2-dev (not yet released)
+
+* Add `TrickPlayMetrics` object that subclasses `PlaybackMetrics` reporting additional metrics for VTP, simply logged now
+  but the mechanisms to integrate this into client-core are in place.
+    * [fe3a4bcb68](https://github.com/tivocorp/exoplayerprvt/commit/fe3a4bcb68) Logs TrickPlayMetrics as JSON TrickMode change
+    
 ### 2.11.6-2.1 (2021-02-26)
 
 * Add creating and managing `PlaybackMetrics` based on ExoPlayer's `PlaybackStats`, main commits are [08cca0f4e2](https://github.com/tivocorp/exoplayerprvt/commit/08cca0f4e2) and [a5cd587c1c](https://github.com/tivocorp/exoplayerprvt/commit/a5cd587c1c)

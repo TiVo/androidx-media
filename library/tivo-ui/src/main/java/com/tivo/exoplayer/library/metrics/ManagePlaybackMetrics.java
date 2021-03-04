@@ -180,8 +180,6 @@ public class ManagePlaybackMetrics implements PlaybackMetricsManagerApi {
         Map<String, Object> loggedStats = playbackMetrics.getMetricsAsMap();
 
         loggedStats.put("totalTimeMs", stats.getTotalElapsedTimeMs());
-        loggedStats.put("totalPausedTimeMs", stats.getTotalPausedTimeMs());
-        loggedStats.put("totalRebufferTimeMs", stats.getTotalRebufferTimeMs());
 
 
         JSONObject jsonObject = new JSONObject(loggedStats);
