@@ -40,7 +40,7 @@ import static com.google.android.exoplayer2.analytics.PlaybackStats.PLAYBACK_STA
 public class PlaybackMetrics {
     private static final String TAG = "PlaybackMetrics";
 
-    private long startingTimestamp;
+    protected long startingTimestamp;
     private @Nullable PlaybackMetrics previousMetrics;
     private int profileShiftCount;
     private Map<Format, Long> timeInVideoFormat;
@@ -213,7 +213,7 @@ public class PlaybackMetrics {
     public Map<String, Object> getMetricsAsMap() {
         Map<String, Object> loggedStats = new HashMap<>();
         loggedStats.put("initialPlaybackStartDelay", getInitialPlaybackStartDelay());
-        loggedStats.put("totalElaspedTimeMs", getTotalElapsedTimeMs());
+        loggedStats.put("totalElapsedTimeMs", getTotalElapsedTimeMs());
         loggedStats.put("totalPlayingTimeMs", getTotalPlaybackTimeMs());
         loggedStats.put("totalRebufferingTimeMs", getTotalRebufferingTime());
         loggedStats.put("totalTrickPlayTimeMs", getTotalTrickPlayTime());
@@ -287,7 +287,7 @@ public class PlaybackMetrics {
      *
      * @return total time in ms
      */
-    private long getTotalElapsedTimeMs() {
+    public long getTotalElapsedTimeMs() {
         return totalElapsedTimeMs;
     }
 

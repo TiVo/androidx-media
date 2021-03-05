@@ -1,16 +1,18 @@
 package com.tivo.exoplayer.library.metrics;
 
+import androidx.annotation.Nullable;
+
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
 import com.google.android.exoplayer2.C;
+import com.google.android.exoplayer2.Format;
 import com.google.android.exoplayer2.analytics.AnalyticsListener;
 import com.google.android.exoplayer2.analytics.PlaybackStats;
 import com.google.android.exoplayer2.source.MediaSourceEventListener;
 import com.google.android.exoplayer2.trickplay.TrickPlayControl;
-import com.google.android.exoplayer2.util.Log;
 
 /**
  * PlaybackMetrics accumulated during a VTP session.  A VTP session is defined as a period of
@@ -35,13 +37,15 @@ public class TrickPlayMetrics extends PlaybackMetrics {
     private final TrickPlayControl.TrickMode prevMode;
     private float observedPlaybackSpeed;
     private float expectedPlaybackSpeed;
-    private long totalElapsedTimeMs;
     private long totalSeekTimeMs;
     private int totalSeekCount;
     private final List<IframeLoadEvent> loadEventList;
     private int totalCanceledLoads;
     private float arithmeticMeanFrameLoadTime;
     private long medianFrameLoadTime;
+    private Format lastPlayedFormat;
+    private long firstFrameRender = C.TIME_UNSET;
+    private float avgFramesPerSecond;
 
     static class IframeLoadEvent {
         private final long elapsedRealTimeMs;
@@ -74,26 +78,41 @@ public class TrickPlayMetrics extends PlaybackMetrics {
     }
 
     /**
-     * Increment the total frames rendered over the life of this metrics set.
+     * For trick-play, this value is only really meaningful if the transition is NORMAL to a
+     * trick mode, that is not an {@link #isIntraTrickPlayModeChange()}.  For intra-trick mode
+     * the time is 0
      *
-     * TODO - based on the render time, we can accumulate stats on the distribution of frame renders (stddev, variance, etc)
-     * @param renderTimeUs - time the frame was rendered in microseconds
+     * In reverse mode, we count this as time till the first rendered frame, in forward the
+     * super class version (time from initial buffering to playback start), for scrub mode 
+     * the value is essentially meaningless so returns C.TIME_UNSET
+     *
+     * @return time to first frame for initial reverse, or time for first buffering for initial forward
      */
-    void incrRenderedFrames(long renderTimeUs) {
-        totalRenderedFrames++;
-    }
-
-    public void incrLoadCancels() {
-        totalCanceledLoads++;
-    }
-
-
-    void setExpectedPlaybackSpeed(float speed) {
-        expectedPlaybackSpeed = speed;
-    }
-
-    void recordLoadedIframeInfo(IframeLoadEvent iframeLoadEvent) {
-        loadEventList.add(iframeLoadEvent);
+    @Override
+    public long getInitialPlaybackStartDelay() {
+        long startDelay = C.TIME_UNSET;
+        if (isIntraTrickPlayModeChange()) {
+            startDelay = 0;
+        } else {
+            switch (TrickPlayControl.directionForMode(currentMode)) {
+                case FORWARD:
+                case NONE:
+                    startDelay = super.getInitialPlaybackStartDelay();
+                    break; 
+                    
+                case SCRUB:
+                    break;
+                    
+                case REVERSE:
+                    startDelay = firstFrameRender == C.TIME_UNSET ? C.TIME_UNSET :
+                            firstFrameRender - startingTimestamp;
+                    break;
+                default:
+                    throw new IllegalStateException("Unexpected value: " + TrickPlayControl.directionForMode(currentMode));
+            }
+            
+        }
+        return startDelay;
     }
 
     /**
@@ -125,15 +144,6 @@ public class TrickPlayMetrics extends PlaybackMetrics {
      */
     public float getExpectedPlaybackSpeed() {
         return expectedPlaybackSpeed;
-    }
-
-    /**
-     * Total wall clock time elapsed in {@link #getCurrentMode()} for the trick-play session.
-     *
-     * @return time in milli-seconds
-     */
-    public long getTotalElapsedTimeMs() {
-        return totalElapsedTimeMs;
     }
 
     /**
@@ -178,6 +188,16 @@ public class TrickPlayMetrics extends PlaybackMetrics {
     }
 
     /**
+     * Average (mean) rendered frames per-second.  Computed simply as rendered
+     * frames / total time.
+     *
+     * @return average number of rendered frames per-second
+     */
+    public float getAvgFramesPerSecond() {
+        return avgFramesPerSecond;
+    }
+
+    /**
      * Return the average amount of time it took to download an trick play frame.  This includes
      * frames that are possibly never rendered (as there is buffering in the forward direction)
      *
@@ -210,9 +230,10 @@ public class TrickPlayMetrics extends PlaybackMetrics {
 
     /**
      * True if these metrics are inside of a larger trick-play sequence (ie change from FF1 to FF2)
-     * @return
+     *
+     * @return true if the change is from inside of larger trickplay sequence
      */
-    public boolean isIntraTrickPlayChange() {
+    public boolean isIntraTrickPlayModeChange() {
         return TrickPlayControl.directionForMode(prevMode) != TrickPlayControl.TrickPlayDirection.NONE && TrickPlayControl.directionForMode(currentMode) != TrickPlayControl.TrickPlayDirection.NONE;
     }
     /**
@@ -222,30 +243,86 @@ public class TrickPlayMetrics extends PlaybackMetrics {
      */
     @Override
     public Map<String, Object> getMetricsAsMap() {
-        Map<String, Object> trickplayMetrics = super.getMetricsAsMap();
+        Map<String, Object> trickplayMetrics = pruneForMode(super.getMetricsAsMap());
         trickplayMetrics.put("prevMode", prevMode.toString());
         trickplayMetrics.put("currentMode", currentMode.toString());
         trickplayMetrics.put("expectedTrickPlaySpeed", getExpectedPlaybackSpeed());
         trickplayMetrics.put("observedTrickPlaySpeed", getObservedPlaybackSpeed());
-        trickplayMetrics.put("totalElapsedTime", getTotalElapsedTimeMs());
         trickplayMetrics.put("totalSeekTimeMs", getTotalSeekTimeMs());
         trickplayMetrics.put("totalSeekCount", getTotalSeekCount());
         trickplayMetrics.put("arithmeticMeanFrameLoadTime", getArithmeticMeanFrameLoadTime());
         trickplayMetrics.put("medianFrameLoadTime", getMedianFrameLoadTime());
+        trickplayMetrics.put("avgFramesPerSecond", getAvgFramesPerSecond());
         trickplayMetrics.put("totalCanceledLoadCount", getTotalCanceledLoads());
         trickplayMetrics.put("renderedFramesCount", getRenderedFramesCount());
-
         return trickplayMetrics;
+    }
+
+    // Package private
+
+    /**
+     * Increment the total frames rendered over the life of this metrics set.
+     *
+     * TODO - based on the render time, we can accumulate stats on the distribution of frame renders (stddev, variance, etc)
+     * @param renderPositionUs - media-time (Player.getCurrentPosition) of the rendered frame
+     * @param renderTimeMs - time the frame was rendered ({@link android.os.SystemClock#elapsedRealtime()})
+     */
+    void incrRenderedFrames(long renderPositionUs, long renderTimeMs) {
+        if (firstFrameRender == C.TIME_UNSET) {
+            firstFrameRender = renderTimeMs;
+        }
+        totalRenderedFrames++;
+    }
+
+    public void incrLoadCancels() {
+        totalCanceledLoads++;
+    }
+
+
+    void setExpectedPlaybackSpeed(float speed) {
+        expectedPlaybackSpeed = speed;
+    }
+
+    void recordLoadedIframeInfo(IframeLoadEvent iframeLoadEvent) {
+        loadEventList.add(iframeLoadEvent);
+    }
+
+    /**
+     * Used to connect consecutive TrickPlayMetrics sessions, the Format from the previous
+     * trickplay carries forward as starting format for next
+     *
+     * @return Format - last played format in the session or null if none
+     */
+    @Nullable
+    Format lastPlayedFormat() {
+        return lastPlayedFormat;
+    }
+
+    // Private
+
+    /**
+     * Prune to the trick-play mode.  For example, the "trickPlayCount" is pointless (it is 0, we are in
+     * trick-play)
+     *
+     * @param metricsAsMap original metrics from {@link PlaybackMetrics}
+     * @return metrics, pruned to remove ones that no sense for the current trick-play mode
+     */
+    private Map<String, Object> pruneForMode(Map<String, Object> metricsAsMap) {
+        metricsAsMap.remove("trickPlayCount");
+        metricsAsMap.remove("totalTrickPlayTimeMs");
+        return metricsAsMap;
     }
 
     void updateOnSessionEnd(PlaybackStats playbackStats, AnalyticsListener.EventTime startEventTime, AnalyticsListener.EventTime endEventTime) {
         super.updateValuesFromStats(playbackStats, startEventTime.realtimeMs);
-        totalElapsedTimeMs = playbackStats.getTotalElapsedTimeMs();
         totalSeekTimeMs = playbackStats.getTotalSeekTimeMs();
         totalSeekCount = playbackStats.totalSeekCount;
 
+        lastPlayedFormat = playbackStats.videoFormatHistory.size() > 0
+                ? playbackStats.videoFormatHistory.get(playbackStats.videoFormatHistory.size() - 1).second : null;
+
         long positionDeltaMs = endEventTime.currentPlaybackPositionMs - startEventTime.currentPlaybackPositionMs;
-        observedPlaybackSpeed = (float) positionDeltaMs / (float) totalElapsedTimeMs;
+        observedPlaybackSpeed = (float) positionDeltaMs / (float) getTotalElapsedTimeMs();
 
         Collections.sort(loadEventList, (o1, o2) -> (int) (o1.loadDurationMs - o2.loadDurationMs));
         int middle = (loadEventList.size() + 1) / 2;
@@ -259,5 +336,7 @@ public class TrickPlayMetrics extends PlaybackMetrics {
         }
 
         arithmeticMeanFrameLoadTime =  loadEventList.size() > 0 ? totalTime / loadEventList.size() : Float.MAX_VALUE;
+
+        avgFramesPerSecond = (totalRenderedFrames * 1000.0f) / getTotalElapsedTimeMs();
     }
 }

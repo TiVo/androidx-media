@@ -91,7 +91,8 @@ class TrickPlayMetricsHelper implements TrickPlayEventListener, PlaybackStatsLis
      */
     @Override
     public void trickPlayModeChanged(TrickPlayControl.TrickMode newMode, TrickPlayControl.TrickMode prevMode) {
-        Log.d(TAG, "trickPlayModeChanged() from : " + prevMode + " to: " + newMode + " - currentTrickPLayMetrics: " + currentTrickPlayMetrics);
+        Log.d(TAG, "trickPlayModeChanged() from : " + prevMode + " to: " + newMode + " - prevMetrics: "
+                + (currentTrickPlayMetrics == null ? "none" : currentTrickPlayMetrics.getCurrentMode()));
 
         switch (TrickPlayControl.directionForMode(newMode)) {
             case REVERSE:
@@ -116,7 +117,7 @@ class TrickPlayMetricsHelper implements TrickPlayEventListener, PlaybackStatsLis
     @Override
     public void trickFrameRendered(long frameRenderTimeUs) {
         if (currentTrickPlayMetrics != null) {
-            currentTrickPlayMetrics.incrRenderedFrames(frameRenderTimeUs);
+            currentTrickPlayMetrics.incrRenderedFrames(frameRenderTimeUs, clock.elapsedRealtime());
         }
     }
 
@@ -147,8 +148,11 @@ class TrickPlayMetricsHelper implements TrickPlayEventListener, PlaybackStatsLis
      * Called to end the current trickplay session.  If it's not already ended (trickPlayStatsListener is active) then
      * remove the listener, and ff the session has not already ended (as could have happened for abandoning a trick-play
      * in progress with a channel change or new URL), then call finish the session
+     *
+     * @return TrickPlayMetrics for the ending session, or null if none
      */
-    void endCurrentTrickPlaySession() {
+    TrickPlayMetrics endCurrentTrickPlaySession() {
+        TrickPlayMetrics previous = currentTrickPlayMetrics;
 
         // Remove the Trick-play PlaybackStatsListener if any
         if (trickPlayStatsListener != null) {
@@ -163,6 +167,7 @@ class TrickPlayMetricsHelper implements TrickPlayEventListener, PlaybackStatsLis
             }
             trickPlayStatsListener = null;
         }
+        return previous;
     }
 
 
@@ -172,19 +177,29 @@ class TrickPlayMetricsHelper implements TrickPlayEventListener, PlaybackStatsLis
         Log.d(TAG, "Create a new trickplay session: " + newMode + " prevMode: " + prevMode);
 
         // End any current trickplay session
-        endCurrentTrickPlaySession();
+        TrickPlayMetrics prevMetrics = endCurrentTrickPlaySession();
 
         currentTrickPlayMetrics = metricsEventCallback.createEmptyTrickPlayMetrics(newMode, prevMode);
         currentTrickPlayMetrics.setExpectedPlaybackSpeed(trickPlayControl.getSpeedFor(newMode));
         trickPlayStatsListener = new PlaybackStatsListener(true, this);
+
+        // Reverse playback is a special case, we never enter a playing state.  So at least start
+        // in "playing" so first downstream format is recorded
+        //
+        if (TrickPlayControl.directionForMode(newMode) == TrickPlayControl.TrickPlayDirection.REVERSE) {
+            trickPlayStatsListener.onPlayerStateChanged(createEventTimeNow(), true, Player.STATE_READY);
+        }
+
         currentPlayer.addAnalyticsListener(trickPlayStatsListener);
         currentPlayer.addAnalyticsListener(trickPlayMetricsAnalyticsListener);
 
-        Format current = currentPlayer.getVideoFormat();
-        if (currentTrickPlayMetrics != null && current != null && currentTrickPlayMetrics.isIntraTrickPlayChange()) {
-            // initially we are already playing and playing the current video format.
-            trickPlayStatsListener.onPlayerStateChanged(createEventTimeNow(), true, Player.STATE_READY);
-            trickPlayStatsListener.onDownstreamFormatChanged(createEventTimeNow(), createMediaLoad(current));
+        if (currentTrickPlayMetrics.isIntraTrickPlayModeChange()) {
+            Format current = prevMetrics.lastPlayedFormat();
+            if (current != null) {
+                // initially we are already playing and playing the current video format.
+                trickPlayStatsListener.onPlayerStateChanged(createEventTimeNow(), true, Player.STATE_READY);
+                trickPlayStatsListener.onDownstreamFormatChanged(createEventTimeNow(), createMediaLoad(current));
+            }
         }
 
     }
@@ -196,7 +211,7 @@ class TrickPlayMetricsHelper implements TrickPlayEventListener, PlaybackStatsLis
 
     private static MediaSourceEventListener.MediaLoadData createMediaLoad(Format format) {
         int type = MimeTypes.getTrackType(format.sampleMimeType);
-        return new MediaSourceEventListener.MediaLoadData(0, type, format, 0, null, 0, 0);
+        return new MediaSourceEventListener.MediaLoadData(0, C.TRACK_TYPE_VIDEO, format, 0, null, 0, 0);
     }
 
 }
