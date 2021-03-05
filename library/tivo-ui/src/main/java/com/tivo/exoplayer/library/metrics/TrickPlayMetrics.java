@@ -325,7 +325,7 @@ public class TrickPlayMetrics extends PlaybackMetrics {
         observedPlaybackSpeed = (float) positionDeltaMs / (float) getTotalElapsedTimeMs();
 
         Collections.sort(loadEventList, (o1, o2) -> (int) (o1.loadDurationMs - o2.loadDurationMs));
-        int middle = (loadEventList.size() + 1) / 2;
+        int middle = loadEventList.size() / 2;
         medianFrameLoadTime = loadEventList.size() > 0 ? loadEventList.get(middle).loadDurationMs : C.TIME_UNSET;
 
 
