@@ -15,6 +15,7 @@ import com.google.android.exoplayer2.analytics.PlaybackStats;
 import com.google.android.exoplayer2.util.Clock;
 import com.google.android.exoplayer2.util.EventLogger;
 import com.google.android.exoplayer2.util.Log;
+import static com.google.android.exoplayer2.analytics.PlaybackStats.EMPTY;
 import static com.google.android.exoplayer2.analytics.PlaybackStats.PLAYBACK_STATE_ABANDONED;
 import static com.google.android.exoplayer2.analytics.PlaybackStats.PLAYBACK_STATE_BUFFERING;
 import static com.google.android.exoplayer2.analytics.PlaybackStats.PLAYBACK_STATE_ENDED;
@@ -39,15 +40,16 @@ import static com.google.android.exoplayer2.analytics.PlaybackStats.PLAYBACK_STA
 public class PlaybackMetrics {
     private static final String TAG = "PlaybackMetrics";
 
-    private long startingTimestamp;
+    protected long startingTimestamp;
     private @Nullable PlaybackMetrics previousMetrics;
     private int profileShiftCount;
     private Map<Format, Long> timeInVideoFormat;
     private long droppedFramesCount;
     private float avgVideoBitrate;
     private float avgNetworkBitrateMbps;
+    private long totalElapsedTimeMs;
     private long totalPlaybackTime;
-    private long avgRebufferTime;
+    private long totalRebufferingTime;
     private float rebufferCount;
     private long initialPlaybackStartDelay;
     private Exception endedWithError;
@@ -98,13 +100,14 @@ public class PlaybackMetrics {
         // TODO compute values
         startingTimestamp = currentElapsedTime;
 
+        totalElapsedTimeMs = playbackStats.getTotalElapsedTimeMs();
         timeInVideoFormat = PlaybackStatsExtension.getPlayingTimeInFormat(playbackStats, currentElapsedTime);
         avgVideoBitrate = bpsToMbps(playbackStats.getMeanVideoFormatBitrate());
         avgNetworkBitrateMbps = bpsToMbps(playbackStats.getMeanBandwidth());
         profileShiftCount = playbackStats.videoFormatHistory.size();
         droppedFramesCount = playbackStats.totalDroppedFrames;
         totalPlaybackTime = playbackStats.getTotalPlayTimeMs();
-        avgRebufferTime = playbackStats.getMeanRebufferTimeMs();
+        totalRebufferingTime = playbackStats.getTotalRebufferTimeMs();
         rebufferCount = playbackStats.getMeanRebufferCount();
         initialPlaybackStartDelay = playbackStats.totalValidJoinTimeMs;
 
@@ -209,13 +212,17 @@ public class PlaybackMetrics {
      */
     public Map<String, Object> getMetricsAsMap() {
         Map<String, Object> loggedStats = new HashMap<>();
-        loggedStats.put("startDelayMs", getInitialPlaybackStartDelay());
+        loggedStats.put("initialPlaybackStartDelay", getInitialPlaybackStartDelay());
+        loggedStats.put("totalElapsedTimeMs", getTotalElapsedTimeMs());
         loggedStats.put("totalPlayingTimeMs", getTotalPlaybackTimeMs());
+        loggedStats.put("totalRebufferingTimeMs", getTotalRebufferingTime());
         loggedStats.put("totalTrickPlayTimeMs", getTotalTrickPlayTime());
-        loggedStats.put("formatChanges", getProfileShiftCount());
-        loggedStats.put("avgRebufferingTimeMs", getAvgRebufferTime());
+        loggedStats.put("trickPlayCount", getTrickPlayCount());
+        loggedStats.put("rebufferCount", getRebufferCount());
+        loggedStats.put("profileShiftCount", getProfileShiftCount());
         loggedStats.put("avgVideoBitrate", getAvgVideoBitrate());
         loggedStats.put("avgBandwidthMbps", getAvgNetworkBitrate());
+        loggedStats.put("videoFramesDropped", getVideoFramesDropped());
         loggedStats.put("endedFor", getEndReason().toString());
         if (getEndReason() == EndReason.ERROR) {
             loggedStats.put("playbackError", getEndedWithError().toString());
@@ -232,6 +239,7 @@ public class PlaybackMetrics {
         }
         return loggedStats;
     }
+
 
 
     /**
@@ -275,6 +283,15 @@ public class PlaybackMetrics {
     }
 
     /**
+     * Total time in all playback states
+     *
+     * @return total time in ms
+     */
+    public long getTotalElapsedTimeMs() {
+        return totalElapsedTimeMs;
+    }
+
+    /**
      * total time spent in trick-play mode since the session began, in milliseconds
      *
      * @return total time in milliseconds
@@ -311,12 +328,15 @@ public class PlaybackMetrics {
     }
 
     /**
-     * Ratio of playback time to time rebuffering.
+     * Total time (in ms) spent rebuffering.  That is buffering when it is not for initial join times,
+     * times after a seek and buffering while paused.  See {@link #getRebufferCount()}
      *
-     * @return avg rebuffering time
+     * This total / rebuffingCount would give you the average rebuffering time
+     *
+     * @return total re-buffering time in ms
      */
-    public long getAvgRebufferTime() {
-        return avgRebufferTime;
+    public long getTotalRebufferingTime() {
+        return totalRebufferingTime;
     }
 
     /**

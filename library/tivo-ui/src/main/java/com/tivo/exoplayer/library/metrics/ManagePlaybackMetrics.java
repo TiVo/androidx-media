@@ -1,8 +1,6 @@
 package com.tivo.exoplayer.library.metrics;
 
-import android.app.Activity;
 import android.util.Log;
-import android.util.Pair;
 import androidx.annotation.VisibleForTesting;
 
 import java.util.Map;
@@ -34,6 +32,7 @@ public class ManagePlaybackMetrics implements PlaybackMetricsManagerApi {
     private final SimpleExoPlayer currentPlayer;
     private final Clock clock;
     private final MetricsPlaybackSessionManager sessionManager;
+    private final TrickPlayMetricsHelper trickPlayMetricsHelper;
 
     private PlaybackStatsListener playbackStatsListener;
     private PlaybackMetrics currentPlaybackMetrics;
@@ -81,6 +80,38 @@ public class ManagePlaybackMetrics implements PlaybackMetricsManagerApi {
         }
     }
 
+    private class TrickPlayMetricsHelperListener implements MetricsEventListener {
+        long lastTrickPlayStartTimeMs;
+        private final MetricsEventListener parentListener;
+
+        private TrickPlayMetricsHelperListener(MetricsEventListener parentListener) {
+            this.parentListener = parentListener;
+        }
+
+        @Override
+        public void enteringTrickPlayMeasurement() {
+            currentPlayer.removeAnalyticsListener(playbackStatsListener);
+            lastTrickPlayStartTimeMs = clock.elapsedRealtime();
+
+            // Mark time period in regular playback as "SEEKING" during the VTP operation, most logical bucket for now
+            playbackStatsListener.onSeekStarted(createEventTime(lastTrickPlayStartTimeMs));
+            parentListener.enteringTrickPlayMeasurement();
+
+        }
+
+        @Override
+        public void exitingTrickPlayMeasurement() {
+            long stoppedTrickPlayAt = clock.elapsedRealtime();
+            long trickPlayTime = stoppedTrickPlayAt - lastTrickPlayStartTimeMs;
+            createOrReturnCurrent().addTrickPlayTime(trickPlayTime);
+
+            // Once VTP ends, end the virtual "SEEK" and restore the regular playback stats listener
+            playbackStatsListener.onSeekProcessed(createEventTime(stoppedTrickPlayAt));
+            currentPlayer.addAnalyticsListener(playbackStatsListener);
+            parentListener.exitingTrickPlayMeasurement();
+        }
+    }
+
     private ManagePlaybackMetrics(Clock clock, TrickPlayControl trickPlayControl, SimpleExoPlayer player, MetricsEventListener callback) {
         this.currentPlayer = player;
         this.clock = clock;
@@ -90,30 +121,8 @@ public class ManagePlaybackMetrics implements PlaybackMetricsManagerApi {
                 new PlaybackStatsListener(true, sessionManager, (eventTime, playbackStats) -> playbackStatsUpdate(eventTime, playbackStats));
         player.addAnalyticsListener(playbackStatsListener);
 
-        trickPlayControl.addEventListener(new TrickPlayMetricsHelper(clock, player, new MetricsEventListener() {
-            long lastTrickPlayStartTimeMs;
-
-            @Override
-            public void enteringTrickPlayMeasurement() {
-                player.removeAnalyticsListener(playbackStatsListener);
-                lastTrickPlayStartTimeMs = clock.elapsedRealtime();
-
-                // Mark time period in regular playback as "SEEKING" during the VTP operation, most logical bucket for now
-                playbackStatsListener.onSeekStarted(createEventTime(lastTrickPlayStartTimeMs));
-                callback.exitingTrickPlayMeasurement();
-            }
-
-            @Override
-            public void exitingTrickPlayMeasurement() {
-                long stoppedTrickPlayAt = clock.elapsedRealtime();
-                long trickPlayTime = stoppedTrickPlayAt - lastTrickPlayStartTimeMs;
-                createOrReturnCurrent().addTrickPlayTime(trickPlayTime);
-
-                // Once VTP ends, end the virtual "SEEK" and restore the regular playback stats listener
-                playbackStatsListener.onSeekProcessed(createEventTime(stoppedTrickPlayAt));
-                player.addAnalyticsListener(playbackStatsListener);
-            }
-        }));
+        trickPlayMetricsHelper = new TrickPlayMetricsHelper(clock, player, trickPlayControl, new TrickPlayMetricsHelperListener(callback));
+        trickPlayControl.addEventListener(trickPlayMetricsHelper);
     }
 
     private AnalyticsListener.EventTime createEventTime(long eventTime) {
@@ -124,6 +133,7 @@ public class ManagePlaybackMetrics implements PlaybackMetricsManagerApi {
 
     @Override
     public void endAllSessions() {
+        trickPlayMetricsHelper.endCurrentTrickPlaySession();
         playbackStatsListener.finishAllSessions();
     }
 
@@ -170,8 +180,6 @@ public class ManagePlaybackMetrics implements PlaybackMetricsManagerApi {
         Map<String, Object> loggedStats = playbackMetrics.getMetricsAsMap();
 
         loggedStats.put("totalTimeMs", stats.getTotalElapsedTimeMs());
-        loggedStats.put("totalPausedTimeMs", stats.getTotalPausedTimeMs());
-        loggedStats.put("totalRebufferTimeMs", stats.getTotalRebufferTimeMs());
 
 
         JSONObject jsonObject = new JSONObject(loggedStats);

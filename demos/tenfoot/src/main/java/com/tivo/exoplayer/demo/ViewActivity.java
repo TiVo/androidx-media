@@ -336,7 +336,7 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
     sb.append(stats.videoFormatHistory.size());
     sb.append("\n  ");
     sb.append("avg rebuffering time:  ");
-    sb.append(metrics.getAvgRebufferTime());
+    sb.append(metrics.getTotalRebufferingTime());
     sb.append("\n  ");
     sb.append("avg video bitrate:  ");
     sb.append(metrics.getAvgVideoBitrate());

@@ -110,7 +110,7 @@ public class ManagePlaybackMetricsTest {
         assertThat(metrics.getTrickPlayCount()).isEqualTo(1);
 
         Map<Format, Long> results = metrics.getTimeInVideoFormat();
-        assertThat(metrics.getAvgRebufferTime()).isEqualTo(0);
+        assertThat(metrics.getTotalRebufferingTime()).isEqualTo(0);
         assertThat(results.keySet().size()).isEqualTo(1);
         assertThat(results.get(formats[0])).isNotNull();
         assertThat(results.get(formats[0])).isEqualTo((500 - 200) - (300 - 225) );

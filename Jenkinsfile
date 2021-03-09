@@ -164,14 +164,14 @@ pipeline {
       print( "Yay SUCCESS ..." )
       script { 
 	      def msg = "${currentBuild.result}: `${env.JOB_NAME}` #${env.BUILD_NUMBER}:\n${env.BUILD_URL}"
-              slackSend(channel: "#exoplayer-dev", color: 'good', message: msg)
+              slackSend(channel: "#exoplayer-builds", color: 'good', message: msg)
       }
     }
     failure {
       print( "Boo FAILURE ..." )
       script { 
         def msg = "${currentBuild.result}: `${env.JOB_NAME}` #${env.BUILD_NUMBER}:\n${env.BUILD_URL}"
-               slackSend(channel: "#exoplayer-dev", color: 'danger', message: msg)
+               slackSend(channel: "#exoplayer-builds", color: 'danger', message: msg)
       }
     }
     cleanup {

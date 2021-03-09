@@ -1,5 +1,13 @@
 # Release notes #
-#### 2.11.6-2.1 (2021-02-26)
+### 2.11.6-2.2-dev (not yet released)
+
+* Add `TrickPlayMetrics` object that subclasses `PlaybackMetrics` reporting additional metrics for VTP, simply logged now
+  but the mechanisms to integrate this into client-core are in place.
+    * [ae0a546464](https://github.com/tivocorp/exoplayerprvt/commit/ae0a546464) Update so timeInFormats and initialPlaybackStart is valid for VTP
+    * [7e6cc753a7](https://github.com/tivocorp/exoplayerprvt/commit/7e6cc753a7) Adds more metrics useful for VTP reverse mode.
+    * [fe3a4bcb68](https://github.com/tivocorp/exoplayerprvt/commit/fe3a4bcb68) Logs TrickPlayMetrics as JSON TrickMode change
+
+### 2.11.6-2.1 (2021-02-26)
 
 * Add creating and managing `PlaybackMetrics` based on ExoPlayer's `PlaybackStats`, main commits are [08cca0f4e2](https://github.com/tivocorp/exoplayerprvt/commit/08cca0f4e2) and [a5cd587c1c](https://github.com/tivocorp/exoplayerprvt/commit/a5cd587c1c)
 * Support for TiVo Crypt for mobile, [b8bdebd5e5](https://github.com/tivocorp/exoplayerprvt/commit/b8bdebd5e5) - SsUtil init with Device key from platform.  Pending story [MOBILE-15762](https://jira.tivo.com/browse/MOBILE-15762) to enable using this in the tenfoot demo app and other Android applications.
