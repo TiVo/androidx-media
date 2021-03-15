@@ -1,12 +1,13 @@
 # Release notes #
-### 2.11.6-2.2-dev (not yet released)
+### 2.11.6-2.2 (2021-03-10)
 
 * Add `TrickPlayMetrics` object that subclasses `PlaybackMetrics` reporting additional metrics for VTP, simply logged now
-  but the mechanisms to integrate this into client-core are in place.
+  but the mechanisms to integrate this into client-core are in place. The metrics are documented in the metrics package 
+  [README.md](https://github.com/tivocorp/exoplayerprvt/blob/release/library/tivo-ui/src/main/java/com/tivo/exoplayer/library/metrics/README.md)
     * [ae0a546464](https://github.com/tivocorp/exoplayerprvt/commit/ae0a546464) Update so timeInFormats and initialPlaybackStart is valid for VTP
     * [7e6cc753a7](https://github.com/tivocorp/exoplayerprvt/commit/7e6cc753a7) Adds more metrics useful for VTP reverse mode.
     * [fe3a4bcb68](https://github.com/tivocorp/exoplayerprvt/commit/fe3a4bcb68) Logs TrickPlayMetrics as JSON TrickMode change
-
+  
 ### 2.11.6-2.1 (2021-02-26)
 
 * Add creating and managing `PlaybackMetrics` based on ExoPlayer's `PlaybackStats`, main commits are [08cca0f4e2](https://github.com/tivocorp/exoplayerprvt/commit/08cca0f4e2) and [a5cd587c1c](https://github.com/tivocorp/exoplayerprvt/commit/a5cd587c1c)

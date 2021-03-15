@@ -1,5 +1,7 @@
 package com.tivo.exoplayer.library.metrics;
 
+import androidx.annotation.VisibleForTesting;
+
 import org.json.JSONObject;
 
 import com.google.android.exoplayer2.C;
@@ -183,15 +185,11 @@ class TrickPlayMetricsHelper implements TrickPlayEventListener, PlaybackStatsLis
         currentTrickPlayMetrics.setExpectedPlaybackSpeed(trickPlayControl.getSpeedFor(newMode));
         trickPlayStatsListener = new PlaybackStatsListener(true, this);
 
-        // Reverse playback is a special case, we never enter a playing state.  So at least start
-        // in "playing" so first downstream format is recorded
+        // Setup the initial state when first entering VTP or carry over state when switching
+        // between trick-play modes (intra-modal switch).  This ensures two things:
+        //  1. playing format is properly recorded
+        //  2. a new session is created for each stretch of VTP mode
         //
-        if (TrickPlayControl.directionForMode(newMode) == TrickPlayControl.TrickPlayDirection.REVERSE) {
-            trickPlayStatsListener.onPlayerStateChanged(createEventTimeNow(), true, Player.STATE_READY);
-        }
-
-        currentPlayer.addAnalyticsListener(trickPlayStatsListener);
-        currentPlayer.addAnalyticsListener(trickPlayMetricsAnalyticsListener);
 
         if (currentTrickPlayMetrics.isIntraTrickPlayModeChange()) {
             Format current = prevMetrics.lastPlayedFormat();
@@ -200,16 +198,41 @@ class TrickPlayMetricsHelper implements TrickPlayEventListener, PlaybackStatsLis
                 trickPlayStatsListener.onPlayerStateChanged(createEventTimeNow(), true, Player.STATE_READY);
                 trickPlayStatsListener.onDownstreamFormatChanged(createEventTimeNow(), createMediaLoad(current));
             }
-        }
+        } else {
 
+            // Reverse playback is a special case, we never enter a playing state.  So at least start
+            // in "playing" so first downstream format is recorded.  For forward, look like starting in buffering
+            // to record the first transition to ready as initial startup time
+            //
+            switch (TrickPlayControl.directionForMode(newMode)) {
+                case FORWARD:
+                    trickPlayStatsListener.onPlayerStateChanged(createEventTimeNow(), true, Player.STATE_BUFFERING);
+                    break;
+
+                case NONE:
+                    throw new IllegalStateException("code error - unreachable");
+
+                case SCRUB:
+                    trickPlayStatsListener.onPlayerStateChanged(createEventTimeNow(), false, Player.STATE_READY);
+                    break;
+
+                case REVERSE:
+                    trickPlayStatsListener.onPlayerStateChanged(createEventTimeNow(), true, Player.STATE_READY);
+                    break;
+            }
+        }
+        currentPlayer.addAnalyticsListener(trickPlayStatsListener);
+        currentPlayer.addAnalyticsListener(trickPlayMetricsAnalyticsListener);
     }
 
-    private AnalyticsListener.EventTime createEventTimeNow() {
+    @VisibleForTesting
+    AnalyticsListener.EventTime createEventTimeNow() {
         return new AnalyticsListener.EventTime(clock.elapsedRealtime(), Timeline.EMPTY, 0, null,
                 0, currentPlayer.getCurrentPosition(), 0);
     }
 
-    private static MediaSourceEventListener.MediaLoadData createMediaLoad(Format format) {
+    @VisibleForTesting
+    static MediaSourceEventListener.MediaLoadData createMediaLoad(Format format) {
         int type = MimeTypes.getTrackType(format.sampleMimeType);
         return new MediaSourceEventListener.MediaLoadData(0, C.TRACK_TYPE_VIDEO, format, 0, null, 0, 0);
     }

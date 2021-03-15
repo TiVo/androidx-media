@@ -60,10 +60,14 @@ public class PlaybackMetrics {
 
 
     public enum EndReason {
-        NONE,               /** Still playing */
-        ERROR,              /** Ended with error, see {@link #endedWithError} */
-        END_OF_CONTENT,     /** Reached the end of the playlists for VOD */
-        USER_ENDED          /** User loaded annother URL or changed channel */
+        /** Still playing */
+        NONE,
+        /** Ended with error, see {@link #endedWithError} */
+        ERROR,
+        /** Reached the end of the playlists for VOD */
+        END_OF_CONTENT,
+        /** User loaded annother URL or changed channel */
+        USER_ENDED
     }
 
     public enum CurrentState {

@@ -18,10 +18,12 @@ import static com.tivo.exoplayer.library.metrics.PlaybackStatsExtensionTest.TEST
 import static com.tivo.exoplayer.library.metrics.PlaybackStatsExtensionTest.TEST_TIMELINE;
 import static com.tivo.exoplayer.library.metrics.PlaybackStatsExtensionTest.createEventTime;
 import static com.tivo.exoplayer.library.metrics.PlaybackStatsExtensionTest.createMediaLoad;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.google.android.exoplayer2.ExoPlaybackException;
 import com.google.android.exoplayer2.Format;
 import com.google.android.exoplayer2.Player;
 import com.google.android.exoplayer2.SimpleExoPlayer;
@@ -44,6 +46,8 @@ public class ManagePlaybackMetricsTest {
     @Mock
     private TrickPlayControl controlMock;
 
+    @Mock
+    private MetricsEventListener metricsEventListener;
 
     private AnalyticsListener analyticsListener;            // current AnalyticsListener attached to player.
     private TrickPlayEventListener trickPlayEventListener;  // shouldn't change
@@ -59,8 +63,13 @@ public class ManagePlaybackMetricsTest {
         analyticsListenerArgumentCaptor = ArgumentCaptor.forClass(AnalyticsListener.class);
 
         when(playerMock.getCurrentTimeline()).thenReturn(TEST_TIMELINE);
+
+        when(metricsEventListener.createEmptyPlaybackMetrics()).thenCallRealMethod();
+        when(metricsEventListener.createEmptyTrickPlayMetrics(any(), any())).thenCallRealMethod();
+
         manageMetrics = new ManagePlaybackMetrics.Builder(playerMock, controlMock)
                 .setClock(Clock.DEFAULT)
+                .setMetricsEventListener(metricsEventListener)
                 .build();
 
         verify(playerMock).addAnalyticsListener(analyticsListenerArgumentCaptor.capture());
@@ -147,8 +156,11 @@ public class ManagePlaybackMetricsTest {
         analyticsListener.onPlayerStateChanged(createEventTime(800), true, Player.STATE_ENDED);
 
         SystemClock.setCurrentTimeMillis(850);  // after last event
-        metrics = manageMetrics.createOrReturnCurrent();
-        manageMetrics.updateFromCurrentStats(metrics);
+
+        manageMetrics.endAllSessions();
+        ArgumentCaptor<PlaybackMetrics> metricsArgumentCaptor = ArgumentCaptor.forClass(PlaybackMetrics.class);
+        verify(metricsEventListener).playbackMetricsAvailable(metricsArgumentCaptor.capture(), any());
+        metrics = metricsArgumentCaptor.getValue();
 
         long[] expected = {
                 (230 - 200) + (500 - 360),
@@ -168,6 +180,8 @@ public class ManagePlaybackMetricsTest {
         }
 
         assertThat(totalInFormats).isEqualTo(metrics.getTotalPlaybackTimeMs());
+
+        assertThat(metrics.getEndReason()).isEqualTo(PlaybackMetrics.EndReason.END_OF_CONTENT);
     }
 
     @Test
@@ -222,5 +236,26 @@ public class ManagePlaybackMetricsTest {
         float expected = (float) ((2.0 * 8) / (0.2 + 0.4));
 
         assertThat(metrics.getAvgNetworkBitrate()).isEqualTo(expected);
+    }
+
+    @Test
+    public void test_SessionEndsWithError() {
+
+        ArgumentCaptor<PlaybackMetrics> metricsArgumentCaptor = ArgumentCaptor.forClass(PlaybackMetrics.class);
+
+        analyticsListener.onPlayerStateChanged(createEventTime(200), true, Player.STATE_READY);
+        SystemClock.setCurrentTimeMillis(225);
+        ExoPlaybackException error = ExoPlaybackException.createForUnexpected(new RuntimeException("test"));
+        analyticsListener.onPlayerError(createEventTime(225), error);
+
+        manageMetrics.endAllSessions();
+
+        verify(metricsEventListener).playbackMetricsAvailable(metricsArgumentCaptor.capture(), any());
+        PlaybackMetrics metrics = metricsArgumentCaptor.getValue();
+
+        assertThat(metrics.getEndReason()).isEqualTo(PlaybackMetrics.EndReason.ERROR);
+        assertThat(metrics.getEndedWithError()).isEqualTo(error);
+
+
     }
 }
