@@ -39,6 +39,7 @@ import com.google.android.exoplayer2.util.UriUtil;
 import com.google.android.exoplayer2.util.Util;
 import java.io.EOFException;
 import java.io.IOException;
+import java.io.InterruptedIOException;
 import java.math.BigInteger;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -342,11 +343,10 @@ import org.checkerframework.checker.nullness.qual.RequiresNonNull;
 
   @RequiresNonNull("output")
   private void loadMedia() throws IOException, InterruptedException {
-    if (!isMasterTimestampSource) {
-      timestampAdjuster.waitUntilInitialized();
-    } else if (timestampAdjuster.getFirstSampleTimestampUs() == TimestampAdjuster.DO_NOT_OFFSET) {
-      // We're the master and we haven't set the desired first sample timestamp yet.
-      timestampAdjuster.setFirstSampleTimestampUs(startTimeUs);
+    try {
+      timestampAdjuster.sharedInitializeOrWait(isMasterTimestampSource, startTimeUs);
+    } catch (InterruptedException e) {
+      throw new InterruptedIOException();
     }
     feedDataToExtractor(dataSource, dataSpec, mediaSegmentEncrypted);
   }

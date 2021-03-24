@@ -1,4 +1,13 @@
 # Release notes #
+### 2.11.6-2.3-dev (not yet released)
+
+* Fix issue at Metronet where `EXT-X-DISCONTINUITY-SEQUENCE` changes detected first in audio rendition cause 
+  freeze in buffering state forever.  This cherry pick fixes the issue:
+    * Cherry-pick (6f8a8fbc)[https://github.com/google/ExoPlayer/commit/6f8a8fbc1cf974617056edac6ee0068b175a6454], from
+    Google ExoPlayer release notes for fix for ([#8372](https://github.com/google/ExoPlayer/issues/8372)).
+      > Fix issue that could cause playback to become stuck if corresponding
+      > `EXT-X-DISCONTINUITY` tags in different media playlists occur at different positions in time
+  
 ### 2.11.6-2.2 (2021-03-10)
 
 * Add `TrickPlayMetrics` object that subclasses `PlaybackMetrics` reporting additional metrics for VTP, simply logged now
