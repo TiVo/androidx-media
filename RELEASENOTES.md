@@ -1,15 +1,25 @@
 # Release notes #
-### 2.11.6-2.3-dev (not yet released)
+### 2.11.6-3.0 (2021-03-31)
+  
+* Phase 0 support for *Dual Mode Visual Trickplay* phase.  This support includes just the frame curation portion of the
+  Dual Mode VTP alogorithm which creates i-Frame only playlists clones with different densities / frame rates to 
+  improve high speed playback performance, commits:
+  * [06caa35744](https://github.com/tivocorp/exoplayerprvt/commit/06caa35744) Trickplay and IFrameAwareAdaptiveTrackSelection are thread safe.
+  * [c9b6faa5e6](https://github.com/tivocorp/exoplayerprvt/commit/c9b6faa5e6) Buffered now reported correctly for live playlists
+  * [ebc073f40d](https://github.com/tivocorp/exoplayerprvt/commit/ebc073f40d) Dual Mode Phase VTP Phase 0 w/o reverse optimizations
 
 * Fixed callback for TrickPlayMetrics available not called ([3974f9d5c9](https://github.com/tivocorp/exoplayerprvt/commit/3974f9d5c9)), 
   added test case for this and to increase `TrickPlayMetrics` coverage.
+
+### 2.11.6-2.3 (2021-03-24)
+
 * Fix issue at Metronet where `EXT-X-DISCONTINUITY-SEQUENCE` changes detected first in audio rendition cause 
   freeze in buffering state forever.  This cherry pick fixes the issue:
     * Cherry-pick (6f8a8fbc)[https://github.com/google/ExoPlayer/commit/6f8a8fbc1cf974617056edac6ee0068b175a6454], from
     Google ExoPlayer release notes for fix for ([#8372](https://github.com/google/ExoPlayer/issues/8372)).
       > Fix issue that could cause playback to become stuck if corresponding
       > `EXT-X-DISCONTINUITY` tags in different media playlists occur at different positions in time
-  
+
 ### 2.11.6-2.2 (2021-03-10)
 
 * Add `TrickPlayMetrics` object that subclasses `PlaybackMetrics` reporting additional metrics for VTP, simply logged now

@@ -6,8 +6,6 @@ import androidx.annotation.CallSuper;
 import androidx.annotation.Nullable;
 import com.google.android.exoplayer2.C;
 import com.google.android.exoplayer2.DefaultLoadControl;
-import com.google.android.exoplayer2.ExoPlaybackException;
-import com.google.android.exoplayer2.ExoPlayerFactory;
 import com.google.android.exoplayer2.Format;
 import com.google.android.exoplayer2.LoadControl;
 import com.google.android.exoplayer2.Player;
@@ -17,13 +15,11 @@ import com.google.android.exoplayer2.source.TrackGroup;
 import com.google.android.exoplayer2.source.TrackGroupArray;
 import com.google.android.exoplayer2.source.UnrecognizedInputFormatException;
 import com.google.android.exoplayer2.trackselection.DefaultTrackSelector;
-import com.google.android.exoplayer2.trackselection.IFrameAwareAdaptiveTrackSelection;
 import com.google.android.exoplayer2.trackselection.MappingTrackSelector;
 import com.google.android.exoplayer2.trackselection.TrackSelection;
 import com.google.android.exoplayer2.trackselection.TrackSelectionArray;
 import com.google.android.exoplayer2.trickplay.TrickPlayControl;
 import com.google.android.exoplayer2.trickplay.TrickPlayControlFactory;
-import com.google.android.exoplayer2.util.Clock;
 import com.google.android.exoplayer2.util.EventLogger;
 import com.google.android.exoplayer2.util.Log;
 import com.google.android.exoplayer2.util.MimeTypes;
@@ -97,21 +93,18 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
    * Parameters are preserved across player create/destroy (Activity stop/start) to save track
    * selection criteria.
    */
-  private DefaultTrackSelector.Parameters currentParameters = new DefaultTrackSelector.ParametersBuilder().build();
-
-  /**
-   * TrackSelection factory creates {@link TrackSelection} objects based on the current state of trick-play, if
-   * the factory is passed in a {@link TrickPlayControl} otherwise it works like the standard {@link TrackSelection.Factory}
-   * subclasses in ExoPlayer core.
-   *
-   */
-  private IFrameAwareAdaptiveTrackSelection.Factory trackSelectionFactory = new IFrameAwareAdaptiveTrackSelection.Factory();
-
+  private DefaultTrackSelector.Parameters currentParameters;
 
   /**
    * Listens for and attempts to recover from playback errors.
    */
   private DefaultExoPlayerErrorHandler playerErrorHandler;
+
+  /**
+   * Manage creating of cleanup of the TrickPlayControl managing all the ExoPlayer
+   * factories needed to extend ExoPlayer to implement trick-play
+   */
+  private TrickPlayControlFactory trickPlayControlFactory;
 
   /**
    * Construct the factory.  This factory is intended to survive as a singleton for the entire lifecycle of
@@ -125,6 +118,7 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
    */
   public SimpleExoPlayerFactory(Context context) {
     this.context = context;
+    currentParameters = new DefaultTrackSelector.ParametersBuilder(context).build();
   }
 
   /**
@@ -149,6 +143,7 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
    * @return returns a new {@link DefaultMediaSourceLifeCycle} unless overridden
    */
   protected MediaSourceLifeCycle createMediaSourceLifeCycle() {
+    assert player != null;
     DefaultMediaSourceLifeCycle mediaSourceLifeCycle = new DefaultMediaSourceLifeCycle(player, context);
     mediaSourceLifeCycle.setMediaSourceEventCallback(callback);
     return mediaSourceLifeCycle;
@@ -215,13 +210,12 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
     if (player != null) {
       player.release();
       if (trickPlayControl != null) {
-        trickPlayControl.removePlayerReference();
+        trickPlayControlFactory.destroyTrickPlayControl(trickPlayControl);
         trickPlayControl = null;
       }
       player = null;
       mediaSourceLifeCycle = null;
       trackSelector = null;
-      trackSelectionFactory.setTrickPlayControl(null);
       playerErrorHandler.releaseResources();
       playerErrorHandler = null;
     }
@@ -252,10 +246,10 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
       releasePlayer();
     }
 
-    trackSelector = createTrackSelector(defaultTunneling, context);
-    TrickPlayControlFactory trickPlayControlFactory = new TrickPlayControlFactory();
+    trickPlayControlFactory = new TrickPlayControlFactory();
+    TrackSelection.Factory trackSelectionFactory = trickPlayControlFactory.getTrackSelectionFactory();
+    trackSelector = createTrackSelector(defaultTunneling, context, trackSelectionFactory);
     trickPlayControl = trickPlayControlFactory.createTrickPlayControl(trackSelector);
-    trackSelectionFactory.setTrickPlayControl(trickPlayControl);
     RenderersFactory renderersFactory = trickPlayControl.createRenderersFactory(context);
     LoadControl loadControl = trickPlayControl.createLoadControl(new DefaultLoadControl());
 
@@ -654,16 +648,16 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
     }
   }
 
-  private DefaultTrackSelector createTrackSelector(boolean enableTunneling, Context context) {
+  private DefaultTrackSelector createTrackSelector(boolean enableTunneling, Context context, TrackSelection.Factory trackSelectionFactory) {
     // Get a builder with current parameters then set/clear tunnling based on the intent
     //
     int tunnelingSessionId = enableTunneling
             ? C.generateAudioSessionIdV21(context) : C.AUDIO_SESSION_ID_UNSET;
 
     boolean usingSavedParameters =
-        ! currentParameters.equals(new DefaultTrackSelector.ParametersBuilder().build());
+        ! currentParameters.equals(new DefaultTrackSelector.ParametersBuilder(context).build());
 
-    DefaultTrackSelector trackSelector = new DefaultTrackSelector(trackSelectionFactory);
+    DefaultTrackSelector trackSelector = new DefaultTrackSelector(context, trackSelectionFactory);
     DefaultTrackSelector.ParametersBuilder builder = currentParameters.buildUpon();
 
     builder.setTunnelingAudioSessionId(tunnelingSessionId);

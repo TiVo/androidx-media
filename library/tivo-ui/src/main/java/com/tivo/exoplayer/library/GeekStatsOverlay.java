@@ -262,15 +262,15 @@ public class GeekStatsOverlay implements AnalyticsListener, Runnable {
 
     if (format != null) {
       int bps = format.bitrate;
-      float mbps = (float) (bps / (1_024.0 * 1_024.0));
-
+      float mbps = bps / 1_000_000.0f;
+      String label = format.label == null ? format.id : format.label;
       if (isVideoFormat(format)) {
         if (bps == -1) {
           display = String.format(Locale.getDefault(),
-              "id:(%s) - %dx%d@<unk>", format.id, format.width, format.height);
+              "%s - %dx%d@<unk>", label, format.width, format.height);
         } else {
           display = String.format(Locale.getDefault(),
-              "id:(%s) - %dx%d@%.3f", format.id, format.width, format.height, mbps);
+              "%s - %dx%d@%.3f", label, format.width, format.height, mbps);
         }
         if ((format.roleFlags & C.ROLE_FLAG_TRICK_PLAY) != 0) {
           display += " (ifrm)";
@@ -284,10 +284,10 @@ public class GeekStatsOverlay implements AnalyticsListener, Runnable {
         String audioType = mimeComponents.length > 1 ? mimeComponents[1] : mimeType;
         if (bps == -1) {
           display = String.format(Locale.getDefault(),
-              "id:(%.10s) - %s@<unk>", format.id, audioType);
+              "%.10s - %s@<unk>", label, audioType);
         } else {
           display = String.format(Locale.getDefault(),
-              "id:(%.10s) - %s@%.3f", format.id, audioType, mbps);
+              "%.10s - %s@%.3f", label, audioType, mbps);
         }
       }
 

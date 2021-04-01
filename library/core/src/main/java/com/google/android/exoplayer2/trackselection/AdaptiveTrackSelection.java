@@ -448,17 +448,8 @@ public class AdaptiveTrackSelection extends BaseTrackSelection {
 
     if (!isBlacklisted(currentSelectedIndex, nowMs)) {
       // Revert back to the current selection if conditions are not suitable for switching.
-      Format currentFormat = getFormat(currentSelectedIndex);
       Format selectedFormat = getFormat(selectedIndex);
-      if (selectedFormat.bitrate > currentFormat.bitrate
-          && bufferedDurationUs < minDurationForQualityIncreaseUs(availableDurationUs)) {
-        // The selected track is a higher quality, but we have insufficient buffer to safely switch
-        // up. Defer switching up for now.
-        selectedIndex = currentSelectedIndex;
-      } else if (selectedFormat.bitrate < currentFormat.bitrate
-          && bufferedDurationUs >= maxDurationForQualityDecreaseUs) {
-        // The selected track is a lower quality, but we have sufficient buffer to defer switching
-        // down for now.
+      if (shouldDeferSwitching(bufferedDurationUs, availableDurationUs, currentSelectedIndex, selectedFormat)) {
         selectedIndex = currentSelectedIndex;
       }
     }
@@ -466,6 +457,23 @@ public class AdaptiveTrackSelection extends BaseTrackSelection {
     if (selectedIndex != currentSelectedIndex) {
       reason = C.SELECTION_REASON_ADAPTIVE;
     }
+  }
+
+  protected boolean shouldDeferSwitching(long bufferedDurationUs, long availableDurationUs, int currentSelectedIndex, Format selectedFormat) {
+    Format currentFormat = getFormat(currentSelectedIndex);
+    boolean shouldDefer = false;
+    if (selectedFormat.bitrate > currentFormat.bitrate
+        && bufferedDurationUs < minDurationForQualityIncreaseUs(availableDurationUs)) {
+      // The selected track is a higher quality, but we have insufficient buffer to safely switch
+      // up. Defer switching up for now.
+      shouldDefer = true;
+    } else if (selectedFormat.bitrate < currentFormat.bitrate
+        && bufferedDurationUs >= maxDurationForQualityDecreaseUs) {
+      // The selected track is a lower quality, but we have sufficient buffer to defer switching
+      // down for now.
+      shouldDefer = true;
+    }
+    return shouldDefer;
   }
 
   @Override

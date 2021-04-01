@@ -522,7 +522,8 @@ public class EventLogger implements AnalyticsListener {
   }
 
   public static String getVideoLevelStr(@Nullable Format format) {
-    return format == null ? "<unk>" : format.id + " - " + format.width + "x" + format.height + "@" + format.bitrate;
+    String label = format.label == null ? format.id : format.label;
+    return format == null ? "<unk>" : label + " - " + format.width + "x" + format.height + "@" + format.bitrate;
   }
 
   /**

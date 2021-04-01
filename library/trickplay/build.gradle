@@ -41,6 +41,10 @@ android {
 dependencies {
     implementation 'androidx.annotation:annotation:1.0.2'
     implementation project(modulePrefix + 'library-core')
+    implementation project(path: ':library-hls')
+    testImplementation project(modulePrefix + 'testutils')
+    testImplementation 'org.robolectric:robolectric:' + robolectricVersion
+    androidTestImplementation 'org.mockito:mockito-core:' + mockitoVersion
     compileOnly 'org.checkerframework:checker-qual:' + checkerframeworkVersion
     compileOnly 'org.checkerframework:checker-compat-qual:' + checkerframeworkVersion
 }

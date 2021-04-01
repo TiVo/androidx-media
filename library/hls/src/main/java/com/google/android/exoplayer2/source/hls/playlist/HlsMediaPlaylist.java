@@ -158,6 +158,21 @@ public final class HlsMediaPlaylist extends HlsPlaylist {
           ? 1 : (this.relativeStartTimeUs < relativeStartTimeUs ? -1 : 0);
     }
 
+    public Segment copyWithDuration(long updatedDurationUs) {
+      return new Segment(
+              url,
+              initializationSegment,
+              title,
+              updatedDurationUs,
+              relativeDiscontinuitySequence,
+              relativeStartTimeUs,
+              drmInitData,
+              fullSegmentEncryptionKeyUri,
+              encryptionIV,
+              byterangeOffset,
+              byterangeLength,
+              hasGapTag);
+    }
   }
 
   /**
@@ -370,6 +385,25 @@ public final class HlsMediaPlaylist extends HlsPlaylist {
         hasProgramDateTime,
         protectionSchemes,
         segments);
+  }
+
+  public HlsMediaPlaylist copyWithNewSegments(List<Segment> updateSegments) {
+    return new HlsMediaPlaylist(
+            playlistType,
+            baseUri,
+            tags,
+            startOffsetUs,
+            startTimeUs,
+            hasDiscontinuitySequence,
+            discontinuitySequence,
+            mediaSequence,
+            version,
+            targetDurationUs,
+            hasIndependentSegments,
+            hasEndTag,
+            hasProgramDateTime,
+            protectionSchemes,
+            updateSegments);
   }
 
 }

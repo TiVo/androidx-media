@@ -69,11 +69,7 @@ class TrickPlayRendererFactory extends DefaultRenderersFactory {
 
     private TrickPlayControlInternal trickPlay;
 
-    public static final int TARGET_FRAME_RATE = 15;
-
-    private int targetInterFrameTimeUs = 1000000 / TARGET_FRAME_RATE;
     private long lastRenderTimeUs = C.TIME_UNSET;
-    private long lastRenderedPositionUs = C.TIME_UNSET;
 
     TrickPlayAwareMediaCodecVideoRenderer(
         TrickPlayControlInternal trickPlayController,
@@ -108,7 +104,7 @@ class TrickPlayRendererFactory extends DefaultRenderersFactory {
     @Override
     protected void onStarted() {
       super.onStarted();
-      Log.d(TAG, "Renderer onStarted() called - lastRenderTimeUs " + lastRenderTimeUs + " targetInterFrameTimeUs:" + targetInterFrameTimeUs);
+      Log.d(TAG, "Renderer onStarted() called - lastRenderTimeUs " + lastRenderTimeUs);
     }
 
     @Override
@@ -118,43 +114,16 @@ class TrickPlayRendererFactory extends DefaultRenderersFactory {
       lastRenderTimeUs = C.TIME_UNSET;    // Force a render on a discontinuity
     }
 
-
-    @Override
-    protected int readSource(FormatHolder formatHolder, DecoderInputBuffer buffer, boolean formatRequired) {
-      int result;
-      if (trickPlay.useTrickPlayRendering()) {
-        long elapsedRealtimeNowUs = System.nanoTime() / 1000;
-        boolean nextFrameIsDue = lastRenderTimeUs == C.TIME_UNSET || (elapsedRealtimeNowUs - lastRenderTimeUs) >= targetInterFrameTimeUs;
-        Log.d(TAG, "readSource() -  readPosUs: " + getReadingPositionUs() + " lastRenderTimeUs: " + lastRenderTimeUs + " frameDue: " + nextFrameIsDue + " formatRequired: " + formatRequired + " track: " + Format.toLogString(formatHolder.format));
-
-        if (nextFrameIsDue) {
-          result = super.readSource(formatHolder, buffer, formatRequired);
-          if (result != C.RESULT_BUFFER_READ) {
-            lastRenderTimeUs = C.TIME_UNSET;    // Force nextFrameDue again till we read an actual sample buffer.
-          } else {
-            Log.d(TAG, "super.readSource() - readPosUs: " + getReadingPositionUs() + " returned buffer - PTS: "+ buffer.timeUs + " decodeOnly: " + buffer.isDecodeOnly() + " keyFrame: " + buffer.isKeyFrame());
-          }
-        } else {
-          result = C.RESULT_NOTHING_READ;
-        }
-      } else {
-        result = super.readSource(formatHolder, buffer, formatRequired);
-      }
-
-      return result;
-    }
-
     @Override
     protected void renderOutputBufferV21(MediaCodec codec, int index, long presentationTimeUs,
         long releaseTimeNs) {
       super.renderOutputBufferV21(codec, index, presentationTimeUs, releaseTimeNs);
       long timeSinceLastRender =  lastRenderTimeUs == C.TIME_UNSET ? C.TIME_UNSET : (System.nanoTime() / 1000) - lastRenderTimeUs;
       lastRenderTimeUs = System.nanoTime() / 1000;
-      lastRenderedPositionUs = presentationTimeUs;
 
       if (trickPlay.isSmoothPlayAvailable() && trickPlay.getCurrentTrickDirection() != TrickPlayControl.TrickPlayDirection.NONE) {
         Log.d(TAG, "renderOutputBufferV21() in trickplay - pts: " + presentationTimeUs + " releaseTimeUs: " + (releaseTimeNs / 1000) + " index:" + index + " timeSinceLastUs: " + timeSinceLastRender);
-        trickPlay.dispatchTrickFrameRender(lastRenderedPositionUs);
+        trickPlay.dispatchTrickFrameRender(presentationTimeUs);
       }
     }
 

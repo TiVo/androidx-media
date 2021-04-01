@@ -1,11 +1,13 @@
 package com.google.android.exoplayer2.trickplay;// Copyright 2010 TiVo Inc.  All rights reserved.
 
+import com.google.android.exoplayer2.C;
 import com.google.android.exoplayer2.LoadControl;
 import com.google.android.exoplayer2.Renderer;
 import com.google.android.exoplayer2.source.TrackGroupArray;
 import com.google.android.exoplayer2.trackselection.TrackSelectionArray;
 import com.google.android.exoplayer2.upstream.Allocator;
 import com.google.android.exoplayer2.util.Log;
+import com.google.android.exoplayer2.util.Util;
 
 public class AdaptiveLoadControl implements LoadControl, TrickPlayEventListener {
 
@@ -61,37 +63,35 @@ public class AdaptiveLoadControl implements LoadControl, TrickPlayEventListener 
 
   @Override
   public boolean shouldContinueLoading(long bufferedDurationUs, float playbackSpeed) {
-    long iFrameDurationUs = 2 * 1000 * 1000;    // TODO should come from playlist parse somehow
     boolean shouldContinue = delegate.shouldContinueLoading(bufferedDurationUs, playbackSpeed);
-    float requiredBufferedTime = 0.0f;
+    long requiredBufferedTimeUs = C.TIME_UNSET;
 
-    if (trickPlayController.isSmoothPlayAvailable() && false) {
+    if (trickPlayController.isSmoothPlayAvailable()) {
       switch (trickPlayController.getCurrentTrickDirection()) {
         case FORWARD:
-          if (playbackSpeed > 6.0) {    // Buffering more then one frame when jumps are large is pointless
-            requiredBufferedTime = iFrameDurationUs;
-          } else {
-            requiredBufferedTime = playbackSpeed * iFrameDurationUs;
-          }
+          requiredBufferedTimeUs = Util.getMediaDurationForPlayoutDuration(50_000_000, playbackSpeed);
           break;
 
+        case SCRUB:
+          requiredBufferedTimeUs = 10_000_000L;
+          break;
+          
         case REVERSE:
-          requiredBufferedTime = iFrameDurationUs;
+          requiredBufferedTimeUs = 10_000_000L;    // Pointless to buffer, each seek will flush it.
           break;
 
         case NONE:
-          requiredBufferedTime = 0.0f;
+          requiredBufferedTimeUs = C.TIME_UNSET;
           break;
       }
     }
 
-    if (requiredBufferedTime > 0.0f) {
-      shouldContinue = bufferedDurationUs < requiredBufferedTime;
+    if (requiredBufferedTimeUs != C.TIME_UNSET) {
+      shouldContinue = bufferedDurationUs < requiredBufferedTimeUs;
     }
 //
 //    if (trickPlayController.getCurrentTrickDirection() == TrickPlayControl.TrickPlayDirection.REVERSE) {
 //      Log.d(TAG, "shouldContinueLoading() - speed: " + playbackSpeed + " buffered: " + bufferedDurationUs);
-//      shouldContinue = minForIframePlayback;
 //    }
     return shouldContinue;
   }
@@ -101,7 +101,7 @@ public class AdaptiveLoadControl implements LoadControl, TrickPlayEventListener 
     boolean defaultShouldStart = delegate.shouldStartPlayback(bufferedDurationUs, 1.0f, rebuffering);
 
     if (trickPlayController.getCurrentTrickDirection() == TrickPlayControl.TrickPlayDirection.SCRUB) {
-      Log.d(TAG, "shouldStartPlayback() - speed: " + playbackSpeed + " buffered: " + bufferedDurationUs + " rebuffer: " + rebuffering + " super:shouldStartPlayback(): " + defaultShouldStart);
+//      Log.d(TAG, "shouldStartPlayback() - speed: " + playbackSpeed + " buffered: " + bufferedDurationUs + " rebuffer: " + rebuffering + " super:shouldStartPlayback(): " + defaultShouldStart);
       defaultShouldStart = true;
     }
 

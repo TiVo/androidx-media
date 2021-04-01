@@ -23,6 +23,8 @@ import com.google.android.exoplayer2.source.MediaSourceFactory;
 import com.google.android.exoplayer2.source.ProgressiveMediaSource;
 import com.google.android.exoplayer2.source.UnrecognizedInputFormatException;
 import com.google.android.exoplayer2.source.hls.HlsMediaSource;
+import com.google.android.exoplayer2.source.hls.playlist.DefaultHlsPlaylistParserFactory;
+import com.google.android.exoplayer2.trickplay.hls.DualModeHlsPlaylistParserFactory;
 import com.google.android.exoplayer2.upstream.DataSource;
 import com.google.android.exoplayer2.upstream.DefaultDataSourceFactory;
 import com.google.android.exoplayer2.upstream.DefaultHttpDataSourceFactory;
@@ -198,7 +200,8 @@ public class DefaultMediaSourceLifeCycle implements MediaSourceLifeCycle, Analyt
     switch (type) {
       case C.TYPE_HLS:
         factory = new HlsMediaSource.Factory(dataSourceFactory)
-            .setAllowChunklessPreparation(enableChunkless);
+            .setAllowChunklessPreparation(enableChunkless)
+            .setPlaylistParserFactory(new DualModeHlsPlaylistParserFactory(new DefaultHlsPlaylistParserFactory()));
         break;
       case C.TYPE_OTHER:
         factory =  new ProgressiveMediaSource.Factory(dataSourceFactory);
