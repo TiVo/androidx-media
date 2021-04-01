@@ -89,6 +89,16 @@ public class ManagePlaybackMetrics implements PlaybackMetricsManagerApi {
         }
 
         @Override
+        public TrickPlayMetrics createEmptyTrickPlayMetrics(TrickPlayControl.TrickMode currentMode, TrickPlayControl.TrickMode prevMode) {
+            return parentListener.createEmptyTrickPlayMetrics(currentMode, prevMode);
+        }
+
+        @Override
+        public void trickPlayMetricsAvailable(TrickPlayMetrics metrics, PlaybackStats stats) {
+            parentListener.trickPlayMetricsAvailable(metrics, stats);
+        }
+
+        @Override
         public void enteringTrickPlayMeasurement() {
             currentPlayer.removeAnalyticsListener(playbackStatsListener);
             lastTrickPlayStartTimeMs = clock.elapsedRealtime();

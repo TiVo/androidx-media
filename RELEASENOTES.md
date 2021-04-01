@@ -1,6 +1,8 @@
 # Release notes #
 ### 2.11.6-2.3-dev (not yet released)
 
+* Fixed callback for TrickPlayMetrics available not called ([3974f9d5c9](https://github.com/tivocorp/exoplayerprvt/commit/3974f9d5c9)), 
+  added test case for this and to increase `TrickPlayMetrics` coverage.
 * Fix issue at Metronet where `EXT-X-DISCONTINUITY-SEQUENCE` changes detected first in audio rendition cause 
   freeze in buffering state forever.  This cherry pick fixes the issue:
     * Cherry-pick (6f8a8fbc)[https://github.com/google/ExoPlayer/commit/6f8a8fbc1cf974617056edac6ee0068b175a6454], from

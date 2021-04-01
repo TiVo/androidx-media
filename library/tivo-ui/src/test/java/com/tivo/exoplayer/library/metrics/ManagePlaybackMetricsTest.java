@@ -11,6 +11,8 @@ import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
+import org.mockito.invocation.InvocationOnMock;
+import org.mockito.stubbing.Answer;
 
 import static com.google.common.truth.Truth.assertThat;
 import static com.google.common.truth.Truth.assertWithMessage;
@@ -55,6 +57,13 @@ public class ManagePlaybackMetricsTest {
     // Captures the AnalyticsListener[s] passed to the player mock's addAnalyticsListener
     private ArgumentCaptor<AnalyticsListener> analyticsListenerArgumentCaptor;
 
+    class MyTrickPlayMetrics extends TrickPlayMetrics {
+
+        public MyTrickPlayMetrics(TrickPlayControl.TrickMode currentMode, TrickPlayControl.TrickMode prevMode) {
+            super(currentMode, prevMode);
+        }
+    }
+
     @Before
     public void setupMocksAndTestee() {
         MockitoAnnotations.initMocks(this);
@@ -79,6 +88,34 @@ public class ManagePlaybackMetricsTest {
         trickPlayEventListener = trickPlayListenerCaptor.getValue();
     }
 
+    @Test
+    public void testTrickPlayMetrics_ListenersCalled() {
+
+        when(metricsEventListener.createEmptyTrickPlayMetrics(any(), any())).thenAnswer(
+                (Answer<TrickPlayMetrics>) invocation -> new MyTrickPlayMetrics(invocation.getArgument(0), invocation.getArgument(1)));
+
+        analyticsListener.onDownstreamFormatChanged(createEventTime(100), createMediaLoad(TEST_BASEVIDEO_FORMAT));
+        analyticsListener.onTimelineChanged(createEventTime(200), Player.TIMELINE_CHANGE_REASON_DYNAMIC);
+        analyticsListener.onPlayerStateChanged(createEventTime(200), true, Player.STATE_READY);
+
+        // Switch into trickplay mode, generate some trickplay events, then switch out.
+        SystemClock.setCurrentTimeMillis(225);
+        trickPlayEventListener.trickPlayModeChanged(TrickPlayControl.TrickMode.FF1, TrickPlayControl.TrickMode.NORMAL);
+
+        SystemClock.setCurrentTimeMillis(225);
+        trickPlayEventListener.trickFrameRendered(1);
+        SystemClock.setCurrentTimeMillis(325);
+        trickPlayEventListener.trickFrameRendered(1);
+        SystemClock.setCurrentTimeMillis(425);
+        trickPlayEventListener.trickPlayModeChanged(TrickPlayControl.TrickMode.NORMAL, TrickPlayControl.TrickMode.FF1);
+
+        ArgumentCaptor<TrickPlayMetrics> trickPlayMetricsCaptor = ArgumentCaptor.forClass(TrickPlayMetrics.class);
+        verify(metricsEventListener).trickPlayMetricsAvailable(trickPlayMetricsCaptor.capture(), any());
+        TrickPlayMetrics metrics = trickPlayMetricsCaptor.getValue();
+        assertThat(metrics).isInstanceOf(MyTrickPlayMetrics.class);
+        assertThat(metrics).isNotNull();
+        assertThat(metrics.getRenderedFramesCount()).isEqualTo(2);
+    }
 
     @Test
     public void testExcludesTrickPlay_PlaybackMetrics() {
