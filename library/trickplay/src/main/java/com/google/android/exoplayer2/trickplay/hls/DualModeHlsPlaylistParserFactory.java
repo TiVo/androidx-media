@@ -31,33 +31,35 @@ public class DualModeHlsPlaylistParserFactory implements HlsPlaylistParserFactor
             if (playlist instanceof HlsMasterPlaylist) {
                 HlsMasterPlaylist masterPlaylist = (HlsMasterPlaylist) playlist;
                 ArrayList<HlsMasterPlaylist.Variant> iFrameVariants = new ArrayList<>(masterPlaylist.iFrameVariants);
-                HlsMasterPlaylist.Variant variant = iFrameVariants.get(0);
+                if (!iFrameVariants.isEmpty()) {
+                    HlsMasterPlaylist.Variant variant = iFrameVariants.get(0);
 
-                Uri clonedVariant = variant.url.buildUpon()
-                        .fragment(String.valueOf(IFRAME_SUBSET_TARGET))
-                        .build();
+                    Uri clonedVariant = variant.url.buildUpon()
+                            .fragment(String.valueOf(IFRAME_SUBSET_TARGET))
+                            .build();
 
-                Format clonedFormat = variant.format
-                        .copyWithBitrate(variant.format.bitrate / IFRAME_SUBSET_TARGET)
-                        .copyWithFrameRate(0.1f)
-                        .copyWithLabel("iFrame_" + IFRAME_SUBSET_TARGET);
+                    Format clonedFormat = variant.format
+                            .copyWithBitrate(variant.format.bitrate / IFRAME_SUBSET_TARGET)
+                            .copyWithFrameRate(0.1f)
+                            .copyWithLabel("iFrame_" + IFRAME_SUBSET_TARGET);
 
-                iFrameVariants.add(new HlsMasterPlaylist.Variant(clonedVariant, clonedFormat, null));
+                    iFrameVariants.add(new HlsMasterPlaylist.Variant(clonedVariant, clonedFormat, null));
 
-                playlist = new HlsMasterPlaylist(
-                        masterPlaylist.baseUri,
-                        masterPlaylist.tags,
-                        masterPlaylist.variants,
-                        iFrameVariants,
-                        masterPlaylist.videos,
-                        masterPlaylist.audios,
-                        masterPlaylist.subtitles,
-                        masterPlaylist.closedCaptions,
-                        masterPlaylist.muxedAudioFormat,
-                        masterPlaylist.muxedCaptionFormats,
-                        masterPlaylist.hasIndependentSegments,
-                        masterPlaylist.variableDefinitions,
-                        masterPlaylist.sessionKeyDrmInitData);
+                    playlist = new HlsMasterPlaylist(
+                            masterPlaylist.baseUri,
+                            masterPlaylist.tags,
+                            masterPlaylist.variants,
+                            iFrameVariants,
+                            masterPlaylist.videos,
+                            masterPlaylist.audios,
+                            masterPlaylist.subtitles,
+                            masterPlaylist.closedCaptions,
+                            masterPlaylist.muxedAudioFormat,
+                            masterPlaylist.muxedCaptionFormats,
+                            masterPlaylist.hasIndependentSegments,
+                            masterPlaylist.variableDefinitions,
+                            masterPlaylist.sessionKeyDrmInitData);
+                }
             }
             return playlist;
         }

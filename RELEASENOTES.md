@@ -1,4 +1,9 @@
 # Release notes #
+### 2.11.6-3.1 (2021-04-05)
+* Fixing the DualMode VTP crash when the playlist has no-iframes. 
+    Enabled JUnitRunner on library-trickplay and enhanced the unit test to include playlist 
+    with no I-FRAME  
+
 ### 2.11.6-3.0 (2021-03-31)
   
 * Phase 0 support for *Dual Mode Visual Trickplay* phase.  This support includes just the frame curation portion of the

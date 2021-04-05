@@ -38,6 +38,16 @@ public class DualModeHlsPlaylistParserFactoryTest {
     }
 
     @Test
+    public void testNoIframePlaylistParsesCorrectly() throws IOException {
+        InputStream masterPlaylistSourceNoIframe = TestUtil.getInputStream(ApplicationProvider.getApplicationContext(), "testmasternoIFrame.m3u8");
+        parserFactory = new DualModeHlsPlaylistParserFactory(new DefaultHlsPlaylistParserFactory());
+        ParsingLoadable.Parser<HlsPlaylist> masterParser = parserFactory.createPlaylistParser();
+        HlsPlaylist playlistnoIframe = masterParser.parse(Uri.EMPTY, masterPlaylistSourceNoIframe);
+        assertThat(playlistnoIframe).isInstanceOf(HlsMasterPlaylist.class);
+        assertThat(((HlsMasterPlaylist)playlistnoIframe).iFrameVariants.size()).isEqualTo(0);
+    }
+
+    @Test
     public void testIFrameClonesCreated() throws IOException {
         assertThat(masterPlaylist.iFrameVariants.size()).isEqualTo(2);
     }
