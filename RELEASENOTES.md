@@ -1,4 +1,9 @@
 # Release notes #
+
+### 2.11.6-3.2 (2021-04-06)
+* Seek and Level switching issue is fixed in TivoCrypt data source
+    Jira: MOBILE-16209
+
 ### 2.11.6-3.1 (2021-04-05)
 * Fixing the DualMode VTP crash when the playlist has no-iframes. 
     Enabled JUnitRunner on library-trickplay and enhanced the unit test to include playlist 

@@ -13,7 +13,7 @@
 // limitations under the License.
 project.ext {
     // ExoPlayer version and version code.
-    releaseVersion = '2.11.6-3.1'
+    releaseVersion = '2.11.6-3.2'
     releaseVersionCode = 2011007
     minSdkVersion = 16
     appTargetSdkVersion = 29
