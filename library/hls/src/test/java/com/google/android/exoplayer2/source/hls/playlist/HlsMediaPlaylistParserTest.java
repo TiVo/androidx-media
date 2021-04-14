@@ -19,6 +19,7 @@ import static com.google.common.truth.Truth.assertThat;
 import static org.junit.Assert.fail;
 
 import android.net.Uri;
+import androidx.annotation.Nullable;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import com.google.android.exoplayer2.C;
 import com.google.android.exoplayer2.ParserException;
@@ -30,6 +31,8 @@ import java.io.InputStream;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
@@ -420,6 +423,80 @@ public class HlsMediaPlaylistParserTest {
       // Expected because the initialization segment does not have a defined initialization vector,
       // although it is affected by an EXT-X-KEY tag.
     }
+  }
+
+  @Test
+  public void testImplicitInitSegment() throws IOException {
+    Uri playlistUri = Uri.parse("https://example.com/test3.m3u8");
+    String playlistString =
+      "#EXTM3U\n"
+            + "#EXT-X-VERSION:6\n"
+            + "#EXT-X-TARGETDURATION:7\n"
+            + "#EXT-X-PLAYLIST-TYPE:VOD\n"
+            + "#EXT-X-I-FRAMES-ONLY\n"
+            + "#EXTINF:3.002,\n"
+            + "#EXT-X-BYTERANGE:376@376\n"
+            + "iframe-0.tsv\n"
+            + "#EXTINF:3.002,\n"
+            + "#EXT-X-BYTERANGE:376@752\n"
+            + "iframe-0.tsv\n"
+            + "#EXTINF:3.002,\n"
+            + "#EXT-X-BYTERANGE:1692@564\n"
+            + "iframe-1.tsv\n"
+            + "#EXT-X-END\n";
+    InputStream inputStream = new ByteArrayInputStream(Util.getUtf8Bytes(playlistString));
+    HlsMediaPlaylist standalonePlaylist =
+            (HlsMediaPlaylist) new HlsPlaylistParser().parse(playlistUri, inputStream);
+    assertThat(standalonePlaylist.segments.size()).isEqualTo(3);
+
+    Map<String, Segment> initSegments = new HashMap<>();
+    for (Segment segment : standalonePlaylist.segments) {
+      assertThat(segment.initializationSegment).isNotNull();
+      initSegments.put(segment.initializationSegment.url, segment.initializationSegment);
+    }
+
+    assertThat(initSegments.size()).isEqualTo(2);
+
+    // All init segments are implicit, so start at offset 0 in from the base segment
+    for (Map.Entry<String, Segment> entry: initSegments.entrySet()) {
+      assertThat(entry.getValue().byterangeOffset).isEqualTo(0);
+    }
+
+    @Nullable Segment initSegment = initSegments.get("iframe-0.tsv");
+    assertThat(initSegment).isNotNull();
+    assertThat(initSegment.byterangeLength).isEqualTo(376);
+
+    initSegment = initSegments.get("iframe-1.tsv");
+    assertThat(initSegment).isNotNull();
+    assertThat(initSegment.byterangeLength).isEqualTo(564);
+  }
+
+  @Test
+  public void testExplicitInitSegment() throws IOException {
+    Uri playlistUri = Uri.parse("https://example.com/test3.m3u8");
+    String playlistString =
+      "#EXTM3U\n"
+        + "#EXT-X-VERSION:6\n"
+        + "#EXT-X-MEDIA-SEQUENCE:1616630672\n"
+        + "#EXT-X-TARGETDURATION:7\n"
+        + "#EXT-X-DISCONTINUITY-SEQUENCE:491 \n"
+        + "#EXT-X-MAP:URI=\"iframe0.tsv\",BYTERANGE=\"564@0\"\n"
+        + "\n"
+        + "#EXT-X-I-FRAMES-ONLY\n"
+        + "#EXT-X-PROGRAM-DATE-TIME:2021-04-12T17:08:22.000Z\n"
+        + "#EXTINF:1.001000,\n"
+        + "#EXT-X-BYTERANGE:121260@1128\n"
+        + "iframe0.tsv";
+
+    InputStream inputStream = new ByteArrayInputStream(Util.getUtf8Bytes(playlistString));
+    HlsMediaPlaylist standalonePlaylist =
+            (HlsMediaPlaylist) new HlsPlaylistParser().parse(playlistUri, inputStream);
+    assertThat(standalonePlaylist.segments.size()).isEqualTo(1);
+
+    @Nullable Segment initSegment = standalonePlaylist.segments.get(0).initializationSegment;
+    assertThat(initSegment).isNotNull();
+    assertThat(initSegment.byterangeLength).isEqualTo(564);
+    assertThat(initSegment.byterangeOffset).isEqualTo(0);
   }
 
   @Test
