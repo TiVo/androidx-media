@@ -1,7 +1,11 @@
 # Release notes #
 
-### 2.11.6-3.2 (2021-04-06)
-* Seek and Level switching issue is fixed in TivoCrypt data source
+### 2.11.6-3.2 (2021-04-16)
+* Fix issue with VOD iframe only with no EXT-X-MAP ([66bd5ec8b8](https://github.com/tivocorp/exoplayerprvt/commit/66bd5ec8b8)), match similar change 
+in streamer-1-9 only bring change closer to upstream 2.12.3 (which has our
+merged i-Frame only support, with this bug fix).  Issue is [BZSTREAM-7478](https://jira.tivo.com/browse/BZSTREAM-7478)
+
+* Temp fix for Seek and Level switching in TivoCrypt data source
     Jira: MOBILE-16209
 
 ### 2.11.6-3.1 (2021-04-05)
