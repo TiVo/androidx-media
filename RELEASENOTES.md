@@ -1,5 +1,10 @@
 # Release notes #
+### 2.11.6-3.3-dev (not yet released)
 
+* Final fix for TivoCrypt seek and level shift issue [07ee4bf3dc](https://github.com/tivocorp/exoplayerprvt/commit/07ee4bf3dc).
+  this change reverses the change from pull [#133](https://github.com/tivocorp/exoplayerprvt/pull/133) as this change fixes
+  the root cause.
+  
 ### 2.11.6-3.2 (2021-04-16)
 * Fix issue with VOD iframe only with no EXT-X-MAP ([66bd5ec8b8](https://github.com/tivocorp/exoplayerprvt/commit/66bd5ec8b8)), match similar change 
 in streamer-1-9 only bring change closer to upstream 2.12.3 (which has our

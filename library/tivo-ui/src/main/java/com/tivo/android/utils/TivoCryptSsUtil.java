@@ -72,12 +72,18 @@ public class TivoCryptSsUtil {
    * decrypts the encrypted video content. Returns 0 is content was successfully decrypted
    * The inBuf is updated with decrypted data.
    */
-  public static native int decryptSegment(String keyLine, ByteBuffer iv, int ivLen, ByteBuffer inBuf, int datalength, String key);
+  public static native int decryptSegment(String keyLine, ByteBuffer inBuf, int datalength, String key);
 
-    /**
-     * Cleaning of native layer
-     * @return
-     */
+  /**
+   * sets the new segments IV
+   * @param iv
+   */
+  public static native void setIV(ByteBuffer iv);
+
+  /**
+   * Cleaning of native layer
+   * @return
+   */
   public static native int close();
 
 
@@ -142,7 +148,7 @@ public class TivoCryptSsUtil {
 
   public static boolean isRootDeviceDetectionFatal(int errorCode) {
     return errorCode == TivoCryptSsUtil.A_FAILED || errorCode == TivoCryptSsUtil.D_FAILED ||
-        errorCode == TivoCryptSsUtil.E_FAILED || errorCode == TivoCryptSsUtil.G_FAILED;
+            errorCode == TivoCryptSsUtil.E_FAILED || errorCode == TivoCryptSsUtil.G_FAILED;
   }
 
   public static boolean isRootDeviceDetectionIgnored(int errorCode) {
