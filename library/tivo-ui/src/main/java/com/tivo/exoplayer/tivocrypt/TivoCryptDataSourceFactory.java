@@ -27,6 +27,12 @@ public class TivoCryptDataSourceFactory implements DataSource.Factory {
     public static final String TAG = "TivoCryptDataSourceFactory ";
     private static final int BUFFER_SIZE = 18800;//this is the number VO used
 
+    public static final int TIVO_CRYPT_ERROR_KEYLINE_PARSE_FAILED = 101;
+    public static final int TIVO_CRYPT_ERROR_UNSUPPORTED_KEYLINE = 102;
+    public static final int TIVO_CRYPT_ERROR_UNSUPPORTED_IV_LEN = 103;
+    public static final int TIVO_CRYPT_ERROR_INPUT_BUFFER_NULL = 104;
+    public static final int TIVO_CRYPT_ERROR_DECRYPTION_FAILED = 105;
+    public static final int TIVO_CRYPT_ERROR_WHITE_BOX_KEY_MISSING = 106;
     private String mWBKey;
 
     // This is the DataSource.Factory which will produce DataSources that we
@@ -268,8 +274,8 @@ public class TivoCryptDataSourceFactory implements DataSource.Factory {
                             mBuffer.position(),
                             null);
                     if (result != 0) {
-                        LogError("Failed to  decrypt!");
-                        throw new IOException("Failed to  decrypt");
+                        zeroBuffer(mBuffer, 0, mBuffer.position());
+                        throw getTivoCryptExeption(result);
                     }
                     // Flip over to read mode, skipping the IV
                     mBuffer.limit(mBuffer.position());
@@ -294,6 +300,18 @@ public class TivoCryptDataSourceFactory implements DataSource.Factory {
                 }
             }
             return (ret == 0) ? C.RESULT_END_OF_INPUT : ret;
+        }
+
+        private TivoCryptException getTivoCryptExeption(int result) {
+            TivoCryptException tivoCryptException;
+            if (result <= TIVO_CRYPT_ERROR_INPUT_BUFFER_NULL) {
+                LogError("Failed to  TivoCrypt initializing!");
+                tivoCryptException = new TivoCryptException(TivoCryptException.PHASE_INITIALIZING, result);
+            } else {
+                LogError("Failed in TivoCrypt decrypt!");
+                tivoCryptException = new TivoCryptException(TivoCryptException.PHASE_DECRYPTING, result);
+            }
+            return tivoCryptException;
         }
 
         public @Nullable
