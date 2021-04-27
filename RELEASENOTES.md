@@ -1,6 +1,11 @@
 # Release notes #
-### 2.11.6-3.3-dev (not yet released)
+### 2.11.6-3.3 (04-28-2021)
 
+* Fix not to jump position on trick play exit.  Jira issue [WSIPCL-958](https://jira.tivo.com/browse/WSIPCL-958)
+  commit [fc2e3ab4d8](https://github.com/tivocorp/exoplayerprvt/commit/fc2e3ab4d8) - trickplay end does not jump if 
+  frame renders are delayed
+* Refactor `PlaybackMetrics` and `TrickPlayMetrics` to create a common base class, `AbstractBasePlaybackMetrics`.  This allows `TrickPlayMetrics` not to inherit
+ things that are only `PlaybackMetrics` 
 * Final fix for TivoCrypt seek and level shift issue [07ee4bf3dc](https://github.com/tivocorp/exoplayerprvt/commit/07ee4bf3dc).
   this change reverses the change from pull [#133](https://github.com/tivocorp/exoplayerprvt/pull/133) as this change fixes
   the root cause.
