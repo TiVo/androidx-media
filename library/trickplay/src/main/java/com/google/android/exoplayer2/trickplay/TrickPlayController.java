@@ -794,8 +794,13 @@ class TrickPlayController implements TrickPlayControlInternal {
 
             if (lastRendersCount > 0) {
                 long positionMs = lastRenders.get(0);
-                Log.d(TAG, "Seek to previous rendered frame, positions " + positionMs + " currentPos: " + player.getCurrentPosition());
-                player.seekTo(positionMs);
+                long positionDeltaMs = currentPosition - positionMs;
+                if (Math.abs(positionDeltaMs) > 2_000) {
+                    Log.d(TAG, "Not seeking to render, delta: " + positionDeltaMs + "ms is greater than 2 seconds");
+                } else {
+                    Log.d(TAG, "Seek to last rendered frame, delta position: " + positionDeltaMs + "ms");
+                    player.seekTo(positionMs);
+                }
             }
         }
         Log.d(TAG, "Trickplay stopped - media time: " + currentPosition + " parameters: " + player.getPlaybackParameters().speed + " prev mode: "+ previousMode);
