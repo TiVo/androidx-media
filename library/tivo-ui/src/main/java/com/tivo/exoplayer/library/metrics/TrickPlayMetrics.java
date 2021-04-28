@@ -29,7 +29,7 @@ import com.google.android.exoplayer2.trickplay.TrickPlayControl;
  *
  *
  */
-public class TrickPlayMetrics extends PlaybackMetrics {
+public class TrickPlayMetrics extends AbstractBasePlaybackMetrics {
     private static final String TAG = "TrickPlayMetrics";
 
     private long totalRenderedFrames;
@@ -46,6 +46,15 @@ public class TrickPlayMetrics extends PlaybackMetrics {
     private Format lastPlayedFormat;
     private long firstFrameRender = C.TIME_UNSET;
     private float avgFramesPerSecond;
+
+    /**
+     * Reason for trick play ending, either USER_ENDED or an ERROR are the only possible reasons
+     *
+     * @return reason trick play ended
+     */
+    public PlaybackMetrics.EndReason getEndReason() {
+        return getEndedWithError() != null ? PlaybackMetrics.EndReason.ERROR : PlaybackMetrics.EndReason.USER_ENDED;
+    }
 
     static class IframeLoadEvent {
         private final long elapsedRealTimeMs;
@@ -236,6 +245,7 @@ public class TrickPlayMetrics extends PlaybackMetrics {
     public boolean isIntraTrickPlayModeChange() {
         return TrickPlayControl.directionForMode(prevMode) != TrickPlayControl.TrickPlayDirection.NONE && TrickPlayControl.directionForMode(currentMode) != TrickPlayControl.TrickPlayDirection.NONE;
     }
+
     /**
      * Extend to add TrickPlay specific metrics.
      *
