@@ -350,11 +350,14 @@ public final class CodecSpecificDataUtil {
     int samplingFrequency;
     int frequencyIndex = bitArray.readBits(4);
     if (frequencyIndex == AUDIO_SPECIFIC_CONFIG_FREQUENCY_INDEX_ARBITRARY) {
+      if (bitArray.bitsLeft() < 24) {
+        throw new ParserException("AAC header insufficient data");
+      }
       samplingFrequency = bitArray.readBits(24);
     } else if (frequencyIndex < 13) {
       samplingFrequency = AUDIO_SPECIFIC_CONFIG_SAMPLING_RATE_TABLE[frequencyIndex];
     } else {
-      throw new ParserException();
+      throw new ParserException("AAC header wrong Sampling Frequency Index");
     }
     return samplingFrequency;
   }

@@ -1,4 +1,12 @@
 # Release notes #
+### 2.11.6-3.4 (05-12-2021)
+
+* Cherry-pick https://github.com/google/ExoPlayer/commit/6db6d14b16c1324bde1677cce8cfa3571d201d9a 
+  for JIRA issue PARTDEFECT-8311.
+* Additional to above cherry-pick ading bound check for the AAC input buffer. 
+  If there is no enough data, throw parser exception
+* Cherry picking https://github.com/google/ExoPlayer/commit/011342f4cfe5aa0cc1d3b46e9bed3c55338fd742
+
 ### 2.11.6-3.3 (04-28-2021)
 
 * Fix not to jump position on trick play exit.  Jira issue [WSIPCL-958](https://jira.tivo.com/browse/WSIPCL-958)
