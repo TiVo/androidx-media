@@ -4,6 +4,7 @@ import android.annotation.SuppressLint;
 import android.content.Context;
 import android.os.Handler;
 import android.os.Message;
+import android.os.SystemClock;
 import android.view.Surface;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -238,19 +239,9 @@ class TrickPlayController implements TrickPlayControlInternal {
 
         @Override
         public void onTimelineChanged(EventTime eventTime, int reason) {
-            if (reason == Player.TIMELINE_CHANGE_REASON_DYNAMIC) {
+            if (reason == Player.TIMELINE_CHANGE_REASON_SOURCE_UPDATE) {
                 exitTrickPlayIfTimelineExceeded(eventTime.timeline);
             }
-        }
-
-        @Override
-        public void onMediaPeriodCreated(EventTime eventTime) {
-            Log.d(TAG, "onMediaPeriodCreated() -  timeline empty: " + eventTime.timeline.isEmpty());
-        }
-
-        @Override
-        public void onMediaPeriodReleased(EventTime eventTime) {
-            Log.d(TAG, "onMediaPeriodReleased() -  timeline empty: " + eventTime.timeline.isEmpty());
         }
 
         @Override
@@ -528,8 +519,18 @@ class TrickPlayController implements TrickPlayControlInternal {
         public void trickFrameRendered(long frameRenderTimeUs) {
             if (isSmoothPlayAvailable()) {
               long realtimeMs = Clock.DEFAULT.elapsedRealtime();
-              AnalyticsListener.EventTime eventTime = new EventTime(realtimeMs, player.getCurrentTimeline(), 0, null,
-                  0, player.getCurrentPosition(), 0);
+              AnalyticsListener.EventTime eventTime =
+                      new EventTime(
+                        realtimeMs,
+                        player.getCurrentTimeline(),
+                        /* windowIndex= */ player.getCurrentWindowIndex(),
+                        /* mediaPeriodId= */ null,
+                        /* eventPlaybackPositionMs= */ player.getCurrentPosition(),
+                        /* currentTimeline= */ player.getCurrentTimeline(),
+                        /* currentWindowIndex= */ player.getCurrentWindowIndex(),
+                        /* currentMediaPeriodId= */ null,
+                        /* currentPlaybackPositionMs= */ player.getCurrentPosition(),
+                        /* totalBufferedDurationMs= */ player.getTotalBufferedDuration());
               Log.d(TAG, "Trick frame render " + getCurrentTrickMode() + " position: " + eventTime.currentPlaybackPositionMs);
               removeMessages(SeekBasedTrickPlay.MSG_TRICKPLAY_FRAMERENDER);
               Message msg = obtainMessage(SeekBasedTrickPlay.MSG_TRICKPLAY_FRAMERENDER, eventTime);

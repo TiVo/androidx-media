@@ -12,6 +12,7 @@ import com.google.android.exoplayer2.ExoPlaybackException;
 import com.google.android.exoplayer2.Format;
 import com.google.android.exoplayer2.analytics.AnalyticsListener;
 import com.google.android.exoplayer2.analytics.PlaybackStats;
+import com.google.android.exoplayer2.analytics.PlaybackStats.EventTimeAndPlaybackState;
 import com.google.android.exoplayer2.util.Clock;
 import com.google.android.exoplayer2.util.EventLogger;
 import com.google.android.exoplayer2.util.Log;
@@ -27,7 +28,6 @@ import static com.google.android.exoplayer2.analytics.PlaybackStats.PLAYBACK_STA
 import static com.google.android.exoplayer2.analytics.PlaybackStats.PLAYBACK_STATE_PAUSED_BUFFERING;
 import static com.google.android.exoplayer2.analytics.PlaybackStats.PLAYBACK_STATE_PLAYING;
 import static com.google.android.exoplayer2.analytics.PlaybackStats.PLAYBACK_STATE_SEEKING;
-import static com.google.android.exoplayer2.analytics.PlaybackStats.PLAYBACK_STATE_SEEK_BUFFERING;
 import static com.google.android.exoplayer2.analytics.PlaybackStats.PLAYBACK_STATE_STOPPED;
 import static com.google.android.exoplayer2.analytics.PlaybackStats.PLAYBACK_STATE_SUPPRESSED;
 import static com.google.android.exoplayer2.analytics.PlaybackStats.PLAYBACK_STATE_SUPPRESSED_BUFFERING;
@@ -89,7 +89,7 @@ public abstract class AbstractBasePlaybackMetrics {
         initialPlaybackStartDelay = playbackStats.totalValidJoinTimeMs;
 
         if (playbackStats.fatalErrorHistory.size() > 0) {
-            endedWithError = playbackStats.fatalErrorHistory.get(0).second;
+            endedWithError = playbackStats.fatalErrorHistory.get(0).exception;
         } else {
             endedWithError = null;
         }
@@ -114,7 +114,6 @@ public abstract class AbstractBasePlaybackMetrics {
 
             case PLAYBACK_STATE_BUFFERING:
             case PLAYBACK_STATE_PAUSED_BUFFERING:
-            case PLAYBACK_STATE_SEEK_BUFFERING:
             case PLAYBACK_STATE_SUPPRESSED:
             case PLAYBACK_STATE_SUPPRESSED_BUFFERING:
                 currentState = CurrentState.BUFFERING;
@@ -144,8 +143,9 @@ public abstract class AbstractBasePlaybackMetrics {
 
     // Debug method
     private void dumpStateHistory(PlaybackStats playbackStats) {
-        for (Pair<AnalyticsListener.EventTime, Integer> pair : playbackStats.playbackStateHistory) {
-            android.util.Log.d(TAG, "event: " + ManagePlaybackMetrics.eventDebug(pair.first) + " state: " + pair.second);
+        for (EventTimeAndPlaybackState timeAndPlaybackState : playbackStats.playbackStateHistory) {
+            android.util.Log.d(TAG, "event: " + ManagePlaybackMetrics.eventDebug(timeAndPlaybackState.eventTime)
+                    + " state: " + timeAndPlaybackState.playbackState);
         }
     }
 

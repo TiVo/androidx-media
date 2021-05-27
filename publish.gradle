@@ -42,7 +42,20 @@ if (project.ext.has("exoplayerPublishEnabled")
 
 if (project.ext.has("tivoExoplayerPublishEnabled")
         && project.ext.tivoExoplayerPublishEnabled) {
-    apply plugin: 'bintray-release'
+    dependencies {
+        classpath 'com.github.panpf.bintray-publish:bintray-publish:0.9.1'
+    }
+    apply plugin: 'com.github.panpf.bintray-publish'
+
+    publishing.repositories {
+        maven {
+            url "http://repo-vip.tivo.com:8081/artifactory/libs-release-local"
+            credentials {
+                username REPO_USER_NAME
+                password REPO_PASSWORD
+            }
+        }
+    }
     publish {
         artifactId = releaseArtifact
         desc = releaseDescription
@@ -78,14 +91,4 @@ static void addLicense(File pom) {
     printer.preserveWhitespace = true
     printer.print(xml)
     writer.close()
-}
-
-publishing.repositories {
-    maven {
-        url "http://repo-vip.tivo.com:8081/artifactory/libs-release-local"
-        credentials {
-            username REPO_USER_NAME
-            password REPO_PASSWORD
-        }
-    }
 }

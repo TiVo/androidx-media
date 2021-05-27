@@ -62,7 +62,7 @@ public final class AudioCapabilitiesReceiver {
   @Nullable private final BroadcastReceiver receiver;
   @Nullable private final ExternalSurroundSoundSettingObserver externalSurroundSoundSettingObserver;
 
-  /* package */ @Nullable AudioCapabilities audioCapabilities;
+  @Nullable /* package */ AudioCapabilities audioCapabilities;
   private boolean registered;
 
   Intent stickyIntent = null;
@@ -77,7 +77,7 @@ public final class AudioCapabilitiesReceiver {
     context = context.getApplicationContext();
     this.context = context;
     this.listener = Assertions.checkNotNull(listener);
-    handler = new Handler(Util.getLooper());
+    handler = Util.createHandlerForCurrentOrMainLooper();
     receiver = Util.SDK_INT >= 21 ? new HdmiAudioPlugBroadcastReceiver() : null;
     Uri externalSurroundSoundUri = AudioCapabilities.getExternalSurroundSoundGlobalSettingUri();
     externalSurroundSoundSettingObserver =

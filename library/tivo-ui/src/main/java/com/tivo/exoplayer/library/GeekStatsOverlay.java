@@ -11,6 +11,8 @@ import com.google.android.exoplayer2.SimpleExoPlayer;
 import com.google.android.exoplayer2.Timeline;
 import com.google.android.exoplayer2.analytics.AnalyticsListener;
 import com.google.android.exoplayer2.decoder.DecoderCounters;
+import com.google.android.exoplayer2.source.LoadEventInfo;
+import com.google.android.exoplayer2.source.MediaLoadData;
 import com.google.android.exoplayer2.source.MediaSource;
 import com.google.android.exoplayer2.source.MediaSourceEventListener;
 import com.google.android.exoplayer2.trickplay.TrickPlayControl;
@@ -19,7 +21,6 @@ import com.google.android.exoplayer2.util.MimeTypes;
 import com.google.android.exoplayer2.util.Util;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
-import java.time.chrono.MinguoChronology;
 import java.util.Date;
 import java.util.Locale;
 
@@ -357,11 +358,11 @@ public class GeekStatsOverlay implements AnalyticsListener, Runnable {
     }
   }
 
-  private boolean isVideoTrack(MediaSourceEventListener.MediaLoadData loadData) {
+  private boolean isVideoTrack(MediaLoadData loadData) {
     return  loadData.trackType == C.TRACK_TYPE_VIDEO || isVideoFormat(loadData.trackFormat);
   }
 
-  private boolean isAudioOnlyTrack(MediaSourceEventListener.MediaLoadData loadData) {
+  private boolean isAudioOnlyTrack(MediaLoadData loadData) {
     return loadData.trackType == C.TRACK_TYPE_AUDIO || isAudioOnlyFormat(loadData.trackFormat);
   }
 
@@ -408,7 +409,7 @@ public class GeekStatsOverlay implements AnalyticsListener, Runnable {
   }
 
   @Override
-  public void onDownstreamFormatChanged(EventTime eventTime, MediaSourceEventListener.MediaLoadData mediaLoadData) {
+  public void onDownstreamFormatChanged(EventTime eventTime, MediaLoadData mediaLoadData) {
     if (isVideoTrack(mediaLoadData)) {
       lastDownstreamVideoFormat = mediaLoadData.trackFormat;
     } else if (isAudioOnlyTrack(mediaLoadData)) {
@@ -462,7 +463,7 @@ public class GeekStatsOverlay implements AnalyticsListener, Runnable {
   }
 
   @Override
-  public void onLoadCompleted(EventTime eventTime, MediaSourceEventListener.LoadEventInfo loadEventInfo, MediaSourceEventListener.MediaLoadData mediaLoadData) {
+  public void onLoadCompleted(EventTime eventTime, LoadEventInfo loadEventInfo, MediaLoadData mediaLoadData) {
 
     // Set the playlist URL, if this is the first manifest load (timeline is empty)
     boolean isEmpty = manifestUrl.getText().length() == 0;

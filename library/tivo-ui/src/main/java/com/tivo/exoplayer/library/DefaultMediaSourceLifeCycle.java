@@ -8,6 +8,7 @@ import androidx.annotation.Nullable;
 import com.google.android.exoplayer2.C;
 import com.google.android.exoplayer2.ExoPlaybackException;
 import com.google.android.exoplayer2.ExoPlayerLibraryInfo;
+import com.google.android.exoplayer2.MediaItem;
 import com.google.android.exoplayer2.Player;
 import com.google.android.exoplayer2.SimpleExoPlayer;
 import com.google.android.exoplayer2.analytics.AnalyticsListener;
@@ -31,6 +32,7 @@ import com.google.android.exoplayer2.upstream.DefaultHttpDataSourceFactory;
 import com.google.android.exoplayer2.upstream.HttpDataSource;
 import com.google.android.exoplayer2.util.Log;
 
+import com.google.android.exoplayer2.util.MimeTypes;
 import com.google.android.exoplayer2.util.Util;
 import com.tivo.exoplayer.tivocrypt.TivoCryptDataSourceFactory;
 
@@ -196,9 +198,12 @@ public class DefaultMediaSourceLifeCycle implements MediaSourceLifeCycle, Analyt
       boolean enableChunkless) throws UnrecognizedInputFormatException {
 
     MediaSourceFactory factory = null;
+    MediaItem.Builder itemBuilder = new MediaItem.Builder();
+    itemBuilder.setUri(uri);
     @C.ContentType int type = Util.inferContentType(uri);
     switch (type) {
       case C.TYPE_HLS:
+        itemBuilder.setMimeType(MimeTypes.APPLICATION_M3U8);
         factory = new HlsMediaSource.Factory(dataSourceFactory)
             .setAllowChunklessPreparation(enableChunkless)
             .setPlaylistParserFactory(new DualModeHlsPlaylistParserFactory(new DefaultHlsPlaylistParserFactory()));
@@ -207,7 +212,10 @@ public class DefaultMediaSourceLifeCycle implements MediaSourceLifeCycle, Analyt
         factory =  new ProgressiveMediaSource.Factory(dataSourceFactory);
         break;
       case C.TYPE_DASH:   // TODO - add library dependency for DashMediaSource.Factory
+        itemBuilder.setMimeType(MimeTypes.APPLICATION_MPD);
+
       case C.TYPE_SS: // TODO - If we want to support SmoothStreaming, add SSDataSource dependency
+        itemBuilder.setMimeType(MimeTypes.APPLICATION_SS);
         throw new UnrecognizedInputFormatException("Source is not a supported container format (type: " + type + ")", uri);
     }
 
@@ -218,15 +226,17 @@ public class DefaultMediaSourceLifeCycle implements MediaSourceLifeCycle, Analyt
 
         MediaDrmCallback mediaDrmCallback =
                 createMediaDrmCallback(wDrmInfo.getProxyUrl(), wDrmInfo.getKeyRequestProps());
-        DrmSessionManager<ExoMediaCrypto> drmSessionManager =
+        DrmSessionManager drmSessionManager =
                 new DefaultDrmSessionManager.Builder()
                         .setUuidAndExoMediaDrmProvider(C.WIDEVINE_UUID, FrameworkMediaDrm.DEFAULT_PROVIDER)
                         .setMultiSession(false)
                         .build(mediaDrmCallback);
         factory.setDrmSessionManager(drmSessionManager);
+        itemBuilder.setDrmUuid(C.WIDEVINE_UUID);
+        itemBuilder.setDrmLicenseUri(wDrmInfo.getProxyUrl());   // TODO - not sure this is correct way to get the reqst props
       }
     }
-    return factory.createMediaSource(uri);
+    return factory.createMediaSource(itemBuilder.build());
   }
 
   private HttpMediaDrmCallback createMediaDrmCallback(
@@ -297,7 +307,7 @@ public class DefaultMediaSourceLifeCycle implements MediaSourceLifeCycle, Analyt
    */
   @Override
   public void onTimelineChanged(EventTime eventTime, int reason) {
-    if (reason == Player.TIMELINE_CHANGE_REASON_PREPARED) {
+    if (reason == Player.TIMELINE_CHANGE_REASON_PLAYLIST_CHANGED) {
       if (!isInitialMediaSourceEvent && callback != null) {
         callback.mediaSourcePrepared(currentMediaSource, player);
         isInitialMediaSourceEvent = false;

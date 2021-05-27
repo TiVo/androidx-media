@@ -4,6 +4,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4;
 
 import java.util.Map;
 
+import com.google.android.exoplayer2.source.MediaLoadData;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
@@ -17,7 +18,6 @@ import com.google.android.exoplayer2.Timeline;
 import com.google.android.exoplayer2.analytics.AnalyticsListener;
 import com.google.android.exoplayer2.analytics.PlaybackStats;
 import com.google.android.exoplayer2.analytics.PlaybackStatsListener;
-import com.google.android.exoplayer2.source.MediaSourceEventListener;
 import com.google.android.exoplayer2.testutil.FakeTimeline;
 import com.google.android.exoplayer2.util.MimeTypes;
 
@@ -32,20 +32,22 @@ public class PlaybackStatsExtensionTest {
     @Test
     public void testGetTimeInFormat_AllwaysPlayingState() {
         Format formats[] = {
-                TEST_BASEVIDEO_FORMAT.copyWithBitrate(10), TEST_BASEVIDEO_FORMAT.copyWithBitrate(20), TEST_BASEVIDEO_FORMAT.copyWithBitrate(30),
+                TEST_BASEVIDEO_FORMAT.buildUpon().setAverageBitrate(10).setPeakBitrate(10).build(), TEST_BASEVIDEO_FORMAT.buildUpon().setAverageBitrate(20).setPeakBitrate(20).build(), TEST_BASEVIDEO_FORMAT.buildUpon().setAverageBitrate(30).setPeakBitrate(30).build(),
         };
 
         PlaybackStatsListener playbackStatsListener = new PlaybackStatsListener(/* keepHistory= */ true, /* callback= */ null);
-        playbackStatsListener.onTimelineChanged(createEventTime(0), Player.TIMELINE_CHANGE_REASON_DYNAMIC);
+        playbackStatsListener.onTimelineChanged(createEventTime(0), Player.TIMELINE_CHANGE_REASON_SOURCE_UPDATE);
 
         playbackStatsListener.onDownstreamFormatChanged(createEventTime(0), createMediaLoad(formats[0]));
-        playbackStatsListener.onPlayerStateChanged(createEventTime(5), true, Player.STATE_READY);
+        playbackStatsListener.onPlaybackStateChanged(createEventTime(5), Player.STATE_READY);
+        playbackStatsListener.onPlayWhenReadyChanged(createEventTime(5), true, Player.PLAY_WHEN_READY_CHANGE_REASON_USER_REQUEST);
 
         playbackStatsListener.onDownstreamFormatChanged(createEventTime(30), createMediaLoad(formats[1]));
         playbackStatsListener.onDownstreamFormatChanged(createEventTime(100), createMediaLoad(formats[2]));
         playbackStatsListener.onDownstreamFormatChanged(createEventTime(160), createMediaLoad(formats[0]));
         playbackStatsListener.onDownstreamFormatChanged(createEventTime(200), createMediaLoad(formats[1]));
-        playbackStatsListener.onPlayerStateChanged(createEventTime(300), true, Player.STATE_ENDED);
+        playbackStatsListener.onPlaybackStateChanged(createEventTime(300), Player.STATE_ENDED);
+        playbackStatsListener.onPlayWhenReadyChanged(createEventTime(300), false, Player.PLAY_WHEN_READY_CHANGE_REASON_USER_REQUEST);
 
         long[] expected = {
                 (30 - 5) + (200 - 160),
@@ -73,22 +75,23 @@ public class PlaybackStatsExtensionTest {
     @Test
     public void testGetTimeInFormat_PlayingStateChange() {
         Format formats[] = {
-                TEST_BASEVIDEO_FORMAT.copyWithBitrate(10), TEST_BASEVIDEO_FORMAT.copyWithBitrate(20), TEST_BASEVIDEO_FORMAT.copyWithBitrate(30),
+                TEST_BASEVIDEO_FORMAT.buildUpon().setAverageBitrate(10).setPeakBitrate(10).build(), TEST_BASEVIDEO_FORMAT.buildUpon().setAverageBitrate(20).setPeakBitrate(20).build(), TEST_BASEVIDEO_FORMAT.buildUpon().setAverageBitrate(30).setPeakBitrate(30).build(),
         };
 
         PlaybackStatsListener playbackStatsListener = new PlaybackStatsListener(/* keepHistory= */ true, /* callback= */ null);
 
-        playbackStatsListener.onTimelineChanged(createEventTime(0), Player.TIMELINE_CHANGE_REASON_DYNAMIC);
+        playbackStatsListener.onTimelineChanged(createEventTime(0), Player.TIMELINE_CHANGE_REASON_SOURCE_UPDATE);
 
         playbackStatsListener.onDownstreamFormatChanged(createEventTime(0), createMediaLoad(formats[0]));
-        playbackStatsListener.onPlayerStateChanged(createEventTime(5), true, Player.STATE_READY);
+        playbackStatsListener.onPlaybackStateChanged(createEventTime(5), Player.STATE_READY);
+        playbackStatsListener.onPlayWhenReadyChanged(createEventTime(5), true, Player.PLAY_WHEN_READY_CHANGE_REASON_USER_REQUEST);
         playbackStatsListener.onDownstreamFormatChanged(createEventTime(30), createMediaLoad(formats[1]));
-        playbackStatsListener.onPlayerStateChanged(createEventTime(40), true, Player.STATE_BUFFERING);
-        playbackStatsListener.onPlayerStateChanged(createEventTime(80), true, Player.STATE_READY);
+        playbackStatsListener.onPlaybackStateChanged(createEventTime(40), Player.STATE_BUFFERING);
+        playbackStatsListener.onPlaybackStateChanged(createEventTime(80), Player.STATE_READY);
         playbackStatsListener.onDownstreamFormatChanged(createEventTime(100), createMediaLoad(formats[2]));
         playbackStatsListener.onDownstreamFormatChanged(createEventTime(160), createMediaLoad(formats[0]));
         playbackStatsListener.onDownstreamFormatChanged(createEventTime(200), createMediaLoad(formats[1]));
-        playbackStatsListener.onPlayerStateChanged(createEventTime(400), true, Player.STATE_ENDED);
+        playbackStatsListener.onPlaybackStateChanged(createEventTime(400), Player.STATE_ENDED);
         long[] expected = {
                 (30 - 5) + (200 - 160),
                 ((100 - 30) - (80 - 40)) + (400 - 200),
@@ -116,9 +119,9 @@ public class PlaybackStatsExtensionTest {
     }
 
 
-    static MediaSourceEventListener.MediaLoadData createMediaLoad(Format format) {
+    static MediaLoadData createMediaLoad(Format format) {
         int type = MimeTypes.getTrackType(format.sampleMimeType);
-        return new MediaSourceEventListener.MediaLoadData(0, type, format, 0, null, 0, 0);
+        return new MediaLoadData(0, type, format, 0, null, 0, 0);
     }
 
     static AnalyticsListener.EventTime createEventTime(long realtimeMs) {
@@ -128,6 +131,9 @@ public class PlaybackStatsExtensionTest {
                 0,
                 null,
                 0,
+                TEST_TIMELINE,
+                0,
+                null,
                 0,
                 0);
     }

@@ -38,8 +38,8 @@ public class FrameCuratorPlaylistParserTest {
         FrameCuratorPlaylistParser testee = new FrameCuratorPlaylistParser();
         HlsMediaPlaylist.Segment result = testee.smallestSegmentInRange(mediaPlaylist.segments, 3, 9);
         // #EXT-X-BYTERANGE:97760@623408
-        assertThat(result.byterangeLength).isEqualTo(97760);
-        assertThat(result.byterangeOffset).isEqualTo(623408);
+        assertThat(result.byteRangeLength).isEqualTo(97760);
+        assertThat(result.byteRangeOffset).isEqualTo(623408);
     }
 
 

@@ -23,7 +23,7 @@ import com.google.android.exoplayer2.trickplay.TrickPlayControlFactory;
 import com.google.android.exoplayer2.util.EventLogger;
 import com.google.android.exoplayer2.util.Log;
 import com.google.android.exoplayer2.util.MimeTypes;
-import com.google.android.exoplayer2.util.Predicate;
+import com.google.common.base.Predicate;
 import com.tivo.exoplayer.library.tracks.TrackInfo;
 import java.io.File;
 import java.io.FileInputStream;
@@ -450,7 +450,7 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
         TrackSelection groupSelection = getTrackSelectionForGroup(group);
         for (int trackIndex = 0; trackIndex < group.length; trackIndex++) {
           Format format = group.getFormat(trackIndex);
-          if (matching.evaluate(format)) {
+          if (matching.apply(format)) {
             boolean isSelected = groupSelection != null
                 && groupSelection.getSelectedFormat().equals(format);
             availableTracks.add(new TrackInfo(format, isSelected));

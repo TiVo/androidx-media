@@ -5,6 +5,7 @@ import android.media.MediaCodec;
 import android.os.Handler;
 import androidx.annotation.Nullable;
 
+import androidx.annotation.RequiresApi;
 import com.google.android.exoplayer2.C;
 import com.google.android.exoplayer2.DefaultRenderersFactory;
 import com.google.android.exoplayer2.ExoPlaybackException;
@@ -36,14 +37,11 @@ class TrickPlayRendererFactory extends DefaultRenderersFactory {
     setAllowedVideoJoiningTimeMs(0);
   }
 
-
   @Override
   protected void buildVideoRenderers(
       Context context,
       @ExtensionRendererMode int extensionRendererMode,
       MediaCodecSelector mediaCodecSelector,
-      @Nullable DrmSessionManager<FrameworkMediaCrypto> drmSessionManager,
-      boolean playClearSamplesWithoutKeys,
       boolean enableDecoderFallback,
       Handler eventHandler,
       VideoRendererEventListener eventListener,
@@ -56,8 +54,7 @@ class TrickPlayRendererFactory extends DefaultRenderersFactory {
             context,
             mediaCodecSelector,
             allowedVideoJoiningTimeMs,
-            drmSessionManager,
-            playClearSamplesWithoutKeys,
+            enableDecoderFallback,
             eventHandler,
             eventListener, MAX_DROPPED_VIDEO_FRAME_COUNT_TO_NOTIFY));
 
@@ -76,13 +73,13 @@ class TrickPlayRendererFactory extends DefaultRenderersFactory {
         Context context,
         MediaCodecSelector mediaCodecSelector,
         long allowedJoiningTimeMs,
-        @Nullable DrmSessionManager<FrameworkMediaCrypto> drmSessionManager,
-        boolean playClearSamplesWithoutKeys,
+        boolean enableDecoderFallback,
         @Nullable Handler eventHandler,
         @Nullable VideoRendererEventListener eventListener,
         int maxDroppedFramesToNotify) {
-      super(context, mediaCodecSelector, allowedJoiningTimeMs, drmSessionManager, playClearSamplesWithoutKeys,
+      super(context, mediaCodecSelector, allowedJoiningTimeMs, enableDecoderFallback,
           eventHandler, eventListener, maxDroppedFramesToNotify);
+
       trickPlay = trickPlayController;
       trickPlay.getCurrentTrickMode();
     }
@@ -115,6 +112,7 @@ class TrickPlayRendererFactory extends DefaultRenderersFactory {
     }
 
     @Override
+    @RequiresApi(21)
     protected void renderOutputBufferV21(MediaCodec codec, int index, long presentationTimeUs,
         long releaseTimeNs) {
       super.renderOutputBufferV21(codec, index, presentationTimeUs, releaseTimeNs);
