@@ -253,6 +253,7 @@ public final class Cea608Decoder extends CeaDecoder {
   private CueBuilder currentCueBuilder;
   @Nullable private List<Cue> cues;
   @Nullable private List<Cue> lastCues;
+  private long inputTimestampUs;
 
   private int captionMode;
   private int captionRowCount;
@@ -270,6 +271,9 @@ public final class Cea608Decoder extends CeaDecoder {
 
   private long lastCueUpdateUs;
 
+  // This flag is used to track the control word EOC followed by an EDM. If an EOC followes EDM,
+  // the working memory also needs to be cleared to avoid stale caption on screen.
+  private boolean fControlWordEdmSeen;
   /**
    * Constructs an instance.
    *
@@ -379,6 +383,7 @@ public final class Cea608Decoder extends CeaDecoder {
   @SuppressWarnings("ByteBufferBackingArray")
   @Override
   protected void decode(SubtitleInputBuffer inputBuffer) {
+    inputTimestampUs = inputBuffer.timeUs;
     ByteBuffer subtitleData = Assertions.checkNotNull(inputBuffer.data);
     ccData.reset(subtitleData.array(), subtitleData.limit());
     boolean captionDataProcessed = false;
@@ -405,7 +410,6 @@ public final class Cea608Decoder extends CeaDecoder {
       // Strip the parity bit from each byte to get CC data.
       byte ccData1 = (byte) (ccByte1 & 0x7F);
       byte ccData2 = (byte) (ccByte2 & 0x7F);
-
       if (ccData1 == 0 && ccData2 == 0) {
         // Ignore empty captions.
         continue;
@@ -472,6 +476,7 @@ public final class Cea608Decoder extends CeaDecoder {
       if (captionMode == CC_MODE_ROLL_UP || captionMode == CC_MODE_PAINT_ON) {
         cues = getDisplayCues();
         lastCueUpdateUs = getPositionUs();
+        onNewSubtitleDataAvailable(inputTimestampUs);  // update screen
       }
     }
   }
@@ -587,17 +592,27 @@ public final class Cea608Decoder extends CeaDecoder {
 
     switch (cc2) {
       case CTRL_ERASE_DISPLAYED_MEMORY:
+        fControlWordEdmSeen = true;
         cues = Collections.emptyList();
         if (captionMode == CC_MODE_ROLL_UP || captionMode == CC_MODE_PAINT_ON) {
           resetCueBuilders();
         }
+        onNewSubtitleDataAvailable(inputTimestampUs);  // update screen
         break;
       case CTRL_ERASE_NON_DISPLAYED_MEMORY:
         resetCueBuilders();
         break;
       case CTRL_END_OF_CAPTION:
         cues = getDisplayCues();
-        resetCueBuilders();
+        // As per CEA-608 section C.10 Style Switching (Regulatory), on receiving EOC,
+        // force the decoder into pop-on style
+        setCaptionMode(CC_MODE_POP_ON);
+        onNewSubtitleDataAvailable(inputTimestampUs);  // update screen
+        if (fControlWordEdmSeen) {
+          // clear the working memory only if this is after an ERASE_DISPLAYED_MEMORY. Otherwise,
+          // the caption accumulated in working memory might be cleared before getting displaed
+          resetCueBuilders();
+        }
         break;
       case CTRL_CARRIAGE_RETURN:
         // carriage returns only apply to rollup captions; don't bother if we don't have anything
@@ -673,6 +688,7 @@ public final class Cea608Decoder extends CeaDecoder {
         || captionMode == CC_MODE_UNKNOWN) {
       // When switching from paint-on or to roll-up or unknown, we also need to clear the caption.
       cues = Collections.emptyList();
+      onNewSubtitleDataAvailable(inputTimestampUs);  // update screen
     }
   }
 
@@ -685,6 +701,7 @@ public final class Cea608Decoder extends CeaDecoder {
     currentCueBuilder.reset(captionMode);
     cueBuilders.clear();
     cueBuilders.add(currentCueBuilder);
+    fControlWordEdmSeen = false;
   }
 
   private void maybeUpdateIsInCaptionService(byte cc1, byte cc2) {
@@ -945,14 +962,17 @@ public final class Cea608Decoder extends CeaDecoder {
           break;
       }
 
+      int lineAnchor;
       int line;
       // Note: Row indices are in the range [1-15], Cue.line counts from 0 (top) and -1 (bottom).
       if (row > (BASE_ROW / 2)) {
+        lineAnchor = Cue.ANCHOR_TYPE_END;
         line = row - BASE_ROW;
         // Two line adjustments. The first is because line indices from the bottom of the window
         // start from -1 rather than 0. The second is a blank row to act as the safe area.
         line -= 2;
       } else {
+        lineAnchor = Cue.ANCHOR_TYPE_START;
         // The `row` of roll-up cues positions the bottom line (even for cues shown in the top
         // half of the screen), so we need to consider the number of rows in this cue. In
         // non-roll-up, we don't need any further adjustments because we leave the first line
@@ -965,6 +985,7 @@ public final class Cea608Decoder extends CeaDecoder {
           .setText(cueString)
           .setTextAlignment(Alignment.ALIGN_NORMAL)
           .setLine(line, Cue.LINE_TYPE_NUMBER)
+          .setLineAnchor(lineAnchor)
           .setPosition(position)
           .setPositionAnchor(positionAnchor)
           .build();
