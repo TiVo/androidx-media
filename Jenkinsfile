@@ -2,7 +2,13 @@
 
 svcId = 'exoplayerprvt'
 
-
+def user_id
+def group_id
+node {
+  label 'docker'
+  user_id = sh(returnStdout: true, script: 'id -u').trim()
+  group_id = sh(returnStdout: true, script: 'id -g').trim()
+}
 pipeline { 
   agent none
 
@@ -12,39 +18,20 @@ pipeline {
   }
 
   stages {
-    stage("Environment Setup") {
-      agent { label 'linux-android' }
-
-      steps { 
-        sh '''
-        #	Bootstrap
-        p4 print -q //d-alviso/buildism/cpiogz/tools/ism/scripts/bootstrap_android_sdk.sh#1 > bootstrap_android_sdk.sh
-        chmod +x bootstrap_android_sdk.sh
-
-        if [ -n "$ANDROID_HOME" ] && [ -z "$ANDROID_SDK_ROOT" ]; then
-	        export ANDROID_SDK_ROOT=$ANDROID_HOME
-        fi
-
-        . ./bootstrap_android_sdk.sh
-        printenv
-
-        $ANDROID_SDK_ROOT/tools/bin/sdkmanager --list | sed -e '/Available Packages/q'
-        pwd
-        '''
-      }
-    }
 
     stage("Perform Build") {
-      agent { label 'linux-android' }
-
-      environment {
-        ANDROID_SDK_ROOT = "/home/build/Android/sdk"
-        PATH = "$PATH:$ANDROID_SDK_ROOT/tools/bin:$ANDROID_SDK_ROOT/platform-tools"
+      agent {
+        dockerfile {
+          label 'docker'
+          additionalBuildArgs "--build-arg UID=${user_id} --build-arg GID=${group_id}"
+          registryUrl 'https://docker.tivo.com'
+          reuseNode true
+        }
       }
 
       stages {
 
-        // Build first, everything in ExoPlayer depends on this
+        // Build first, everything in ExoPlayer depends on this.  Note this is the only 'clean' build
         stage("Build ExoPlayer core") {
           options {
             skipDefaultCheckout()
@@ -53,7 +40,8 @@ pipeline {
           steps {
             script {
               try {
-                sh './gradlew library-core:build'
+                sh 'env'
+                sh './gradlew clean library-core:build'
               } finally {
                 junit allowEmptyResults: true, testResults: 'library/core/buildout/test-results/testReleaseUnitTest/TEST-*.xml'
               }
