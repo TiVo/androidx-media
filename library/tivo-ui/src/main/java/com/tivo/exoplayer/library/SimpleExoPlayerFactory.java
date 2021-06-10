@@ -242,6 +242,22 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
    */
   @CallSuper
   public SimpleExoPlayer createPlayer(boolean playWhenReady, boolean defaultTunneling) {
+    return createPlayer(playWhenReady, defaultTunneling, new DefaultLoadControl());
+  }
+
+  /**
+   * Create a new {@link SimpleExoPlayer}.  This is the partner method to {link {@link #releasePlayer()}}
+   *
+   * Call this when your application is started.
+   *
+   * @param playWhenReady sets the play when ready flag.
+   * @param defaultTunneling - default track selection to prefer tunneling (can turn this off {@link #setTunnelingMode(boolean)}}
+   * @param control - LoadControl for buffer handling
+   * @return the newly created player.  Also always available via {@link #getCurrentPlayer()}
+   */
+  @CallSuper
+  public SimpleExoPlayer createPlayer(boolean playWhenReady, boolean defaultTunneling, LoadControl control) {
+    assert control != null;
     if (player != null) {
       releasePlayer();
     }
@@ -251,7 +267,7 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
     trackSelector = createTrackSelector(defaultTunneling, context, trackSelectionFactory);
     trickPlayControl = trickPlayControlFactory.createTrickPlayControl(trackSelector);
     RenderersFactory renderersFactory = trickPlayControl.createRenderersFactory(context);
-    LoadControl loadControl = trickPlayControl.createLoadControl(new DefaultLoadControl());
+    LoadControl loadControl = trickPlayControl.createLoadControl(control);
 
     player = new SimpleExoPlayer.Builder(context, renderersFactory)
             .setTrackSelector(trackSelector)
