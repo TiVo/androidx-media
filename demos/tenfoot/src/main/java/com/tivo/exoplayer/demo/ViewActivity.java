@@ -21,6 +21,7 @@ import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.fragment.app.DialogFragment;
 import com.google.android.exoplayer2.C;
+import com.google.android.exoplayer2.DefaultLoadControl;
 import com.google.android.exoplayer2.Format;
 import com.google.android.exoplayer2.Player;
 import com.google.android.exoplayer2.SimpleExoPlayer;
@@ -249,7 +250,13 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
     super.onStart();
     SimpleExoPlayerFactory.initializeLogging(getApplicationContext(), DEFAULT_LOG_LEVEL);
     Log.d(TAG, "onStart() called");
-    SimpleExoPlayer player = exoPlayerFactory.createPlayer(false, false);
+    DefaultLoadControl.Builder builder = new DefaultLoadControl.Builder();
+    builder.setBufferDurationsMs(
+            DefaultLoadControl.DEFAULT_MIN_BUFFER_MS,
+            DefaultLoadControl.DEFAULT_MAX_BUFFER_MS,
+            1000,   // Faster channel change
+            DefaultLoadControl.DEFAULT_BUFFER_FOR_PLAYBACK_AFTER_REBUFFER_MS);
+    SimpleExoPlayer player = exoPlayerFactory.createPlayer(false, false, builder);
 
     TrickPlayControl trickPlayControl = exoPlayerFactory.getCurrentTrickPlayControl();
     currentScrubHandler = new ScrubHandler(trickPlayControl);

@@ -236,28 +236,53 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
    *
    * Call this when your application is started.
    *
+   * This API takes the defaults for {@link DefaultLoadControl} which can be changed using the sister API
+   * {@link #createPlayer(boolean, boolean, DefaultLoadControl.Builder)}
+   *
    * @param playWhenReady sets the play when ready flag.
    * @param defaultTunneling - default track selection to prefer tunneling (can turn this off {@link #setTunnelingMode(boolean)}}
    * @return the newly created player.  Also always available via {@link #getCurrentPlayer()}
    */
   @CallSuper
   public SimpleExoPlayer createPlayer(boolean playWhenReady, boolean defaultTunneling) {
-    return createPlayer(playWhenReady, defaultTunneling, new DefaultLoadControl());
+    DefaultLoadControl.Builder builder = new DefaultLoadControl.Builder();
+
+    builder.setBufferDurationsMs(
+            DefaultLoadControl.DEFAULT_MIN_BUFFER_MS,   // Player will start fetching if buffered falls less than this
+            DefaultLoadControl.DEFAULT_MAX_BUFFER_MS,   // Player will stop all fetching after this. Sets max that is held
+            DefaultLoadControl.DEFAULT_BUFFER_FOR_PLAYBACK_MS,
+            DefaultLoadControl.DEFAULT_BUFFER_FOR_PLAYBACK_AFTER_REBUFFER_MS);
+
+    return createPlayer(playWhenReady, defaultTunneling, builder);
   }
 
   /**
    * Create a new {@link SimpleExoPlayer}.  This is the partner method to {link {@link #releasePlayer()}}
    *
-   * Call this when your application is started.
+   * Call this when your application is started.  This API allows control of the buffering levels by passing in
+   * a LoadControl builder.  It is recommended not to change anything other than the
+   * {@link DefaultLoadControl.Builder#setBufferDurationsMs(int, int, int, int)}. These are described in the ExoPlayer
+   * Javadoc.  Quick summary on setBufferDuration follows:
+   *
+   * The first parameter set where the player starts fetching again (if buffering falls below this
+   * threshold value, the player will load segments),  the second parameter sets the max the player
+   * will ever buffer.  Note, for Live these limits are restricted by distance to the live edge.
+   * For mobile playback, the spread between MIN and MAX allows radio off time once the player reaches
+   * MAX it will not turn the radio on and start fetching again till it hits MIN, this helps battery life
+   *
+   * The 3rd and 4th parameters set how much buffer the player requires following fresh playback start or
+   * after re-buffering following a stall.  Setting the 3rd parameter lower reduces channel change latency at
+   * the cost of higher risk of initial re-buffering.
    *
    * @param playWhenReady sets the play when ready flag.
    * @param defaultTunneling - default track selection to prefer tunneling (can turn this off {@link #setTunnelingMode(boolean)}}
-   * @param control - LoadControl for buffer handling
+   * @param controlBuilder - DefaultLoadControl.Builder, allows changing buffering behavior for how often player fetches and what
+   *                       the player keeps {@link DefaultLoadControl.Builder#setBufferDurationsMs(int, int, int, int)}
    * @return the newly created player.  Also always available via {@link #getCurrentPlayer()}
    */
   @CallSuper
-  public SimpleExoPlayer createPlayer(boolean playWhenReady, boolean defaultTunneling, LoadControl control) {
-    assert control != null;
+  public SimpleExoPlayer createPlayer(boolean playWhenReady, boolean defaultTunneling, DefaultLoadControl.Builder controlBuilder) {
+    assert controlBuilder != null;
     if (player != null) {
       releasePlayer();
     }
@@ -267,7 +292,8 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
     trackSelector = createTrackSelector(defaultTunneling, context, trackSelectionFactory);
     trickPlayControl = trickPlayControlFactory.createTrickPlayControl(trackSelector);
     RenderersFactory renderersFactory = trickPlayControl.createRenderersFactory(context);
-    LoadControl loadControl = trickPlayControl.createLoadControl(control);
+
+    LoadControl loadControl = trickPlayControl.createLoadControl(controlBuilder.createDefaultLoadControl());
 
     player = new SimpleExoPlayer.Builder(context, renderersFactory)
             .setTrackSelector(trackSelector)
