@@ -208,7 +208,7 @@ import org.checkerframework.checker.nullness.qual.RequiresNonNull;
   @Nullable private final Extractor previousExtractor;
 
   private final boolean isMasterTimestampSource;
-  private final boolean hasGapTag;
+  final boolean hasGapTag;
   private final TimestampAdjuster timestampAdjuster;
   private final boolean shouldSpliceIn;
   private final HlsExtractorFactory extractorFactory;
@@ -324,6 +324,15 @@ import org.checkerframework.checker.nullness.qual.RequiresNonNull;
       }
       loadCompleted = true;
     }
+  }
+
+  /**
+   * If their are any samples loaded in this chunk.
+   *
+   * @return true if samples were loaded
+   */
+  boolean hasSamples() {
+    return ! hasGapTag;   // TOOD - could expand upon this to be more accurate, but for sure GAP has none
   }
 
   // Internal methods.
