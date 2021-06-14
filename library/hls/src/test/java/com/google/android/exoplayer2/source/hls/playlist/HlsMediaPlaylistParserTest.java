@@ -544,6 +544,35 @@ public class HlsMediaPlaylistParserTest {
   }
 
   @Test
+  public void testPseudoGapTag() throws IOException {
+    Uri playlistUri = Uri.parse("https://example.com/gap.m3u8");
+    String playlistString =
+      "#EXTM3U\n" +
+              "#EXT-X-MEDIA-SEQUENCE:1\n" +
+              "#EXT-X-VERSION:8\n" +
+              "#EXT-X-TARGETDURATION:7\n" +
+              "#EXT-X-PROGRAM-DATE-TIME:2020-11-25T02:58:34.454489\n" +
+              "#EXTINF:6.006,\n" +
+              "CCURStream_MultiPortMulticast1-1_T1606273114454489~D6006000.tsv\n" +
+              "#EXTINF:6.006,\n" +
+              "CCURStream_MultiPortMulticast1-1_T1606273120460489~D6006000.tsv\n" +
+              "#EXTINF:6.006,\n" +
+              "CCURStream_MultiPortMulticast1-1_T1606273126466489~D6006000.tsv\n" +
+              "#EXTINF:6.006,\n" +
+              "CCURStream_MultiPortMulticast1-1_T1606273132472489~D6006000.tsv\n" +
+              "#EXTINF:6.006,\n" +
+              "CCURStream_MultiPortMulticast1-1_T1606273138478489~D6006000.tsv\n" +
+              "#EXT-X-PROGRAM-DATE-TIME:2020-11-25T02:59:28.508489\n" +
+              "#EXTINF:6.006,\n" +
+              "CCURStream_MultiPortMulticast1-1_T1606273168508489~D6006000.tsv\n";
+    InputStream inputStream = new ByteArrayInputStream(Util.getUtf8Bytes(playlistString));
+    HlsMediaPlaylist playlist =
+            (HlsMediaPlaylist) new HlsPlaylistParser().parse(playlistUri, inputStream);
+    // ExoPlayer truncates to milliseconds, otherwise answer is 1606273138.478489
+    assertThat(playlist.startTimeUs).isEqualTo(1606273138478000L);
+  }
+
+  @Test
   public void testVariableSubstitution() throws IOException {
     Uri playlistUri = Uri.parse("https://example.com/substitution.m3u8");
     String playlistString =
