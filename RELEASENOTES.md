@@ -14,7 +14,8 @@ from their site since our last merge. That is 2.11.7 (2020-06-29) to 2.13.3 (202
        [blog post](https://medium.com/google-exoplayer/exoplayer-2-12-whats-new-e43ef8ff72e7) for details
     * [r2.11.8](https://github.com/google/ExoPlayer/blob/r2.11.8/RELEASENOTES.md) &ndash; Issue with tunneled playback,
         [Issue 7647](https://github.com/google/ExoPlayer/issues/7647)
-         
+* cherry-pick of commit [2536222f](https://github.com/google/ExoPlayer/commit/2536222fbdcace11e2e564af9b5a65d6a826f5c7)
+  re-done, now a clean conflict free cherry-pick of the commit.
 
 ### 2.11.6-3.6 (06-24-2021)
 * Fix issue [BZSTREAM-7913](https://jira.tivo.com/browse/BZSTREAM-7913) - NPE in `getVideoLevelStr()`
