@@ -114,9 +114,15 @@ public class IFrameAwareAdaptiveTrackSelection extends AdaptiveTrackSelection {
       return Util.toArray(list);
     }
 
-    private boolean shouldFilterTracks(TrackGroup group, int[] tracks) {
+    @VisibleForTesting
+    boolean shouldFilterTracks(TrackGroup group, int[] tracks) {
         boolean noSelectionOverides = group.length == tracks.length;
-        return trickPlayControl != null && noSelectionOverides && isVideoGroup(group);
+        boolean isAllVideo = isVideoGroup(group);
+        boolean hasAnyIframe = false;
+        for (int i=0; i < group.length && ! hasAnyIframe; i++) {
+          hasAnyIframe = isIframeOnly(group.getFormat(i));
+        }
+        return trickPlayControl != null && isAllVideo && hasAnyIframe && noSelectionOverides;
     }
 
     public static boolean isIframeOnly(Format format) {
