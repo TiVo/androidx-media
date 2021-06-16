@@ -1,6 +1,9 @@
 package com.tivo.exoplayer.library.tracks;
 
 import android.text.TextUtils;
+
+import androidx.annotation.NonNull;
+
 import com.google.android.exoplayer2.C;
 import com.google.android.exoplayer2.Format;
 import com.google.android.exoplayer2.trackselection.DefaultTrackSelector;
@@ -85,5 +88,20 @@ public class TrackInfo {
   public String setDescWithProvider(TrackNameProvider provider) {
     desc = provider.getTrackName(format);
     return desc;
+  }
+
+  @NonNull
+  @Override
+  public String toString() {
+    return "TrackInfo("
+            + " desc = "
+            + desc
+            + ", type = "
+            + type
+            + ", format = "
+            + format.toString()
+            + ", isSelected = "
+            + isSelected
+            +")";
   }
 }

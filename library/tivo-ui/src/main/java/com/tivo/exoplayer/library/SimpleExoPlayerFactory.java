@@ -10,6 +10,7 @@ import com.google.android.exoplayer2.ExoPlaybackException;
 import com.google.android.exoplayer2.Format;
 import com.google.android.exoplayer2.LoadControl;
 import com.google.android.exoplayer2.Player;
+import com.google.android.exoplayer2.RendererCapabilities;
 import com.google.android.exoplayer2.RenderersFactory;
 import com.google.android.exoplayer2.SimpleExoPlayer;
 import com.google.android.exoplayer2.analytics.AnalyticsListener;
@@ -516,6 +517,8 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
   /**
    * Get TrackInfo objects for all the text tracks.
    *
+   * All tracks can include tracks which the player cannot player.
+   *
    * @return list of all text in the current MediaSource.
    */
   public List<TrackInfo> getAvailableTextTracks() {
@@ -524,6 +527,8 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
 
   /**
    * Get TrackInfo objects for all the audio tracks.
+   *
+   * All tracks can include tracks which the player cannot player.
    *
    * @return list of all text in the current MediaSource.
    */
@@ -554,14 +559,14 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
 
   /**
    * Return TrackInfo objects for the tracks matching the format indicated by the Predicate.
-   *
+   * <p>
    * Use this API call to use forced track selection via overrides.  To select a TrackInfo with an override
    * use {@link #selectTrack(TrackInfo)}
-   *
+   * <p>
    * The preferred method is using the APIs that use Constraint Based Selection (see
    * <a href="https://exoplayer.dev/doc/reference/com/google/android/exoplayer2/trackselection/DefaultTrackSelector.html">DefaultTrackSelector</a>)
    * like for example {@link #setCloseCaption(boolean, String)}
-   *
+   * <p>
    * Note, this will return an empty list until the media is prepared (player transitions to playback state
    * {@link com.google.android.exoplayer2.Player#STATE_READY}
    *
@@ -580,13 +585,75 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
           Format format = group.getFormat(trackIndex);
           if (matching.evaluate(format)) {
             boolean isSelected = groupSelection != null
-                && groupSelection.getSelectedFormat().equals(format);
+                    && groupSelection.getSelectedFormat().equals(format);
             availableTracks.add(new TrackInfo(format, isSelected));
           }
         }
       }
     }
     return availableTracks;
+  }
+
+  /**
+   * filter the list of trackInfos to include only those which can be played by any renderer of the given type.
+   *
+   * @param originalTrackInfoList list to filter
+   * @param rendererType          One of the {@link C} {@code TRACK_TYPE_*} constants
+   * @return filtered list of tracks or empty list if some error occurs.
+   */
+  public List<TrackInfo> getTracksFilteredForRendererSupport(List<TrackInfo> originalTrackInfoList, int rendererType) {
+    List<TrackInfo> filteredTrackInfoList = new ArrayList<>();
+
+    if (trackSelector == null || originalTrackInfoList == null) {
+      Log.e(TAG, "getTracksFilteredForRendererSupport() : trackSelector or original list is null, returning empty list");
+      return filteredTrackInfoList;
+    }
+
+    MappingTrackSelector.MappedTrackInfo mappedTrackInfo = trackSelector.getCurrentMappedTrackInfo();
+    if (mappedTrackInfo == null) {
+      Log.e(TAG, "getTracksFilteredForRendererSupport() : " +
+              "mappedTrackInfo is null. returning empty list. Call this after player selections are made, probably from onTracksChanged.");
+      return filteredTrackInfoList;
+    }
+
+    List<Integer> rendererIndices = new ArrayList<>();
+    if (mappedTrackInfo != null) {
+      for (int i = 0; i < mappedTrackInfo.getRendererCount(); i++) {
+        if (mappedTrackInfo.getRendererType(i) == rendererType) {
+          rendererIndices.add(i);
+        }
+      }
+    }
+
+    if (rendererIndices.isEmpty()) {
+      Log.e(TAG, "getTracksFilteredForRendererSupport() : No renderer found for given type. Are you sure you're using the right type ?");
+      return filteredTrackInfoList;
+    }
+
+    for (TrackInfo trackInfo : originalTrackInfoList) {
+      Format format = trackInfo.format;
+      boolean isFormatSupported = false;
+      for (int rendererIndex : rendererIndices) {
+        TrackGroupArray trackGroupArray = mappedTrackInfo.getTrackGroups(rendererIndex);
+        for (int groupIndex = 0; groupIndex < trackGroupArray.length; groupIndex++) {
+          TrackGroup trackGroup = trackGroupArray.get(groupIndex);
+          for (int formatIndex = 0; formatIndex < trackGroup.length; formatIndex++) {
+            if (format.equals(trackGroup.getFormat(formatIndex))) {
+              int formatSupport = mappedTrackInfo.getTrackSupport(rendererIndex, groupIndex, formatIndex);
+              isFormatSupported = (formatSupport == RendererCapabilities.FORMAT_HANDLED)
+                      || (trackSelector.getParameters().exceedRendererCapabilitiesIfNecessary && formatSupport == RendererCapabilities.FORMAT_EXCEEDS_CAPABILITIES);
+            }
+          }
+        }
+      }
+      if (isFormatSupported) {
+        filteredTrackInfoList.add(trackInfo);
+      } else {
+        Log.w(TAG, "could not find format mapped in mappedTrackInfo. Format = " + format);
+      }
+    }
+
+    return filteredTrackInfoList;
   }
 
   /**
