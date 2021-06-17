@@ -12,16 +12,21 @@ Changes from current Google releases after 2.12.3 or un-released code from dev-v
 See [Google Releases](https://github.com/google/ExoPlayer/releases) for their release notes.
 
 ###### From Google Release 2.14.2
+
+* Cherry-pick of change Google commit [b5a464c](https://github.com/google/ExoPlayer/commit/b5a464cbccd8109aabf0e6bc40f7c0860580c874). From their release notes:
+	* HLS
+	  * Forward the FRAME-RATE value from the master playlist to renditions.
+	    ([#8960](https://github.com/google/ExoPlayer/issues/8960)).
 * Cherry-pick of change Google commit [08dbfd5](https://github.com/google/ExoPlayer/commit/08dbfd5c5ad9fdb9d0855d8ffc02096b6235052d). From their release notes:
-	*   Extractors:
-	    *   Fix issue where a `trun` atom could be associated with the wrong track
-	        in an FMP4 stream
-	        ([#9056](https://github.com/google/ExoPlayer/pull/9056)). The fix
-	        removes a previous workaround to handle content in which the `track_ID`
-	        is set incorrectly
-	        ([#4083](https://github.com/google/ExoPlayer/issues/4083)). Such content
-	        is malformed and should be re-encoded.
-	        
+  *   Extractors:
+      *   Fix issue where a `trun` atom could be associated with the wrong track
+          in an FMP4 stream
+          ([#9056](https://github.com/google/ExoPlayer/pull/9056)). The fix
+          removes a previous workaround to handle content in which the `track_ID`
+          is set incorrectly
+          ([#4083](https://github.com/google/ExoPlayer/issues/4083)). Such content
+          is malformed and should be re-encoded.
+          
 ### 2.12.3-1.1 (11-10-2021) ###
 
 #### Our Internal Changes
@@ -65,7 +70,7 @@ See [Google Releases](https://github.com/google/ExoPlayer/releases) for their re
 ###### From Google Release 2.13.0
 * Time out on release to prevent ANRs if an underlying platform call is stuck [#4352](https://github.com/google/ExoPlayer/issues/4352).  Cherry-pick [Commit 47812ec](https://github.com/tivocorp/exoplayerprvt/commit/4ff8ed604a00ff2f043a095b29aa2631947812ec) is in Google's [Commit 832cc13](https://github.com/google/ExoPlayer/commit/008c80812b06384b416649196c7601543832cc13)
 
-            
+  ​          
 #### Our Pull Requests to Google
 
 Changes we have submitted to Google for bug fixes that are in pull requests that are either open or merged but not yet released.
@@ -106,7 +111,7 @@ from their site since our last merge. That is 2.11.7 (2020-06-29) to 2.13.3 (202
 ...
    factory.getTracksFilteredForActiveRender(factory.getAvailableAudioTracks())
 
-```` 
+````
 
 ### 2.11.6-3.6 (06-24-2021)
 * Fix issue [BZSTREAM-7913](https://jira.tivo.com/browse/BZSTREAM-7913) - NPE in `getVideoLevelStr()`
@@ -203,7 +208,7 @@ merged i-Frame only support, with this bug fix).  Issue is [BZSTREAM-7478](https
 * Fix issue at Metronet where `EXT-X-DISCONTINUITY-SEQUENCE` changes detected first in audio rendition cause
   freeze in buffering state forever.  This cherry pick fixes the issue:
     * Cherry-pick (6f8a8fbc)[https://github.com/google/ExoPlayer/commit/6f8a8fbc1cf974617056edac6ee0068b175a6454], from
-    Google ExoPlayer release notes for fix for ([#8372](https://github.com/google/ExoPlayer/issues/8372)).
+      Google ExoPlayer release notes for fix for ([#8372](https://github.com/google/ExoPlayer/issues/8372)).
       > Fix issue that could cause playback to become stuck if corresponding
       > `EXT-X-DISCONTINUITY` tags in different media playlists occur at different positions in time
 
