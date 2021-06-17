@@ -24,6 +24,8 @@ import com.google.android.exoplayer2.util.EventLogger;
 import com.google.android.exoplayer2.util.Log;
 import com.google.android.exoplayer2.util.MimeTypes;
 import com.google.android.exoplayer2.util.Predicate;
+import com.tivo.exoplayer.library.errorhandlers.PlaybackExceptionRecovery;
+import com.tivo.exoplayer.library.errorhandlers.StuckPlaylistErrorRecovery;
 import com.tivo.exoplayer.library.tracks.TrackInfo;
 import java.io.File;
 import java.io.FileInputStream;
@@ -158,17 +160,17 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
    * @return default returns {@link DefaultExoPlayerErrorHandler}, return a subclass thereof if you override
    */
   protected DefaultExoPlayerErrorHandler createPlayerErrorHandler(MediaSourceLifeCycle mediaSourceLifeCycle) {
-    List<DefaultExoPlayerErrorHandler.PlaybackExceptionRecovery> errorHandlers = getDefaultPlaybackExceptionHandlers(
+    List<PlaybackExceptionRecovery> errorHandlers = getDefaultPlaybackExceptionHandlers(
         mediaSourceLifeCycle);
 
-    DefaultExoPlayerErrorHandler defaultExoPlayerErrorHandler = new DefaultExoPlayerErrorHandler(errorHandlers);
-    defaultExoPlayerErrorHandler.playerErrorHandlerListener = playerErrorHandlerListener;
+    DefaultExoPlayerErrorHandler defaultExoPlayerErrorHandler =
+            new DefaultExoPlayerErrorHandler(errorHandlers, playerErrorHandlerListener);
     return defaultExoPlayerErrorHandler;
   }
 
   /**
    * If you override {@link #createPlayerErrorHandler(MediaSourceLifeCycle)}, use this method to get
-   * the default set of {@link com.tivo.exoplayer.library.DefaultExoPlayerErrorHandler.PlaybackExceptionRecovery}
+   * the default set of {@link PlaybackExceptionRecovery}
    * handlers to pass to the {@link DefaultExoPlayerErrorHandler} you have extended.  For example:
    *
    * <pre>
@@ -189,11 +191,12 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
    * @param mediaSourceLifeCycle - the current MediaSourceLifeCycle
    * @return the default list of playback error handlers.
    */
-  protected List<DefaultExoPlayerErrorHandler.PlaybackExceptionRecovery> getDefaultPlaybackExceptionHandlers(
+  protected List<PlaybackExceptionRecovery> getDefaultPlaybackExceptionHandlers(
       MediaSourceLifeCycle mediaSourceLifeCycle) {
     return Arrays.asList(
         new AudioTrackInitPlayerErrorHandler(this),
         mediaSourceLifeCycle,
+        new StuckPlaylistErrorRecovery(this),
         new HdmiPlayerErrorHandler(this, context));
   }
 
@@ -681,6 +684,11 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
     if (player != null) {
       player.retry();
     }
+  }
+
+  @Override
+  public void resetAndRetryPlayback() {
+    mediaSourceLifeCycle.resetAndRestartPlayback();
   }
 
   private void commitTrackSelectionParameters(DefaultTrackSelector.ParametersBuilder builder) {

@@ -2,12 +2,11 @@ package com.tivo.exoplayer.library;// Copyright 2010 TiVo Inc.  All rights reser
 
 import android.net.Uri;
 import androidx.annotation.Nullable;
-import com.google.android.exoplayer2.ExoPlaybackException;
 import com.google.android.exoplayer2.source.MediaSource;
 import com.google.android.exoplayer2.source.UnrecognizedInputFormatException;
+import com.tivo.exoplayer.library.errorhandlers.PlaybackExceptionRecovery;
 
-public interface MediaSourceLifeCycle extends
-    DefaultExoPlayerErrorHandler.PlaybackExceptionRecovery {
+public interface MediaSourceLifeCycle extends PlaybackExceptionRecovery {
 
   /**
    * Stops playback of the current URL and re-starts playback of the indicated URL.
@@ -33,8 +32,11 @@ public interface MediaSourceLifeCycle extends
    */
   void setMediaSourceEventCallback(@Nullable MediaSourceEventCallback callback);
 
-  @Override
-  boolean recoverFrom(ExoPlaybackException e);
 
-  boolean restartPlaybackAtLastPosition();
+  /**
+   * Restart playback with the current media source but reset the position
+   * to the default position (starting at 0 for VOD and the live offset for live)
+   *
+   */
+  void resetAndRestartPlayback();
 }

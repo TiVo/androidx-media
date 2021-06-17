@@ -22,6 +22,7 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.fragment.app.DialogFragment;
 import com.google.android.exoplayer2.C;
 import com.google.android.exoplayer2.DefaultLoadControl;
+import com.google.android.exoplayer2.ExoPlaybackException;
 import com.google.android.exoplayer2.Format;
 import com.google.android.exoplayer2.Player;
 import com.google.android.exoplayer2.SimpleExoPlayer;
@@ -40,6 +41,7 @@ import com.google.android.exoplayer2.util.EventLogger;
 import com.tivo.exoplayer.library.DrmInfo;
 import com.tivo.exoplayer.library.GeekStatsOverlay;
 import com.tivo.exoplayer.library.OutputProtectionMonitor;
+import com.tivo.exoplayer.library.PlayerErrorHandlerListener;
 import com.tivo.exoplayer.library.SimpleExoPlayerFactory;
 import com.tivo.exoplayer.library.VcasDrmInfo;
 import com.tivo.exoplayer.library.WidevineDrmInfo;
@@ -164,12 +166,23 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
     Context context = getApplicationContext();
 
     SimpleExoPlayerFactory.initializeLogging(context, DEFAULT_LOG_LEVEL);
-    exoPlayerFactory = new SimpleExoPlayerFactory(context, (error, recovered) -> {
-      if (! recovered) {
-        showError("Un-recovered Playback Error", error);
-        if (statsManager != null) {
-          statsManager.endAllSessions();
-        }
+    exoPlayerFactory = new SimpleExoPlayerFactory(context, (error, status) -> {
+      switch (status) {
+        case IN_PROGRESS:
+          Log.d(TAG, "playerErrorProcessed() - error: " + error.getMessage() + " status: " + status);
+          Toast.makeText(getApplicationContext(), error.getMessage(), Toast.LENGTH_LONG).show();
+          break;
+
+        case SUCCESS:
+          Log.d(TAG, "playerErrorProcessed() - recovered from " + error.getMessage());
+          break;
+
+        case FAILED:
+          ViewActivity.this.showError("Un-recovered Playback Error", error);
+          if (statsManager != null) {
+            statsManager.endAllSessions();
+          }
+          break;
       }
     });
 

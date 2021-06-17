@@ -17,7 +17,6 @@ import com.google.android.exoplayer2.drm.ExoMediaCrypto;
 import com.google.android.exoplayer2.drm.FrameworkMediaDrm;
 import com.google.android.exoplayer2.drm.HttpMediaDrmCallback;
 import com.google.android.exoplayer2.drm.MediaDrmCallback;
-import com.google.android.exoplayer2.source.BehindLiveWindowException;
 import com.google.android.exoplayer2.source.MediaSource;
 import com.google.android.exoplayer2.source.MediaSourceFactory;
 import com.google.android.exoplayer2.source.ProgressiveMediaSource;
@@ -32,10 +31,13 @@ import com.google.android.exoplayer2.upstream.HttpDataSource;
 import com.google.android.exoplayer2.util.Log;
 
 import com.google.android.exoplayer2.util.Util;
+import com.tivo.exoplayer.library.errorhandlers.PlaybackExceptionRecovery;
 import com.tivo.exoplayer.tivocrypt.TivoCryptDataSourceFactory;
 
 import java.io.File;
 import java.lang.reflect.Constructor;
+
+import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
 
 /**
  * Manages creation and the lifecycle of playback of an ExoPlayer {@link MediaSource}
@@ -54,12 +56,13 @@ public class DefaultMediaSourceLifeCycle implements MediaSourceLifeCycle, Analyt
 
   protected final SimpleExoPlayer player;
   protected final Context context;
-  protected MediaSource currentMediaSource;
+  protected @MonotonicNonNull MediaSource currentMediaSource;
 
   @Nullable
   private MediaSourceEventCallback callback;
 
   private boolean isInitialMediaSourceEvent;
+  private @Nullable ExoPlaybackException currentError;
 
   /**
    * Construct the default implementation of {@link MediaSourceLifeCycle}
@@ -248,7 +251,7 @@ public class DefaultMediaSourceLifeCycle implements MediaSourceLifeCycle, Analyt
   public boolean recoverFrom(ExoPlaybackException e) {
     boolean value = false;
 
-    if (isBehindLiveWindow(e)) {
+    if (PlaybackExceptionRecovery.isBehindLiveWindow(e)) {
       // BehindLiveWindowException occurs when the current play point is in
       // a segment that has expired from the server.  This happens if the play point
       // falls behind the oldest segment in a live playlist.
@@ -262,29 +265,40 @@ public class DefaultMediaSourceLifeCycle implements MediaSourceLifeCycle, Analyt
 
       player.prepare(currentMediaSource, true, true);
       value = true;
+
+      currentError = e;
     }
     return value;
   }
 
   @Override
-  public boolean restartPlaybackAtLastPosition() {
-    player.prepare(currentMediaSource, false, true);
-    return true;
+  public boolean checkRecoveryCompleted() {
+    boolean isRecovered = player.isPlaying();
+    if (isRecovered) {
+      currentError = null;
+    }
+    return isRecovered;
   }
 
+  @Override
+  public boolean isRecoveryInProgress() {
+    return currentError != null;
+  }
 
-  private static boolean isBehindLiveWindow(ExoPlaybackException e) {
-    if (e.type != ExoPlaybackException.TYPE_SOURCE) {
-      return false;
-    }
-    Throwable cause = e.getSourceException();
-    while (cause != null) {
-      if (cause instanceof BehindLiveWindowException) {
-        return true;
-      }
-      cause = cause.getCause();
-    }
+  @Override
+  public boolean isRecoveryFailed() {
     return false;
+  }
+
+  @Override
+  public @Nullable ExoPlaybackException currentErrorBeingHandled() {
+    return currentError;
+  }
+
+  @Override
+  public void resetAndRestartPlayback() {
+    assert currentMediaSource != null;
+    player.prepare(currentMediaSource, true, true);
   }
 
   /**
