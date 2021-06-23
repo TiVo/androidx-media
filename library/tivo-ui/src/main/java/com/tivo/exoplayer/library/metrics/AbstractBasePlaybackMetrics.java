@@ -15,6 +15,7 @@ import com.google.android.exoplayer2.analytics.PlaybackStats;
 import com.google.android.exoplayer2.util.Clock;
 import com.google.android.exoplayer2.util.EventLogger;
 import com.google.android.exoplayer2.util.Log;
+import com.tivo.exoplayer.library.util.LoggingUtils;
 import static com.google.android.exoplayer2.analytics.PlaybackStats.PLAYBACK_STATE_ABANDONED;
 import static com.google.android.exoplayer2.analytics.PlaybackStats.PLAYBACK_STATE_BUFFERING;
 import static com.google.android.exoplayer2.analytics.PlaybackStats.PLAYBACK_STATE_ENDED;
@@ -171,7 +172,7 @@ public abstract class AbstractBasePlaybackMetrics {
             Map<String, Long> timeInVariant = new HashMap<>();
 
             for (Map.Entry<Format, Long> entry : timeInFormat.entrySet()) {
-                timeInVariant.put(EventLogger.getVideoLevelStr(entry.getKey()), entry.getValue());
+                timeInVariant.put(LoggingUtils.getVideoLevelStr(entry.getKey()), entry.getValue());
             }
             loggedStats.put("timeInFormats", timeInVariant);
         }
@@ -265,8 +266,8 @@ public abstract class AbstractBasePlaybackMetrics {
     }
 
     /**
-     * Return a Map with the total time spent in each of the {@link Format}'s TODO - move this to ExoPlayer's core
-     * playback stats and make it only playing time
+     * Return a Map with the total time spent in each of the {@link Format}'s.  Note, the base for this in
+     * {@link PlaybackStats} allows for null formats (periods when no video is playing, contain a null format)
      *
      * @return Map of video {@link Format} objects with the total time (including not playing) in each, null if no stats
      * captured

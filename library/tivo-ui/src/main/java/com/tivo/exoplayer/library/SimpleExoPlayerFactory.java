@@ -6,11 +6,13 @@ import androidx.annotation.CallSuper;
 import androidx.annotation.Nullable;
 import com.google.android.exoplayer2.C;
 import com.google.android.exoplayer2.DefaultLoadControl;
+import com.google.android.exoplayer2.ExoPlaybackException;
 import com.google.android.exoplayer2.Format;
 import com.google.android.exoplayer2.LoadControl;
 import com.google.android.exoplayer2.Player;
 import com.google.android.exoplayer2.RenderersFactory;
 import com.google.android.exoplayer2.SimpleExoPlayer;
+import com.google.android.exoplayer2.analytics.AnalyticsListener;
 import com.google.android.exoplayer2.source.TrackGroup;
 import com.google.android.exoplayer2.source.TrackGroupArray;
 import com.google.android.exoplayer2.source.UnrecognizedInputFormatException;
@@ -26,6 +28,7 @@ import com.google.android.exoplayer2.util.MimeTypes;
 import com.google.android.exoplayer2.util.Predicate;
 import com.tivo.exoplayer.library.errorhandlers.PlaybackExceptionRecovery;
 import com.tivo.exoplayer.library.errorhandlers.StuckPlaylistErrorRecovery;
+import com.tivo.exoplayer.library.logging.ExtendedEventLogger;
 import com.tivo.exoplayer.library.tracks.TrackInfo;
 import java.io.File;
 import java.io.FileInputStream;
@@ -91,6 +94,8 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
   @Nullable
   private MediaSourceEventCallback callback;
 
+  private EventListenerFactory eventListenerFactory;
+
   /**
    * Parameters are preserved across player create/destroy (Activity stop/start) to save track
    * selection criteria.
@@ -108,6 +113,78 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
    */
   private TrickPlayControlFactory trickPlayControlFactory;
 
+  /**
+   * Simple callback to produce an AnalyticsListener for logging purposes.
+   */
+  public interface EventListenerFactory {
+
+    /**
+     * Callee should produce an {@link AnalyticsListener} that will be added to the player's
+     * set replacing the default {@link ExtendedEventLogger} that the {@link SimpleExoPlayerFactory}
+     * adds by default.  Feel free to subclass the {@link ExtendedEventLogger} or ExoPlayer's
+     * own {@link EventLogger}
+     *
+     * Return null (override the default) and the {@link SimpleExoPlayerFactory} will not add
+     * any EventLogger.
+     *
+     * @param trackSelector - track selector for use only in the constructor for EventLogger
+     * @return null or an logger that implements {@link AnalyticsListener}
+     */
+    default AnalyticsListener createEventLogger(MappingTrackSelector trackSelector) {
+      return new ExtendedEventLogger(trackSelector);
+    }
+  }
+
+  /**
+   * Preferred mechanism for creating the {@link SimpleExoPlayerFactory}.  Basic builder pattern,
+   * e.g. to get all the default simply:
+   *
+   *   SimpleExo
+   */
+  public static class Builder {
+    private final Context context;
+    private @Nullable PlayerErrorHandlerListener listener;
+    private EventListenerFactory factory;
+
+    public Builder(Context context) {
+      this.context = context;
+      this.factory = new EventListenerFactory() {};
+    }
+
+    /**
+     * Set a playback error handler listener.  This callback is used with error recovery
+     * from {@link Player.EventListener#onPlayerError(ExoPlaybackException)} calls
+     * this allows the client visibility into the error handling performed by
+     * the {@link DefaultExoPlayerErrorHandler} which can recover from some {@link ExoPlaybackException}'s
+     *
+     * @param listener listener to call back
+     * @return this builder for chaining
+     */
+    public Builder setPlaybackErrorHandlerListener(PlayerErrorHandlerListener listener) {
+      this.listener = listener;
+      return this;
+    }
+
+    /**
+     * Allows client a hook to create their own {@link AnalyticsListener} for logging to replace the
+     * default {@link EventLogger} created by the {@link SimpleExoPlayerFactory}
+     *
+     * @param factory - call back for creating the event logger
+     * @return this builder for chaining
+     */
+    public Builder setEventListenerFactory(EventListenerFactory factory) {
+      this.factory = factory;
+      return this;
+    }
+
+    public SimpleExoPlayerFactory build() {
+      SimpleExoPlayerFactory simpleExoPlayerFactory = new SimpleExoPlayerFactory(context);
+      simpleExoPlayerFactory.playerErrorHandlerListener = this.listener;
+      simpleExoPlayerFactory.eventListenerFactory = this.factory;
+      return simpleExoPlayerFactory;
+    }
+
+  }
   /**
    * Construct the factory.  This factory is intended to survive as a singleton for the entire lifecycle of
    * the application (create to destroy).  Note that it holds references to the SimpleExoPlayer it creates,
@@ -127,9 +204,11 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
    * Construct the factory, including specifying an event listener that will be called for
    * playback errors (either recovered from internally or not).
    *
+   * DEPRECATED use
    * @param context - android ApplicationContext
    * @param listener - error listener
    */
+  @Deprecated
   public SimpleExoPlayerFactory(Context context, @Nullable PlayerErrorHandlerListener listener) {
     this(context);
     playerErrorHandlerListener = listener;
@@ -308,7 +387,11 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
 
     trickPlayControl.setPlayer(player);
     player.setPlayWhenReady(playWhenReady);
-    player.addAnalyticsListener(new EventLogger(trackSelector));
+
+    AnalyticsListener logger = eventListenerFactory.createEventLogger(trackSelector);
+    if (logger != null) {
+      player.addAnalyticsListener(logger);
+    }
     playerErrorHandler = createPlayerErrorHandler(mediaSourceLifeCycle);
     player.addListener(playerErrorHandler);
     return player;

@@ -141,7 +141,8 @@ The specific *\<additional description\>* simply contains the uri, allowing you 
 Here is an example segment load completion:
 
 ````
-EventLogger: loadCompleted[media] -  [..., trackId: 2 load-duration: 605ms codecs: mp4a.40.2,avc1.4d4020 start(dur): 1795794/6006 uri: http://live1.nokia.tivo.com/ktvu/vxfmt=dp/h_6940567a96b64b4b5f926f42211420ea/var4950000/vid/seg23997408_w1595615569.ts?device_profile=hls_hlsdrm_verimatrix]
+06-23 10:43:52.109 18336 18336 D EventLogger: loadCompletedMedia [eventTime=6.50, mediaPos=3579.90, buffered=1.68, window=0, period=0, trackId: frumos.tivo.com-multi-audio:eng-Surround load-duration: 1493ms codecs: ac-3 start(dur): 3579576/6006 uri: http://frumos.tivo.com/ccur-session/01_3669909912/rolling-buffer/media/kgo/kgo/transmux/CCURStream_MultiPortMulticast1-10_T1624470195351822~D6006000.tsa]
+
 ````
 The specific *\<additional description\>* text is:
 
@@ -153,8 +154,9 @@ The specific *\<additional description\>* text is:
 During Visual Trick Play, segments are i-Frame only segments
 
 ````
-EventLogger: loadCompleted[media] -  [... trackId: iFrame-0 load-duration: 33ms codecs: avc1.640028 start(dur): 1517508/1001 offset/len: 885668/183300 uri: http://live1.nokia.tivo.com/kqedplus/vxfmt=dp/h_83302b14e5679d9fd9fa6a9b7d7a361a/trk8756000/seg4779778_w1596042051.ts?device_profile=hls]
+06-23 10:58:15.883 18336 18336 D EventLogger: loadCompletedMedia [eventTime=870.28, mediaPos=3299.41, buffered=174.06, window=0, period=0, trackId: iFrame-0 load-duration: 48ms codecs: avc1.640020 start(dur): 4344468/14014 offset/len: 1682600/29892 uri: http://frumos.tivo.com/ccur-session/01_3669909912/rolling-buffer/media/kgo/kgo/transmux/CCURStream_video_MultiPortMulticast2_1624470900-CCUR_iframe.tsv]
 ````
+
 For the i-Frame only segment loads, the byte offset is included
 
 * *offset/len* &mdash; the byte-offset and length of the i-Frame data in the segment.
@@ -164,7 +166,7 @@ Of particular interest when diagnosing stalls is the load duration, this must be
 And a playlist load example completion:
 
 ````
-EventLogger: loadCompleted - load-duration: 129ms, URI: http://live1.nokia.tivo.com/ktvu/vxfmt=dp/h_6940567a96b64b4b5f926f42211420ea/var1980000/aud1101/playlist.m3u8?device_profile=hls_hlsdrm_verimatrix [eventTime=567.11, mediaPos=1790.96, window=0]
+06-23 10:58:15.883 18336 18336 D EventLogger: loadCompletedMedia [eventTime=870.28, mediaPos=3299.41, buffered=174.06, window=0, period=0, trackId: iFrame-0 load-duration: 48ms codecs: avc1.640020 start(dur): 4344468/14014 offset/len: 1682600/29892 uri: http://frumos.tivo.com/ccur-session/01_3669909912/rolling-buffer/media/kgo/kgo/transmux/CCURStream_video_MultiPortMulticast2_1624470900-CCUR_iframe.tsv]
 ````
 
 Live playlist loads should trigger a [Timeline](#timeline) update event, if not the origin/transcoder is not producing new segments quickly enough which can result in stalls.
@@ -205,13 +207,21 @@ It is possible for ExoPlayer to continue retrying when it is in the buffering st
 
 ExoPlayer makes level change decisions each time it starts before it starts to load a new video segment.  There are two log messages that indicate the level has changed.
 
+1. *initialLoadingFormat* &mdash; Shows the starting level
 1. *loadingFormatChanged* &mdash; Indicates a level shift has occurred and a new Format (variant) segment load is starting
-2. *videoFormatChanged* &mdash; Indicates samples with a new format have commenced playback (delay from loadingFormatChanged is because of buffering)
+1. *videoFormatChanged* &mdash; Indicates samples with a new format have commenced playback (delay from loadingFormatChanged is because of buffering)
 
 Here is a sample level shift (loading format change)
 
 ````
-EventLogger: loadingFormatChanged [eventTime=35.62, mediaPos=579.35, window=0, period=0, Buffered: 15283ms -- Old: 1 - 960x540@3725408 New: 2 - 1280x720@7342528]
+06-23 10:58:18.622 18336 18336 D EventLogger: loadingFormatChanged [eventTime=873.02, mediaPos=3376.54, buffered=221.05, window=0, period=0, Old: iFrame_7 - 1280x720@428571, New: 4 - 1280x720@5512160]
+
+````
+
+This is the initial format:
+
+````
+06-23 11:21:22.658 22685 22685 D EventLogger: initialLoadingFormat [eventTime=15.85, mediaPos=3465.46, buffered=0.00, window=0, period=0, 4 - 1280x720@5512160]
 ````
 
 The *\<additional description\>* text shows the current buffering level, and the old and new variant (spacial resolution @ bit-rate (bits per second)).  The resolution and bit-rate are from the HLS playlist.

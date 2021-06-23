@@ -111,16 +111,6 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
   private boolean isAudioRenderOn = true;
   private PlaybackMetricsManagerApi statsManager;
 
-  private class LoggingPlaybackMetrics extends PlaybackMetrics {
-
-    private String jsonFormated() {
-      return "";
-    }
-
-    private void logResults(PlaybackStats stats, MetricsPlaybackSessionManager.SessionInformation sessionInformation) {
-      logPlaybackMetrics(this, stats, sessionInformation);
-    }
-  }
 
   private class ScrubHandler implements TimeBar.OnScrubListener {
 
@@ -183,8 +173,8 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
             statsManager.endAllSessions();
           }
           break;
-      }
-    });
+              }
+            })
 
     LayoutInflater inflater = LayoutInflater.from(context);
     ViewGroup activityView = (ViewGroup) inflater.inflate(R.layout.view_activity, null);
@@ -290,84 +280,13 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
     geekStats.setPlayer(player, trickPlayControl);
 
 
-    statsManager = new ManagePlaybackMetrics.Builder(player, trickPlayControl)
-            .setMetricsEventListener(new MetricsEventListener() {
-              @Override
-              public PlaybackMetrics createEmptyPlaybackMetrics() {
-                return new LoggingPlaybackMetrics();
-              }
-
-            })
-            .build();
+    statsManager = new ManagePlaybackMetrics.Builder(player, trickPlayControl).build();
 
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR2) {
         outputProtectionMonitor.start();
     }
 
     processIntent(getIntent());
-  }
-
-  private void logPlaybackMetrics(PlaybackMetrics metrics, PlaybackStats stats, MetricsPlaybackSessionManager.SessionInformation sessionInformation) {
-
-
-    StringBuilder sb = new StringBuilder();
-    sb.append("\n  ");
-    sb.append("total time:  ");
-    sb.append(stats.getTotalElapsedTimeMs());
-    sb.append("ms");
-    sb.append("\n  ");
-    sb.append("startup time:  ");
-    sb.append(metrics.getInitialPlaybackStartDelay());
-    sb.append("ms");
-    sb.append("\n  ");
-    sb.append("playing time:  ");
-    sb.append(metrics.getTotalPlaybackTimeMs());
-    sb.append("ms");
-    sb.append("\n  ");
-    sb.append("paused time:  ");
-    sb.append(stats.getTotalPausedTimeMs());
-    sb.append("ms");
-    sb.append("\n  ");
-    sb.append("re-buffering time:  ");
-    sb.append(stats.getTotalRebufferTimeMs());
-    sb.append("ms");
-    sb.append("\n  ");
-    sb.append("trick-play time:  ");
-    sb.append(metrics.getTotalTrickPlayTime());
-    sb.append("ms");
-    sb.append("\n  ");
-    sb.append("format changes:  ");
-    sb.append(stats.videoFormatHistory.size());
-    sb.append("\n  ");
-    sb.append("avg rebuffering time:  ");
-    sb.append(metrics.getTotalRebufferingTime());
-    sb.append("\n  ");
-    sb.append("avg video bitrate:  ");
-    sb.append(metrics.getAvgVideoBitrate());
-    sb.append(" Mbps\n  ");
-    sb.append("mean bandwidth: ");
-    sb.append(metrics.getAvgNetworkBitrate());
-    sb.append(" Mbps\n");
-    sb.append("Ended for reason:  ");
-    sb.append(metrics.getEndReason());
-    sb.append("\n  ");
-    if (metrics.getEndReason() == PlaybackMetrics.EndReason.ERROR) {
-      sb.append("Ended error:  ");
-      sb.append(metrics.getEndedWithError());
-      sb.append("\n  ");
-    }
-    Map<Format, Long> timeInFormat = metrics.getTimeInVideoFormat();
-
-    String currentUri = sessionInformation.getSessionUrl();
-
-    Log.d(TAG, "Playback stats for '" + currentUri + "'" + sb.toString());
-
-    if (timeInFormat.size() > 0) {
-      Log.d(TAG, "Time in variant:");
-      for (Map.Entry<Format, Long> entry : timeInFormat.entrySet()) {
-        Log.d(TAG, "  " + EventLogger.getVideoLevelStr(entry.getKey()) + " played for " + entry.getValue() + " ms total");
-      }
-    }
   }
 
   @Override

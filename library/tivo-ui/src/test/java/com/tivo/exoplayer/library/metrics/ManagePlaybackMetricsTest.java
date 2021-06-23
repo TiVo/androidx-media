@@ -4,6 +4,7 @@ import android.os.SystemClock;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 
 import java.util.Map;
+import java.util.Set;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -29,6 +30,8 @@ import com.google.android.exoplayer2.Format;
 import com.google.android.exoplayer2.Player;
 import com.google.android.exoplayer2.SimpleExoPlayer;
 import com.google.android.exoplayer2.analytics.AnalyticsListener;
+import com.google.android.exoplayer2.source.TrackGroupArray;
+import com.google.android.exoplayer2.trackselection.TrackSelectionArray;
 import com.google.android.exoplayer2.trickplay.TrickPlayControl;
 import com.google.android.exoplayer2.trickplay.TrickPlayEventListener;
 import com.google.android.exoplayer2.util.Clock;
@@ -85,6 +88,43 @@ public class ManagePlaybackMetricsTest {
 
         verify(controlMock).addEventListener(trickPlayListenerCaptor.capture());
         trickPlayEventListener = trickPlayListenerCaptor.getValue();
+    }
+
+    @Test
+    public void testNullFormatHandled() {
+        analyticsListener.onDownstreamFormatChanged(createEventTime(200), createMediaLoad(TEST_BASEVIDEO_FORMAT));
+        analyticsListener.onTimelineChanged(createEventTime(200), Player.TIMELINE_CHANGE_REASON_DYNAMIC);
+        analyticsListener.onPlayerStateChanged(createEventTime(200), true, Player.STATE_READY);
+
+
+        // TrackSelection that disables video (our mute for example) can cause a null video format period,
+        // that is the last 40ms (210 - 250) of playback
+        TrackGroupArray testGroups = new TrackGroupArray();
+        TrackSelectionArray testSelection = new TrackSelectionArray();
+        analyticsListener.onTracksChanged(createEventTime(210), testGroups, testSelection);
+
+        SystemClock.setCurrentTimeMillis(250);
+        manageMetrics.endAllSessions();
+        ArgumentCaptor<PlaybackMetrics> metricsArgumentCaptor = ArgumentCaptor.forClass(PlaybackMetrics.class);
+        verify(metricsEventListener).playbackMetricsAvailable(metricsArgumentCaptor.capture(), any());
+        PlaybackMetrics metrics = metricsArgumentCaptor.getValue();
+
+        assertThat(metrics).isInstanceOf(PlaybackMetrics.class);
+        assertThat(metrics).isNotNull();
+        assertThat(metrics.getMetricsAsMap()).isNotNull();
+        Map<Format, Long> timeInVideoFormat = metrics.getTimeInVideoFormat();
+        assertThat(timeInVideoFormat).isNotNull();
+        Set<Map.Entry<Format, Long>> entries = timeInVideoFormat.entrySet();
+        assertThat(entries.size()).isEqualTo(2);
+        for (Map.Entry<Format, Long> entry : entries) {
+            if (entry.getKey() == null) {
+                assertThat(entry.getValue()).isEqualTo(40);
+            } else {
+                assertThat(entry.getValue()).isEqualTo(10);
+                assertThat(entry.getKey()).isEqualTo(TEST_BASEVIDEO_FORMAT);
+            }
+
+        }
     }
 
     @Test
