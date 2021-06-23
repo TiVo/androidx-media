@@ -1,5 +1,12 @@
 # Release notes #
 
+### 2.11.6-3.6 (06-22-2021)
+*   HLS:
+    *   Fix issue where a new initialization segment, as specified by an
+        `EXT-X-MAP` tag in a media playlist, would not be loaded when
+        encountered during playback
+        ([#9004](https://github.com/google/ExoPlayer/issues/9004)).
+
 ### 2.11.6-3.5 (06-18-2021)
 
 Release includes bug fixes and a new API that mobile will use to change load-control

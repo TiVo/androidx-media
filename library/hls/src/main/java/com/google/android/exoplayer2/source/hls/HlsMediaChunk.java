@@ -138,12 +138,19 @@ import org.checkerframework.checker.nullness.qual.RequiresNonNull;
     ParsableByteArray scratchId3Data;
     boolean shouldSpliceIn;
     if (previousChunk != null) {
+      boolean isSameInitData =
+          initDataSpec == previousChunk.initDataSpec
+              || (initDataSpec != null
+                  && previousChunk.initDataSpec != null
+                  && initDataSpec.uri.equals(previousChunk.initDataSpec.uri)
+                  && initDataSpec.position == previousChunk.initDataSpec.position);
       id3Decoder = previousChunk.id3Decoder;
       scratchId3Data = previousChunk.scratchId3Data;
       shouldSpliceIn =
           !playlistUrl.equals(previousChunk.playlistUrl) || !previousChunk.loadCompleted;
       previousExtractor =
-          previousChunk.isExtractorReusable
+          isSameInitData
+                  && previousChunk.isExtractorReusable
                   && previousChunk.discontinuitySequenceNumber == discontinuitySequenceNumber
                   && !shouldSpliceIn
               ? previousChunk.extractor
