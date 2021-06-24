@@ -27,10 +27,12 @@ import com.google.android.exoplayer2.Format;
 import com.google.android.exoplayer2.Player;
 import com.google.android.exoplayer2.SimpleExoPlayer;
 import com.google.android.exoplayer2.Timeline;
+import com.google.android.exoplayer2.analytics.AnalyticsListener;
 import com.google.android.exoplayer2.analytics.PlaybackStats;
 import com.google.android.exoplayer2.demo.TrackSelectionDialog;
 import com.google.android.exoplayer2.source.UnrecognizedInputFormatException;
 import com.google.android.exoplayer2.trackselection.DefaultTrackSelector;
+import com.google.android.exoplayer2.trackselection.MappingTrackSelector;
 import com.google.android.exoplayer2.trickplay.TrickPlayControl;
 import com.google.android.exoplayer2.trickplay.TrickPlayEventListener;
 import com.google.android.exoplayer2.ui.PlayerControlView;
@@ -45,6 +47,7 @@ import com.tivo.exoplayer.library.PlayerErrorHandlerListener;
 import com.tivo.exoplayer.library.SimpleExoPlayerFactory;
 import com.tivo.exoplayer.library.VcasDrmInfo;
 import com.tivo.exoplayer.library.WidevineDrmInfo;
+import com.tivo.exoplayer.library.logging.ExtendedEventLogger;
 import com.tivo.exoplayer.library.metrics.ManagePlaybackMetrics;
 import com.tivo.exoplayer.library.metrics.MetricsEventListener;
 import com.tivo.exoplayer.library.metrics.MetricsPlaybackSessionManager;
@@ -156,25 +159,33 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
     Context context = getApplicationContext();
 
     SimpleExoPlayerFactory.initializeLogging(context, DEFAULT_LOG_LEVEL);
-    exoPlayerFactory = new SimpleExoPlayerFactory(context, (error, status) -> {
-      switch (status) {
-        case IN_PROGRESS:
-          Log.d(TAG, "playerErrorProcessed() - error: " + error.getMessage() + " status: " + status);
-          Toast.makeText(getApplicationContext(), error.getMessage(), Toast.LENGTH_LONG).show();
-          break;
+    exoPlayerFactory = new SimpleExoPlayerFactory.Builder(context)
+            .setPlaybackErrorHandlerListener((error, status) -> {
+              switch (status) {
+                case IN_PROGRESS:
+                  Log.d(TAG, "playerErrorProcessed() - error: " + error.getMessage() + " status: " + status);
+                  Toast.makeText(getApplicationContext(), error.getMessage(), Toast.LENGTH_LONG).show();
+                  break;
 
-        case SUCCESS:
-          Log.d(TAG, "playerErrorProcessed() - recovered from " + error.getMessage());
-          break;
+                case SUCCESS:
+                  Log.d(TAG, "playerErrorProcessed() - recovered from " + error.getMessage());
+                  break;
 
-        case FAILED:
-          ViewActivity.this.showError("Un-recovered Playback Error", error);
-          if (statsManager != null) {
-            statsManager.endAllSessions();
-          }
-          break;
+                case FAILED:
+                  ViewActivity.this.showError("Un-recovered Playback Error", error);
+                  if (statsManager != null) {
+                    statsManager.endAllSessions();
+                  }
+                  break;
               }
             })
+            .setEventListenerFactory(new SimpleExoPlayerFactory.EventListenerFactory() {
+              @Override
+              public AnalyticsListener createEventLogger(MappingTrackSelector trackSelector) {
+                return new ExtendedEventLogger(trackSelector);
+              }
+            })
+            .build();
 
     LayoutInflater inflater = LayoutInflater.from(context);
     ViewGroup activityView = (ViewGroup) inflater.inflate(R.layout.view_activity, null);
