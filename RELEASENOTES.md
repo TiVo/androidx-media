@@ -1,11 +1,26 @@
 # Release notes #
 
-### 2.11.6-3.6 (06-22-2021)
-*   HLS:
-    *   Fix issue where a new initialization segment, as specified by an
-        `EXT-X-MAP` tag in a media playlist, would not be loaded when
-        encountered during playback
-        ([#9004](https://github.com/google/ExoPlayer/issues/9004)).
+### 2.11.6-3.6 (06-24-2021)
+* Fix issue [BZSTREAM-7913](https://jira.tivo.com/browse/BZSTREAM-7913) - NPE in `getVideoLevelStr()`
+* Replaced `EventLogger` modifications with a sub-class, `ExtendedEventLogger`
+* Added API to replace `EventLogger` used by `SimpleExoPlayerFactory`, Example:
+
+````java
+    exoPlayerFactory = new SimpleExoPlayerFactory.Builder(context)
+            .setEventListenerFactory(new SimpleExoPlayerFactory.EventListenerFactory() {
+              @Override
+              public AnalyticsListener createEventLogger(MappingTrackSelector trackSelector) {
+                return new MyOwnEventLogger(trackSelector);
+              }
+            })
+            .build();
+````
+* Back-ported commit [2536222f](https://github.com/google/ExoPlayer/commit/2536222fbdcace11e2e564af9b5a65d6a826f5c7) - fix in dev-v2:
+	* HLS:
+	    *   Fix issue where a new initialization segment, as specified by an
+	        `EXT-X-MAP` tag in a media playlist, would not be loaded when
+	        encountered during playback
+	        ([#9004](https://github.com/google/ExoPlayer/issues/9004)).
 
 ### 2.11.6-3.5 (06-18-2021)
 
