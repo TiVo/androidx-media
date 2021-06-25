@@ -2,6 +2,10 @@
 
 ### 2.11.6-3.6 (06-24-2021)
 * Fix issue [BZSTREAM-7913](https://jira.tivo.com/browse/BZSTREAM-7913) - NPE in `getVideoLevelStr()`
+* Add support in library-tivo-ui for recovering from `PlaylistStuckException`
+   * Recovery logic is in `StuckPlaylistErrorRecovery` (see commit [b1ed1978cb](https://github.com/tivocorp/exoplayerprvt/commit/b1ed1978cb))
+   * Also allow for Vecima's "pseudo GAP" support by updating PROGRAM-DATE-TIME with most recent value in the playlist (see commit 
+  [1b144af7c4](https://github.com/tivocorp/exoplayerprvt/commit/1b144af7c4))
 * Replaced `EventLogger` modifications with a sub-class, `ExtendedEventLogger`
 * Added API to replace `EventLogger` used by `SimpleExoPlayerFactory`, Example:
 
