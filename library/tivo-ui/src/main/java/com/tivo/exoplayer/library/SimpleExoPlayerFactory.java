@@ -595,13 +595,21 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
   }
 
   /**
-   * filter the list of trackInfos to include only those which can be played by any renderer of the given type.
+   * Filter a the list of TrackInfo objects to include only those which can be played by their associated
+   * Renderer.
    *
-   * @param originalTrackInfoList list to filter
-   * @param rendererType          One of the {@link C} {@code TRACK_TYPE_*} constants
-   * @return filtered list of tracks or empty list if some error occurs.
+   * Track selection will only pick a track if it can be played on the associated Renderer or their are
+   * if {@link DefaultTrackSelector.Parameters#exceedRendererCapabilitiesIfNecessary} is set (the default) and
+   * there are no other playable available Formats for the Renderer.   The methods that return
+   * avialable tracks ({@link #getAvailableAudioTracks()} or {@link #getAvailableTextTracks()}) are used for
+   * a track selection dialog to override the default track selection, as such they allow selecting tracks
+   * that may not play.  This filter method allows a UI to only show tracks that the Renderer reports it
+   * will play.
+   *
+   * @param originalTrackInfoList list to filter, from {@link #getAvailableAudioTracks()} or {@link #getAvailableTextTracks()}
+   * @return filtered list of tracks or empty list if the player is not yet created and run first track selection
    */
-  public List<TrackInfo> getTracksFilteredForRendererSupport(List<TrackInfo> originalTrackInfoList, int rendererType) {
+  public List<TrackInfo> getTracksFilteredForRendererSupport(List<TrackInfo> originalTrackInfoList) {
     List<TrackInfo> filteredTrackInfoList = new ArrayList<>();
 
     if (trackSelector == null || originalTrackInfoList == null) {
@@ -616,33 +624,18 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
       return filteredTrackInfoList;
     }
 
-    List<Integer> rendererIndices = new ArrayList<>();
-    if (mappedTrackInfo != null) {
-      for (int i = 0; i < mappedTrackInfo.getRendererCount(); i++) {
-        if (mappedTrackInfo.getRendererType(i) == rendererType) {
-          rendererIndices.add(i);
-        }
-      }
-    }
-
-    if (rendererIndices.isEmpty()) {
-      Log.e(TAG, "getTracksFilteredForRendererSupport() : No renderer found for given type. Are you sure you're using the right type ?");
-      return filteredTrackInfoList;
-    }
-
     for (TrackInfo trackInfo : originalTrackInfoList) {
       Format format = trackInfo.format;
+      int rendererIndex = getRendererIndex(trackInfo.type);
       boolean isFormatSupported = false;
-      for (int rendererIndex : rendererIndices) {
-        TrackGroupArray trackGroupArray = mappedTrackInfo.getTrackGroups(rendererIndex);
-        for (int groupIndex = 0; groupIndex < trackGroupArray.length; groupIndex++) {
-          TrackGroup trackGroup = trackGroupArray.get(groupIndex);
-          for (int formatIndex = 0; formatIndex < trackGroup.length; formatIndex++) {
-            if (format.equals(trackGroup.getFormat(formatIndex))) {
-              int formatSupport = mappedTrackInfo.getTrackSupport(rendererIndex, groupIndex, formatIndex);
-              isFormatSupported = (formatSupport == RendererCapabilities.FORMAT_HANDLED)
-                      || (trackSelector.getParameters().exceedRendererCapabilitiesIfNecessary && formatSupport == RendererCapabilities.FORMAT_EXCEEDS_CAPABILITIES);
-            }
+      TrackGroupArray trackGroupArray = mappedTrackInfo.getTrackGroups(rendererIndex);
+      for (int groupIndex = 0; groupIndex < trackGroupArray.length; groupIndex++) {
+        TrackGroup trackGroup = trackGroupArray.get(groupIndex);
+        for (int formatIndex = 0; formatIndex < trackGroup.length; formatIndex++) {
+          if (format.equals(trackGroup.getFormat(formatIndex))) {
+            int formatSupport = mappedTrackInfo.getTrackSupport(rendererIndex, groupIndex, formatIndex);
+            isFormatSupported = (formatSupport == RendererCapabilities.FORMAT_HANDLED)
+                    || (trackSelector.getParameters().exceedRendererCapabilitiesIfNecessary && formatSupport == RendererCapabilities.FORMAT_EXCEEDS_CAPABILITIES);
           }
         }
       }
@@ -815,6 +808,22 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
   }
 
   // Internal methods
+
+  /**
+   * Get the current Renderer's index for the specified C.TRACK_TYPE_x value
+   *
+   * @param trackType C.TRACK_TYPE_ value
+   * @return value or -1 if no renderer was created for the type
+   */
+  private int getRendererIndex(int trackType) {
+    int index = C.INDEX_UNSET;
+    for (int i = 0; i < player.getRendererCount() && index == C.INDEX_UNSET; i++) {
+      if (player.getRendererType(i) == trackType) {
+        index = i;
+      }
+    }
+    return index;
+  }
 
   private TrackSelection getTrackSelectionForGroup(TrackGroup group) {
     TrackSelection selection = null;
