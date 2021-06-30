@@ -51,6 +51,7 @@ public class ExtendedEventLogger extends EventLogger {
 
         // Reset for showing level changes
         currentLoadingVideoFormat = null;
+        currentPlayingVideoFormat = null;
     }
 
     @Override
@@ -58,12 +59,12 @@ public class ExtendedEventLogger extends EventLogger {
         super.onDownstreamFormatChanged(eventTime, mediaLoadData);
         if (mediaLoadData.trackType == C.TRACK_TYPE_VIDEO || mediaLoadData.trackType == C.TRACK_TYPE_DEFAULT) {
             if (currentPlayingVideoFormat == null) {
-                currentPlayingVideoFormat = mediaLoadData.trackFormat;
                 logd(eventTime, "videoFormatInitial", LoggingUtils.getVideoLevelStr(mediaLoadData.trackFormat));
             } else {
                 logd(eventTime, "videoFormatChanged",
                         "Old: " + LoggingUtils.getVideoLevelStr(currentPlayingVideoFormat) + " New: " + LoggingUtils.getVideoLevelStr(mediaLoadData.trackFormat));
             }
+            currentPlayingVideoFormat = mediaLoadData.trackFormat;
         }
     }
 
