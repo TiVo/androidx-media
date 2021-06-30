@@ -2,8 +2,11 @@ package com.tivo.exoplayer.library;
 
 import android.content.Context;
 import android.net.Uri;
+import android.os.Build;
 import androidx.annotation.CallSuper;
 import androidx.annotation.Nullable;
+import androidx.annotation.RequiresApi;
+
 import com.google.android.exoplayer2.C;
 import com.google.android.exoplayer2.DefaultLoadControl;
 import com.google.android.exoplayer2.Format;
@@ -295,6 +298,7 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
 
   // Track Selection
 
+  @RequiresApi(api = Build.VERSION_CODES.LOLLIPOP)
   @Override
   public void setTunnelingMode(boolean enableTunneling) {
     int tunnelingSessionId = enableTunneling
@@ -651,8 +655,12 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
   private DefaultTrackSelector createTrackSelector(boolean enableTunneling, Context context, TrackSelection.Factory trackSelectionFactory) {
     // Get a builder with current parameters then set/clear tunnling based on the intent
     //
-    int tunnelingSessionId = enableTunneling
-            ? C.generateAudioSessionIdV21(context) : C.AUDIO_SESSION_ID_UNSET;
+    int tunnelingSessionId = C.AUDIO_SESSION_ID_UNSET;
+
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+      tunnelingSessionId = enableTunneling
+              ? C.generateAudioSessionIdV21(context) : C.AUDIO_SESSION_ID_UNSET;
+    }
 
     boolean usingSavedParameters =
         ! currentParameters.equals(new DefaultTrackSelector.ParametersBuilder(context).build());
