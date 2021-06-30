@@ -66,8 +66,6 @@ public class EventLogger implements AnalyticsListener {
   private final Timeline.Window window;
   private final Timeline.Period period;
   private final long startTimeMs;
-  private @Nullable Format currentLoadingVideoFormat;
-  private @Nullable Format currentPlayingVideoFormat;
 
   /**
    * Creates event logger.
@@ -103,7 +101,7 @@ public class EventLogger implements AnalyticsListener {
 
   @Override
   public void onPlaybackStateChanged(EventTime eventTime, @Player.State int state) {
-    logi(eventTime, "state", getStateString(state));
+    logd(eventTime, "state", getStateString(state));
   }
 
   @Override
@@ -295,9 +293,6 @@ public class EventLogger implements AnalyticsListener {
       logd("  ]");
     }
     logd("]");
-
-    // Reset for showing level changes
-    currentLoadingVideoFormat = null;
   }
 
   @Override
@@ -411,28 +406,7 @@ public class EventLogger implements AnalyticsListener {
   @Override
   public void onLoadStarted(
       EventTime eventTime, LoadEventInfo loadEventInfo, MediaLoadData mediaLoadData) {
-    StringBuilder str = new StringBuilder();
-    if (loadEventInfo.dataSpec.length != C.LENGTH_UNSET) {
-      str.append(" range(o/l): ");
-      str.append(loadEventInfo.dataSpec.position); str.append("/"); str.append(loadEventInfo.dataSpec.length);
-    }
-    str.append(" uri: "); str.append(loadEventInfo.uri);
-    logd(eventTime,"loadStarted", str.toString());
-
-    if (isVideoTrack(mediaLoadData)) {
-      if (currentLoadingVideoFormat == null) {
-        currentLoadingVideoFormat = mediaLoadData.trackFormat;
-        logd(eventTime, "loadingFormatChanged", "initial level - Buffered: "
-            + eventTime.totalBufferedDurationMs + "ms -- Start Level: " + getVideoLevelStr(currentLoadingVideoFormat));
-      } else {
-        if (! currentLoadingVideoFormat.equals(mediaLoadData.trackFormat)) {
-          logd(eventTime, "loadingFormatChanged", "Buffered: " + eventTime.totalBufferedDurationMs + "ms -- Old: " + getVideoLevelStr(currentLoadingVideoFormat)
-              + " New: " + getVideoLevelStr(mediaLoadData.trackFormat));
-          currentLoadingVideoFormat = mediaLoadData.trackFormat;
-        }
-      }
-
-    }
+    // Do nothing.
   }
 
   @Override
@@ -442,45 +416,24 @@ public class EventLogger implements AnalyticsListener {
       MediaLoadData mediaLoadData,
       IOException error,
       boolean wasCanceled) {
-    printInternalError(eventTime, "loadError - URL: " + loadEventInfo.uri, error);
+    printInternalError(eventTime, "loadError", error);
   }
 
   @Override
   public void onLoadCanceled(
       EventTime eventTime, LoadEventInfo loadEventInfo, MediaLoadData mediaLoadData) {
-    logd(eventTime,"loadCanceled", loadEventInfo.toString());
     // Do nothing.
   }
 
   @Override
   public void onLoadCompleted(
       EventTime eventTime, LoadEventInfo loadEventInfo, MediaLoadData mediaLoadData) {
-    if (mediaLoadData.trackFormat != null) {
-      long duration = mediaLoadData.mediaEndTimeMs - mediaLoadData.mediaStartTimeMs;
-      StringBuilder str = new StringBuilder();
-      str.append("trackId: "); str.append(mediaLoadData.trackFormat.id);
-      str.append(" load-duration: "); str.append(loadEventInfo.loadDurationMs); str.append("ms");
-      str.append(" codecs: "); str.append(mediaLoadData.trackFormat.codecs);
-      str.append(" start(dur): "); str.append(mediaLoadData.mediaStartTimeMs);str.append("/");str.append(duration);
-      if (loadEventInfo.dataSpec.length != C.LENGTH_UNSET) {
-        str.append(" offset/len: ");
-        str.append(loadEventInfo.dataSpec.position); str.append("/"); str.append(loadEventInfo.dataSpec.length);
-      }
-      str.append(" uri: "); str.append(loadEventInfo.uri);
-
-      logd(eventTime, "loadCompleted[media] - ", str.toString());
-    } else {
-      logd(eventTime, "loadCompleted - load-duration: " + loadEventInfo.loadDurationMs + "ms, URI: " + loadEventInfo.uri);
-    }
+    // Do nothing.
   }
 
   @Override
   public void onBandwidthEstimate(
       EventTime eventTime, int totalLoadTimeMs, long totalBytesLoaded, long bitrateEstimate) {
-    float Mbps = (totalBytesLoaded * 8000.0f) / (totalLoadTimeMs * 1_000_000.0f);
-    float avgMbps = bitrateEstimate / 1_000_000.0f;
-
-    logd(eventTime, "bandwidthEstimate", "Received BW Estimate.  Loaded Bytes: " + totalBytesLoaded + ", sample: " + Mbps + "(Mbps), estimate: " + avgMbps + "(Mbps)");
     // Do nothing.
   }
 
@@ -496,14 +449,6 @@ public class EventLogger implements AnalyticsListener {
 
   @Override
   public void onDownstreamFormatChanged(EventTime eventTime, MediaLoadData mediaLoadData) {
-    if (mediaLoadData.trackType == C.TRACK_TYPE_VIDEO || mediaLoadData.trackType == C.TRACK_TYPE_DEFAULT) {
-      if (currentPlayingVideoFormat == null) {
-        currentPlayingVideoFormat = mediaLoadData.trackFormat;
-        logd(eventTime, "videoFormatInitial - " + getVideoLevelStr(mediaLoadData.trackFormat));
-      } else {
-        logd(eventTime, "videoFormatChanged - Old: " + getVideoLevelStr(currentPlayingVideoFormat) + " New: " + getVideoLevelStr(mediaLoadData.trackFormat));
-      }
-    }
     logd(eventTime, "downstreamFormat", Format.toLogString(mediaLoadData.trackFormat));
   }
 
@@ -537,17 +482,6 @@ public class EventLogger implements AnalyticsListener {
     logd(eventTime, "drmSessionReleased");
   }
 
-  private boolean isVideoTrack(MediaLoadData loadData) {
-    Format format = loadData.trackFormat;
-    return  format != null &&
-        (loadData.trackType == C.TRACK_TYPE_VIDEO || format.height > 0 || MimeTypes.getVideoMediaMimeType(format.codecs) != null);
-  }
-
-  public static String getVideoLevelStr(@Nullable Format format) {
-    String label = format.label == null ? format.id : format.label;
-    return format == null ? "<unk>" : label + " - " + format.width + "x" + format.height + "@" + format.bitrate;
-  }
-
   /**
    * Logs a debug message.
    *
@@ -555,15 +489,6 @@ public class EventLogger implements AnalyticsListener {
    */
   protected void logd(String msg) {
     Log.d(tag, msg);
-  }
-
-  /**
-   * Logs an info message.
-   *
-   * @param msg The message to log.
-   */
-  protected void logi(String msg) {
-    Log.i(tag, msg);
   }
 
   /**
@@ -579,10 +504,6 @@ public class EventLogger implements AnalyticsListener {
 
   private void logd(EventTime eventTime, String eventName) {
     logd(getEventString(eventTime, eventName, /* eventDescription= */ null, /* throwable= */ null));
-  }
-
-  private void logi(EventTime eventTime, String eventName, String eventDescription) {
-    logi(getEventString(eventTime, eventName, eventDescription, /* throwable= */ null));
   }
 
   private void logd(EventTime eventTime, String eventName, String eventDescription) {
@@ -642,13 +563,11 @@ public class EventLogger implements AnalyticsListener {
         + getTimeString(eventTime.realtimeMs - startTimeMs)
         + ", mediaPos="
         + getTimeString(eventTime.eventPlaybackPositionMs)
-        + ", buffered="
-        + getTimeString(eventTime.totalBufferedDurationMs)
         + ", "
         + windowPeriodString;
   }
 
-  public static String getTimeString(long timeMs) {
+  private static String getTimeString(long timeMs) {
     return timeMs == C.TIME_UNSET ? "?" : TIME_FORMAT.format((timeMs) / 1000f);
   }
 
