@@ -622,7 +622,7 @@ import org.checkerframework.checker.nullness.qual.RequiresNonNull;
       HlsMediaChunk lastMediaChunk = getLastMediaChunk();
       HlsMediaChunk lastCompletedMediaChunk = lastMediaChunk.isLoadCompleted() ? lastMediaChunk
           : mediaChunks.size() > 1 ? mediaChunks.get(mediaChunks.size() - 2) : null;
-      if (lastCompletedMediaChunk != null) {
+      if (lastCompletedMediaChunk != null && lastCompletedMediaChunk.hasSamples()) {
         bufferedPositionUs = max(bufferedPositionUs, lastCompletedMediaChunk.endTimeUs);
       }
       if (sampleQueuesBuilt) {

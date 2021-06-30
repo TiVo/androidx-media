@@ -514,7 +514,7 @@ public class EventLogger implements AnalyticsListener {
     loge(getEventString(eventTime, eventName, /* eventDescription= */ null, throwable));
   }
 
-  private void loge(
+  protected void loge(
       EventTime eventTime,
       String eventName,
       String eventDescription,
@@ -532,7 +532,7 @@ public class EventLogger implements AnalyticsListener {
     }
   }
 
-  private String getEventString(
+  protected String getEventString(
       EventTime eventTime,
       String eventName,
       @Nullable String eventDescription,
@@ -563,15 +563,17 @@ public class EventLogger implements AnalyticsListener {
         + getTimeString(eventTime.realtimeMs - startTimeMs)
         + ", mediaPos="
         + getTimeString(eventTime.eventPlaybackPositionMs)
+        + ", buffered="
+        + getTimeString(eventTime.totalBufferedDurationMs)
         + ", "
         + windowPeriodString;
   }
 
-  private static String getTimeString(long timeMs) {
+  public static String getTimeString(long timeMs) {
     return timeMs == C.TIME_UNSET ? "?" : TIME_FORMAT.format((timeMs) / 1000f);
   }
 
-  private static String getStateString(int state) {
+  protected static String getStateString(int state) {
     switch (state) {
       case Player.STATE_BUFFERING:
         return "BUFFERING";

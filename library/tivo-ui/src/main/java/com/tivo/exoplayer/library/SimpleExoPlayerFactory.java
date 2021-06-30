@@ -9,11 +9,13 @@ import androidx.annotation.RequiresApi;
 
 import com.google.android.exoplayer2.C;
 import com.google.android.exoplayer2.DefaultLoadControl;
+import com.google.android.exoplayer2.ExoPlaybackException;
 import com.google.android.exoplayer2.Format;
 import com.google.android.exoplayer2.LoadControl;
 import com.google.android.exoplayer2.Player;
 import com.google.android.exoplayer2.RenderersFactory;
 import com.google.android.exoplayer2.SimpleExoPlayer;
+import com.google.android.exoplayer2.analytics.AnalyticsListener;
 import com.google.android.exoplayer2.source.TrackGroup;
 import com.google.android.exoplayer2.source.TrackGroupArray;
 import com.google.android.exoplayer2.source.UnrecognizedInputFormatException;
@@ -27,6 +29,9 @@ import com.google.android.exoplayer2.util.EventLogger;
 import com.google.android.exoplayer2.util.Log;
 import com.google.android.exoplayer2.util.MimeTypes;
 import com.google.common.base.Predicate;
+import com.tivo.exoplayer.library.errorhandlers.PlaybackExceptionRecovery;
+import com.tivo.exoplayer.library.errorhandlers.StuckPlaylistErrorRecovery;
+import com.tivo.exoplayer.library.logging.ExtendedEventLogger;
 import com.tivo.exoplayer.library.tracks.TrackInfo;
 import java.io.File;
 import java.io.FileInputStream;
@@ -92,6 +97,8 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
   @Nullable
   private MediaSourceEventCallback callback;
 
+  private EventListenerFactory eventListenerFactory;
+
   /**
    * Parameters are preserved across player create/destroy (Activity stop/start) to save track
    * selection criteria.
@@ -109,6 +116,78 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
    */
   private TrickPlayControlFactory trickPlayControlFactory;
 
+  /**
+   * Simple callback to produce an AnalyticsListener for logging purposes.
+   */
+  public interface EventListenerFactory {
+
+    /**
+     * Callee should produce an {@link AnalyticsListener} that will be added to the player's
+     * set replacing the default {@link ExtendedEventLogger} that the {@link SimpleExoPlayerFactory}
+     * adds by default.  Feel free to subclass the {@link ExtendedEventLogger} or ExoPlayer's
+     * own {@link EventLogger}
+     *
+     * Return null (override the default) and the {@link SimpleExoPlayerFactory} will not add
+     * any EventLogger.
+     *
+     * @param trackSelector - track selector for use only in the constructor for EventLogger
+     * @return null or an logger that implements {@link AnalyticsListener}
+     */
+    default AnalyticsListener createEventLogger(MappingTrackSelector trackSelector) {
+      return new ExtendedEventLogger(trackSelector);
+    }
+  }
+
+  /**
+   * Preferred mechanism for creating the {@link SimpleExoPlayerFactory}.  Basic builder pattern,
+   * e.g. to get all the default simply:
+   *
+   *   SimpleExo
+   */
+  public static class Builder {
+    private final Context context;
+    private @Nullable PlayerErrorHandlerListener listener;
+    private EventListenerFactory factory;
+
+    public Builder(Context context) {
+      this.context = context;
+      this.factory = new EventListenerFactory() {};
+    }
+
+    /**
+     * Set a playback error handler listener.  This callback is used with error recovery
+     * from {@link Player.EventListener#onPlayerError(ExoPlaybackException)} calls
+     * this allows the client visibility into the error handling performed by
+     * the {@link DefaultExoPlayerErrorHandler} which can recover from some {@link ExoPlaybackException}'s
+     *
+     * @param listener listener to call back
+     * @return this builder for chaining
+     */
+    public Builder setPlaybackErrorHandlerListener(PlayerErrorHandlerListener listener) {
+      this.listener = listener;
+      return this;
+    }
+
+    /**
+     * Allows client a hook to create their own {@link AnalyticsListener} for logging to replace the
+     * default {@link EventLogger} created by the {@link SimpleExoPlayerFactory}
+     *
+     * @param factory - call back for creating the event logger
+     * @return this builder for chaining
+     */
+    public Builder setEventListenerFactory(EventListenerFactory factory) {
+      this.factory = factory;
+      return this;
+    }
+
+    public SimpleExoPlayerFactory build() {
+      SimpleExoPlayerFactory simpleExoPlayerFactory = new SimpleExoPlayerFactory(context);
+      simpleExoPlayerFactory.playerErrorHandlerListener = this.listener;
+      simpleExoPlayerFactory.eventListenerFactory = this.factory;
+      return simpleExoPlayerFactory;
+    }
+
+  }
   /**
    * Construct the factory.  This factory is intended to survive as a singleton for the entire lifecycle of
    * the application (create to destroy).  Note that it holds references to the SimpleExoPlayer it creates,
@@ -128,9 +207,11 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
    * Construct the factory, including specifying an event listener that will be called for
    * playback errors (either recovered from internally or not).
    *
+   * DEPRECATED use
    * @param context - android ApplicationContext
    * @param listener - error listener
    */
+  @Deprecated
   public SimpleExoPlayerFactory(Context context, @Nullable PlayerErrorHandlerListener listener) {
     this(context);
     playerErrorHandlerListener = listener;
@@ -161,17 +242,17 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
    * @return default returns {@link DefaultExoPlayerErrorHandler}, return a subclass thereof if you override
    */
   protected DefaultExoPlayerErrorHandler createPlayerErrorHandler(MediaSourceLifeCycle mediaSourceLifeCycle) {
-    List<DefaultExoPlayerErrorHandler.PlaybackExceptionRecovery> errorHandlers = getDefaultPlaybackExceptionHandlers(
+    List<PlaybackExceptionRecovery> errorHandlers = getDefaultPlaybackExceptionHandlers(
         mediaSourceLifeCycle);
 
-    DefaultExoPlayerErrorHandler defaultExoPlayerErrorHandler = new DefaultExoPlayerErrorHandler(errorHandlers);
-    defaultExoPlayerErrorHandler.playerErrorHandlerListener = playerErrorHandlerListener;
+    DefaultExoPlayerErrorHandler defaultExoPlayerErrorHandler =
+            new DefaultExoPlayerErrorHandler(errorHandlers, playerErrorHandlerListener);
     return defaultExoPlayerErrorHandler;
   }
 
   /**
    * If you override {@link #createPlayerErrorHandler(MediaSourceLifeCycle)}, use this method to get
-   * the default set of {@link com.tivo.exoplayer.library.DefaultExoPlayerErrorHandler.PlaybackExceptionRecovery}
+   * the default set of {@link PlaybackExceptionRecovery}
    * handlers to pass to the {@link DefaultExoPlayerErrorHandler} you have extended.  For example:
    *
    * <pre>
@@ -192,11 +273,12 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
    * @param mediaSourceLifeCycle - the current MediaSourceLifeCycle
    * @return the default list of playback error handlers.
    */
-  protected List<DefaultExoPlayerErrorHandler.PlaybackExceptionRecovery> getDefaultPlaybackExceptionHandlers(
+  protected List<PlaybackExceptionRecovery> getDefaultPlaybackExceptionHandlers(
       MediaSourceLifeCycle mediaSourceLifeCycle) {
     return Arrays.asList(
         new AudioTrackInitPlayerErrorHandler(this),
         mediaSourceLifeCycle,
+        new StuckPlaylistErrorRecovery(this),
         new HdmiPlayerErrorHandler(this, context));
   }
 
@@ -239,12 +321,53 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
    *
    * Call this when your application is started.
    *
+   * This API takes the defaults for {@link DefaultLoadControl} which can be changed using the sister API
+   * {@link #createPlayer(boolean, boolean, DefaultLoadControl.Builder)}
+   *
    * @param playWhenReady sets the play when ready flag.
    * @param defaultTunneling - default track selection to prefer tunneling (can turn this off {@link #setTunnelingMode(boolean)}}
    * @return the newly created player.  Also always available via {@link #getCurrentPlayer()}
    */
   @CallSuper
   public SimpleExoPlayer createPlayer(boolean playWhenReady, boolean defaultTunneling) {
+    DefaultLoadControl.Builder builder = new DefaultLoadControl.Builder();
+
+    builder.setBufferDurationsMs(
+            DefaultLoadControl.DEFAULT_MIN_BUFFER_MS,   // Player will start fetching if buffered falls less than this
+            DefaultLoadControl.DEFAULT_MAX_BUFFER_MS,   // Player will stop all fetching after this. Sets max that is held
+            DefaultLoadControl.DEFAULT_BUFFER_FOR_PLAYBACK_MS,
+            DefaultLoadControl.DEFAULT_BUFFER_FOR_PLAYBACK_AFTER_REBUFFER_MS);
+
+    return createPlayer(playWhenReady, defaultTunneling, builder);
+  }
+
+  /**
+   * Create a new {@link SimpleExoPlayer}.  This is the partner method to {link {@link #releasePlayer()}}
+   *
+   * Call this when your application is started.  This API allows control of the buffering levels by passing in
+   * a LoadControl builder.  It is recommended not to change anything other than the
+   * {@link DefaultLoadControl.Builder#setBufferDurationsMs(int, int, int, int)}. These are described in the ExoPlayer
+   * Javadoc.  Quick summary on setBufferDuration follows:
+   *
+   * The first parameter set where the player starts fetching again (if buffering falls below this
+   * threshold value, the player will load segments),  the second parameter sets the max the player
+   * will ever buffer.  Note, for Live these limits are restricted by distance to the live edge.
+   * For mobile playback, the spread between MIN and MAX allows radio off time once the player reaches
+   * MAX it will not turn the radio on and start fetching again till it hits MIN, this helps battery life
+   *
+   * The 3rd and 4th parameters set how much buffer the player requires following fresh playback start or
+   * after re-buffering following a stall.  Setting the 3rd parameter lower reduces channel change latency at
+   * the cost of higher risk of initial re-buffering.
+   *
+   * @param playWhenReady sets the play when ready flag.
+   * @param defaultTunneling - default track selection to prefer tunneling (can turn this off {@link #setTunnelingMode(boolean)}}
+   * @param controlBuilder - DefaultLoadControl.Builder, allows changing buffering behavior for how often player fetches and what
+   *                       the player keeps {@link DefaultLoadControl.Builder#setBufferDurationsMs(int, int, int, int)}
+   * @return the newly created player.  Also always available via {@link #getCurrentPlayer()}
+   */
+  @CallSuper
+  public SimpleExoPlayer createPlayer(boolean playWhenReady, boolean defaultTunneling, DefaultLoadControl.Builder controlBuilder) {
+    assert controlBuilder != null;
     if (player != null) {
       releasePlayer();
     }
@@ -254,7 +377,8 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
     trackSelector = createTrackSelector(defaultTunneling, context, trackSelectionFactory);
     trickPlayControl = trickPlayControlFactory.createTrickPlayControl(trackSelector);
     RenderersFactory renderersFactory = trickPlayControl.createRenderersFactory(context);
-    LoadControl loadControl = trickPlayControl.createLoadControl(new DefaultLoadControl());
+
+    LoadControl loadControl = trickPlayControl.createLoadControl(controlBuilder.createDefaultLoadControl());
 
     player = new SimpleExoPlayer.Builder(context, renderersFactory)
             .setTrackSelector(trackSelector)
@@ -266,7 +390,11 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
 
     trickPlayControl.setPlayer(player);
     player.setPlayWhenReady(playWhenReady);
-    player.addAnalyticsListener(new EventLogger(trackSelector));
+
+    AnalyticsListener logger = eventListenerFactory.createEventLogger(trackSelector);
+    if (logger != null) {
+      player.addAnalyticsListener(logger);
+    }
     playerErrorHandler = createPlayerErrorHandler(mediaSourceLifeCycle);
     player.addListener(playerErrorHandler);
     return player;
@@ -643,6 +771,11 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
     if (player != null) {
       player.retry();
     }
+  }
+
+  @Override
+  public void resetAndRetryPlayback() {
+    mediaSourceLifeCycle.resetAndRestartPlayback();
   }
 
   private void commitTrackSelectionParameters(DefaultTrackSelector.ParametersBuilder builder) {

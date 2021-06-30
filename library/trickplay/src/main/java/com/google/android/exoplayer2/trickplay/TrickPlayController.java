@@ -215,19 +215,48 @@ class TrickPlayController implements TrickPlayControlInternal {
     @SuppressLint("HandlerLeak")
     private class PlayerEventListener extends Handler implements AnalyticsListener {
 
+        /**
+         * Handle player state changes for trickplay.  Best documentation of the states is
+         * in <a href="https://exoplayer.dev/listening-to-player-events.html">Player Events</a>
+         *
+         * <ul>
+         *     <li>STATE_IDLE - this is the initial state or for any error in playback, here we
+         *                      invalidate the trickplay metadata (as the playlist could have changed)
+         *                      and end any trickplay in progress</li>
+         *     <li>STATE_ENDED - The player has reached the end of the playlist, if we are in any
+         *                      trickplay (that is not mode is not NORMAL or SCRUB), we end trickplay.
+         *     <li>STATE_BUFFERING/READY - check if we have exceeded the normal timeline window (possible
+         *                      if the i-Frame only playlist is shorter than the regular playlist) and
+         *                      if so exit trickplay.
+         * </ul>
+         *
+         *
+         * @param eventTime The event time.
+         * @param playWhenReady Whether the playback will proceed when ready.
+         * @param playbackState The new {@link Player.State playback state}.
+         */
         @Override
         public void onPlayerStateChanged(EventTime eventTime, boolean playWhenReady, int playbackState) {
 
-            // reset isMetadata valid if transition to an "ended" like state. STATE_READY and
-            // STATE_BUFFERING wait until the initial set of tracks are set before indicating valid
-            // metadata.
-            //
             switch(playbackState) {
                 case Player.STATE_IDLE:
-                case Player.STATE_ENDED:
                     isMetadataValid = false;
                     resetTrickPlayState(true);
                     dispatchPlaylistMetadataChanged();
+
+                case Player.STATE_ENDED:
+                    TrickMode currentTrickMode = getCurrentTrickMode();
+                    switch(currentTrickMode) {
+                        case NORMAL:
+                        case SCRUB:
+                            Log.d(TAG, "Reached playlist end in mode: " + currentTrickMode + ", staying in mode.");
+                            break;
+
+                        default:
+                            Log.d(TAG, "Reached playlist end in mode: " + currentTrickMode + ", stopping trickplay.");
+                            resetTrickPlayState(true);
+                            break;
+                    }
                     break;
 
                 case Player.STATE_READY:

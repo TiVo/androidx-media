@@ -21,14 +21,18 @@ import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.fragment.app.DialogFragment;
 import com.google.android.exoplayer2.C;
+import com.google.android.exoplayer2.DefaultLoadControl;
+import com.google.android.exoplayer2.ExoPlaybackException;
 import com.google.android.exoplayer2.Format;
 import com.google.android.exoplayer2.Player;
 import com.google.android.exoplayer2.SimpleExoPlayer;
 import com.google.android.exoplayer2.Timeline;
+import com.google.android.exoplayer2.analytics.AnalyticsListener;
 import com.google.android.exoplayer2.analytics.PlaybackStats;
 import com.google.android.exoplayer2.demo.TrackSelectionDialog;
 import com.google.android.exoplayer2.source.UnrecognizedInputFormatException;
 import com.google.android.exoplayer2.trackselection.DefaultTrackSelector;
+import com.google.android.exoplayer2.trackselection.MappingTrackSelector;
 import com.google.android.exoplayer2.trickplay.TrickPlayControl;
 import com.google.android.exoplayer2.trickplay.TrickPlayEventListener;
 import com.google.android.exoplayer2.ui.PlayerControlView;
@@ -39,9 +43,11 @@ import com.google.android.exoplayer2.util.EventLogger;
 import com.tivo.exoplayer.library.DrmInfo;
 import com.tivo.exoplayer.library.GeekStatsOverlay;
 import com.tivo.exoplayer.library.OutputProtectionMonitor;
+import com.tivo.exoplayer.library.PlayerErrorHandlerListener;
 import com.tivo.exoplayer.library.SimpleExoPlayerFactory;
 import com.tivo.exoplayer.library.VcasDrmInfo;
 import com.tivo.exoplayer.library.WidevineDrmInfo;
+import com.tivo.exoplayer.library.logging.ExtendedEventLogger;
 import com.tivo.exoplayer.library.metrics.ManagePlaybackMetrics;
 import com.tivo.exoplayer.library.metrics.MetricsEventListener;
 import com.tivo.exoplayer.library.metrics.MetricsPlaybackSessionManager;
@@ -108,16 +114,6 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
   private boolean isAudioRenderOn = true;
   private PlaybackMetricsManagerApi statsManager;
 
-  private class LoggingPlaybackMetrics extends PlaybackMetrics {
-
-    private String jsonFormated() {
-      return "";
-    }
-
-    private void logResults(PlaybackStats stats, MetricsPlaybackSessionManager.SessionInformation sessionInformation) {
-      logPlaybackMetrics(this, stats, sessionInformation);
-    }
-  }
 
   private class ScrubHandler implements TimeBar.OnScrubListener {
 
@@ -163,14 +159,33 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
     Context context = getApplicationContext();
 
     SimpleExoPlayerFactory.initializeLogging(context, DEFAULT_LOG_LEVEL);
-    exoPlayerFactory = new SimpleExoPlayerFactory(context, (error, recovered) -> {
-      if (! recovered) {
-        showError("Un-recovered Playback Error", error);
-        if (statsManager != null) {
-          statsManager.endAllSessions();
-        }
-      }
-    });
+    exoPlayerFactory = new SimpleExoPlayerFactory.Builder(context)
+            .setPlaybackErrorHandlerListener((error, status) -> {
+              switch (status) {
+                case IN_PROGRESS:
+                  Log.d(TAG, "playerErrorProcessed() - error: " + error.getMessage() + " status: " + status);
+                  Toast.makeText(getApplicationContext(), error.getMessage(), Toast.LENGTH_LONG).show();
+                  break;
+
+                case SUCCESS:
+                  Log.d(TAG, "playerErrorProcessed() - recovered from " + error.getMessage());
+                  break;
+
+                case FAILED:
+                  ViewActivity.this.showError("Un-recovered Playback Error", error);
+                  if (statsManager != null) {
+                    statsManager.endAllSessions();
+                  }
+                  break;
+              }
+            })
+            .setEventListenerFactory(new SimpleExoPlayerFactory.EventListenerFactory() {
+              @Override
+              public AnalyticsListener createEventLogger(MappingTrackSelector trackSelector) {
+                return new ExtendedEventLogger(trackSelector);
+              }
+            })
+            .build();
 
     LayoutInflater inflater = LayoutInflater.from(context);
     ViewGroup activityView = (ViewGroup) inflater.inflate(R.layout.view_activity, null);
@@ -249,7 +264,13 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
     super.onStart();
     SimpleExoPlayerFactory.initializeLogging(getApplicationContext(), DEFAULT_LOG_LEVEL);
     Log.d(TAG, "onStart() called");
-    SimpleExoPlayer player = exoPlayerFactory.createPlayer(false, false);
+    DefaultLoadControl.Builder builder = new DefaultLoadControl.Builder();
+    builder.setBufferDurationsMs(
+            DefaultLoadControl.DEFAULT_MIN_BUFFER_MS,
+            DefaultLoadControl.DEFAULT_MAX_BUFFER_MS,
+            1000,   // Faster channel change
+            DefaultLoadControl.DEFAULT_BUFFER_FOR_PLAYBACK_AFTER_REBUFFER_MS);
+    SimpleExoPlayer player = exoPlayerFactory.createPlayer(false, false, builder);
 
     TrickPlayControl trickPlayControl = exoPlayerFactory.getCurrentTrickPlayControl();
     currentScrubHandler = new ScrubHandler(trickPlayControl);
@@ -270,84 +291,13 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
     geekStats.setPlayer(player, trickPlayControl);
 
 
-    statsManager = new ManagePlaybackMetrics.Builder(player, trickPlayControl)
-            .setMetricsEventListener(new MetricsEventListener() {
-              @Override
-              public PlaybackMetrics createEmptyPlaybackMetrics() {
-                return new LoggingPlaybackMetrics();
-              }
-
-            })
-            .build();
+    statsManager = new ManagePlaybackMetrics.Builder(player, trickPlayControl).build();
 
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR2) {
         outputProtectionMonitor.start();
     }
 
     processIntent(getIntent());
-  }
-
-  private void logPlaybackMetrics(PlaybackMetrics metrics, PlaybackStats stats, MetricsPlaybackSessionManager.SessionInformation sessionInformation) {
-
-
-    StringBuilder sb = new StringBuilder();
-    sb.append("\n  ");
-    sb.append("total time:  ");
-    sb.append(stats.getTotalElapsedTimeMs());
-    sb.append("ms");
-    sb.append("\n  ");
-    sb.append("startup time:  ");
-    sb.append(metrics.getInitialPlaybackStartDelay());
-    sb.append("ms");
-    sb.append("\n  ");
-    sb.append("playing time:  ");
-    sb.append(metrics.getTotalPlaybackTimeMs());
-    sb.append("ms");
-    sb.append("\n  ");
-    sb.append("paused time:  ");
-    sb.append(stats.getTotalPausedTimeMs());
-    sb.append("ms");
-    sb.append("\n  ");
-    sb.append("re-buffering time:  ");
-    sb.append(stats.getTotalRebufferTimeMs());
-    sb.append("ms");
-    sb.append("\n  ");
-    sb.append("trick-play time:  ");
-    sb.append(metrics.getTotalTrickPlayTime());
-    sb.append("ms");
-    sb.append("\n  ");
-    sb.append("format changes:  ");
-    sb.append(stats.videoFormatHistory.size());
-    sb.append("\n  ");
-    sb.append("avg rebuffering time:  ");
-    sb.append(metrics.getTotalRebufferingTime());
-    sb.append("\n  ");
-    sb.append("avg video bitrate:  ");
-    sb.append(metrics.getAvgVideoBitrate());
-    sb.append(" Mbps\n  ");
-    sb.append("mean bandwidth: ");
-    sb.append(metrics.getAvgNetworkBitrate());
-    sb.append(" Mbps\n");
-    sb.append("Ended for reason:  ");
-    sb.append(metrics.getEndReason());
-    sb.append("\n  ");
-    if (metrics.getEndReason() == PlaybackMetrics.EndReason.ERROR) {
-      sb.append("Ended error:  ");
-      sb.append(metrics.getEndedWithError());
-      sb.append("\n  ");
-    }
-    Map<Format, Long> timeInFormat = metrics.getTimeInVideoFormat();
-
-    String currentUri = sessionInformation.getSessionUrl();
-
-    Log.d(TAG, "Playback stats for '" + currentUri + "'" + sb.toString());
-
-    if (timeInFormat.size() > 0) {
-      Log.d(TAG, "Time in variant:");
-      for (Map.Entry<Format, Long> entry : timeInFormat.entrySet()) {
-        Log.d(TAG, "  " + EventLogger.getVideoLevelStr(entry.getKey()) + " played for " + entry.getValue() + " ms total");
-      }
-    }
   }
 
   @Override

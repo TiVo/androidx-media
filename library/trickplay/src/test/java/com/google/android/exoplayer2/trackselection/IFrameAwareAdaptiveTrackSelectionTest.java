@@ -36,6 +36,7 @@ public class IFrameAwareAdaptiveTrackSelectionTest {
 
 
     private TrackSelection.Definition[] definitions;
+    private TrackGroup noIFrameFormatsGroup;
     private IFrameAwareAdaptiveTrackSelection.Factory factory;
 
     @Before
@@ -52,6 +53,8 @@ public class IFrameAwareAdaptiveTrackSelectionTest {
         definitions = new TrackSelection.Definition[]{
                 new TrackSelection.Definition(trackGroup, /* tracks= */ 0, 1, 2, 3, 4)
         };
+
+        noIFrameFormatsGroup = new TrackGroup(format1, format2, format3);
 
         factory.setTrickPlayControl(mockTrickPlayControl);
     }
@@ -89,6 +92,23 @@ public class IFrameAwareAdaptiveTrackSelectionTest {
         for (int index : selectedTracks) {
             assertThat(group.getFormat(index).roleFlags).isEqualTo(0);
         }
+    }
+
+    @Test
+    public void testShouldFilterTracks() {
+        when(mockTrickPlayControl.getCurrentTrickDirection()).thenReturn(TrickPlayControl.TrickPlayDirection.FORWARD);
+
+        // Absence of any i-Frame should block filtering
+        boolean noFilter = factory.shouldFilterTracks(noIFrameFormatsGroup, new int[] {0,1,2});
+        assertThat(noFilter).isFalse();
+
+        // Selection override should block filter.
+        noFilter = factory.shouldFilterTracks(definitions[0].group, new int[] {1});
+        assertThat(noFilter).isFalse();
+
+        // Selection override should block filter.
+        boolean should = factory.shouldFilterTracks(definitions[0].group, definitions[0].tracks);
+        assertThat(should).isTrue();
     }
 
     @Test

@@ -15,6 +15,53 @@ from their site since our last merge. That is 2.11.7 (2020-06-29) to 2.13.3 (202
     * [r2.11.8](https://github.com/google/ExoPlayer/blob/r2.11.8/RELEASENOTES.md) &ndash; Issue with tunneled playback,
         [Issue 7647](https://github.com/google/ExoPlayer/issues/7647)
          
+
+### 2.11.6-3.6 (06-24-2021)
+* Fix issue [BZSTREAM-7913](https://jira.tivo.com/browse/BZSTREAM-7913) - NPE in `getVideoLevelStr()`
+* Add support in library-tivo-ui for recovering from `PlaylistStuckException`
+   * Recovery logic is in `StuckPlaylistErrorRecovery` (see commit [b1ed1978cb](https://github.com/tivocorp/exoplayerprvt/commit/b1ed1978cb))
+   * Also allow for Vecima's "pseudo GAP" support by updating PROGRAM-DATE-TIME with most recent value in the playlist (see commit 
+  [1b144af7c4](https://github.com/tivocorp/exoplayerprvt/commit/1b144af7c4))
+* Replaced `EventLogger` modifications with a sub-class, `ExtendedEventLogger`
+* Added API to replace `EventLogger` used by `SimpleExoPlayerFactory`, Example:
+
+````java
+    exoPlayerFactory = new SimpleExoPlayerFactory.Builder(context)
+            .setEventListenerFactory(new SimpleExoPlayerFactory.EventListenerFactory() {
+              @Override
+              public AnalyticsListener createEventLogger(MappingTrackSelector trackSelector) {
+                return new MyOwnEventLogger(trackSelector);
+              }
+            })
+            .build();
+````
+* Back-ported commit [2536222f](https://github.com/google/ExoPlayer/commit/2536222fbdcace11e2e564af9b5a65d6a826f5c7) - fix in dev-v2:
+	* HLS:
+	    *   Fix issue where a new initialization segment, as specified by an
+	        `EXT-X-MAP` tag in a media playlist, would not be loaded when
+	        encountered during playback
+	        ([#9004](https://github.com/google/ExoPlayer/issues/9004)).
+
+### 2.11.6-3.5 (06-18-2021)
+
+Release includes bug fixes and a new API that mobile will use to change load-control
+parameters to meet their requirements.  Allow passing a `DefaultLoadControl.Builder`
+
+* SCRUB mode TrickPlay issues
+  * IllegalStateException on SCRUB mode if no iFrame only tracks,
+   (commit [8ae3180516](https://github.com/tivocorp/exoplayerprvt/commit/8ae3180516) Trickplay will not filter...
+  * Don't exit if scrub to end of VOD playlist ([0432982c24](https://github.com/tivocorp/exoplayerprvt/commit/0432982c24))
+* Add developer documentation
+* Support EXT-X-GAP bigger then maxBufferMs (commit [a601378039](https://github.com/tivocorp/exoplayerprvt/commit/a601378039) and
+  pull request (9050)[https://github.com/google/ExoPlayer/pull/9050] to Google
+* New API to allow `DefaultLoadControl.Builder` input to `SimpleExoPlayerFactory` 
+  (commit [02dc76284f](https://github.com/tivocorp/exoplayerprvt/commit/02dc76284f))
+* Fixes for AAC Audio issues at LLA [PARTDEFECT-8311](https://jira.tivo.com/browse/PARTDEFECT-8311), back ports from Google release-v2 
+   commits [1b3c24bd2d](https://github.com/tivocorp/exoplayerprvt/commit/1b3c24bd2d) and [fee914ddee](https://github.com/tivocorp/exoplayerprvt/commit/fee914ddee)
+* Also at LLA, audio format changes midstream and causes an exception, this is fixed by Google's fix (Rare failed assertions #8283)[https://github.com/google/ExoPlayer/issues/8283]
+  so back ported the fix here [67419fc884](https://github.com/tivocorp/exoplayerprvt/commit/67419fc884)
+
+
 ### 2.11.6-3.4 (05-12-2021)
 
 * Cherry-pick https://github.com/google/ExoPlayer/commit/6db6d14b16c1324bde1677cce8cfa3571d201d9a 
