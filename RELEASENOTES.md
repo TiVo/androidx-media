@@ -1,6 +1,5 @@
 # Release notes #
 
-
 ### 2.12.3-1.0-dev (Not yet released) ###
 
 * Merge and resolve with Google's tagged release 2.12.3.  Highlights of the release notes
@@ -16,6 +15,17 @@ from their site since our last merge. That is 2.11.7 (2020-06-29) to 2.13.3 (202
         [Issue 7647](https://github.com/google/ExoPlayer/issues/7647)
 * cherry-pick of commit [2536222f](https://github.com/google/ExoPlayer/commit/2536222fbdcace11e2e564af9b5a65d6a826f5c7)
   re-done, now a clean conflict free cherry-pick of the commit.
+
+### 2.11.6-3.7 (06-30-2021)
+* To fix issue [BZQSA-3914](https://jira.tivo.com/browse/BZQSA-3914) added method`getTracksFilteredForRendererSupport()`
+  to the SimpleExoPlayerFactory that allows filtering the trackselection based their match to [RendererCapabilities](https://exoplayer.dev/doc/reference/com/google/android/exoplayer2/RendererCapabilities.html)
+  Using code like:
+````java
+   SimpleExoPlayerFactory factory;
+...
+   factory.getTracksFilteredForActiveRender(factory.getAvailableAudioTracks())
+
+```` 
 
 ### 2.11.6-3.6 (06-24-2021)
 * Fix issue [BZSTREAM-7913](https://jira.tivo.com/browse/BZSTREAM-7913) - NPE in `getVideoLevelStr()`

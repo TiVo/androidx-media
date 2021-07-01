@@ -13,6 +13,7 @@ import com.google.android.exoplayer2.ExoPlaybackException;
 import com.google.android.exoplayer2.Format;
 import com.google.android.exoplayer2.LoadControl;
 import com.google.android.exoplayer2.Player;
+import com.google.android.exoplayer2.RendererCapabilities;
 import com.google.android.exoplayer2.RenderersFactory;
 import com.google.android.exoplayer2.SimpleExoPlayer;
 import com.google.android.exoplayer2.analytics.AnalyticsListener;
@@ -520,6 +521,8 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
   /**
    * Get TrackInfo objects for all the text tracks.
    *
+   * All tracks can include tracks which the player cannot player.
+   *
    * @return list of all text in the current MediaSource.
    */
   public List<TrackInfo> getAvailableTextTracks() {
@@ -528,6 +531,8 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
 
   /**
    * Get TrackInfo objects for all the audio tracks.
+   *
+   * All tracks can include tracks which the player cannot player.
    *
    * @return list of all text in the current MediaSource.
    */
@@ -558,14 +563,14 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
 
   /**
    * Return TrackInfo objects for the tracks matching the format indicated by the Predicate.
-   *
+   * <p>
    * Use this API call to use forced track selection via overrides.  To select a TrackInfo with an override
    * use {@link #selectTrack(TrackInfo)}
-   *
+   * <p>
    * The preferred method is using the APIs that use Constraint Based Selection (see
    * <a href="https://exoplayer.dev/doc/reference/com/google/android/exoplayer2/trackselection/DefaultTrackSelector.html">DefaultTrackSelector</a>)
    * like for example {@link #setCloseCaption(boolean, String)}
-   *
+   * <p>
    * Note, this will return an empty list until the media is prepared (player transitions to playback state
    * {@link com.google.android.exoplayer2.Player#STATE_READY}
    *
@@ -584,13 +589,68 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
           Format format = group.getFormat(trackIndex);
           if (matching.apply(format)) {
             boolean isSelected = groupSelection != null
-                && groupSelection.getSelectedFormat().equals(format);
+                    && groupSelection.getSelectedFormat().equals(format);
             availableTracks.add(new TrackInfo(format, isSelected));
           }
         }
       }
     }
     return availableTracks;
+  }
+
+  /**
+   * Filter a the list of TrackInfo objects to include only those which can be played by their associated
+   * Renderer.
+   *
+   * Track selection will only pick a track if it can be played on the associated Renderer or their are
+   * if {@link DefaultTrackSelector.Parameters#exceedRendererCapabilitiesIfNecessary} is set (the default) and
+   * there are no other playable available Formats for the Renderer.   The methods that return
+   * avialable tracks ({@link #getAvailableAudioTracks()} or {@link #getAvailableTextTracks()}) are used for
+   * a track selection dialog to override the default track selection, as such they allow selecting tracks
+   * that may not play.  This filter method allows a UI to only show tracks that the Renderer reports it
+   * will play.
+   *
+   * @param originalTrackInfoList list to filter, from {@link #getAvailableAudioTracks()} or {@link #getAvailableTextTracks()}
+   * @return filtered list of tracks or empty list if the player is not yet created and run first track selection
+   */
+  public List<TrackInfo> getTracksFilteredForRendererSupport(List<TrackInfo> originalTrackInfoList) {
+    List<TrackInfo> filteredTrackInfoList = new ArrayList<>();
+
+    if (trackSelector == null || originalTrackInfoList == null) {
+      Log.e(TAG, "getTracksFilteredForRendererSupport() : trackSelector or original list is null, returning empty list");
+      return filteredTrackInfoList;
+    }
+
+    MappingTrackSelector.MappedTrackInfo mappedTrackInfo = trackSelector.getCurrentMappedTrackInfo();
+    if (mappedTrackInfo == null) {
+      Log.e(TAG, "getTracksFilteredForRendererSupport() : " +
+              "mappedTrackInfo is null. returning empty list. Call this after player selections are made, probably from onTracksChanged.");
+      return filteredTrackInfoList;
+    }
+
+    for (TrackInfo trackInfo : originalTrackInfoList) {
+      Format format = trackInfo.format;
+      int rendererIndex = getRendererIndex(trackInfo.type);
+      boolean isFormatSupported = false;
+      TrackGroupArray trackGroupArray = mappedTrackInfo.getTrackGroups(rendererIndex);
+      for (int groupIndex = 0; groupIndex < trackGroupArray.length; groupIndex++) {
+        TrackGroup trackGroup = trackGroupArray.get(groupIndex);
+        for (int formatIndex = 0; formatIndex < trackGroup.length; formatIndex++) {
+          if (format.equals(trackGroup.getFormat(formatIndex))) {
+            int formatSupport = mappedTrackInfo.getTrackSupport(rendererIndex, groupIndex, formatIndex);
+            isFormatSupported = (formatSupport == RendererCapabilities.FORMAT_HANDLED)
+                    || (trackSelector.getParameters().exceedRendererCapabilitiesIfNecessary && formatSupport == RendererCapabilities.FORMAT_EXCEEDS_CAPABILITIES);
+          }
+        }
+      }
+      if (isFormatSupported) {
+        filteredTrackInfoList.add(trackInfo);
+      } else {
+        Log.w(TAG, "could not find format mapped in mappedTrackInfo. Format = " + format);
+      }
+    }
+
+    return filteredTrackInfoList;
   }
 
   /**
@@ -752,6 +812,22 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
   }
 
   // Internal methods
+
+  /**
+   * Get the current Renderer's index for the specified C.TRACK_TYPE_x value
+   *
+   * @param trackType C.TRACK_TYPE_ value
+   * @return value or -1 if no renderer was created for the type
+   */
+  private int getRendererIndex(int trackType) {
+    int index = C.INDEX_UNSET;
+    for (int i = 0; i < player.getRendererCount() && index == C.INDEX_UNSET; i++) {
+      if (player.getRendererType(i) == trackType) {
+        index = i;
+      }
+    }
+    return index;
+  }
 
   private TrackSelection getTrackSelectionForGroup(TrackGroup group) {
     TrackSelection selection = null;
