@@ -1,4 +1,14 @@
 # Release notes #
+### 2.11.6-3.7 (06-30-2021)
+* To fix issue [BZQSA-3914](https://jira.tivo.com/browse/BZQSA-3914) added method`getTracksFilteredForRendererSupport()`
+  to the SimpleExoPlayerFactory that allows filtering the trackselection based their match to [RendererCapabilities](https://exoplayer.dev/doc/reference/com/google/android/exoplayer2/RendererCapabilities.html)
+  Using code like:
+````java
+   SimpleExoPlayerFactory factory;
+...
+   factory.getTracksFilteredForActiveRender(factory.getAvailableAudioTracks())
+
+```` 
 
 ### 2.11.6-3.6 (06-24-2021)
 * Fix issue [BZSTREAM-7913](https://jira.tivo.com/browse/BZSTREAM-7913) - NPE in `getVideoLevelStr()`
