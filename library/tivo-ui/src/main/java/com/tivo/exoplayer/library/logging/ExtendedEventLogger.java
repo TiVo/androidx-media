@@ -8,6 +8,8 @@ import java.io.IOException;
 import com.google.android.exoplayer2.C;
 import com.google.android.exoplayer2.Format;
 import com.google.android.exoplayer2.Player;
+import com.google.android.exoplayer2.source.LoadEventInfo;
+import com.google.android.exoplayer2.source.MediaLoadData;
 import com.google.android.exoplayer2.source.MediaSourceEventListener;
 import com.google.android.exoplayer2.source.TrackGroupArray;
 import com.google.android.exoplayer2.trackselection.MappingTrackSelector;
@@ -49,19 +51,20 @@ public class ExtendedEventLogger extends EventLogger {
 
         // Reset for showing level changes
         currentLoadingVideoFormat = null;
+        currentPlayingVideoFormat = null;
     }
 
     @Override
-    public void onDownstreamFormatChanged(EventTime eventTime, MediaSourceEventListener.MediaLoadData mediaLoadData) {
+    public void onDownstreamFormatChanged(EventTime eventTime, MediaLoadData mediaLoadData) {
         super.onDownstreamFormatChanged(eventTime, mediaLoadData);
         if (mediaLoadData.trackType == C.TRACK_TYPE_VIDEO || mediaLoadData.trackType == C.TRACK_TYPE_DEFAULT) {
             if (currentPlayingVideoFormat == null) {
-                currentPlayingVideoFormat = mediaLoadData.trackFormat;
                 logd(eventTime, "videoFormatInitial", LoggingUtils.getVideoLevelStr(mediaLoadData.trackFormat));
             } else {
                 logd(eventTime, "videoFormatChanged",
                         "Old: " + LoggingUtils.getVideoLevelStr(currentPlayingVideoFormat) + " New: " + LoggingUtils.getVideoLevelStr(mediaLoadData.trackFormat));
             }
+            currentPlayingVideoFormat = mediaLoadData.trackFormat;
         }
     }
 
@@ -69,8 +72,7 @@ public class ExtendedEventLogger extends EventLogger {
     // Overrides - completely override super, mostly it does nothing for these events
 
     @Override
-    public void onLoadStarted(
-            EventTime eventTime, MediaSourceEventListener.LoadEventInfo loadEventInfo, MediaSourceEventListener.MediaLoadData mediaLoadData) {
+    public void onLoadStarted(EventTime eventTime, LoadEventInfo loadEventInfo, MediaLoadData mediaLoadData) {
         StringBuilder str = new StringBuilder();
         if (loadEventInfo.dataSpec.length != C.LENGTH_UNSET) {
             str.append(" range(o/l): ");
@@ -97,8 +99,8 @@ public class ExtendedEventLogger extends EventLogger {
     @Override
     public void onLoadError(
             EventTime eventTime,
-            MediaSourceEventListener.LoadEventInfo loadEventInfo,
-            MediaSourceEventListener.MediaLoadData mediaLoadData,
+            LoadEventInfo loadEventInfo,
+            MediaLoadData mediaLoadData,
             IOException error,
             boolean wasCanceled) {
         loge(eventTime, "internalError","loadError - URL: " + loadEventInfo.uri , error);
@@ -106,13 +108,13 @@ public class ExtendedEventLogger extends EventLogger {
 
     @Override
     public void onLoadCanceled(
-            EventTime eventTime, MediaSourceEventListener.LoadEventInfo loadEventInfo, MediaSourceEventListener.MediaLoadData mediaLoadData) {
+            EventTime eventTime, LoadEventInfo loadEventInfo, MediaLoadData mediaLoadData) {
         logd(eventTime,"loadCanceled", loadEventInfo.toString());
     }
 
     @Override
     public void onLoadCompleted(
-            EventTime eventTime, MediaSourceEventListener.LoadEventInfo loadEventInfo, MediaSourceEventListener.MediaLoadData mediaLoadData) {
+            EventTime eventTime, LoadEventInfo loadEventInfo, MediaLoadData mediaLoadData) {
         StringBuilder str = new StringBuilder();
 
         if (mediaLoadData.trackFormat != null) {
@@ -144,13 +146,10 @@ public class ExtendedEventLogger extends EventLogger {
         logd(eventTime, "bandwidthEstimate", "Received BW Estimate.  Loaded Bytes: " + totalBytesLoaded + ", sample: " + Mbps + "(Mbps), estimate: " + avgMbps + "(Mbps)");
     }
 
-
     @Override
-    public void onPlayerStateChanged(
-            EventTime eventTime, boolean playWhenReady, @Player.State int state) {
-        logi(eventTime, "state", playWhenReady + ", " + getStateString(state));
+    public void onPlaybackStateChanged(EventTime eventTime, int state) {
+        logi(eventTime, "state", getStateString(state));
     }
-
 
     protected void logi(EventTime eventTime, String eventName, @Nullable String eventDescription) {
         Log.i(tag, getEventString(eventTime, eventName, eventDescription, /* throwable= */ null));
@@ -160,27 +159,7 @@ public class ExtendedEventLogger extends EventLogger {
         Log.d(tag, getEventString(eventTime, eventName, eventDescription, /* throwable= */ null));
     }
 
-    protected String getEventTimeString(EventTime eventTime) {
-        String windowPeriodString = "window=" + eventTime.windowIndex;
-        if (eventTime.mediaPeriodId != null) {
-            windowPeriodString +=
-                    ", period=" + eventTime.timeline.getIndexOfPeriod(eventTime.mediaPeriodId.periodUid);
-            if (eventTime.mediaPeriodId.isAd()) {
-                windowPeriodString += ", adGroup=" + eventTime.mediaPeriodId.adGroupIndex;
-                windowPeriodString += ", ad=" + eventTime.mediaPeriodId.adIndexInAdGroup;
-            }
-        }
-        return "eventTime="
-                + getTimeString(eventTime.realtimeMs - startTimeMs)
-                + ", mediaPos="
-                + getTimeString(eventTime.currentPlaybackPositionMs)
-                + ", buffered="
-                + getTimeString(eventTime.totalBufferedDurationMs)
-                + ", "
-                + windowPeriodString;
-    }
-
-    private boolean isVideoTrack(MediaSourceEventListener.MediaLoadData loadData) {
+    private boolean isVideoTrack(MediaLoadData loadData) {
         Format format = loadData.trackFormat;
         return  format != null &&
                 (loadData.trackType == C.TRACK_TYPE_VIDEO || format.height > 0 || MimeTypes.getVideoMediaMimeType(format.codecs) != null);

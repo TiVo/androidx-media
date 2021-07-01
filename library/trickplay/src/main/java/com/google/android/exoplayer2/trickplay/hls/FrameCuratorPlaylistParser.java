@@ -81,9 +81,9 @@ public class FrameCuratorPlaylistParser implements ParsingLoadable.Parser<HlsPla
         long minLength = Long.MAX_VALUE;
         HlsMediaPlaylist.Segment minSizeSegment = null;
         for (HlsMediaPlaylist.Segment segment : segments.subList(startIndex, endIndex)) {
-            if (segment.byterangeLength < minLength) {
+            if (segment.byteRangeLength < minLength) {
                 minSizeSegment = segment;
-                minLength = segment.byterangeLength;
+                minLength = segment.byteRangeLength;
             }
         }
         return minSizeSegment == null ? segments.get(endIndex) : minSizeSegment;

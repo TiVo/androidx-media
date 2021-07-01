@@ -6,7 +6,10 @@ import androidx.test.ext.junit.runners.AndroidJUnit4;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.ArrayList;
+import java.util.List;
 
+import com.google.android.exoplayer2.C;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -44,12 +47,12 @@ public class DualModeHlsPlaylistParserFactoryTest {
         ParsingLoadable.Parser<HlsPlaylist> masterParser = parserFactory.createPlaylistParser();
         HlsPlaylist playlistnoIframe = masterParser.parse(Uri.EMPTY, masterPlaylistSourceNoIframe);
         assertThat(playlistnoIframe).isInstanceOf(HlsMasterPlaylist.class);
-        assertThat(((HlsMasterPlaylist)playlistnoIframe).iFrameVariants.size()).isEqualTo(0);
+        assertThat(iFrameOnlyVariants(((HlsMasterPlaylist) playlistnoIframe).variants).size()).isEqualTo(0);
     }
 
     @Test
     public void testIFrameClonesCreated() throws IOException {
-        assertThat(masterPlaylist.iFrameVariants.size()).isEqualTo(2);
+        assertThat(iFrameOnlyVariants(masterPlaylist.variants).size()).isEqualTo(2);
     }
 
     @Test
@@ -63,4 +66,14 @@ public class DualModeHlsPlaylistParserFactoryTest {
         assertThat(playlist).isInstanceOf(HlsMediaPlaylist.class);
     }
 
+
+    private static List<HlsMasterPlaylist.Variant> iFrameOnlyVariants(Iterable<? extends HlsMasterPlaylist.Variant> variants) {
+        ArrayList<HlsMasterPlaylist.Variant> matched = new ArrayList<>();
+        for (HlsMasterPlaylist.Variant variant : variants) {
+            if ((variant.format.roleFlags & C.ROLE_FLAG_TRICK_PLAY) != 0) {
+                matched.add(variant);
+            }
+        }
+        return matched;
+    }
 }

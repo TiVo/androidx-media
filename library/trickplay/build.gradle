@@ -11,11 +11,11 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-apply from: '../../constants.gradle'
-apply plugin: 'com.android.library'
+apply from: "$gradle.ext.exoplayerSettingsDir/common_library_config.gradle"
 
 android {
     compileSdkVersion project.ext.compileSdkVersion
+    apply from: "$gradle.ext.exoplayerSettingsDir/common_library_config.gradle"
 
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_1_8
@@ -36,7 +36,6 @@ android {
         // }
     }
 
-    testOptions.unitTests.includeAndroidResources = true
 }
 
 dependencies {
@@ -47,7 +46,6 @@ dependencies {
     testImplementation 'org.robolectric:robolectric:' + robolectricVersion
     androidTestImplementation 'org.mockito:mockito-core:' + mockitoVersion
     compileOnly 'org.checkerframework:checker-qual:' + checkerframeworkVersion
-    compileOnly 'org.checkerframework:checker-compat-qual:' + checkerframeworkVersion
 }
 
 ext {

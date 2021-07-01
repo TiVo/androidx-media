@@ -1,10 +1,12 @@
 package com.tivo.exoplayer.library.metrics;
 
+import android.os.SystemClock;
 import android.util.Log;
 import androidx.annotation.VisibleForTesting;
 
 import java.util.Map;
 
+import com.google.android.exoplayer2.Player;
 import org.json.JSONObject;
 
 import com.google.android.exoplayer2.SimpleExoPlayer;
@@ -103,8 +105,8 @@ public class ManagePlaybackMetrics implements PlaybackMetricsManagerApi {
             currentPlayer.removeAnalyticsListener(playbackStatsListener);
             lastTrickPlayStartTimeMs = clock.elapsedRealtime();
 
-            // Mark time period in regular playback as "SEEKING" during the VTP operation, most logical bucket for now
-            playbackStatsListener.onSeekStarted(createEventTime(lastTrickPlayStartTimeMs));
+            // Mark time period in regular playback as PAUSED during the VTP operation, TODO - perhaps background is better?
+            playbackStatsListener.onPlayWhenReadyChanged(createEventTime(lastTrickPlayStartTimeMs), false, Player.PLAY_WHEN_READY_CHANGE_REASON_END_OF_MEDIA_ITEM);
             parentListener.enteringTrickPlayMeasurement();
 
         }
@@ -115,8 +117,8 @@ public class ManagePlaybackMetrics implements PlaybackMetricsManagerApi {
             long trickPlayTime = stoppedTrickPlayAt - lastTrickPlayStartTimeMs;
             createOrReturnCurrent().addTrickPlayTime(trickPlayTime);
 
-            // Once VTP ends, end the virtual "SEEK" and restore the regular playback stats listener
-            playbackStatsListener.onSeekProcessed(createEventTime(stoppedTrickPlayAt));
+            // Once VTP ends, end the virtual "PAUSED" state and restore the regular playback stats listener
+            playbackStatsListener.onPlayWhenReadyChanged(createEventTime(stoppedTrickPlayAt), true, Player.PLAY_WHEN_READY_CHANGE_REASON_END_OF_MEDIA_ITEM);
             currentPlayer.addAnalyticsListener(playbackStatsListener);
             parentListener.exitingTrickPlayMeasurement();
         }
@@ -137,8 +139,17 @@ public class ManagePlaybackMetrics implements PlaybackMetricsManagerApi {
 
     private AnalyticsListener.EventTime createEventTime(long eventTime) {
         long position = currentPlayer.getCurrentPosition();
-        return new AnalyticsListener.EventTime(eventTime, currentPlayer.getCurrentTimeline(),
-                0, null, position, position, 0);
+        return new AnalyticsListener.EventTime(
+                eventTime,
+                currentPlayer.getCurrentTimeline(),
+                /* windowIndex= */ 0,
+                /* mediaPeriodId= */ null,
+                /* eventPlaybackPositionMs= */ position,
+                currentPlayer.getCurrentTimeline(),
+                /* currentWindowIndex= */ 0,
+                /* currentMediaPeriodId= */ null,
+                /* currentPlaybackPositionMs= */ position,
+                /* totalBufferedDurationMs= */ 0);
     }
 
     @Override

@@ -17,21 +17,21 @@ buildscript {
         jcenter()
     }
     dependencies {
-        classpath 'com.android.tools.build:gradle:3.5.1'
+        classpath 'com.android.tools.build:gradle:4.0.1'
         classpath 'com.novoda:bintray-release:0.9.1'
-        classpath 'com.google.android.gms:strict-version-matcher-plugin:1.2.0'
+        classpath 'com.google.android.gms:strict-version-matcher-plugin:1.2.1'
     }
 }
 allprojects {
     repositories {
         google()
         jcenter()
+        maven { url "https://oss.sonatype.org/content/repositories/snapshots" }
         maven {
             url 'http://repo-vip.tivo.com:8081/artifactory/libs-release'
         }
     }
     project.ext {
-        exoplayerPublishEnabled = false
         tivoExoplayerPublishEnabled = true
     }
     if (it.hasProperty('externalBuildDir')) {
@@ -41,11 +41,6 @@ allprojects {
         buildDir = "${externalBuildDir}/${project.name}"
     }
     group = 'com.google.android.exoplayer'
-
-    configurations.all {
-        // Don't cache changing modules at all.
-        resolutionStrategy.cacheChangingModulesFor 0, 'seconds'
-    }
 }
 
 apply from: 'javadoc_combined.gradle'

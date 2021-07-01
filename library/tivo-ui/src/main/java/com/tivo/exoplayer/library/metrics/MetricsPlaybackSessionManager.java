@@ -31,10 +31,6 @@ public class MetricsPlaybackSessionManager implements PlaybackSessionManager {
             this.creationTime = creationTime;
         }
 
-        public long getCreationTimeMs() {
-            return creationTime;
-        }
-
         public void setSessionUrl(@NonNull String url) {
             this.url = url;
         }
@@ -93,15 +89,6 @@ public class MetricsPlaybackSessionManager implements PlaybackSessionManager {
         this.delegate = delegate;
     }
 
-    public String getUrlForActiveSession() {
-        SessionInformation sessionIdentifier = getCurrentSessionInformation();
-        return  sessionIdentifier == null ? null : sessionIdentifier.url;
-    }
-
-    public SessionInformation getCurrentSessionInformation() {
-        return sessionsById.get(currentSessionId);
-    }
-
     public SessionInformation getSessionInformationFor(Long createTime) {
         return sessionsByCreateTime.get(createTime);
     }
@@ -130,21 +117,20 @@ public class MetricsPlaybackSessionManager implements PlaybackSessionManager {
     }
 
     @Override
-    public void handleTimelineUpdate(AnalyticsListener.EventTime eventTime) {
+    public void updateSessionsWithTimelineChange(AnalyticsListener.EventTime eventTime) {
         Timeline timeline = eventTime.timeline;
         if (timeline == Timeline.EMPTY) {
             Log.d(TAG, "timelineUpdated - was reset to EMPTY, eventTime: " + eventTime.realtimeMs + " sessionId: " + currentSessionId);
-//        } else {
-//            String url = getUrlFromTimeline(timeline);
-//            Log.d(TAG, "timelineUpdated - with URL: " + url + " , eventTime: " + eventTime.realtimeMs + " sessionId: " + currentSessionId);
+        } else {
+            String url = getUrlFromTimeline(timeline);
+            Log.d(TAG, "timelineUpdated - with URL: " + url + " , eventTime: " + eventTime.realtimeMs + " sessionId: " + currentSessionId);
         }
-        delegate.handleTimelineUpdate(eventTime);
+        delegate.updateSessionsWithTimelineChange(eventTime);
     }
 
-
     @Override
-    public void handlePositionDiscontinuity(AnalyticsListener.EventTime eventTime, int reason) {
-        delegate.handlePositionDiscontinuity(eventTime, reason);
+    public void updateSessionsWithDiscontinuity(AnalyticsListener.EventTime eventTime, int reason) {
+        delegate.updateSessionsWithDiscontinuity(eventTime, reason);
     }
 
     @Override

@@ -93,7 +93,7 @@ public class AudioTrackInitPlayerErrorHandlerTest {
                 0,
                 null
         );
-        ExoPlaybackException error = ExoPlaybackException.createForRenderer(cause, 0, format, RendererCapabilities.FORMAT_HANDLED);
+        ExoPlaybackException error = ExoPlaybackException.createForRenderer(cause, "", 0, format, 0);
         return error;
     }
 }

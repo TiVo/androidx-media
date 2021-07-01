@@ -11,7 +11,8 @@ import com.google.android.exoplayer2.C;
 import com.google.android.exoplayer2.Format;
 import com.google.android.exoplayer2.analytics.AnalyticsListener;
 import com.google.android.exoplayer2.analytics.PlaybackStats;
-import com.google.android.exoplayer2.source.MediaSourceEventListener;
+import com.google.android.exoplayer2.source.LoadEventInfo;
+import com.google.android.exoplayer2.source.MediaLoadData;
 import com.google.android.exoplayer2.trickplay.TrickPlayControl;
 
 /**
@@ -63,7 +64,7 @@ public class TrickPlayMetrics extends AbstractBasePlaybackMetrics {
         private final long loadDurationMs;
         private final long bytesLoaded;
 
-        IframeLoadEvent(long elapsedRealTimeMs, MediaSourceEventListener.LoadEventInfo loadEvent, MediaSourceEventListener.MediaLoadData loadData) {
+        IframeLoadEvent(long elapsedRealTimeMs, LoadEventInfo loadEvent, MediaLoadData loadData) {
             this.elapsedRealTimeMs = elapsedRealTimeMs;
             startMediaTimeMs = loadData.mediaStartTimeMs;
             mediaEndTimeMs = loadData.mediaEndTimeMs;
@@ -329,7 +330,7 @@ public class TrickPlayMetrics extends AbstractBasePlaybackMetrics {
         totalSeekCount = playbackStats.totalSeekCount;
 
         lastPlayedFormat = playbackStats.videoFormatHistory.size() > 0
-                ? playbackStats.videoFormatHistory.get(playbackStats.videoFormatHistory.size() - 1).second : null;
+                ? playbackStats.videoFormatHistory.get(playbackStats.videoFormatHistory.size() - 1).format : null;
 
         long positionDeltaMs = endEventTime.currentPlaybackPositionMs - startEventTime.currentPlaybackPositionMs;
         observedPlaybackSpeed = (float) positionDeltaMs / (float) getTotalElapsedTimeMs();

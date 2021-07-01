@@ -2,8 +2,11 @@ package com.tivo.exoplayer.library;
 
 import android.content.Context;
 import android.net.Uri;
+import android.os.Build;
 import androidx.annotation.CallSuper;
 import androidx.annotation.Nullable;
+import androidx.annotation.RequiresApi;
+
 import com.google.android.exoplayer2.C;
 import com.google.android.exoplayer2.DefaultLoadControl;
 import com.google.android.exoplayer2.ExoPlaybackException;
@@ -26,7 +29,7 @@ import com.google.android.exoplayer2.trickplay.TrickPlayControlFactory;
 import com.google.android.exoplayer2.util.EventLogger;
 import com.google.android.exoplayer2.util.Log;
 import com.google.android.exoplayer2.util.MimeTypes;
-import com.google.android.exoplayer2.util.Predicate;
+import com.google.common.base.Predicate;
 import com.tivo.exoplayer.library.errorhandlers.PlaybackExceptionRecovery;
 import com.tivo.exoplayer.library.errorhandlers.StuckPlaylistErrorRecovery;
 import com.tivo.exoplayer.library.logging.ExtendedEventLogger;
@@ -424,6 +427,7 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
 
   // Track Selection
 
+  @RequiresApi(api = Build.VERSION_CODES.LOLLIPOP)
   @Override
   public void setTunnelingMode(boolean enableTunneling) {
     int tunnelingSessionId = enableTunneling
@@ -583,7 +587,7 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
         TrackSelection groupSelection = getTrackSelectionForGroup(group);
         for (int trackIndex = 0; trackIndex < group.length; trackIndex++) {
           Format format = group.getFormat(trackIndex);
-          if (matching.evaluate(format)) {
+          if (matching.apply(format)) {
             boolean isSelected = groupSelection != null
                     && groupSelection.getSelectedFormat().equals(format);
             availableTracks.add(new TrackInfo(format, isSelected));
@@ -860,8 +864,12 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
   private DefaultTrackSelector createTrackSelector(boolean enableTunneling, Context context, TrackSelection.Factory trackSelectionFactory) {
     // Get a builder with current parameters then set/clear tunnling based on the intent
     //
-    int tunnelingSessionId = enableTunneling
-            ? C.generateAudioSessionIdV21(context) : C.AUDIO_SESSION_ID_UNSET;
+    int tunnelingSessionId = C.AUDIO_SESSION_ID_UNSET;
+
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+      tunnelingSessionId = enableTunneling
+              ? C.generateAudioSessionIdV21(context) : C.AUDIO_SESSION_ID_UNSET;
+    }
 
     boolean usingSavedParameters =
         ! currentParameters.equals(new DefaultTrackSelector.ParametersBuilder(context).build());

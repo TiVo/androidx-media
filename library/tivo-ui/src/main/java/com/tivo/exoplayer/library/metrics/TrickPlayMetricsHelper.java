@@ -2,6 +2,8 @@ package com.tivo.exoplayer.library.metrics;
 
 import androidx.annotation.VisibleForTesting;
 
+import com.google.android.exoplayer2.source.LoadEventInfo;
+import com.google.android.exoplayer2.source.MediaLoadData;
 import org.json.JSONObject;
 
 import com.google.android.exoplayer2.C;
@@ -39,8 +41,8 @@ class TrickPlayMetricsHelper implements TrickPlayEventListener, PlaybackStatsLis
     private class TrickPlayMetricsAnalyticsListener implements AnalyticsListener {
         @Override
         public void onLoadCompleted(EventTime eventTime,
-                                    MediaSourceEventListener.LoadEventInfo loadEventInfo,
-                                    MediaSourceEventListener.MediaLoadData mediaLoadData) {
+                                    LoadEventInfo loadEventInfo,
+                                    MediaLoadData mediaLoadData) {
             if (currentTrickPlayMetrics != null && isTrickPlay(mediaLoadData)) {
                 currentTrickPlayMetrics.recordLoadedIframeInfo(new TrickPlayMetrics.IframeLoadEvent(eventTime.realtimeMs, loadEventInfo, mediaLoadData));
             }
@@ -48,15 +50,15 @@ class TrickPlayMetricsHelper implements TrickPlayEventListener, PlaybackStatsLis
 
         @Override
         public void onLoadCanceled(EventTime eventTime,
-                                   MediaSourceEventListener.LoadEventInfo loadEventInfo,
-                                   MediaSourceEventListener.MediaLoadData mediaLoadData) {
+                                   LoadEventInfo loadEventInfo,
+                                   MediaLoadData mediaLoadData) {
             if (currentTrickPlayMetrics != null && isTrickPlay(mediaLoadData)) {
                 currentTrickPlayMetrics.incrLoadCancels();
             }
         }
 
 
-        private boolean isTrickPlay(MediaSourceEventListener.MediaLoadData mediaLoadData) {
+        private boolean isTrickPlay(MediaLoadData mediaLoadData) {
             Format loadedFormat = mediaLoadData.trackFormat;
             boolean isTrickPlay = loadedFormat != null && (loadedFormat.roleFlags & C.ROLE_FLAG_TRICK_PLAY) != 0;
             return isTrickPlay;
@@ -161,7 +163,7 @@ class TrickPlayMetricsHelper implements TrickPlayEventListener, PlaybackStatsLis
             currentPlayer.removeAnalyticsListener(trickPlayStatsListener);
             currentPlayer.removeAnalyticsListener(trickPlayMetricsAnalyticsListener);
 
-            trickPlayStatsListener.onPlayerStateChanged(createEventTimeNow(), false, Player.STATE_IDLE);
+            trickPlayStatsListener.onPlaybackStateChanged(createEventTimeNow(), Player.STATE_IDLE);
 
             // If the session has not already ended, end it
             if (currentTrickPlayMetrics != null) {
@@ -195,8 +197,10 @@ class TrickPlayMetricsHelper implements TrickPlayEventListener, PlaybackStatsLis
             Format current = prevMetrics.lastPlayedFormat();
             if (current != null) {
                 // initially we are already playing and playing the current video format.
-                trickPlayStatsListener.onPlayerStateChanged(createEventTimeNow(), true, Player.STATE_READY);
-                trickPlayStatsListener.onDownstreamFormatChanged(createEventTimeNow(), createMediaLoad(current));
+                AnalyticsListener.EventTime eventTimeNow = createEventTimeNow();
+                trickPlayStatsListener.onPlaybackStateChanged(eventTimeNow, Player.STATE_READY);
+                trickPlayStatsListener.onPlayWhenReadyChanged(eventTimeNow, true, Player.PLAY_WHEN_READY_CHANGE_REASON_USER_REQUEST);
+                trickPlayStatsListener.onDownstreamFormatChanged(eventTimeNow, createMediaLoad(current));
             }
         } else {
 
@@ -204,20 +208,24 @@ class TrickPlayMetricsHelper implements TrickPlayEventListener, PlaybackStatsLis
             // in "playing" so first downstream format is recorded.  For forward, look like starting in buffering
             // to record the first transition to ready as initial startup time
             //
+            AnalyticsListener.EventTime eventTimeNow = createEventTimeNow();
             switch (TrickPlayControl.directionForMode(newMode)) {
                 case FORWARD:
-                    trickPlayStatsListener.onPlayerStateChanged(createEventTimeNow(), true, Player.STATE_BUFFERING);
+                    trickPlayStatsListener.onPlaybackStateChanged(eventTimeNow, Player.STATE_BUFFERING);
+                    trickPlayStatsListener.onPlayWhenReadyChanged(eventTimeNow, true, Player.PLAY_WHEN_READY_CHANGE_REASON_USER_REQUEST);
                     break;
 
                 case NONE:
                     throw new IllegalStateException("code error - unreachable");
 
                 case SCRUB:
-                    trickPlayStatsListener.onPlayerStateChanged(createEventTimeNow(), false, Player.STATE_READY);
+                    trickPlayStatsListener.onPlaybackStateChanged(eventTimeNow, Player.STATE_READY);
+                    trickPlayStatsListener.onPlayWhenReadyChanged(eventTimeNow, false, Player.PLAY_WHEN_READY_CHANGE_REASON_USER_REQUEST);
                     break;
 
                 case REVERSE:
-                    trickPlayStatsListener.onPlayerStateChanged(createEventTimeNow(), true, Player.STATE_READY);
+                    trickPlayStatsListener.onPlaybackStateChanged(eventTimeNow, Player.STATE_READY);
+                    trickPlayStatsListener.onPlayWhenReadyChanged(eventTimeNow, true, Player.PLAY_WHEN_READY_CHANGE_REASON_USER_REQUEST);
                     break;
             }
         }
@@ -227,14 +235,22 @@ class TrickPlayMetricsHelper implements TrickPlayEventListener, PlaybackStatsLis
 
     @VisibleForTesting
     AnalyticsListener.EventTime createEventTimeNow() {
-        return new AnalyticsListener.EventTime(clock.elapsedRealtime(), Timeline.EMPTY, 0, null,
-                0, currentPlayer.getCurrentPosition(), 0);
+        return new AnalyticsListener.EventTime(
+                clock.elapsedRealtime(),
+                Timeline.EMPTY,
+                /* windowIndex= */ currentPlayer.getCurrentWindowIndex(),
+                /* mediaPeriodId= */ null,
+                /* eventPlaybackPositionMs= */ currentPlayer.getCurrentPosition(),
+                Timeline.EMPTY,
+                /* currentWindowIndex= */ currentPlayer.getCurrentWindowIndex(),
+                /* currentMediaPeriodId= */ null,
+                /* currentPlaybackPositionMs= */ currentPlayer.getCurrentPosition(),
+                /* totalBufferedDurationMs= */ currentPlayer.getTotalBufferedDuration());
     }
 
     @VisibleForTesting
-    static MediaSourceEventListener.MediaLoadData createMediaLoad(Format format) {
-        int type = MimeTypes.getTrackType(format.sampleMimeType);
-        return new MediaSourceEventListener.MediaLoadData(0, C.TRACK_TYPE_VIDEO, format, 0, null, 0, 0);
+    static MediaLoadData createMediaLoad(Format format) {
+        return new MediaLoadData(0, C.TRACK_TYPE_VIDEO, format, 0, null, 0, 0);
     }
 
 }

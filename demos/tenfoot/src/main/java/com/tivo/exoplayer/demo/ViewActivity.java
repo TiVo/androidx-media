@@ -691,7 +691,9 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
     }
 
     boolean enableTunneling = getIntent().getBooleanExtra(ENABLE_TUNNELED_PLAYBACK, false);
-    exoPlayerFactory.setTunnelingMode(enableTunneling);
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+      exoPlayerFactory.setTunnelingMode(enableTunneling);
+    }
 
     if (DRM_SCHEME_VCAS.equals(getIntent().getStringExtra(DRM_SCHEME))) {
       String vcasAddr = getIntent().getStringExtra(DRM_VCAS_ADDR);

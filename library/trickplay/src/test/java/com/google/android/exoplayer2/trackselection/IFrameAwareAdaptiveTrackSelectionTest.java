@@ -17,7 +17,6 @@ import com.google.android.exoplayer2.trickplay.TrickPlayControl;
 import com.google.android.exoplayer2.upstream.BandwidthMeter;
 import com.google.android.exoplayer2.util.MimeTypes;
 import static com.google.common.truth.Truth.assertThat;
-import static org.mockito.ArgumentMatchers.booleanThat;
 import static org.mockito.Mockito.when;
 import static org.mockito.MockitoAnnotations.initMocks;
 
@@ -199,20 +198,21 @@ public class IFrameAwareAdaptiveTrackSelectionTest {
     }
     private static Format videoFormat(int bitrate, String id, int width, int height, int role, float frameRate) {
 
-        return Format.createVideoContainerFormat(
-                id,
-                id,
-                MimeTypes.VIDEO_H264,
-                MimeTypes.VIDEO_H264,
-                null,
-                null,
-                bitrate,
-                width,
-                height,
-                frameRate,
-                null,
-                0,
-                role
-        );
+        return new Format.Builder()
+            .setId(id)
+            .setLabel(id)
+            .setSelectionFlags(0)
+            .setRoleFlags(role)
+            .setAverageBitrate(bitrate)
+            .setPeakBitrate(bitrate)
+            .setCodecs(null)
+            .setMetadata(null)
+            .setContainerMimeType(MimeTypes.VIDEO_H264)
+            .setSampleMimeType(MimeTypes.VIDEO_H264)
+            .setInitializationData(null)
+            .setWidth(width)
+            .setHeight(height)
+            .setFrameRate(frameRate)
+            .build();
     }
 }

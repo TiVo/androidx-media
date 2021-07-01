@@ -15,6 +15,8 @@
  */
 package com.google.android.exoplayer2.text.cea;
 
+import static java.lang.Math.min;
+
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.text.Layout.Alignment;
@@ -42,6 +44,7 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import org.checkerframework.checker.nullness.compatqual.NullableType;
 
 /** A {@link SubtitleDecoder} for CEA-608 (also known as "line 21 captions" and "EIA-608"). */
 public final class Cea608Decoder extends CeaDecoder {
@@ -248,8 +251,8 @@ public final class Cea608Decoder extends CeaDecoder {
   private final ArrayList<CueBuilder> cueBuilders;
 
   private CueBuilder currentCueBuilder;
-  private List<Cue> cues;
-  private List<Cue> lastCues;
+  @Nullable private List<Cue> cues;
+  @Nullable private List<Cue> lastCues;
   private long inputTimestampUs;
 
   private int captionMode;
@@ -374,14 +377,15 @@ public final class Cea608Decoder extends CeaDecoder {
   @Override
   protected Subtitle createSubtitle() {
     lastCues = cues;
-    return new CeaSubtitle(cues);
+    return new CeaSubtitle(Assertions.checkNotNull(cues));
   }
 
   @SuppressWarnings("ByteBufferBackingArray")
   @Override
   protected void decode(SubtitleInputBuffer inputBuffer) {
     inputTimestampUs = inputBuffer.timeUs;
-    ccData.reset(inputBuffer.data.array(), inputBuffer.data.limit());
+    ByteBuffer subtitleData = Assertions.checkNotNull(inputBuffer.data);
+    ccData.reset(subtitleData.array(), subtitleData.limit());
     boolean captionDataProcessed = false;
     while (ccData.bytesLeft() >= packetLength) {
       byte ccHeader = packetLength == 2 ? CC_IMPLICIT_DATA_HEADER
@@ -637,22 +641,23 @@ public final class Cea608Decoder extends CeaDecoder {
     // preference, then middle alignment, then end alignment.
     @Cue.AnchorType int positionAnchor = Cue.ANCHOR_TYPE_END;
     int cueBuilderCount = cueBuilders.size();
-    List<Cue> cueBuilderCues = new ArrayList<>(cueBuilderCount);
+    List<@NullableType Cue> cueBuilderCues = new ArrayList<>(cueBuilderCount);
     for (int i = 0; i < cueBuilderCount; i++) {
-      Cue cue = cueBuilders.get(i).build(/* forcedPositionAnchor= */ Cue.TYPE_UNSET);
+      @Nullable Cue cue = cueBuilders.get(i).build(/* forcedPositionAnchor= */ Cue.TYPE_UNSET);
       cueBuilderCues.add(cue);
       if (cue != null) {
-        positionAnchor = Math.min(positionAnchor, cue.positionAnchor);
+        positionAnchor = min(positionAnchor, cue.positionAnchor);
       }
     }
 
     // Skip null cues and rebuild any that don't have the preferred alignment.
     List<Cue> displayCues = new ArrayList<>(cueBuilderCount);
     for (int i = 0; i < cueBuilderCount; i++) {
-      Cue cue = cueBuilderCues.get(i);
+      @Nullable Cue cue = cueBuilderCues.get(i);
       if (cue != null) {
         if (cue.positionAnchor != positionAnchor) {
-          cue = cueBuilders.get(i).build(positionAnchor);
+          // The last time we built this cue it was non-null, it will be non-null this time too.
+          cue = Assertions.checkNotNull(cueBuilders.get(i).build(positionAnchor));
         }
         displayCues.add(cue);
       }
@@ -812,7 +817,7 @@ public final class Cea608Decoder extends CeaDecoder {
     return (cc1 & 0xF7) == 0x14;
   }
 
-  private static class CueBuilder {
+  private static final class CueBuilder {
 
     // 608 captions define a 15 row by 32 column screen grid. These constants convert from 608
     // positions to normalized screen position.
@@ -834,7 +839,7 @@ public final class Cea608Decoder extends CeaDecoder {
       rolledUpCaptions = new ArrayList<>();
       captionStringBuilder = new StringBuilder();
       reset(captionMode);
-      setCaptionRowCount(captionRowCount);
+      this.captionRowCount = captionRowCount;
     }
 
     public void reset(int captionMode) {
@@ -894,12 +899,13 @@ public final class Cea608Decoder extends CeaDecoder {
       rolledUpCaptions.add(buildCurrentLine());
       captionStringBuilder.setLength(0);
       cueStyles.clear();
-      int numRows = Math.min(captionRowCount, row);
+      int numRows = min(captionRowCount, row);
       while (rolledUpCaptions.size() >= numRows) {
         rolledUpCaptions.remove(0);
       }
     }
 
+    @Nullable
     public Cue build(@Cue.AnchorType int forcedPositionAnchor) {
       // The number of empty columns before the start of the text, in the range [0-31].
       int startPadding = indent + tabOffset;
@@ -919,7 +925,6 @@ public final class Cea608Decoder extends CeaDecoder {
       }
 
       int positionAnchor;
-
       // The number of empty columns after the end of the text, in the same range.
       int endPadding = SCREEN_CHARWIDTH - startPadding - cueString.length();
       int startEndPaddingDelta = startPadding - endPadding;
@@ -976,15 +981,14 @@ public final class Cea608Decoder extends CeaDecoder {
         line = captionMode == CC_MODE_ROLL_UP ? row - (captionRowCount - 1) : row;
       }
 
-      return new Cue(
-          cueString,
-          Alignment.ALIGN_NORMAL,
-          line,
-          Cue.LINE_TYPE_NUMBER,
-          lineAnchor,
-          position,
-          positionAnchor,
-          Cue.DIMEN_UNSET);
+      return new Cue.Builder()
+          .setText(cueString)
+          .setTextAlignment(Alignment.ALIGN_NORMAL)
+          .setLine(line, Cue.LINE_TYPE_NUMBER)
+          .setLineAnchor(lineAnchor)
+          .setPosition(position)
+          .setPositionAnchor(positionAnchor)
+          .build();
     }
 
     private SpannableString buildCurrentLine() {

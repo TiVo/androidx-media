@@ -6,8 +6,10 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
 
+import com.google.android.exoplayer2.C;
 import com.google.android.exoplayer2.Format;
 import com.google.android.exoplayer2.source.hls.playlist.HlsMasterPlaylist;
+import com.google.android.exoplayer2.source.hls.playlist.HlsMediaPlaylist;
 import com.google.android.exoplayer2.source.hls.playlist.HlsPlaylist;
 import com.google.android.exoplayer2.source.hls.playlist.HlsPlaylistParserFactory;
 import com.google.android.exoplayer2.upstream.ParsingLoadable;
@@ -30,26 +32,48 @@ public class DualModeHlsPlaylistParserFactory implements HlsPlaylistParserFactor
             HlsPlaylist playlist = delegatePlaylistParser.parse(uri, inputStream);
             if (playlist instanceof HlsMasterPlaylist) {
                 HlsMasterPlaylist masterPlaylist = (HlsMasterPlaylist) playlist;
-                ArrayList<HlsMasterPlaylist.Variant> iFrameVariants = new ArrayList<>(masterPlaylist.iFrameVariants);
-                if (!iFrameVariants.isEmpty()) {
-                    HlsMasterPlaylist.Variant variant = iFrameVariants.get(0);
+                ArrayList<HlsMasterPlaylist.Variant> augmentedVariants = new ArrayList<>(masterPlaylist.variants);
 
-                    Uri clonedVariant = variant.url.buildUpon()
+                // Find highest bitrate (should be only one really, as Vecima / Velocix only support one) i-Frame only playlist
+                HlsMasterPlaylist.Variant highestIframe = null;
+                int variantIndx = 0;
+                while (variantIndx < masterPlaylist.variants.size()) {
+                    HlsMasterPlaylist.Variant sourceVariant = masterPlaylist.variants.get(variantIndx);
+                    if ((sourceVariant.format.roleFlags & C.ROLE_FLAG_TRICK_PLAY) != 0) {
+                        if (highestIframe == null) {
+                            highestIframe = sourceVariant;
+                        } else if (sourceVariant.format.bitrate > highestIframe.format.bitrate) {
+                            highestIframe = sourceVariant;
+                        }
+
+                        if (sourceVariant.format.label == null) {
+                            Format updatedFormat = sourceVariant.format.buildUpon()
+                                    .setLabel("iFrame_" + variantIndx)
+                                    .build();
+                            augmentedVariants.set(variantIndx, cloneVariantWithFormat(sourceVariant, updatedFormat));
+                        }
+                    }
+                    variantIndx++;
+                }
+
+                if (highestIframe != null) {
+                    Uri clonedVariantUri = highestIframe.url.buildUpon()
                             .fragment(String.valueOf(IFRAME_SUBSET_TARGET))
                             .build();
 
-                    Format clonedFormat = variant.format
-                            .copyWithBitrate(variant.format.bitrate / IFRAME_SUBSET_TARGET)
-                            .copyWithFrameRate(0.1f)
-                            .copyWithLabel("iFrame_" + IFRAME_SUBSET_TARGET);
+                    Format clonedFormat = highestIframe.format.buildUpon()
+                            .setAverageBitrate(highestIframe.format.bitrate / IFRAME_SUBSET_TARGET)
+                            .setPeakBitrate(highestIframe.format.bitrate / IFRAME_SUBSET_TARGET)
+                            .setFrameRate(0.1f)
+                            .setLabel("iFrame_" + IFRAME_SUBSET_TARGET)
+                            .build();
 
-                    iFrameVariants.add(new HlsMasterPlaylist.Variant(clonedVariant, clonedFormat, null));
+                    augmentedVariants.add(createVariant(clonedVariantUri, clonedFormat));
 
                     playlist = new HlsMasterPlaylist(
                             masterPlaylist.baseUri,
                             masterPlaylist.tags,
-                            masterPlaylist.variants,
-                            iFrameVariants,
+                            augmentedVariants,
                             masterPlaylist.videos,
                             masterPlaylist.audios,
                             masterPlaylist.subtitles,
@@ -63,6 +87,21 @@ public class DualModeHlsPlaylistParserFactory implements HlsPlaylistParserFactor
             }
             return playlist;
         }
+    }
+
+    private static HlsMasterPlaylist.Variant createVariant(Uri clonedVariantUri, Format clonedFormat) {
+        return new HlsMasterPlaylist.Variant(clonedVariantUri, clonedFormat, null, null, null, null);
+    }
+
+    private static HlsMasterPlaylist.Variant cloneVariantWithFormat(HlsMasterPlaylist.Variant variant, Format updatedFormat) {
+        return new HlsMasterPlaylist.Variant(
+                variant.url,
+                updatedFormat,
+                variant.videoGroupId,
+                variant.audioGroupId,
+                variant.subtitleGroupId,
+                variant.captionGroupId
+        );
     }
 
     public DualModeHlsPlaylistParserFactory(HlsPlaylistParserFactory hlsPlaylistParserFactory) {

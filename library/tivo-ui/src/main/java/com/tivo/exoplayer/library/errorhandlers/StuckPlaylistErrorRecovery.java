@@ -120,7 +120,7 @@ public class StuckPlaylistErrorRecovery implements PlaybackExceptionRecovery, Pl
             int windowIndex = player.getCurrentWindowIndex();
             Timeline.Window currentWindow = timeline.getWindow(windowIndex, new Timeline.Window());
 
-            if (reason == Player.TIMELINE_CHANGE_REASON_PREPARED) {
+            if (reason == Player.TIMELINE_CHANGE_REASON_PLAYLIST_CHANGED) {
                 Log.d(TAG, "onTimelineChanged() - fresh prepare, errorCount: " + errorCount
                         + " -" + getTimelineInfo(player));
                 Object manifest = currentWindow.manifest;

@@ -4,6 +4,8 @@ import androidx.test.ext.junit.runners.AndroidJUnit4;
 
 import java.util.List;
 
+import com.google.android.exoplayer2.source.LoadEventInfo;
+import com.google.android.exoplayer2.source.MediaLoadData;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -16,7 +18,6 @@ import com.google.android.exoplayer2.Format;
 import com.google.android.exoplayer2.SimpleExoPlayer;
 import com.google.android.exoplayer2.Timeline;
 import com.google.android.exoplayer2.analytics.AnalyticsListener;
-import com.google.android.exoplayer2.source.MediaSourceEventListener;
 import com.google.android.exoplayer2.testutil.FakeClock;
 import com.google.android.exoplayer2.trickplay.TrickPlayControl;
 import com.google.android.exoplayer2.util.Clock;
@@ -35,8 +36,22 @@ public class TrickPlayMetricsHelperTest {
             MimeTypes.VIDEO_H264, null, Format.NO_VALUE, Format.NO_VALUE, 1280, 720, Format.NO_VALUE,
             null, null);
 
-    static final Format TEST_IFRAME_FORMAT = Format.createVideoContainerFormat(null, null, MimeTypes.VIDEO_H264, MimeTypes.VIDEO_H264, null,
-            null, 1000, 1280, 720, 0.1f, null, 0, C.ROLE_FLAG_TRICK_PLAY);
+    static final Format TEST_IFRAME_FORMAT = new Format.Builder()
+            .setId(null)
+            .setLabel(null)
+            .setSelectionFlags(0)
+            .setRoleFlags(C.ROLE_FLAG_TRICK_PLAY)
+            .setAverageBitrate(1000)
+            .setPeakBitrate(1000)
+            .setCodecs(null)
+            .setMetadata(null)
+            .setContainerMimeType(MimeTypes.VIDEO_H264)
+            .setSampleMimeType(MimeTypes.VIDEO_H264)
+            .setInitializationData(null)
+            .setWidth(1280)
+            .setHeight(720)
+            .setFrameRate(0.1f)
+            .build();
 
     TrickPlayMetricsHelper testee;
 
@@ -171,12 +186,12 @@ public class TrickPlayMetricsHelperTest {
         return metrics;
     }
 
-    private MediaSourceEventListener.MediaLoadData createMockLoadEvent(int startMs) {
-        return new MediaSourceEventListener.MediaLoadData(0, C.TRACK_TYPE_VIDEO, TEST_IFRAME_FORMAT, 0, null, startMs, startMs + 1000);
+    private MediaLoadData createMockLoadEvent(int startMs) {
+        return new MediaLoadData(0, C.TRACK_TYPE_VIDEO, TEST_IFRAME_FORMAT, 0, null, startMs, startMs + 1000);
     }
 
-    private MediaSourceEventListener.LoadEventInfo createMockLoadData(long elapsedRealTimeMs, long loadDurationMs, long bytesLoaded) {
-        return new MediaSourceEventListener.LoadEventInfo(null, null, null, elapsedRealTimeMs, loadDurationMs, bytesLoaded);
+    private LoadEventInfo createMockLoadData(long elapsedRealTimeMs, long loadDurationMs, long bytesLoaded) {
+        return new LoadEventInfo(0, null, null, null, elapsedRealTimeMs, loadDurationMs, bytesLoaded);
     }
 
     private TrickPlayMetrics getLastEndedMetrics() {
@@ -200,7 +215,16 @@ public class TrickPlayMetricsHelperTest {
     }
 
     private AnalyticsListener.EventTime createTestEventTime(long elapsedRealTime) {
-        return new AnalyticsListener.EventTime(elapsedRealTime, Timeline.EMPTY, 0, null,
-                0, 0, 0);
+        return new AnalyticsListener.EventTime(
+                elapsedRealTime,
+                Timeline.EMPTY,
+                0,
+                null,
+                0,
+                Timeline.EMPTY,
+                0,
+                null,
+                0,
+                0);
     }
 }
