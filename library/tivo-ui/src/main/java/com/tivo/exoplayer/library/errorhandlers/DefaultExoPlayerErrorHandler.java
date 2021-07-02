@@ -1,11 +1,10 @@
-package com.tivo.exoplayer.library;
+package com.tivo.exoplayer.library.errorhandlers;
 
 import androidx.annotation.CallSuper;
 import androidx.annotation.Nullable;
 import com.google.android.exoplayer2.ExoPlaybackException;
 import com.google.android.exoplayer2.Player;
 import com.google.android.exoplayer2.util.Log;
-import com.tivo.exoplayer.library.errorhandlers.PlaybackExceptionRecovery;
 
 import java.util.List;
 

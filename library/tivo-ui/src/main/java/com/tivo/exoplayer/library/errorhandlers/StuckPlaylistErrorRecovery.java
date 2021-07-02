@@ -10,7 +10,6 @@ import com.google.android.exoplayer2.Timeline;
 import com.google.android.exoplayer2.source.hls.HlsManifest;
 import com.google.android.exoplayer2.source.hls.playlist.HlsPlaylistTracker;
 import com.google.android.exoplayer2.util.Log;
-import com.tivo.exoplayer.library.PlayerErrorRecoverable;
 
 public class StuckPlaylistErrorRecovery implements PlaybackExceptionRecovery, Player.EventListener {
     public static final String TAG = "StuckPlaylistErrorRecovery";

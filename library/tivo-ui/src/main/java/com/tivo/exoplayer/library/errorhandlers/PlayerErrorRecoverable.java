@@ -1,9 +1,10 @@
 // Copyright 2020 TiVo Inc.  All rights reserved.
-package com.tivo.exoplayer.library;
+package com.tivo.exoplayer.library.errorhandlers;
 
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 import com.google.android.exoplayer2.SimpleExoPlayer;
+import com.tivo.exoplayer.library.SimpleExoPlayerFactory;
 
 /**
  * PlaybackExceptionRecovery handlers call the implementor of this interface to get

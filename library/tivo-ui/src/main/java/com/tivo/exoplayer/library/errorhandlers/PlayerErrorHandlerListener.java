@@ -1,6 +1,8 @@
-package com.tivo.exoplayer.library;// Copyright 2010 TiVo Inc.  All rights reserved.
+package com.tivo.exoplayer.library.errorhandlers;// Copyright 2010 TiVo Inc.  All rights reserved.
 
 import com.google.android.exoplayer2.ExoPlaybackException;
+import com.tivo.exoplayer.library.SimpleExoPlayerFactory;
+import com.tivo.exoplayer.library.errorhandlers.DefaultExoPlayerErrorHandler;
 import com.tivo.exoplayer.library.errorhandlers.PlaybackExceptionRecovery;
 
 /**

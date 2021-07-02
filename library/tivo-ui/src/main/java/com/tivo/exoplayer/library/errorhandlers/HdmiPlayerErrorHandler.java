@@ -1,5 +1,5 @@
 // Copyright 2020 TiVo Inc.  All rights reserved.
-package com.tivo.exoplayer.library;
+package com.tivo.exoplayer.library.errorhandlers;
 
 import static android.content.Context.WINDOW_SERVICE;
 import static android.media.AudioManager.ACTION_HDMI_AUDIO_PLUG;
@@ -18,8 +18,6 @@ import androidx.annotation.Nullable;
 import com.google.android.exoplayer2.ExoPlaybackException;
 import com.google.android.exoplayer2.SimpleExoPlayer;
 import com.google.android.exoplayer2.audio.AudioSink;
-import com.tivo.exoplayer.library.PlayerErrorRecoverable;
-import com.tivo.exoplayer.library.errorhandlers.PlaybackExceptionRecovery;
 
 import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
 

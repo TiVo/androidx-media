@@ -1,4 +1,4 @@
-package com.tivo.exoplayer.library;
+package com.tivo.exoplayer.library.errorhandlers;
 
 import androidx.annotation.Nullable;
 import androidx.annotation.VisibleForTesting;
@@ -8,8 +8,8 @@ import com.google.android.exoplayer2.SimpleExoPlayer;
 import com.google.android.exoplayer2.audio.AudioSink;
 import com.google.android.exoplayer2.util.Log;
 import com.google.android.exoplayer2.util.Util;
-import com.tivo.exoplayer.library.PlayerErrorRecoverable;
 import com.tivo.exoplayer.library.SimpleExoPlayerFactory;
+import com.tivo.exoplayer.library.errorhandlers.PlayerErrorRecoverable;
 import com.tivo.exoplayer.library.errorhandlers.PlaybackExceptionRecovery;
 
 public class AudioTrackInitPlayerErrorHandler implements PlaybackExceptionRecovery {

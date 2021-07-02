@@ -5,7 +5,6 @@ import androidx.annotation.Nullable;
 import com.google.android.exoplayer2.ExoPlaybackException;
 import com.google.android.exoplayer2.Player;
 import com.google.android.exoplayer2.source.BehindLiveWindowException;
-import com.tivo.exoplayer.library.DefaultExoPlayerErrorHandler;
 import com.tivo.exoplayer.library.SimpleExoPlayerFactory;
 
 /**

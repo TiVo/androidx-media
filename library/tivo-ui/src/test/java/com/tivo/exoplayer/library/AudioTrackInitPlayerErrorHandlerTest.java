@@ -10,9 +10,10 @@ import org.mockito.MockitoAnnotations;
 
 import com.google.android.exoplayer2.ExoPlaybackException;
 import com.google.android.exoplayer2.Format;
-import com.google.android.exoplayer2.RendererCapabilities;
 import com.google.android.exoplayer2.SimpleExoPlayer;
 import com.google.android.exoplayer2.audio.AudioSink;
+import com.tivo.exoplayer.library.errorhandlers.AudioTrackInitPlayerErrorHandler;
+import com.tivo.exoplayer.library.errorhandlers.PlayerErrorRecoverable;
 import static com.google.android.exoplayer2.Player.PLAYBACK_SUPPRESSION_REASON_NONE;
 import static com.google.android.exoplayer2.Player.STATE_ENDED;
 import static com.google.android.exoplayer2.Player.STATE_READY;

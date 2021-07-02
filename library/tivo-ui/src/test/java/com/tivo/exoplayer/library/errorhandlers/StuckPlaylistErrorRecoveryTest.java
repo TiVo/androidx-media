@@ -17,7 +17,6 @@ import com.google.android.exoplayer2.Player;
 import com.google.android.exoplayer2.SimpleExoPlayer;
 import com.google.android.exoplayer2.Timeline;
 import com.google.android.exoplayer2.source.hls.playlist.HlsPlaylistTracker;
-import com.tivo.exoplayer.library.PlayerErrorRecoverable;
 import static com.google.android.exoplayer2.Player.PLAYBACK_SUPPRESSION_REASON_NONE;
 import static com.google.android.exoplayer2.Player.STATE_READY;
 import static com.google.common.truth.Truth.assertThat;
