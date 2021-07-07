@@ -27,6 +27,9 @@ public class PlaybackStatsExtensionTest {
     static final Format TEST_BASEVIDEO_FORMAT = Format.createVideoSampleFormat(null,
             MimeTypes.VIDEO_H264, null, Format.NO_VALUE, Format.NO_VALUE, 1280, 720, Format.NO_VALUE,
             null, null);
+    static final Format TEST_BASEAUDIO_FORMAT = Format.createAudioSampleFormat(null,
+            MimeTypes.AUDIO_AAC,null,Format.NO_VALUE,Format.NO_VALUE,Format.NO_VALUE,Format.NO_VALUE,
+            null,null,Format.NO_VALUE,null);
     static final Timeline TEST_TIMELINE = new FakeTimeline(/* windowCount= */ 1);
 
     @Test

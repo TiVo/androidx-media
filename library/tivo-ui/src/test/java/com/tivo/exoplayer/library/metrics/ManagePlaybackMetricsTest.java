@@ -16,6 +16,7 @@ import org.mockito.stubbing.Answer;
 
 import static com.google.common.truth.Truth.assertThat;
 import static com.google.common.truth.Truth.assertWithMessage;
+import static com.tivo.exoplayer.library.metrics.PlaybackStatsExtensionTest.TEST_BASEAUDIO_FORMAT;
 import static com.tivo.exoplayer.library.metrics.PlaybackStatsExtensionTest.TEST_BASEVIDEO_FORMAT;
 import static com.tivo.exoplayer.library.metrics.PlaybackStatsExtensionTest.TEST_TIMELINE;
 import static com.tivo.exoplayer.library.metrics.PlaybackStatsExtensionTest.createEventTime;
@@ -301,6 +302,43 @@ public class ManagePlaybackMetricsTest {
         float expected = (formats[0].bitrate/1_000_000.0f + formats[1].bitrate/1_000_000.0f) / 2;
 
         assertThat(metrics.getAvgVideoBitrate()).isEqualTo(expected);
+    }
+
+    @Test
+    public void test_getAvgAudioBitrate_metric_excludesTrickplay() {
+
+        // Will play audio half the time in 1Mbps and half in 2Mbps, expect result is 1.5Mbps
+        Format formats[] = {
+                TEST_BASEAUDIO_FORMAT.buildUpon().setAverageBitrate(10_000_00).setPeakBitrate(10_000_00).build(),
+                TEST_BASEAUDIO_FORMAT.buildUpon().setAverageBitrate(20_000_00).setPeakBitrate(20_000_00).build()
+        };
+
+        // first format plays from 400 - 700, minus 100ms of buffering so 200 ms
+        SystemClock.setCurrentTimeMillis(200);
+        analyticsListener.onDownstreamFormatChanged(createEventTime(300), createMediaLoad(formats[0]));
+        analyticsListener.onPlayWhenReadyChanged(createEventTime(400), true, Player.PLAY_WHEN_READY_CHANGE_REASON_USER_REQUEST);
+        analyticsListener.onPlaybackStateChanged(createEventTime(400), Player.STATE_READY);
+        analyticsListener.onPlaybackStateChanged(createEventTime(500), Player.STATE_BUFFERING);
+        analyticsListener.onPlaybackStateChanged(createEventTime(600), Player.STATE_READY);
+        SystemClock.setCurrentTimeMillis(700);
+
+        // second format 700 to 1000, with 100ms of trick-play  so 200 ms
+        analyticsListener.onDownstreamFormatChanged(createEventTime(700), createMediaLoad(formats[1]));
+
+        SystemClock.setCurrentTimeMillis(800);
+        trickPlayEventListener.trickPlayModeChanged(TrickPlayControl.TrickMode.FF1, TrickPlayControl.TrickMode.NORMAL);
+        SystemClock.setCurrentTimeMillis(900);
+        trickPlayEventListener.trickPlayModeChanged(TrickPlayControl.TrickMode.NORMAL, TrickPlayControl.TrickMode.FF1);
+
+        SystemClock.setCurrentTimeMillis(1000);
+        analyticsListener.onPlaybackStateChanged(createEventTime(1000), Player.STATE_ENDED);
+        PlaybackMetrics metrics = manageMetrics.createOrReturnCurrent();
+        manageMetrics.updateFromCurrentStats(metrics);
+
+        // Expect half the time in format 0 and half in format 1 of Audio
+        float expected = (formats[0].bitrate/1_000_000.0f + formats[1].bitrate/1_000_000.0f) / 2;
+
+        assertThat(metrics.getAvgAudioBitrate()).isEqualTo(expected);
     }
 
     @Test
