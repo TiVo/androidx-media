@@ -5,6 +5,7 @@ import androidx.annotation.Nullable;
 import com.google.android.exoplayer2.ExoPlaybackException;
 import com.google.android.exoplayer2.Player;
 import com.google.android.exoplayer2.source.BehindLiveWindowException;
+import com.google.android.exoplayer2.source.hls.playlist.HlsPlaylistTracker;
 import com.tivo.exoplayer.library.SimpleExoPlayerFactory;
 
 /**
@@ -17,7 +18,7 @@ import com.tivo.exoplayer.library.SimpleExoPlayerFactory;
  *
  * The client (for {@link SimpleExoPlayerFactory} this is the {@link DefaultExoPlayerErrorHandler}) calls
  * back the {@link #checkRecoveryCompleted()} for player state change events or at anytime to check if
- * recovery has completed. If the playback is abandon (channel change, etc) call {@link #cancelRecovery()}
+ * recovery has completed. If the playback is abandon (channel change, etc) call {@link #abortRecovery()}
  * to reset the handlers state.
  */
 public interface PlaybackExceptionRecovery {
@@ -31,18 +32,33 @@ public interface PlaybackExceptionRecovery {
      * @return true if it is SOURCE error BehindLiveWindowException
      */
     static boolean isBehindLiveWindow(ExoPlaybackException e) {
+        return isSourceErrorOfType(e, BehindLiveWindowException.class);
+    }
+
+    /**
+     * Check if the error was cause by HlsPlaylistTracker.PlaylistStuckException.
+     *
+     * @param e the Exception to check
+     * @return true if it is SOURCE error HlsPlaylistTracker.PlaylistStuckException
+     */
+    static boolean isPlaylistStuck(ExoPlaybackException e) {
+        return isSourceErrorOfType(e, HlsPlaylistTracker.PlaylistStuckException.class);
+    }
+
+    static boolean isSourceErrorOfType(ExoPlaybackException e, Class type) {
         if (e.type != ExoPlaybackException.TYPE_SOURCE) {
             return false;
         }
         Throwable cause = e.getSourceException();
         while (cause != null) {
-            if (cause instanceof BehindLiveWindowException) {
+            if (cause.getClass().isAssignableFrom(type)) {
                 return true;
             }
             cause = cause.getCause();
         }
         return false;
     }
+
 
     /**
      * Recovery flow starts when this handler is called with an exception and returns true indicating
@@ -105,8 +121,9 @@ public interface PlaybackExceptionRecovery {
     ;
 
     /**
-     * Called when the client destroys the player, use this to release any listeners the error handler
-     * may have
+     * Called when the client destroys the player, use this to release any references to Android
+     * resources (Context based) the error recovery handler may have.  Player listeners have already been
+     * cleaned up by {@link Player#release()}
      */
     default void releaseResources() {};
 }

@@ -31,6 +31,7 @@ import com.google.android.exoplayer2.util.Log;
 import com.google.android.exoplayer2.util.MimeTypes;
 import com.google.common.base.Predicate;
 import com.tivo.exoplayer.library.errorhandlers.AudioTrackInitPlayerErrorHandler;
+import com.tivo.exoplayer.library.errorhandlers.BehindLiveWindowExceptionRecovery;
 import com.tivo.exoplayer.library.errorhandlers.DefaultExoPlayerErrorHandler;
 import com.tivo.exoplayer.library.errorhandlers.HdmiPlayerErrorHandler;
 import com.tivo.exoplayer.library.errorhandlers.PlaybackExceptionRecovery;
@@ -244,12 +245,10 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
    * own error handling or reporting extend this class and return your class here.  Make sure
    * to honor the @CallSuper annotations to ensure proper error recovery operation.
    *
-   * @param mediaSourceLifeCycle current {@link MediaSourceLifeCycle}, this is one of the error handlers
    * @return default returns {@link DefaultExoPlayerErrorHandler}, return a subclass thereof if you override
    */
-  protected DefaultExoPlayerErrorHandler createPlayerErrorHandler(MediaSourceLifeCycle mediaSourceLifeCycle) {
-    List<PlaybackExceptionRecovery> errorHandlers = getDefaultPlaybackExceptionHandlers(
-        mediaSourceLifeCycle);
+  protected DefaultExoPlayerErrorHandler createPlayerErrorHandler() {
+    List<PlaybackExceptionRecovery> errorHandlers = getDefaultPlaybackExceptionHandlers();
 
     DefaultExoPlayerErrorHandler defaultExoPlayerErrorHandler =
             new DefaultExoPlayerErrorHandler(errorHandlers, playerErrorHandlerListener);
@@ -257,15 +256,15 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
   }
 
   /**
-   * If you override {@link #createPlayerErrorHandler(MediaSourceLifeCycle)}, use this method to get
+   * If you override {@link #createPlayerErrorHandler()}, use this method to get
    * the default set of {@link PlaybackExceptionRecovery}
    * handlers to pass to the {@link DefaultExoPlayerErrorHandler} you have extended.  For example:
    *
    * <pre>
    *   ...
    *
-   *   protected AnalyticsListener createPlayerErrorHandler(MediaSourceLifeCycle mediaSourceLifeCycle) {
-   *     return new MyExoPlayerErrorHanlder(getDefaultPlaybackExceptionHandlers(mediaSourceLifeCycle);
+   *   protected AnalyticsListener createPlayerErrorHandler() {
+   *     return new MyExoPlayerErrorHanlder(getDefaultPlaybackExceptionHandlers();
    *   }
    *
    *   protected void playerErrorProcessed(EventTime eventTime, ExoPlaybackException error, boolean recovered) {
@@ -276,14 +275,12 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
    * </pre>
    *
    *
-   * @param mediaSourceLifeCycle - the current MediaSourceLifeCycle
    * @return the default list of playback error handlers.
    */
-  protected List<PlaybackExceptionRecovery> getDefaultPlaybackExceptionHandlers(
-      MediaSourceLifeCycle mediaSourceLifeCycle) {
+  protected List<PlaybackExceptionRecovery> getDefaultPlaybackExceptionHandlers() {
     return Arrays.asList(
         new AudioTrackInitPlayerErrorHandler(this),
-        mediaSourceLifeCycle,
+        new BehindLiveWindowExceptionRecovery(this),
         new StuckPlaylistErrorRecovery(this),
         new HdmiPlayerErrorHandler(this, context));
   }
@@ -401,7 +398,7 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
     if (logger != null) {
       player.addAnalyticsListener(logger);
     }
-    playerErrorHandler = createPlayerErrorHandler(mediaSourceLifeCycle);
+    playerErrorHandler = createPlayerErrorHandler();
     player.addListener(playerErrorHandler);
     return player;
   }
@@ -416,7 +413,21 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
    * @throws UnrecognizedInputFormatException - if the URI is not in a supported container format.
    */
   public void playUrl(Uri url, DrmInfo drmInfo, boolean enableChunkless) throws UnrecognizedInputFormatException {
-    mediaSourceLifeCycle.playUrl(url, drmInfo, enableChunkless);
+    mediaSourceLifeCycle.playUrl(url, C.POSITION_UNSET, drmInfo, enableChunkless);
+  }
+
+  /**
+   * Start playback of the specified URL on the current ExoPlayer.  Must have previously
+   * called {@link #createPlayer(boolean, boolean)}
+   *
+   * @param url - URL to play
+   * @param startPosUs - starting position, or {@link C#POSITION_UNSET} for the default (live offset or 0 for VOD)
+   * @param drmInfo - DRM information
+   * @param enableChunkless - flag to enable chunkless prepare, TODO - will make this default
+   * @throws UnrecognizedInputFormatException - if the URI is not in a supported container format.
+   */
+  public void playUrl(Uri url, long startPosUs, DrmInfo drmInfo, boolean enableChunkless) throws UnrecognizedInputFormatException {
+    mediaSourceLifeCycle.playUrl(url, startPosUs, drmInfo, enableChunkless);
   }
 
   /**
@@ -850,7 +861,8 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
   @Override
   public void retryPlayback() {
     if (player != null) {
-      player.retry();
+      Log.i(TAG, "retryPlayback() - issuing prepare() to player.");
+      player.prepare();
     }
   }
 

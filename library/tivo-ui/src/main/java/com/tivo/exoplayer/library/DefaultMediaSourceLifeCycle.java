@@ -6,15 +6,13 @@ import android.net.Uri;
 import android.os.Build;
 import androidx.annotation.Nullable;
 import com.google.android.exoplayer2.C;
-import com.google.android.exoplayer2.ExoPlaybackException;
 import com.google.android.exoplayer2.ExoPlayerLibraryInfo;
 import com.google.android.exoplayer2.MediaItem;
 import com.google.android.exoplayer2.Player;
 import com.google.android.exoplayer2.SimpleExoPlayer;
-import com.google.android.exoplayer2.analytics.AnalyticsListener;
+import com.google.android.exoplayer2.Timeline;
 import com.google.android.exoplayer2.drm.DefaultDrmSessionManager;
 import com.google.android.exoplayer2.drm.DrmSessionManager;
-import com.google.android.exoplayer2.drm.ExoMediaCrypto;
 import com.google.android.exoplayer2.drm.FrameworkMediaDrm;
 import com.google.android.exoplayer2.drm.HttpMediaDrmCallback;
 import com.google.android.exoplayer2.drm.MediaDrmCallback;
@@ -33,7 +31,6 @@ import com.google.android.exoplayer2.util.Log;
 
 import com.google.android.exoplayer2.util.MimeTypes;
 import com.google.android.exoplayer2.util.Util;
-import com.tivo.exoplayer.library.errorhandlers.PlaybackExceptionRecovery;
 import com.tivo.exoplayer.tivocrypt.TivoCryptDataSourceFactory;
 
 import java.io.File;
@@ -50,11 +47,11 @@ import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
  * The {@link SimpleExoPlayer#prepare(MediaSource)} starts the mediasource loading, or reloads it in
  * the event of a recoverable playback error (eg {@link com.google.android.exoplayer2.source.BehindLiveWindowException}
  *
- * This object manages the life-cycle of playback and error handling for a give URL
+ * This object manages the life-cycle of playback for a given URL
  */
-public class DefaultMediaSourceLifeCycle implements MediaSourceLifeCycle, AnalyticsListener {
+public class DefaultMediaSourceLifeCycle implements MediaSourceLifeCycle, Player.EventListener {
 
-  private static final String TAG = "ExoPlayer";
+  private static final String TAG = "DefaultMediaSourceLifeCycle";
 
   protected final SimpleExoPlayer player;
   protected final Context context;
@@ -63,8 +60,7 @@ public class DefaultMediaSourceLifeCycle implements MediaSourceLifeCycle, Analyt
   @Nullable
   private MediaSourceEventCallback callback;
 
-  private boolean isInitialMediaSourceEvent;
-  private @Nullable ExoPlaybackException currentError;
+  private boolean deliveredInitialTimelineChange;
 
   /**
    * Construct the default implementation of {@link MediaSourceLifeCycle}
@@ -76,23 +72,30 @@ public class DefaultMediaSourceLifeCycle implements MediaSourceLifeCycle, Analyt
     this.player = player;
     this.context = context;
 
-    player.addAnalyticsListener(this);
+    player.addListener(this);
   }
 
   @Override
-  public void playUrl(Uri uri, DrmInfo drmInfo, boolean enableChunkless) throws UnrecognizedInputFormatException {
+  public void playUrl(Uri uri, long startPositionUs, DrmInfo drmInfo, boolean enableChunkless) throws UnrecognizedInputFormatException {
     Log.d("ExoPlayer", "play URL " + uri);
 
     MediaSource mediaSource = buildMediaSource(uri, drmInfo, buildDataSourceFactory(drmInfo), enableChunkless);
-    playMediaSource(mediaSource);
-  }
-
-  protected void playMediaSource(MediaSource mediaSource) {
-    player.stop(true);
+    int currentState = player.getPlaybackState();
+    if (currentState == Player.STATE_BUFFERING || currentState == Player.STATE_READY) {
+      Log.d(TAG, "Player not idle, stopping playback with player in state: " + currentState);
+      player.stop(true);   // stop and reset position and state to idle
+    }
     currentMediaSource = mediaSource;
-    isInitialMediaSourceEvent = false;
+    deliveredInitialTimelineChange = false;
     player.setPlayWhenReady(true);
-    player.prepare(currentMediaSource);
+    if (startPositionUs == C.POSITION_UNSET) {
+      player.setMediaSource(currentMediaSource);
+    } else {
+      // TODO - work around bug, https://github.com/google/ExoPlayer/issues/7975 min is non-zero
+      startPositionUs = Math.max(1, startPositionUs);
+      player.setMediaSource(currentMediaSource, startPositionUs);
+    }
+    player.prepare();
   }
 
 
@@ -258,74 +261,42 @@ public class DefaultMediaSourceLifeCycle implements MediaSourceLifeCycle, Analyt
   }
 
   @Override
-  public boolean recoverFrom(ExoPlaybackException e) {
-    boolean value = false;
-
-    if (PlaybackExceptionRecovery.isBehindLiveWindow(e)) {
-      // BehindLiveWindowException occurs when the current play point is in
-      // a segment that has expired from the server.  This happens if the play point
-      // falls behind the oldest segment in a live playlist.
-      //
-      // Recovery action is to re-prepare the current playing MediaSource.
-      // The player, will then jump to the earliest available segment,
-      // which is where we want to be anyway.  If not we can prepare with keep position
-      //
-      Log.d(TAG, "Got BehindLiveWindowException, re-preparing " +
-          "player to resume playback: " + e);
-
-      player.prepare(currentMediaSource, true, true);
-      value = true;
-
-      currentError = e;
-    }
-    return value;
-  }
-
-  @Override
-  public boolean checkRecoveryCompleted() {
-    boolean isRecovered = player.isPlaying();
-    if (isRecovered) {
-      currentError = null;
-    }
-    return isRecovered;
-  }
-
-  @Override
-  public boolean isRecoveryInProgress() {
-    return currentError != null;
-  }
-
-  @Override
-  public boolean isRecoveryFailed() {
-    return false;
-  }
-
-  @Override
-  public @Nullable ExoPlaybackException currentErrorBeingHandled() {
-    return currentError;
-  }
-
-  @Override
   public void resetAndRestartPlayback() {
     assert currentMediaSource != null;
     player.prepare(currentMediaSource, true, true);
   }
 
+
   /**
    * After the player reads the initial M3u8 and parses it, the timeline is created.
    * Report the first such of these events, following a {@link MediaSource} change
-   * (via {@link #playUrl(Uri, DrmInfo, boolean)} call to any {@link MediaSourceEventCallback} listener
+   * (via {@link MediaSourceLifeCycle#playUrl(Uri, long, DrmInfo, boolean)} call to any {@link MediaSourceEventCallback} listener
    *
-   * @param eventTime The event time.
+   * @param timeline The current timeline
    * @param reason The reason for the timeline change.
    */
   @Override
-  public void onTimelineChanged(EventTime eventTime, int reason) {
-    if (reason == Player.TIMELINE_CHANGE_REASON_PLAYLIST_CHANGED) {
-      if (!isInitialMediaSourceEvent && callback != null) {
-        callback.mediaSourcePrepared(currentMediaSource, player);
-        isInitialMediaSourceEvent = false;
-      }
+  public void onTimelineChanged(Timeline timeline, @Player.TimelineChangeReason int reason) {
+    if (timeline.isEmpty()) {
+      Log.d(TAG, "onTimelineChanged() - timeline empty. reason: " + reason);
+    } else {
+      Timeline.Window window = timeline.getWindow(0, new Timeline.Window());
+      Log.d(TAG, "onTimelineChanged() - reason: " + reason + " timeline duration: " + C.usToMs(window.durationUs)
+              + " startPosition: " + C.usToMs(window.defaultPositionUs) + " startTime: " + window.windowStartTimeMs);
+    }
+
+    switch (reason) {
+      case Player.TIMELINE_CHANGE_REASON_PLAYLIST_CHANGED:
+        Log.d(TAG, "Playlist for timeline has changed, reset to deliver initial mediasource event");
+        deliveredInitialTimelineChange = false;
+        break;
+
+      case Player.TIMELINE_CHANGE_REASON_SOURCE_UPDATE:
+        if (! deliveredInitialTimelineChange && callback != null) {
+          Log.d(TAG, "Initial source update, trigger mediaSourcePrepared() callback");
+          callback.mediaSourcePrepared(currentMediaSource, player);
+          deliveredInitialTimelineChange = true;
+        }
     }
   }
 }

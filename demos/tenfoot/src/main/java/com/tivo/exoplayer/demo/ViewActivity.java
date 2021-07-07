@@ -42,6 +42,7 @@ import com.tivo.exoplayer.library.OutputProtectionMonitor;
 import com.tivo.exoplayer.library.SimpleExoPlayerFactory;
 import com.tivo.exoplayer.library.VcasDrmInfo;
 import com.tivo.exoplayer.library.WidevineDrmInfo;
+import com.tivo.exoplayer.library.errorhandlers.PlaybackExceptionRecovery;
 import com.tivo.exoplayer.library.logging.ExtendedEventLogger;
 import com.tivo.exoplayer.library.metrics.ManagePlaybackMetrics;
 import com.tivo.exoplayer.library.metrics.PlaybackMetricsManagerApi;
@@ -98,8 +99,6 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
   private int currentChannel;
   private Uri[] channelUris;
 
-  private int initialSeek = C.POSITION_UNSET;
-
   private boolean isTrickPlaybarShowing = false;
 
   private boolean isAudioRenderOn = true;
@@ -155,7 +154,13 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
               switch (status) {
                 case IN_PROGRESS:
                   Log.d(TAG, "playerErrorProcessed() - error: " + error.getMessage() + " status: " + status);
-                  Toast.makeText(getApplicationContext(), error.getMessage(), Toast.LENGTH_LONG).show();
+                  if (PlaybackExceptionRecovery.isBehindLiveWindow(error)) {
+                    Toast.makeText(getApplicationContext(), "Recovering Behind Live Window", Toast.LENGTH_LONG).show();
+                  } else if (PlaybackExceptionRecovery.isPlaylistStuck(error)) {
+                    Toast.makeText(getApplicationContext(), "Retrying stuck playlist", Toast.LENGTH_LONG).show();
+                  } else {
+                    Toast.makeText(getApplicationContext(), error.getMessage(), Toast.LENGTH_LONG).show();
+                  }
                   break;
 
                 case SUCCESS:
@@ -216,13 +221,6 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
     });
 
     exoPlayerFactory.setPreferredAudioLanguage(Locale.getDefault().getLanguage());
-
-    exoPlayerFactory.setMediaSourceEventCallback((mediaSource, player) -> {
-      if (initialSeek != C.POSITION_UNSET) {
-        boundedSeekTo(player, exoPlayerFactory.getCurrentTrickPlayControl(), initialSeek);
-        initialSeek = C.POSITION_UNSET;
-      }
-    });
 
     final OutputProtectionMonitor.ProtectionChangedListener opmStateCallback = (isSecure) ->
             Log.i(TAG, "Output protection is: " + (isSecure ? "ON" : "OFF"));
@@ -565,12 +563,19 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
   protected void playUri(Uri uri) {
     // TODO chunkless should come from a properties file (so we can switch it when it's supported)
     boolean enableChunkless = getIntent().getBooleanExtra(CHUNKLESS_PREPARE, false);
+
+
     currentUri = uri;
     outputProtectionMonitor.refreshState();
     stopPlaybackIfPlaying();
-    Log.d(TAG, "playUri() playUri: '" + uri + "' - chunkless: " + enableChunkless);
+    long seekTo =  getIntent().getIntExtra(INITIAL_SEEK, C.POSITION_UNSET);
+    Log.d(TAG, "playUri() playUri: '" + uri + "' - chunkless: " + enableChunkless + " initialPos: " + seekTo);
     try {
-      exoPlayerFactory.playUrl(uri, drmInfo, enableChunkless);
+      if (seekTo != C.POSITION_UNSET) {
+        exoPlayerFactory.playUrl(uri, seekTo, drmInfo, enableChunkless);
+      } else {
+        exoPlayerFactory.playUrl(uri, drmInfo, enableChunkless);
+      }
     } catch (UnrecognizedInputFormatException e) {
       showError("Can't play URI: " + uri, e);
     }
@@ -662,8 +667,6 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
     channelUris = null;
 
     String[] uriStrings = intent.getStringArrayExtra(URI_LIST_EXTRA);
-
-    initialSeek = intent.getIntExtra(INITIAL_SEEK, C.POSITION_UNSET);
 
     if (ACTION_VIEW.equals(action)) {
       uris = new Uri[]{intent.getData()};

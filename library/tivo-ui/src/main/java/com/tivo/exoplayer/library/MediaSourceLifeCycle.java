@@ -2,11 +2,12 @@ package com.tivo.exoplayer.library;// Copyright 2010 TiVo Inc.  All rights reser
 
 import android.net.Uri;
 import androidx.annotation.Nullable;
+
+import com.google.android.exoplayer2.C;
 import com.google.android.exoplayer2.source.MediaSource;
 import com.google.android.exoplayer2.source.UnrecognizedInputFormatException;
-import com.tivo.exoplayer.library.errorhandlers.PlaybackExceptionRecovery;
 
-public interface MediaSourceLifeCycle extends PlaybackExceptionRecovery {
+public interface MediaSourceLifeCycle {
 
   /**
    * Stops playback of the current URL and re-starts playback of the indicated URL.
@@ -15,11 +16,12 @@ public interface MediaSourceLifeCycle extends PlaybackExceptionRecovery {
    * player is set to play when ready playback will begin as soon as buffering completes.
    *
    * @param uri - URI (must be HTTP[x] schema, to play with HLS
+   * @param startPositionUs - starting position, or {@link C#TIME_UNSET} for the default (live edge or 0 for VOD)
    * @param drmInfo - DRM information
    * @param enableChunkless - sets the chunkless prepare option on mediasource
    * @throws UnrecognizedInputFormatException - if the URI is not in a supported container format.
    */
-  void playUrl(Uri uri, DrmInfo drmInfo, boolean enableChunkless) throws UnrecognizedInputFormatException;
+  void playUrl(Uri uri, long startPositionUs, DrmInfo drmInfo, boolean enableChunkless) throws UnrecognizedInputFormatException;
 
   /**
    * Set (or remove for null) a callback to notified when the MediaSource is prepared initially.
