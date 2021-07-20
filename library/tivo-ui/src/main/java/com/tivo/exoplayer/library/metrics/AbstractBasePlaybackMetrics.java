@@ -42,6 +42,7 @@ public abstract class AbstractBasePlaybackMetrics {
     private Map<Format, Long> timeInVideoFormat;
     private long droppedFramesCount;
     private float avgVideoBitrate;
+    private float avgAudioBitrate;
     private float avgNetworkBitrateMbps;
     private long totalElapsedTimeMs;
     private long totalRebufferingTime;
@@ -82,6 +83,7 @@ public abstract class AbstractBasePlaybackMetrics {
         totalElapsedTimeMs = playbackStats.getTotalElapsedTimeMs();
         timeInVideoFormat = PlaybackStatsExtension.getPlayingTimeInFormat(playbackStats, currentElapsedTime);
         avgVideoBitrate = bpsToMbps(playbackStats.getMeanVideoFormatBitrate());
+        avgAudioBitrate = bpsToMbps(playbackStats.getMeanAudioFormatBitrate());
         avgNetworkBitrateMbps = bpsToMbps(playbackStats.getMeanBandwidth());
         profileShiftCount = playbackStats.videoFormatHistory.size();
         droppedFramesCount = playbackStats.totalDroppedFrames;
@@ -161,6 +163,7 @@ public abstract class AbstractBasePlaybackMetrics {
         loggedStats.put("rebufferCount", getRebufferCount());
         loggedStats.put("profileShiftCount", getProfileShiftCount());
         loggedStats.put("avgVideoBitrate", getAvgVideoBitrate());
+        loggedStats.put("avgAudioBitrate", getAvgAudioBitrate());
         loggedStats.put("avgBandwidthMbps", getAvgNetworkBitrate());
         loggedStats.put("videoFramesDropped", getVideoFramesDropped());
         if (getEndedWithError() != null) {
@@ -200,9 +203,20 @@ public abstract class AbstractBasePlaybackMetrics {
      * TODO - legacy calls this a "video" bitrate, but it is all muxed media for the variant
      *
      * @return average video bitrate, in mbps, since the session began
+     * or C.LENGTH_UNSET if there is no video variant or no video has played.
      */
     public float getAvgVideoBitrate() {
         return avgVideoBitrate;
+    }
+
+    /**
+     * Average audio bitrate in mbps
+     *
+     * @return average audio bitrate, in mbps, since the session began
+     * or C.LENGTH_UNSET if there is no audio data or the audio bitrate is unknown
+     */
+    public float getAvgAudioBitrate() {
+        return avgAudioBitrate;
     }
 
     /**
