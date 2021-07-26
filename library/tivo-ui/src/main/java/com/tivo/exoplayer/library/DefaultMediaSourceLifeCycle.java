@@ -266,6 +266,12 @@ public class DefaultMediaSourceLifeCycle implements MediaSourceLifeCycle, Player
     player.prepare(currentMediaSource, true, true);
   }
 
+  @Override
+  public void releaseResources() {
+    currentMediaSource = null;
+    player.removeListener(this);
+  }
+
 
   /**
    * After the player reads the initial M3u8 and parses it, the timeline is created.

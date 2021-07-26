@@ -41,4 +41,12 @@ public interface MediaSourceLifeCycle {
    *
    */
   void resetAndRestartPlayback();
+
+  /**
+   * Release all listeners and objects associated with the player.  This is called
+   * right after the player is released.  After this method is called this instance
+   * reference is nulled out, so a new MediaSourceLifeCycle implementation will be
+   * created.
+   */
+  void releaseResources();
 }

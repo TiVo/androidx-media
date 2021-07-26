@@ -62,7 +62,7 @@ public class BehindLiveWindowExceptionRecovery implements PlaybackExceptionRecov
             // BehindLiveWindowException occurs when the current play point causes a fetch for
             // a segment that has expired from the server.  A couple of conditions can cause
             // this:
-            //  1. play position + buffered is < 0, that is you have paused long enough taht
+            //  1. play position + buffered is < 0, that is you have paused long enough that
             //     the next segment to buffer is ouside of the live window
             //  2. a jump back to the beginning of the window just as the origin removes
             //     the oldest segment (your buffered time is 0 here of course)

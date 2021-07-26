@@ -302,6 +302,7 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
         trickPlayControl = null;
       }
       player = null;
+      mediaSourceLifeCycle.releaseResources();
       mediaSourceLifeCycle = null;
       trackSelector = null;
       playerErrorHandler.releaseResources();
