@@ -2,19 +2,28 @@
 
 ### 2.12.3-1.1-dev (Not yet released) ###
 
+#### Main Merge from Google 2.12.3 ####
 * Merge and resolve with Google's tagged release 2.12.3.  Highlights of the release notes
 from their site since our last merge. That is 2.11.7 (2020-06-29) to 2.13.3 (2021-01-13)
 * Releases and their release notes covered by this merge include:
     * [r2.12.3](https://github.com/google/ExoPlayer/releases/tag/r2.12.3) &ndash; CEA-708 fixes
     * [r2.12.2](https://github.com/google/ExoPlayer/releases/tag/r2.12.2) &ndash; AudioTrack error retry
-    * [r2.12.1](https://github.com/google/ExoPlayer/blob/r2.12.1/RELEASENOTES.md) &ndash; Fixes to 
+    * [r2.12.1](https://github.com/google/ExoPlayer/blob/r2.12.1/RELEASENOTES.md) &ndash; Fixes to
        IFrame only [Pull 8025](https://github.com/google/ExoPlayer/pull/8025) and TS parsing
-    * [r2.12.0](https://github.com/google/ExoPlayer/releases/tag/r2.12.2) &ndash; See this 
+    * [r2.12.0](https://github.com/google/ExoPlayer/releases/tag/r2.12.2) &ndash; See this
        [blog post](https://medium.com/google-exoplayer/exoplayer-2-12-whats-new-e43ef8ff72e7) for details
     * [r2.11.8](https://github.com/google/ExoPlayer/blob/r2.11.8/RELEASENOTES.md) &ndash; Issue with tunneled playback,
         [Issue 7647](https://github.com/google/ExoPlayer/issues/7647)
 * cherry-pick of commit [2536222f](https://github.com/google/ExoPlayer/commit/2536222fbdcace11e2e564af9b5a65d6a826f5c7)
   re-done, now a clean conflict free cherry-pick of the commit.
+
+#### Clean Cherry-Picks from dev-v2
+*   HLS:
+    *   Report audio track type in
+        `AnalyticsListener.onDownstreamFormatChanged()` for audio-only
+        playlists, so that the `PlaybackStatsListener` can derive audio
+        format-related information.
+        ([#9175](https://github.com/google/ExoPlayer/issues/9175)).
 
 ### 2.11.6-3.7 (06-30-2021)
 * To fix issue [BZQSA-3914](https://jira.tivo.com/browse/BZQSA-3914) added method`getTracksFilteredForRendererSupport()`
@@ -65,9 +74,9 @@ parameters to meet their requirements.  Allow passing a `DefaultLoadControl.Buil
 * Add developer documentation
 * Support EXT-X-GAP bigger then maxBufferMs (commit [a601378039](https://github.com/tivocorp/exoplayerprvt/commit/a601378039) and
   pull request (9050)[https://github.com/google/ExoPlayer/pull/9050] to Google
-* New API to allow `DefaultLoadControl.Builder` input to `SimpleExoPlayerFactory` 
+* New API to allow `DefaultLoadControl.Builder` input to `SimpleExoPlayerFactory`
   (commit [02dc76284f](https://github.com/tivocorp/exoplayerprvt/commit/02dc76284f))
-* Fixes for AAC Audio issues at LLA [PARTDEFECT-8311](https://jira.tivo.com/browse/PARTDEFECT-8311), back ports from Google release-v2 
+* Fixes for AAC Audio issues at LLA [PARTDEFECT-8311](https://jira.tivo.com/browse/PARTDEFECT-8311), back ports from Google release-v2
    commits [1b3c24bd2d](https://github.com/tivocorp/exoplayerprvt/commit/1b3c24bd2d) and [fee914ddee](https://github.com/tivocorp/exoplayerprvt/commit/fee914ddee)
 * Also at LLA, audio format changes midstream and causes an exception, this is fixed by Google's fix (Rare failed assertions #8283)[https://github.com/google/ExoPlayer/issues/8283]
   so back ported the fix here [67419fc884](https://github.com/tivocorp/exoplayerprvt/commit/67419fc884)
@@ -75,25 +84,25 @@ parameters to meet their requirements.  Allow passing a `DefaultLoadControl.Buil
 
 ### 2.11.6-3.4 (05-12-2021)
 
-* Cherry-pick https://github.com/google/ExoPlayer/commit/6db6d14b16c1324bde1677cce8cfa3571d201d9a 
+* Cherry-pick https://github.com/google/ExoPlayer/commit/6db6d14b16c1324bde1677cce8cfa3571d201d9a
   for JIRA issue PARTDEFECT-8311.
-* Additional to above cherry-pick ading bound check for the AAC input buffer. 
+* Additional to above cherry-pick ading bound check for the AAC input buffer.
   If there is no enough data, throw parser exception
 * Cherry picking https://github.com/google/ExoPlayer/commit/011342f4cfe5aa0cc1d3b46e9bed3c55338fd742
 
 ### 2.11.6-3.3 (04-28-2021)
 
 * Fix not to jump position on trick play exit.  Jira issue [WSIPCL-958](https://jira.tivo.com/browse/WSIPCL-958)
-  commit [fc2e3ab4d8](https://github.com/tivocorp/exoplayerprvt/commit/fc2e3ab4d8) - trickplay end does not jump if 
+  commit [fc2e3ab4d8](https://github.com/tivocorp/exoplayerprvt/commit/fc2e3ab4d8) - trickplay end does not jump if
   frame renders are delayed
 * Refactor `PlaybackMetrics` and `TrickPlayMetrics` to create a common base class, `AbstractBasePlaybackMetrics`.  This allows `TrickPlayMetrics` not to inherit
- things that are only `PlaybackMetrics` 
+ things that are only `PlaybackMetrics`
 * Final fix for TivoCrypt seek and level shift issue [07ee4bf3dc](https://github.com/tivocorp/exoplayerprvt/commit/07ee4bf3dc).
   this change reverses the change from pull [#133](https://github.com/tivocorp/exoplayerprvt/pull/133) as this change fixes
   the root cause.
-  
+
 ### 2.11.6-3.2 (2021-04-16)
-* Fix issue with VOD iframe only with no EXT-X-MAP ([66bd5ec8b8](https://github.com/tivocorp/exoplayerprvt/commit/66bd5ec8b8)), match similar change 
+* Fix issue with VOD iframe only with no EXT-X-MAP ([66bd5ec8b8](https://github.com/tivocorp/exoplayerprvt/commit/66bd5ec8b8)), match similar change
 in streamer-1-9 only bring change closer to upstream 2.12.3 (which has our
 merged i-Frame only support, with this bug fix).  Issue is [BZSTREAM-7478](https://jira.tivo.com/browse/BZSTREAM-7478)
 
@@ -101,25 +110,25 @@ merged i-Frame only support, with this bug fix).  Issue is [BZSTREAM-7478](https
     Jira: MOBILE-16209
 
 ### 2.11.6-3.1 (2021-04-05)
-* Fixing the DualMode VTP crash when the playlist has no-iframes. 
-    Enabled JUnitRunner on library-trickplay and enhanced the unit test to include playlist 
-    with no I-FRAME  
+* Fixing the DualMode VTP crash when the playlist has no-iframes.
+    Enabled JUnitRunner on library-trickplay and enhanced the unit test to include playlist
+    with no I-FRAME
 
 ### 2.11.6-3.0 (2021-03-31)
-  
+
 * Phase 0 support for *Dual Mode Visual Trickplay* phase.  This support includes just the frame curation portion of the
-  Dual Mode VTP alogorithm which creates i-Frame only playlists clones with different densities / frame rates to 
+  Dual Mode VTP alogorithm which creates i-Frame only playlists clones with different densities / frame rates to
   improve high speed playback performance, commits:
   * [06caa35744](https://github.com/tivocorp/exoplayerprvt/commit/06caa35744) Trickplay and IFrameAwareAdaptiveTrackSelection are thread safe.
   * [c9b6faa5e6](https://github.com/tivocorp/exoplayerprvt/commit/c9b6faa5e6) Buffered now reported correctly for live playlists
   * [ebc073f40d](https://github.com/tivocorp/exoplayerprvt/commit/ebc073f40d) Dual Mode Phase VTP Phase 0 w/o reverse optimizations
 
-* Fixed callback for TrickPlayMetrics available not called ([3974f9d5c9](https://github.com/tivocorp/exoplayerprvt/commit/3974f9d5c9)), 
+* Fixed callback for TrickPlayMetrics available not called ([3974f9d5c9](https://github.com/tivocorp/exoplayerprvt/commit/3974f9d5c9)),
   added test case for this and to increase `TrickPlayMetrics` coverage.
 
 ### 2.11.6-2.3 (2021-03-24)
 
-* Fix issue at Metronet where `EXT-X-DISCONTINUITY-SEQUENCE` changes detected first in audio rendition cause 
+* Fix issue at Metronet where `EXT-X-DISCONTINUITY-SEQUENCE` changes detected first in audio rendition cause
   freeze in buffering state forever.  This cherry pick fixes the issue:
     * Cherry-pick (6f8a8fbc)[https://github.com/google/ExoPlayer/commit/6f8a8fbc1cf974617056edac6ee0068b175a6454], from
     Google ExoPlayer release notes for fix for ([#8372](https://github.com/google/ExoPlayer/issues/8372)).
@@ -129,18 +138,18 @@ merged i-Frame only support, with this bug fix).  Issue is [BZSTREAM-7478](https
 ### 2.11.6-2.2 (2021-03-10)
 
 * Add `TrickPlayMetrics` object that subclasses `PlaybackMetrics` reporting additional metrics for VTP, simply logged now
-  but the mechanisms to integrate this into client-core are in place. The metrics are documented in the metrics package 
+  but the mechanisms to integrate this into client-core are in place. The metrics are documented in the metrics package
   [README.md](https://github.com/tivocorp/exoplayerprvt/blob/release/library/tivo-ui/src/main/java/com/tivo/exoplayer/library/metrics/README.md)
     * [ae0a546464](https://github.com/tivocorp/exoplayerprvt/commit/ae0a546464) Update so timeInFormats and initialPlaybackStart is valid for VTP
     * [7e6cc753a7](https://github.com/tivocorp/exoplayerprvt/commit/7e6cc753a7) Adds more metrics useful for VTP reverse mode.
     * [fe3a4bcb68](https://github.com/tivocorp/exoplayerprvt/commit/fe3a4bcb68) Logs TrickPlayMetrics as JSON TrickMode change
-  
+
 ### 2.11.6-2.1 (2021-02-26)
 
 * Add creating and managing `PlaybackMetrics` based on ExoPlayer's `PlaybackStats`, main commits are [08cca0f4e2](https://github.com/tivocorp/exoplayerprvt/commit/08cca0f4e2) and [a5cd587c1c](https://github.com/tivocorp/exoplayerprvt/commit/a5cd587c1c)
 * Support for TiVo Crypt for mobile, [b8bdebd5e5](https://github.com/tivocorp/exoplayerprvt/commit/b8bdebd5e5) - SsUtil init with Device key from platform.  Pending story [MOBILE-15762](https://jira.tivo.com/browse/MOBILE-15762) to enable using this in the tenfoot demo app and other Android applications.
 
-### 2.11.6-2.0 (2021-01-25) 
+### 2.11.6-2.0 (2021-01-25)
 
 * Add method, `setDefaultLiveOffset()` to set the live-offset to the `HlsMediaSource.Factory`
   the use case is to allow Client-Core to set this with an MSO specific setting from the APK
@@ -149,8 +158,8 @@ merged i-Frame only support, with this bug fix).  Issue is [BZSTREAM-7478](https
 * Add support for fMP4 playlist does not provide any closed caption information. We preemptively declare a closed caption track on channel 0. The TsExtractor already does this way and hence keeping Fmp4Extractor simpilar to TsExtractor.
 [cc72a4c](https://github.com/tivocorp/exoplayerprvt/commit/cc72a4c41847287fdf3fbadd970ecefdf3dd0e06)
 
-* Update Trick-Play API to include scrub seek mode.  This is a 
-backward compatible update to `TrickPlayControl` API. Details are in the commit: 
+* Update Trick-Play API to include scrub seek mode.  This is a
+backward compatible update to `TrickPlayControl` API. Details are in the commit:
 [613d38c436 - Update the TrickPlayControl API to include methods for scrub trickplay](https://github.com/tivocorp/exoplayerprvt/commit/613d38c436)
 
 * Add support for streams with no container (not DASH, SS or HLS).  This allows supporting some audio only broadcasts / podcasts (eg [Securenet Systems](https://www.securenetsystems.net)) that are packaged as naked transport streams. Commits
@@ -159,7 +168,7 @@ backward compatible update to `TrickPlayControl` API. Details are in the commit:
 
 ### 2.11.6-1.2
 
-* CEA 708 Decoder refactoring to meet the spec and pass the Sarnoff test streams. 
+* CEA 708 Decoder refactoring to meet the spec and pass the Sarnoff test streams.
       This includes parts of pull request [#4595](https://github.com/google/ExoPlayer/pull/4595)
 * Update EventLogger to include URL in loadError and log info for playback state changes [dd2150f05](https://github.com/tivocorp/exoplayerprvt/commit/dd2150f05)
 * Fix build to not fail if there are no unit test results ([3622ade3d](https://github.com/tivocorp/exoplayerprvt/commit/3622ade3d))
@@ -173,7 +182,7 @@ backward compatible update to `TrickPlayControl` API. Details are in the commit:
 
 ### 2.11.6-1.0
    * Fix for [PARTDEFECT-4642](https://jira.tivo.com/browse/PARTDEFECT-4642), released in streamer-1-7, fixes
-     issues with pass-thru surround audio and external audio devices.  This also fixes Google's 
+     issues with pass-thru surround audio and external audio devices.  This also fixes Google's
      issue [#7788](https://github.com/google/ExoPlayer/issues/7788)
    * Update API in `library-tivo-ui` class `DefaultExoPlayerErrorHandler`.  Now implements `Player.EventListener`
      to avoid modifying player state in an `AnalyticsListener`
@@ -184,7 +193,7 @@ backward compatible update to `TrickPlayControl` API. Details are in the commit:
 
 ### 2.11.6-0.2 - Alpha (not released)
 
-* **VCAS Support** &mdash; enables VCAS use from the library-tivo-ui and in demo app. 
+* **VCAS Support** &mdash; enables VCAS use from the library-tivo-ui and in demo app.
 	* [34d86a6ba](https://github.com/tivocorp/exoplayerprvt/commit/34d86a6ba) 2020-07-01 2020-07-01 Store VCAS provision info in app private storage.
 	* [fc776f69b](https://github.com/tivocorp/exoplayerprvt/commit/fc776f69b) 2020-07-01 2020-06-30 Support Verimatrix on 64bit devices
 	* [bff90e61e](https://github.com/tivocorp/exoplayerprvt/commit/bff90e61e) 2020-07-01 2020-06-12 Switched to using published Verimatrix library from corporate artifactory server.
@@ -192,15 +201,15 @@ backward compatible update to `TrickPlayControl` API. Details are in the commit:
 
 * **Update Error Handling** &mdash; update error handling in library-tivo-ui, split into multiple
   `PlaybackExceptionRecovery` handlers.  Lift interface (`PlayerErrorRecoverable`) to allow use
-	   outside of the `SimpleExoPlayerFactory`.  Main commit is [Recover from audiotrack init failure (f44fde16)](https://github.com/tivocorp/exoplayerprvt/commit/ef44fde16).  Also includes: 
+	   outside of the `SimpleExoPlayerFactory`.  Main commit is [Recover from audiotrack init failure (f44fde16)](https://github.com/tivocorp/exoplayerprvt/commit/ef44fde16).  Also includes:
 	* [a4849bf0c](https://github.com/tivocorp/exoplayerprvt/commit/a4849bf0c) 2020-07-01 2020-06-10 Add PlayerErrorHandlerListener to demo
 	* [11cf5f839](https://github.com/tivocorp/exoplayerprvt/commit/11cf5f839) 2020-07-01 2020-06-10 Add PlayerErrorHandlerListener
 
-* **CaptionManager integration** &mdash; Add `AccessibilityHelper` to library-tivo-ui, with example 
+* **CaptionManager integration** &mdash; Add `AccessibilityHelper` to library-tivo-ui, with example
   in the tenfoot demo app ([c129e953b](https://github.com/tivocorp/exoplayerprvt/commit/c129e953b)).
   This allows clients to honor locale settings from Android (if that is their preferred UX).  Hydra
-  has *borrowed* portions of this code. 
-  
+  has *borrowed* portions of this code.
+
 * Other minor demo app updates:
 	* [5e1107683](https://github.com/tivocorp/exoplayerprvt/commit/5e1107683) 2020-07-01 2020-05-19 Add intent to stop playback
 	* [7044edaa1](https://github.com/tivocorp/exoplayerprvt/commit/7044edaa1) 2020-07-01 2020-05-18 Add PlaybackStats to the demo player, update EventLogger and GeekStats
@@ -771,7 +780,7 @@ backward compatible update to `TrickPlayControl` API. Details are in the commit:
 
 * [0ab706657](https://github.com/tivocorp/exoplayerprvt/commit/0ab706657) &mdash; Fix build to run clean (lint issues).  Note this does not change library code
 * [df1b6116b](https://github.com/tivocorp/exoplayerprvt/commit/df1b6116b) &mdash;  Minor update to TiVo demo UI Layout to allow editing URL text (Does not affect Hydra or libraries, only demo)
-* [0595c8197](https://github.com/tivocorp/exoplayerprvt/commit/0595c8197) &mdash; Update ABR to mitigate issue [PARTDEFECT-1732](https://jira.tivo.com/browse/PARTDEFECT-1732).  A different fix upcoming in our 2.11.x release will build on this, this is a back port. 
+* [0595c8197](https://github.com/tivocorp/exoplayerprvt/commit/0595c8197) &mdash; Update ABR to mitigate issue [PARTDEFECT-1732](https://jira.tivo.com/browse/PARTDEFECT-1732).  A different fix upcoming in our 2.11.x release will build on this, this is a back port.
 * [3a2a8cd4a](https://github.com/tivocorp/exoplayerprvt/commit/0595c8197) &mdash; Fix issue [BZSTREAM-5732](https://jira.tivo.com/browse/BZSTREAM-5732), seeks could cause position update at trick-play end to be incorrect.
 * [e7c83e177](https://github.com/tivocorp/exoplayerprvt/commit/e7c83e177) &mdash; Add recovery from dead-object. (only affects demo player)
 
@@ -793,8 +802,8 @@ backward compatible update to `TrickPlayControl` API. Details are in the commit:
 * Fix for Amino video stalls when tunneling &mdash; pull [47](https://github.com/tivocorp/exoplayerprvt/pull/47)
 
 ### 2.10.4-tivo.tp.4 ###
-* Update with latest change from public i-Frame pull ([6270](https://github.com/google/ExoPlayer/pull/6270)).  
-Adds support for implicit Media Initialization Segment ([1f1123](https://github.com/google/ExoPlayer/pull/6270/commits/1f11233ba022e00367ed32904092070d8c42f5ee) 
+* Update with latest change from public i-Frame pull ([6270](https://github.com/google/ExoPlayer/pull/6270)).
+Adds support for implicit Media Initialization Segment ([1f1123](https://github.com/google/ExoPlayer/pull/6270/commits/1f11233ba022e00367ed32904092070d8c42f5ee)
 this is required for Vecima (and Apple generated streams).
 
 ### 2.10.4-tivo.tp.3 ###

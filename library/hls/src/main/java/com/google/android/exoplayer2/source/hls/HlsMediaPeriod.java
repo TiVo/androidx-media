@@ -617,9 +617,13 @@ public final class HlsMediaPeriod implements MediaPeriod, HlsSampleStreamWrapper
         numberOfAudioCodecs <= 1
             && numberOfVideoCodecs <= 1
             && numberOfAudioCodecs + numberOfVideoCodecs > 0;
+    int trackType =
+        !useVideoVariantsOnly && numberOfAudioCodecs > 0
+            ? C.TRACK_TYPE_AUDIO
+            : C.TRACK_TYPE_DEFAULT;
     HlsSampleStreamWrapper sampleStreamWrapper =
         buildSampleStreamWrapper(
-            C.TRACK_TYPE_DEFAULT,
+            trackType,
             selectedPlaylistUrls,
             selectedPlaylistFormats,
             masterPlaylist.muxedAudioFormat,
