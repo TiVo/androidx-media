@@ -1,7 +1,7 @@
 FROM docker.tivo.com/openjdk-docker:11
 #
 # Update and install zip
-RUN apt-get update && apt-get install -y unzip \
+RUN apt-get update && apt-get install -y unzip git \
    && rm -rf /var/lib/apt/lists/*
 
 #

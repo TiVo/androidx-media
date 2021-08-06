@@ -13,12 +13,24 @@
 // limitations under the License.
 apply from: "$gradle.ext.exoplayerSettingsDir/common_library_config.gradle"
 
+def gitCommitHash = 'git rev-parse --verify --short HEAD'.execute().text.trim()
+def buildNumber = System.getenv("BUILD_NUMBER") == null ? "local" :  System.getenv("BUILD_NUMBER")
 android {
+
+    buildTypes {
+        debug {
+            testCoverageEnabled = true
+        }
+    }
+
+    defaultConfig {
+        buildConfigField "String", "BUILD_NUMBER", "\"${buildNumber}\""
+        buildConfigField "String", "GIT_HASH", "\"${gitCommitHash}\""
+    }
 
     lintOptions {
         disable "LongLogTag"
     }
-
 }
 
 dependencies {

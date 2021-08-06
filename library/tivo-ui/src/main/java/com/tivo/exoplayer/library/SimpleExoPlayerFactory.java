@@ -10,6 +10,7 @@ import androidx.annotation.RequiresApi;
 import com.google.android.exoplayer2.C;
 import com.google.android.exoplayer2.DefaultLoadControl;
 import com.google.android.exoplayer2.ExoPlaybackException;
+import com.google.android.exoplayer2.ExoPlayerLibraryInfo;
 import com.google.android.exoplayer2.Format;
 import com.google.android.exoplayer2.LoadControl;
 import com.google.android.exoplayer2.Player;
@@ -66,6 +67,14 @@ import java.util.Properties;
  */
 public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
   public static final String TAG = "SimpleExoPlayerFactory";
+
+  /**
+   * Library version info suitable for logging
+   */
+  public static final String VERSION_INFO = "ExoPlayer Version: " + ExoPlayerLibraryInfo.VERSION_SLASHY
+      + ", Build Number: " + BuildConfig.BUILD_NUMBER
+      + ", Git Hash: " + BuildConfig.GIT_HASH
+      + ", Exo Modules: [" + ExoPlayerLibraryInfo.registeredModules() + "]";
 
   /**
    * Android application context for access to Android

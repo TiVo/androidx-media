@@ -146,6 +146,7 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
     super.onCreate(savedInstanceState);
     Log.d(TAG, "onCreate() called");
 
+    android.util.Log.i(TAG, SimpleExoPlayerFactory.VERSION_INFO);
     Context context = getApplicationContext();
 
     SimpleExoPlayerFactory.initializeLogging(context, DEFAULT_LOG_LEVEL);

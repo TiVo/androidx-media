@@ -107,14 +107,20 @@ The ExoPlayer libraries are integrated into other products as binary, so it is i
 ExoPlayer uses `major.minor.micro`, [ExoPlayer Releases](https://github.com/google/ExoPlayer/releases)
 TiVo versions will add a `-` patch number and/or name to this. 
 
-Some valid examples are:
+The mainline, `release` branch along with any specific branches for products (eg. `streamer-1-11` for the 1.11 version of streamers) will publish versions to the artifactory.  The mainline will follow the conversion of adding a `-dev` suffix to the release version number for release candidate builds.  These release candidate builds will be published with the Jenkins build number as a suffix, eg. `2.12.3-1.0-dev-123`  this will allow for unique artifact for each merged pull request without requirement to update the version number each time.
 
-* 2.11.4-1.0 &mdash; presumably first "released" version of TiVo's variant of ExoPlayer 2.11.4
-* 2.11.4-hydra-1.6 &mdash; one example of how we might branch with a patch set specific to Hydra
+For example:
 
-In all cases, if the versions have a time ordering it should match up to the logic for [Gradle Versioning](https://docs.gradle.org/current/userguide/single_versions.html).  In the two examples above, the `-1.0` version is considered higher so clients would not pickup the hydra patch unless explicitly requested
+* 2.11.6-3.6 &mdash; Official release of TiVo's variant version 3.6 of ExoPlayer 2.11.6 version
+* 2.12.3-1.0-dev &mdash; Release candidate for TiVo's 1.0 variant of ExoPlayer 2.12.3 version
 
-It is assumed that most (if not all TiVo products will request explicit versions from the artifactory, e.g.:
+In all cases, if the versions have a time ordering it should match up to the logic for [Gradle Versioning](https://docs.gradle.org/current/userguide/single_versions.html).  
+
+For the official release, the `-dev` will be removed and the RELEASENOTES.md are cleaned up and finalized, in a pull request as described below in "Publishing New Versions" section.  The next pull request after a release will update to a new version number (major, minor or ExoPlayer as required) and add the `-dev` suffix back to mark as a release candidate.
+
+In the two examples above, the `-1.0` version is considered higher so clients would not pickup the hydra patch unless explicitly requested.
+
+It is assumed that most (if not all TiVo products) will request explicit versions from the artifactory, e.g.:
 
 ```groovy
 dependencies {
@@ -129,6 +135,30 @@ dependencies {
     implementation('library-tivo-ui:2.11.4-1.+')
 }
 ```
+
+During development of the next ExoPlayer release the client-core mainline (and mobile mainline branches) can use the '+' notation to get the latest published artifact, for example: `2.12.3-1.0-dev-+`.  Every effort is made to check that these release candidate builds will not break the client-core build however these versions should never ship in a product.
+
+
+### Publishing New Versions ###
+Before *publishing* a `release-*` or any other published branch the ExoPlayer project lead must update the reported version number and releasenotes.  For TiVo changes update the patch version, keeping the same base ExoPlayer version number. 
+
+The reported version is in two places in the ExoPlayer code:
+
+1. The gradle publish version number, two values in [constants.gradle](https://github.com/tivocorp/exoplayerprvt/blob/release/constants.gradle)
+2. The [ExoPlayerLibraryInfo](https://github.com/tivocorp/exoplayerprvt/blob/release/library/core/src/main/java/com/google/android/exoplayer2/ExoPlayerLibraryInfo.java) class VERSION and VERSION_SLASHY
+
+Both of these must be updated to the same number.  Specific steps are:
+
+1. Create a new topic branch, `t-update-version-maj.min.micro-patch`. Only patch should change for TiVo code change releases
+1. Update `ExoPlayerLibraryInfo.java` and `constants.gradle` (see above)
+1. Use git history (`git log --pretty=format:"%h %ad | %s%d [%an]" --graph --date=short release`) to update the [RELEASENOTES](https://github.com/tivocorp/exoplayerprvt/blob/release/RELEASENOTES.md), follow the pattern
+1. Submit the branch with a pull request, only these three files should be in the pull request
+1. Once the pull request is complete, create a new release. Use [releases](https://github.com/tivocorp/exoplayerprvt/releases) 
+1. Verify the Jenkins build has run successfully and published the artifact
+1. Update `//d-flash/clientcore/mainline/platform/video/video/lib/dependencies/android/gradle.properties` locally and verify client-core build.
+1. Code-collab and checkin this `gradle.properties`
+1. Notify the [`#exoplayer-dev`](https://xperi.slack.com/archives/CMDELMCUC) Slack group.
+
 
 ## Workflows ##
 
@@ -183,22 +213,6 @@ Alternately you can start from `upstream/dev-v2` and back port the fix to our re
 
 Once we update our local `release` branch with the latest version from *upstream* (Google) that includes your pull request (congratulations!), we compare against the (preserved) `t-fix-xyz-bug` branch and verify the change is as we published it.  At this point the cycle is complete and `t-fix-xyz-bug` branch can be deleted.  Keeping the branch around is helpful in resolving changes from Google vs our own local changes.
 
-### Publishing New Versions ###
-Before *publishing* a `release-*` branch you must update the reported version number.  For TiVo changes update the patch version, keeping the same base ExoPlayer version number. 
-
-The reported version is in two places in the ExoPlayer code:
-
-1. The gradle publish version number, two values in [constants.gradle](https://github.com/tivocorp/exoplayerprvt/blob/release/constants.gradle)
-2. The [ExoPlayerLibraryInfo](https://github.com/tivocorp/exoplayerprvt/blob/release/library/core/src/main/java/com/google/android/exoplayer2/ExoPlayerLibraryInfo.java) class VERSION and VERSION_SLASHY
-
-Both of these must be updated to the same number.  Specific steps are:
-
-1. Create a new topic branch, `t-update-version-maj.min.micro-patch`. Only patch should change for TiVo code change releases
-1. Update `ExoPlayerLibraryInfo.java` and `constants.gradle` (see above)
-1. Use git history (`git log --pretty=format:"%h %ad | %s%d [%an]" --graph --date=short release`) to update the [RELEASENOTES](https://github.com/tivocorp/exoplayerprvt/blob/release/RELEASENOTES.md), follow the pattern
-1. Submit the branch with a pull request, only these three files should be in the pull request
-1. Once the pull request is complete, create a new release. Use [releases](https://github.com/tivocorp/exoplayerprvt/releases) 
-1. Run the jenkins (TBS) task to publish the build 
 
 ### Pull Requests ###
 Pull requests are the mechanism for sharing your changes with the community and soliciting a review, both internally in this TiVo private repository, and publicly with Google.  

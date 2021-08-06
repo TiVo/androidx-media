@@ -19,7 +19,10 @@ if (project.ext.has("tivoExoplayerPublishEnabled")
         && project.ext.tivoExoplayerPublishEnabled) {
     ext {
         releaseGroupId = 'com.tivo.android.exoplayer'
+    }
 
+    if (project.ext.releaseVersion.endsWith("-dev") && System.getenv('BUILD_NUMBER') != null) {
+        project.ext.releaseVersion = project.ext.releaseVersion + "-" + System.getenv('BUILD_NUMBER')
     }
 } else {
     ext {
