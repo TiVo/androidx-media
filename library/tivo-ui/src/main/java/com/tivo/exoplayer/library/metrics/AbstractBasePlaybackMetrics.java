@@ -176,6 +176,7 @@ public abstract class AbstractBasePlaybackMetrics {
             }
             loggedStats.put("timeInFormats", timeInVariant);
         }
+
         return loggedStats;
     }
 

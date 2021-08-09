@@ -268,6 +268,65 @@ public class ManagePlaybackMetricsTest {
     }
 
     @Test
+    public void testMultiplePlaybackMetrics_GetTimeInAudioOnlyFormat() {
+        Format formats[] = {
+                TEST_BASEAUDIO_FORMAT.buildUpon().setAverageBitrate(10).setPeakBitrate(10).build(), TEST_BASEAUDIO_FORMAT.buildUpon().setAverageBitrate(20).setPeakBitrate(20).build(), TEST_BASEAUDIO_FORMAT.buildUpon().setAverageBitrate(30).setPeakBitrate(30).build(),
+        };
+
+        analyticsListener.onDownstreamFormatChanged(createEventTime(100), createMediaLoad(formats[0]));
+        AnalyticsListener.EventTime eventTime200 = createEventTime(200);
+        analyticsListener.onTimelineChanged(eventTime200, Player.TIMELINE_CHANGE_REASON_SOURCE_UPDATE);
+        analyticsListener.onPlaybackStateChanged(eventTime200, Player.STATE_READY);
+        analyticsListener.onPlayWhenReadyChanged(eventTime200, true, Player.PLAY_WHEN_READY_CHANGE_REASON_USER_REQUEST);
+
+        SystemClock.setCurrentTimeMillis(225);
+
+        PlaybackMetrics metrics = manageMetrics.createOrReturnCurrent();
+        manageMetrics.updateFromCurrentStats(metrics);
+        Map<Format, Long> results = metrics.getTimeInAudioOnlyFormat();
+        assertThat(results.keySet().size()).isEqualTo(1);
+        assertThat(results.get(formats[0])).isNotNull();
+        assertThat(results.get(formats[0])).isEqualTo(25);
+
+        manageMetrics.resetPlaybackMetrics();
+
+        SystemClock.setCurrentTimeMillis(230);
+        analyticsListener.onDownstreamFormatChanged(createEventTime(230), createMediaLoad(formats[1]));
+        analyticsListener.onDownstreamFormatChanged(createEventTime(300), createMediaLoad(formats[2]));
+        analyticsListener.onDownstreamFormatChanged(createEventTime(360), createMediaLoad(formats[0]));
+        analyticsListener.onDownstreamFormatChanged(createEventTime(500), createMediaLoad(formats[1]));
+        analyticsListener.onPlaybackStateChanged(createEventTime(800), Player.STATE_ENDED);
+
+        SystemClock.setCurrentTimeMillis(850);  // after last event
+
+        manageMetrics.endAllSessions();
+        ArgumentCaptor<PlaybackMetrics> metricsArgumentCaptor = ArgumentCaptor.forClass(PlaybackMetrics.class);
+        verify(metricsEventListener).playbackMetricsAvailable(metricsArgumentCaptor.capture(), any());
+        metrics = metricsArgumentCaptor.getValue();
+
+        long[] expected = {
+                (230 - 200) + (500 - 360),
+                (300 - 230) + (800 - 500),
+                160 - 100
+        };
+        results = metrics.getTimeInAudioOnlyFormat();
+        assertThat(results.keySet().size()).isEqualTo(expected.length);
+        long totalInFormats = 0L;
+        for (int i = 0; i < expected.length; i++) {
+            Long time = results.get(formats[i]);
+            assertWithMessage("Format at " + i +" should be in results")
+                    .that(time).isNotNull();
+            totalInFormats += time;
+            assertWithMessage("Format at " + i +" should have playback time " + expected[i])
+                    .that(time).isEqualTo(expected[i]);
+        }
+
+        assertThat(totalInFormats).isEqualTo(metrics.getTotalPlaybackTimeMs());
+
+        assertThat(metrics.getEndReason()).isEqualTo(PlaybackMetrics.EndReason.END_OF_CONTENT);
+    }
+
+    @Test
     public void test_getAvgVideoBitrate_metric_excludesTrickplay() {
 
         // Will play half the time in 10Mbps and half in 20Mbps, expect result is 15Mbps

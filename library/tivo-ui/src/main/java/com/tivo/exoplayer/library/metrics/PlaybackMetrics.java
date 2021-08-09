@@ -1,8 +1,11 @@
 package com.tivo.exoplayer.library.metrics;
 
+import androidx.annotation.Nullable;
+
 import java.util.HashMap;
 import java.util.Map;
 
+import com.google.android.exoplayer2.Format;
 import com.google.android.exoplayer2.analytics.PlaybackStats;
 import static com.google.android.exoplayer2.analytics.PlaybackStats.PLAYBACK_STATE_ABANDONED;
 import static com.google.android.exoplayer2.analytics.PlaybackStats.PLAYBACK_STATE_ENDED;
@@ -18,9 +21,10 @@ public class PlaybackMetrics extends AbstractBasePlaybackMetrics {
     private long totalTrickPlayTime;
     private int trickPlayCount;
     private EndReason endReason = EndReason.NONE;
+  private Map<Format, Long> timeInAudioOnlyFormat;
 
 
-    // Internal methods
+  // Internal methods
 
     void addTrickPlayTime(long trickPlayTime) {
         trickPlayCount++;
@@ -49,6 +53,7 @@ public class PlaybackMetrics extends AbstractBasePlaybackMetrics {
     int updateValuesFromStats(PlaybackStats playbackStats, long currentElapsedTime) {
         int playbackStateAtTime = super.updateValuesFromStats(playbackStats, currentElapsedTime);
         totalPlaybackTime = playbackStats.getTotalPlayTimeMs();
+        timeInAudioOnlyFormat= PlaybackStatsExtension.getPlayingTimeInAudioOnlyFormat(playbackStats,currentElapsedTime);
 
 
         if (getEndedWithError() != null) {
@@ -70,6 +75,20 @@ public class PlaybackMetrics extends AbstractBasePlaybackMetrics {
             }
         }
         return playbackStateAtTime;
+    }
+
+    /**
+     * Return a Map with the total time spent in each of the {@link Format}'s.  Note, the base for this in
+     * {@link PlaybackStats} allows for null formats (periods when no audio only  is playing, contain a null format)
+     * Note this is used for Audio Only playback, which at this time should only
+     * have a single format for the entire playback session.
+     *
+     * @return Map of audio only {@link Format} objects with the total time (including not playing) in each, null if no stats
+     * captured
+     */
+    public @Nullable
+    Map<Format, Long> getTimeInAudioOnlyFormat() {
+      return timeInAudioOnlyFormat;
     }
 
     /**

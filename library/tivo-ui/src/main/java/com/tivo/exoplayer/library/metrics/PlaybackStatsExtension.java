@@ -46,7 +46,7 @@ public class PlaybackStatsExtension {
      * @return a Map, keyed by each Format (Variant) with the time in ms spent "playing" (includes paused, buffering)
      */
     static Map<Format, Long> getPlayingTimeInAudioOnlyFormat(PlaybackStats stats, long toEndTime) {
-        return getPlayingTimeInAnyFormat(stats, toEndTime, stats.videoFormatHistory.listIterator());
+        return getPlayingTimeInAnyFormat(stats, toEndTime, stats.audioFormatHistory.listIterator());
     }
 
 
