@@ -60,7 +60,7 @@ public class PlaybackStatsExtensionTest {
         PlaybackStats stats = playbackStatsListener.getPlaybackStats();
         assertThat(stats).isNotNull();
 
-        Map<Format, Long> results = PlaybackStatsExtension.getPlayingTimeInFormat(stats, C.TIME_UNSET);
+        Map<Format, Long> results = PlaybackStatsExtension.getPlayingTimeInVideoFormat(stats, C.TIME_UNSET);
         assertThat(results.keySet().size()).isEqualTo(expected.length);
         long totalInFormats = 0L;
         for (int i = 0; i < expected.length; i++) {
@@ -104,7 +104,7 @@ public class PlaybackStatsExtensionTest {
         PlaybackStats stats = playbackStatsListener.getPlaybackStats();
         assertThat(stats).isNotNull();
 
-        Map<Format, Long> results = PlaybackStatsExtension.getPlayingTimeInFormat(stats, C.TIME_UNSET);
+        Map<Format, Long> results = PlaybackStatsExtension.getPlayingTimeInVideoFormat(stats, C.TIME_UNSET);
 
         assertThat(results.keySet().size()).isEqualTo(expected.length);
         long totalInFormats = 0L;

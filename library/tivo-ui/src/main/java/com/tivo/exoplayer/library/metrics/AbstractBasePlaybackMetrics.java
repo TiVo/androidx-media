@@ -1,7 +1,6 @@
 package com.tivo.exoplayer.library.metrics;
 
 import android.annotation.SuppressLint;
-import android.util.Pair;
 import androidx.annotation.Nullable;
 
 import java.util.HashMap;
@@ -10,11 +9,9 @@ import java.util.Map;
 import com.google.android.exoplayer2.C;
 import com.google.android.exoplayer2.ExoPlaybackException;
 import com.google.android.exoplayer2.Format;
-import com.google.android.exoplayer2.analytics.AnalyticsListener;
 import com.google.android.exoplayer2.analytics.PlaybackStats;
 import com.google.android.exoplayer2.analytics.PlaybackStats.EventTimeAndPlaybackState;
 import com.google.android.exoplayer2.util.Clock;
-import com.google.android.exoplayer2.util.EventLogger;
 import com.google.android.exoplayer2.util.Log;
 import com.tivo.exoplayer.library.util.LoggingUtils;
 import static com.google.android.exoplayer2.analytics.PlaybackStats.PLAYBACK_STATE_ABANDONED;
@@ -81,7 +78,7 @@ public abstract class AbstractBasePlaybackMetrics {
         startingTimestamp = currentElapsedTime;
 
         totalElapsedTimeMs = playbackStats.getTotalElapsedTimeMs();
-        timeInVideoFormat = PlaybackStatsExtension.getPlayingTimeInFormat(playbackStats, currentElapsedTime);
+        timeInVideoFormat = PlaybackStatsExtension.getPlayingTimeInVideoFormat(playbackStats, currentElapsedTime);
         avgVideoBitrate = bpsToMbps(playbackStats.getMeanVideoFormatBitrate());
         avgAudioBitrate = bpsToMbps(playbackStats.getMeanAudioFormatBitrate());
         avgNetworkBitrateMbps = bpsToMbps(playbackStats.getMeanBandwidth());

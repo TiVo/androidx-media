@@ -19,6 +19,7 @@ import static com.google.android.exoplayer2.analytics.PlaybackStats.EventTimeAnd
  */
 public class PlaybackStatsExtension {
 
+
     /**
      * Using the video format history in the {@link PlaybackStats}, determine the total amount of time
      * in each variant (@link {@link Format} objects describe each variant).  Note this is time includes
@@ -31,17 +32,48 @@ public class PlaybackStatsExtension {
      * @param toEndTime if not C.TIME_UNSET, stop at this time not waiting for end event
      * @return a Map, keyed by each Format (Variant) with the time in ms spent "playing" (includes paused, buffering)
      */
-    static Map<Format, Long> getPlayingTimeInFormat(PlaybackStats stats, long toEndTime) {
+    static Map<Format, Long> getPlayingTimeInVideoFormat(PlaybackStats stats, long toEndTime) {
+        return getPlayingTimeInAnyFormat(stats, toEndTime, stats.videoFormatHistory.listIterator());
+    }
+
+    /**
+     * Using the audio format history in the {@link PlaybackStats}, determine the total amount of time
+     * played in the format.  Note this is used for Audio Only playback, which at this time should only
+     * have a single format for the entire playback session.
+     *
+     * @param stats PlaybackStats to analyze and get formats
+     * @param toEndTime if not C.TIME_UNSET, stop at this time not waiting for end event
+     * @return a Map, keyed by each Format (Variant) with the time in ms spent "playing" (includes paused, buffering)
+     */
+    static Map<Format, Long> getPlayingTimeInAudioOnlyFormat(PlaybackStats stats, long toEndTime) {
+        return getPlayingTimeInAnyFormat(stats, toEndTime, stats.videoFormatHistory.listIterator());
+    }
+
+
+    /**
+     * If their are any played video {@link Format}s in the {@link PlaybackStats} returns true
+     *
+     * @param stats PlaybackStats to analyze and get formats
+     * @return true if there are video Format's that played
+     */
+    static boolean hasVideoFormats(PlaybackStats stats) {
+        return stats.videoFormatHistory.isEmpty();
+    }
+
+    /**
+     * If their are any played audio only {@link Format}s in the {@link PlaybackStats} returns true
+     * note, it is expected this is only true for a session that is audio only, in which case
+     * {@link #hasVideoFormats(PlaybackStats)} will return false.
+     *
+     * @param stats PlaybackStats to analyze and get formats
+     * @return true if there are audio only Format's that played
+     */
+    static boolean hasAudioFormats(PlaybackStats stats) {
+        return stats.audioFormatHistory.isEmpty();
+    }
+
+    private static HashMap<Format, Long> getPlayingTimeInAnyFormat(PlaybackStats stats, long toEndTime, ListIterator<EventTimeAndFormat> formats) {
         HashMap<Format, Long> timeInFormat = new HashMap<>();
-        ListIterator<EventTimeAndFormat> formats = stats.videoFormatHistory.listIterator();
-
-        // For Audio Only Channels (MP4 progressive) , videoFormatHistory listIterator is Empty
-        // hence AudioCodec will be empty so in that case switching to audioFormatHistory listIterator
-        // to get the correct AudioCodec for Audio Only Channels (MP4 progressive)
-
-        if(!formats.hasNext()){
-            formats=stats.audioFormatHistory.listIterator();
-        }
         ListIterator<EventTimeAndPlaybackState> states = stats.playbackStateHistory.listIterator();
 
         EventTimeAndFormat currentFormat = formats.hasNext() ? formats.next() : null;
