@@ -34,6 +34,14 @@ public class PlaybackStatsExtension {
     static Map<Format, Long> getPlayingTimeInFormat(PlaybackStats stats, long toEndTime) {
         HashMap<Format, Long> timeInFormat = new HashMap<>();
         ListIterator<EventTimeAndFormat> formats = stats.videoFormatHistory.listIterator();
+
+        // For Audio Only Channels (MP4 progressive) , videoFormatHistory listIterator is Empty
+        // hence AudioCodec will be empty so in that case switching to audioFormatHistory listIterator
+        // to get the correct AudioCodec for Audio Only Channels (MP4 progressive)
+
+        if(!formats.hasNext()){
+            formats=stats.audioFormatHistory.listIterator();
+        }
         ListIterator<EventTimeAndPlaybackState> states = stats.playbackStateHistory.listIterator();
 
         EventTimeAndFormat currentFormat = formats.hasNext() ? formats.next() : null;
