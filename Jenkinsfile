@@ -99,6 +99,21 @@ pipeline {
                 }
               }
             }
+            stage("Build MediaSession Extension") {
+              options {
+                skipDefaultCheckout()
+              }
+
+              steps {
+                script {
+                  try {
+                    sh './gradlew extension-mediasession:build'
+                  } finally {
+                    junit allowEmptyResults: true, testResults: 'library/ui/buildout/test-results/testReleaseUnitTest/TEST-*.xml'
+                  }
+                }
+              }
+            }
           }
         }
 
@@ -138,7 +153,7 @@ pipeline {
             sh '''
             version="$(./gradlew -q -b gradle_util.gradle resolveProperties --prop=rootProject.releaseVersion)"
             echo "Publishing release build from branch: $BRANCH_NAME - version: $version"
-            ./gradlew library-core:publish library-hls:publish library-dash:publish library-ui:publish library-tivo-ui:publish library-trickplay:publish -PREPO_USER_NAME=build -PREPO_PASSWORD=buildcode
+            ./gradlew library-core:publish library-hls:publish library-dash:publish library-ui:publish library-tivo-ui:publish library-trickplay:publish extension-mediasession:publish -PREPO_USER_NAME=build -PREPO_PASSWORD=buildcode
             '''
           }
         }
