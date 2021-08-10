@@ -1,6 +1,6 @@
 # Release notes #
 
-### 2.12.3-1.0-dev (Not yet released) ###
+### 2.12.3-1.1-dev (Not yet released) ###
 
 * Merge and resolve with Google's tagged release 2.12.3.  Highlights of the release notes
 from their site since our last merge. That is 2.11.7 (2020-06-29) to 2.13.3 (2021-01-13)
