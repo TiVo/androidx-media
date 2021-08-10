@@ -215,13 +215,7 @@ public class ManagePlaybackMetrics implements PlaybackMetricsManagerApi {
         } else {
             Timeline timeline = first.timeline;
             Timeline.Window window = timeline.getWindow(0, new Timeline.Window());
-
-            // TODO - this works for HLS, need something different for DASH.
-            // This assumes a SinglePeriodTimeline (so that there is one PlaybackSessionManager session per prepare)
-            if (window.manifest instanceof HlsManifest) {
-                HlsManifest manifest = (HlsManifest) window.manifest;
-                timelineStr = "url: " + manifest.masterPlaylist.baseUri;
-            }
+            timelineStr = "url: " + window.mediaItem.mediaId;
         }
 
         return timelineStr + " at " + first.realtimeMs;

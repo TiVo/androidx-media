@@ -141,14 +141,7 @@ public class MetricsPlaybackSessionManager implements PlaybackSessionManager {
 
     private String getUrlFromTimeline(Timeline timeline) {
         Timeline.Window window = timeline.getWindow(0, new Timeline.Window());
-        String url = null;
-        // TODO - this works for HLS, need something different for DASH.
-        // This assumes a SinglePeriodTimeline (so that there is one PlaybackSessionManager session per prepare)
-        if (window.manifest instanceof HlsManifest) {
-            HlsManifest manifest = (HlsManifest) window.manifest;
-            url = manifest.masterPlaylist.baseUri;
-        }
-        return url;
+        return window.mediaItem.mediaId;
     }
 
     private String timelineDebugString(AnalyticsListener.EventTime eventTime) {

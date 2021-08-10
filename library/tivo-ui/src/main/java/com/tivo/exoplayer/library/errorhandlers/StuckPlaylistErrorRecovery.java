@@ -1,5 +1,7 @@
 package com.tivo.exoplayer.library.errorhandlers;
 
+import java.util.Locale;
+
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 import com.google.android.exoplayer2.C;
@@ -20,7 +22,7 @@ public class StuckPlaylistErrorRecovery implements PlaybackExceptionRecovery, Pl
     private @Nullable ExoPlaybackException currentError;
     private long lastWindowStartMs = C.TIME_UNSET;
     private long lastDurationUs = C.TIME_UNSET;
-    private String lastManifestUrl = "";
+    private String lastMediaId = "";
 
     public StuckPlaylistErrorRecovery(PlayerErrorRecoverable errorRecoverable) {
         this.errorRecoverable = errorRecoverable;
@@ -64,10 +66,12 @@ public class StuckPlaylistErrorRecovery implements PlaybackExceptionRecovery, Pl
                 int windowIndex = player.getCurrentWindowIndex();
                 Timeline timeline = player.getCurrentTimeline();
                 Log.d(TAG, "checkRecoveryCompleted() - playerState: " + player.getPlaybackState()
-                        + " -" + getTimelineInfo(player));
+                        + " - " + getTimelineInfo(player));
                 if (! timeline.isEmpty()) {
                     Timeline.Window currentWindow = timeline.getWindow(windowIndex, new Timeline.Window());
-                    if (isTimelineDataUnchanged(currentWindow)) {
+                    if (currentWindow.isPlaceholder) {
+                        Log.d(TAG, "checkRecoveryCompleted() - placeholder, no duration or position data yet...");
+                    } else if (isTimelineDataUnchanged(currentWindow)) {
                         Log.d(TAG, "checkRecoveryCompleted() - still stuck, wait for timeout to attempt repair...");
                     } else {
                         Log.d(TAG, "checkRecoveryCompleted() - timeline has updated, recovery completed");
@@ -118,22 +122,15 @@ public class StuckPlaylistErrorRecovery implements PlaybackExceptionRecovery, Pl
         if (!timeline.isEmpty() && player != null) {
             int windowIndex = player.getCurrentWindowIndex();
             Timeline.Window currentWindow = timeline.getWindow(windowIndex, new Timeline.Window());
-
             if (reason == Player.TIMELINE_CHANGE_REASON_PLAYLIST_CHANGED) {
                 Log.d(TAG, "onTimelineChanged() - fresh prepare, errorCount: " + errorCount
-                        + " -" + getTimelineInfo(player));
-                Object manifest = currentWindow.manifest;
-                if (manifest instanceof HlsManifest) {
-                    HlsManifest hlsManifest = (HlsManifest) manifest;
-                    if (! lastManifestUrl.equals(hlsManifest.masterPlaylist.baseUri)) {
-                        lastManifestUrl = hlsManifest.masterPlaylist.baseUri;
-                        Log.d(TAG, "onTimelineChanged() - prepare switched manifest, resetting error state");
-                        clearCurrentError();
-                    }
-                } else {
-                    Log.w(TAG, "Timeline change not HLS, no support for recovery");
+                        + ", mediaId: " + currentWindow.mediaItem.mediaId
+                        + " - " + getTimelineInfo(player));
+                if (! lastMediaId.equals(currentWindow.mediaItem.mediaId)) {
+                    lastMediaId = currentWindow.mediaItem.mediaId;
+                    Log.d(TAG, "onTimelineChanged() - prepare switched manifest, resetting error state");
+                    clearCurrentError();
                 }
-
             }
 
             // If were not in active error recovery, then we keep saving the last window state from the
@@ -143,6 +140,8 @@ public class StuckPlaylistErrorRecovery implements PlaybackExceptionRecovery, Pl
             if (currentError == null) {
                 lastWindowStartMs = currentWindow.windowStartTimeMs;
                 lastDurationUs = currentWindow.durationUs;
+            } else if (currentWindow.isPlaceholder) {
+                Log.d(TAG, "onTimelineChanged() - placeholder, no duration or position data yet.");
             } else {
                 if (isTimelineDataUnchanged(currentWindow)) {
                     Log.i(TAG, "onTimelineChanged() - stale timeline detected, seek to " +
@@ -164,17 +163,34 @@ public class StuckPlaylistErrorRecovery implements PlaybackExceptionRecovery, Pl
     private String getTimelineInfo(SimpleExoPlayer player) {
         int windowIndex = player.getCurrentWindowIndex();
         Timeline timeline = player.getCurrentTimeline();
+        String infoStr;
         if (timeline.isEmpty()) {
-            return " timeline empty, position: " + player.getCurrentPosition();
+            infoStr = "timeline empty, position: " + player.getCurrentPosition();
         } else {
             Timeline.Window currentWindow = timeline.getWindow(windowIndex, new Timeline.Window());
-            return " timeline durationMs: " + C.usToMs(currentWindow.durationUs)
-                    + " windwoStartMs: " + currentWindow.windowStartTimeMs
-                    + " lastWindowStartMs: " + lastWindowStartMs
-                    + " lastDurationMs: " + C.usToMs(lastDurationUs)
-                    + " position: " + player.getCurrentPosition();
-
+            if (currentWindow.isPlaceholder) {
+                infoStr = "placeholder timeline, position: " + player.getCurrentPosition();
+            } else if (currentWindow.isDynamic) {
+                infoStr = String.format(Locale.getDefault(),
+                    "live timeline, position: %d, durationMs; %d, windowStartMs: %d, lastWindowStartMs: %d, lastDurationMs: %d",
+                    player.getContentPosition(),
+                    C.usToMs(currentWindow.durationUs),
+                    currentWindow.windowStartTimeMs,
+                    lastWindowStartMs,
+                    C.usToMs(lastDurationUs)
+                    );
+            } else {
+                infoStr = String.format(Locale.getDefault(),
+                    "VOD timeline, position: %d, durationMs; %d, windowStartMs: %d, lastWindowStartMs: %d, lastDurationMs: %d",
+                    player.getContentPosition(),
+                    C.usToMs(currentWindow.durationUs),
+                    currentWindow.windowStartTimeMs,
+                    lastWindowStartMs,
+                    C.usToMs(lastDurationUs)
+                );
+            }
         }
+        return infoStr;
 
     }
 }
