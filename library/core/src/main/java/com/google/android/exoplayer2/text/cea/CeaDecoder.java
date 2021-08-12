@@ -90,6 +90,7 @@ import java.util.PriorityQueue;
   public void queueInputBuffer(SubtitleInputBuffer inputBuffer) throws SubtitleDecoderException {
     Assertions.checkArgument(inputBuffer == dequeuedInputBuffer);
     CeaInputBuffer ceaInputBuffer = (CeaInputBuffer) inputBuffer;
+    isEndOfStream = ceaInputBuffer.isEndOfStream();
     if (ceaInputBuffer.isDecodeOnly() ||
             (inputBuffer.timeUs < lastDecodedTimestampUs)) {
       // We can start decoding anywhere in CEA formats, so discarding on the input side is fine.
