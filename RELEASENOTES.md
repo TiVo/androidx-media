@@ -2,6 +2,10 @@
 
 ### 2.12.3-1.1-dev (Not yet released) ###
 
+* Fix bug [PARTDEFECT-6244](https://jira.tivo.com/browse/PARTDEFECT-6244) - End of CEA608 stream not recogized,
+  [c128f7e799](https://github.com/tivocorp/exoplayerprvt/commit/c128f7e799) - Fixing bad merge. The CeaDecoder.java missed a line during 2.12.3 integration
+* Update StuckPlaylistErrorRecovery with functioning support for 2.12.+ (note this is not yet used in Hydra) [55c9edac8b](https://github.com/tivocorp/exoplayerprvt/commit/55c9edac8b)
+
 #### Main Merge from Google 2.12.3 ####
 * Merge and resolve with Google's tagged release 2.12.3.  Highlights of the release notes
 from their site since our last merge. That is 2.11.7 (2020-06-29) to 2.13.3 (2021-01-13)
@@ -18,12 +22,13 @@ from their site since our last merge. That is 2.11.7 (2020-06-29) to 2.13.3 (202
   re-done, now a clean conflict free cherry-pick of the commit.
 
 #### Clean Cherry-Picks from dev-v2
-*   HLS:
-    *   Report audio track type in
-        `AnalyticsListener.onDownstreamFormatChanged()` for audio-only
-        playlists, so that the `PlaybackStatsListener` can derive audio
-        format-related information.
-        ([#9175](https://github.com/google/ExoPlayer/issues/9175)).
+* [2ee3c702c6](https://github.com/tivocorp/exoplayerprvt/commit/2ee3c702c6) - Set HlsSampleStreamWrapper.trackType for audio-only playlists
+    *   HLS:
+        *   Report audio track type in
+            `AnalyticsListener.onDownstreamFormatChanged()` for audio-only
+            playlists, so that the `PlaybackStatsListener` can derive audio
+            format-related information.
+            ([#9175](https://github.com/google/ExoPlayer/issues/9175)).
 
 ### 2.11.6-3.7 (06-30-2021)
 * To fix issue [BZQSA-3914](https://jira.tivo.com/browse/BZQSA-3914) added method`getTracksFilteredForRendererSupport()`

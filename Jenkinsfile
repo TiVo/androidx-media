@@ -4,10 +4,19 @@ svcId = 'exoplayerprvt'
 
 def user_id
 def group_id
+def gradle_target
+
 node {
   label 'docker'
   user_id = sh(returnStdout: true, script: 'id -u').trim()
   group_id = sh(returnStdout: true, script: 'id -g').trim()
+
+  // Only run debug build unit-test for pull request check build.
+  if (env.CHANGE_ID) {
+    gradle_target = "testDebugUnitTest";
+  } else {
+    gradle_target = "build";
+  }
 }
 pipeline { 
   agent none
@@ -30,9 +39,8 @@ pipeline {
       }
 
       stages {
-
-        // Build first, everything in ExoPlayer depends on this.  Note this is the only 'clean' build
-        stage("Build ExoPlayer core") {
+          // Build first, everything in ExoPlayer and its clients
+        stage("Build ExoPlayer common library") {
           options {
             skipDefaultCheckout()
           }
@@ -41,13 +49,49 @@ pipeline {
             script {
               try {
                 sh 'env'
-                sh './gradlew clean library-core:build'
+                sh "./gradlew library-common:${gradle_target}"
+              } finally {
+                junit allowEmptyResults: true, testResults: 'library/common/buildout/test-results/testReleaseUnitTest/TEST-*.xml'
+              }
+            }
+          }
+        }
+
+        // Extractor is a large library, depends on common, about a 10m build
+        stage("Build ExoPlayer extractor") {
+          options {
+            skipDefaultCheckout()
+          }
+
+          steps {
+            script {
+              try {
+                sh 'env'
+                sh "./gradlew library-extractor:${gradle_target}"
+              } finally {
+                junit allowEmptyResults: true, testResults: 'library/extractor/buildout/test-results/testReleaseUnitTest/TEST-*.xml'
+              }
+            }
+          }
+        }
+
+        // Core builds library depends on extactor and common
+        stage("Build ExoPlayer core") {
+          options {
+            skipDefaultCheckout()
+          }
+
+          steps {
+            script {
+              try {
+                sh "./gradlew library-core:${gradle_target}"
               } finally {
                 junit allowEmptyResults: true, testResults: 'library/core/buildout/test-results/testReleaseUnitTest/TEST-*.xml'
               }
             }
           }
         }
+
 
         // ExoPlayer internal libraries -- all depend on core, never each other
         stage("Build ExoPlayer Libraries") {
@@ -60,7 +104,7 @@ pipeline {
               steps {
                 script {
                   try {
-                    sh './gradlew library-hls:build'
+                    sh "./gradlew library-hls:${gradle_target}"
                   } finally {
                     junit allowEmptyResults: true, testResults: 'library/hls/buildout/test-results/testReleaseUnitTest/TEST-*.xml'
                   }
@@ -76,7 +120,7 @@ pipeline {
               steps {
                 script {
                   try {
-                    sh './gradlew library-dash:build'
+                    sh "./gradlew library-dash:${gradle_target}"
                   } finally {
                     junit allowEmptyResults: true, testResults: 'library/dash/buildout/test-results/testReleaseUnitTest/TEST-*.xml'
                   }
@@ -92,7 +136,7 @@ pipeline {
               steps {
                 script {
                   try {
-                    sh './gradlew library-ui:build'
+                    sh "./gradlew library-ui:${gradle_target}"
                   } finally {
                     junit allowEmptyResults: true, testResults: 'library/ui/buildout/test-results/testReleaseUnitTest/TEST-*.xml'
                   }
@@ -107,9 +151,9 @@ pipeline {
               steps {
                 script {
                   try {
-                    sh './gradlew extension-mediasession:build'
+                    sh "./gradlew extension-mediasession:${gradle_target}"
                   } finally {
-                    junit allowEmptyResults: true, testResults: 'library/ui/buildout/test-results/testReleaseUnitTest/TEST-*.xml'
+                    junit allowEmptyResults: true, testResults: 'extension/mediasession/buildout/test-results/testReleaseUnitTest/TEST-*.xml'
                   }
                 }
               }
@@ -126,8 +170,8 @@ pipeline {
           steps {
             script {
               try {
-                sh './gradlew library-tivo-ui:build '
-                sh './gradlew library-trickplay:build'
+                sh "./gradlew library-tivo-ui:${gradle_target}"
+                sh "./gradlew library-trickplay:${gradle_target}"
               } finally {
                 junit allowEmptyResults: true, testResults: 'library/trickplay/buildout/test-results/testReleaseUnitTest/TEST-*.xml'
                 junit allowEmptyResults: true, testResults: 'library/trickplay/tivo-ui/test-results/testReleaseUnitTest/TEST-*.xml'
