@@ -22,12 +22,15 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.fragment.app.DialogFragment;
 import com.google.android.exoplayer2.C;
 import com.google.android.exoplayer2.DefaultLoadControl;
+import com.google.android.exoplayer2.MediaItem;
 import com.google.android.exoplayer2.Player;
 import com.google.android.exoplayer2.SimpleExoPlayer;
 import com.google.android.exoplayer2.Timeline;
 import com.google.android.exoplayer2.analytics.AnalyticsListener;
 import com.google.android.exoplayer2.demo.TrackSelectionDialog;
+import com.google.android.exoplayer2.source.MediaSourceFactory;
 import com.google.android.exoplayer2.source.UnrecognizedInputFormatException;
+import com.google.android.exoplayer2.source.hls.HlsMediaSource;
 import com.google.android.exoplayer2.trackselection.DefaultTrackSelector;
 import com.google.android.exoplayer2.trackselection.MappingTrackSelector;
 import com.google.android.exoplayer2.trickplay.TrickPlayControl;
@@ -40,6 +43,7 @@ import com.tivo.exoplayer.library.DrmInfo;
 import com.tivo.exoplayer.library.GeekStatsOverlay;
 import com.tivo.exoplayer.library.OutputProtectionMonitor;
 import com.tivo.exoplayer.library.SimpleExoPlayerFactory;
+import com.tivo.exoplayer.library.SourceFactoriesCreated;
 import com.tivo.exoplayer.library.VcasDrmInfo;
 import com.tivo.exoplayer.library.WidevineDrmInfo;
 import com.tivo.exoplayer.library.errorhandlers.PlaybackExceptionRecovery;
@@ -182,6 +186,26 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
                 return new ExtendedEventLogger(trackSelector);
               }
             })
+            .setSourceFactoriesCreatedCallback(new SourceFactoriesCreated() {
+              @Override
+              public void factoriesCreated(@C.ContentType int type, MediaItem.Builder itemBuilder, MediaSourceFactory factory) {
+                switch (type) {
+
+                  case C.TYPE_DASH:
+                    break;
+                  case C.TYPE_HLS:
+                    HlsMediaSource.Factory hlsFactory = (HlsMediaSource.Factory) factory;
+                    boolean allowChunkless = getIntent().getBooleanExtra(CHUNKLESS_PREPARE, false);
+                    hlsFactory.setAllowChunklessPreparation(allowChunkless);
+                    break;
+                  case C.TYPE_OTHER:
+                    break;
+                  case C.TYPE_SS:
+                    break;
+                }
+              }
+            })
+            .setUserAgentPrefix("TenFootDemo")
             .build();
 
     LayoutInflater inflater = LayoutInflater.from(context);

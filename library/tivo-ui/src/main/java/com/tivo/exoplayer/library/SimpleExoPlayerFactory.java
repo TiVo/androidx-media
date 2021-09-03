@@ -13,6 +13,7 @@ import com.google.android.exoplayer2.ExoPlaybackException;
 import com.google.android.exoplayer2.ExoPlayerLibraryInfo;
 import com.google.android.exoplayer2.Format;
 import com.google.android.exoplayer2.LoadControl;
+import com.google.android.exoplayer2.MediaItem;
 import com.google.android.exoplayer2.Player;
 import com.google.android.exoplayer2.RendererCapabilities;
 import com.google.android.exoplayer2.RenderersFactory;
@@ -73,8 +74,7 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
    */
   public static final String VERSION_INFO = "ExoPlayer Version: " + ExoPlayerLibraryInfo.VERSION_SLASHY
       + ", Build Number: " + BuildConfig.BUILD_NUMBER
-      + ", Git Hash: " + BuildConfig.GIT_HASH
-      + ", Exo Modules: [" + ExoPlayerLibraryInfo.registeredModules() + "]";
+      + ", Git Hash: " + BuildConfig.GIT_HASH;
 
   /**
    * Android application context for access to Android
@@ -133,6 +133,14 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
   private TrickPlayControlFactory trickPlayControlFactory;
 
   /**
+   * Optional callback when source factories (e.g. {@link MediaItem.Builder}, etc) are created
+   */
+  private SourceFactoriesCreated factoriesCreatedCallback;
+
+  /** can be set from the Factory method */
+  private String userAgentPrefix;
+
+  /**
    * Simple callback to produce an AnalyticsListener for logging purposes.
    */
   public interface EventListenerFactory {
@@ -164,6 +172,8 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
     private final Context context;
     private @Nullable PlayerErrorHandlerListener listener;
     private EventListenerFactory factory;
+    private SourceFactoriesCreated factoriesCreatedCallback;
+    private String userAgentPrefix;
 
     public Builder(Context context) {
       this.context = context;
@@ -196,13 +206,42 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
       return this;
     }
 
+    /**
+     * Allows client to be notified (and possibly modify) when the ExoPlayer factory objects
+     * around playing a URL (e.g. {@link MediaItem.Builder}) are created.
+     *
+     * @param factoriesCreated callback interface
+     * @return this builder for chaining
+     */
+    public Builder setSourceFactoriesCreatedCallback(SourceFactoriesCreated factoriesCreated) {
+      this.factoriesCreatedCallback = factoriesCreated;
+      return this;
+    }
+
+    /**
+     * Allows the client to specify their own portion of the user-agent header presented for
+     * HTTP requests (playlists, segments, etc.).  The generate user-agent will include ExoPlayer
+     * version info.  For example, with a prefix "MyApp" the user-agent will be:
+     *<pre>
+     *   MyApp - [ExoPlayerLib/2.12.3-1.1-dev, Build Number: 84, Git Hash: 109232e5b]
+     *</pre>
+     *
+     * @param prefix prefix string for user agent.
+     * @return this builder for chaining
+     */
+    public Builder setUserAgentPrefix(String prefix) {
+      userAgentPrefix = prefix;
+      return this;
+    }
+
     public SimpleExoPlayerFactory build() {
       SimpleExoPlayerFactory simpleExoPlayerFactory = new SimpleExoPlayerFactory(context);
       simpleExoPlayerFactory.playerErrorHandlerListener = this.listener;
       simpleExoPlayerFactory.eventListenerFactory = this.factory;
+      simpleExoPlayerFactory.factoriesCreatedCallback = this.factoriesCreatedCallback;
+      simpleExoPlayerFactory.userAgentPrefix = userAgentPrefix;
       return simpleExoPlayerFactory;
     }
-
   }
   /**
    * Construct the factory.  This factory is intended to survive as a singleton for the entire lifecycle of
@@ -240,12 +279,23 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
    * {@link com.google.android.exoplayer2.source.MediaSource}.  Override this if you need
    * to produce and manage custom media sources
    *
+   * DEPRECATED - use {@link Builder#setSourceFactoriesCreatedCallback(SourceFactoriesCreated)}
+   *              and/or {@link Builder#setUserAgentPrefix(String)} should give all the hooks
+   *              needed to avoid implementing {@link MediaSourceLifeCycle}
    * @return returns a new {@link DefaultMediaSourceLifeCycle} unless overridden
    */
+  @Deprecated
   protected MediaSourceLifeCycle createMediaSourceLifeCycle() {
+    return getDefaultMediaSourceLifeCycle();
+  }
+
+  private DefaultMediaSourceLifeCycle getDefaultMediaSourceLifeCycle() {
     assert player != null;
     DefaultMediaSourceLifeCycle mediaSourceLifeCycle = new DefaultMediaSourceLifeCycle(player, context);
     mediaSourceLifeCycle.setMediaSourceEventCallback(callback);
+    mediaSourceLifeCycle.factoriesCreated = factoriesCreatedCallback == null
+        ? new SourceFactoriesCreated() {} : factoriesCreatedCallback;
+    mediaSourceLifeCycle.userAgentPrefix = userAgentPrefix == null ? "TiVoExoPlayer" : userAgentPrefix;
     return mediaSourceLifeCycle;
   }
 

@@ -60,7 +60,10 @@ public class DefaultMediaSourceLifeCycle implements MediaSourceLifeCycle, Player
   @Nullable
   private MediaSourceEventCallback callback;
 
+  SourceFactoriesCreated factoriesCreated = new SourceFactoriesCreated() {};
+
   private boolean deliveredInitialTimelineChange;
+  String userAgentPrefix;
 
   /**
    * Construct the default implementation of {@link MediaSourceLifeCycle}
@@ -115,11 +118,7 @@ public class DefaultMediaSourceLifeCycle implements MediaSourceLifeCycle, Player
    * @return factory to produce DataSource objects.
    */
   protected DataSource.Factory buildDataSourceFactory(DrmInfo drmInfo) {
-    String userAgent = getUserAgentPrefix();
-
-    userAgent += "-" + ExoPlayerLibraryInfo.VERSION;
-
-    HttpDataSource.Factory upstreamFactory = new DefaultHttpDataSourceFactory(userAgent);
+    HttpDataSource.Factory upstreamFactory = new DefaultHttpDataSourceFactory(getUserAgent());
 
     // Currently Verimatrix ViewRight CAS is plugged in at the DataSource level,
     // If the library can provide the decrypting key then decryption can be done at
@@ -181,11 +180,18 @@ public class DefaultMediaSourceLifeCycle implements MediaSourceLifeCycle, Player
   /**
    * Subclass can override this to add an application specific UserAgent prefix.
    *
+   * Deprecated, use {@link SimpleExoPlayerFactory.Builder#setUserAgentPrefix(String)}
    * @return useragent string, version of ExoPlayer library postfix to this.
    */
+  @Deprecated
   protected String getUserAgentPrefix() {
     return "TiVoExoPlayer";
   }
+  
+  private String getUserAgent() {
+    return userAgentPrefix + " - [" + SimpleExoPlayerFactory.VERSION_INFO + "]";
+  }
+  
 
   /**
    * Built the MediaSource for the Uri (assumed for now to be HLS)
@@ -242,13 +248,15 @@ public class DefaultMediaSourceLifeCycle implements MediaSourceLifeCycle, Player
         itemBuilder.setDrmLicenseUri(wDrmInfo.getProxyUrl());   // TODO - not sure this is correct way to get the reqst props
       }
     }
+    factoriesCreated.factoriesCreated(type, itemBuilder, factory);
+
     return factory.createMediaSource(itemBuilder.build());
   }
 
   private HttpMediaDrmCallback createMediaDrmCallback(
           String licenseUrl, String[] keyRequestPropertiesArray) {
     HttpDataSource.Factory licenseDataSourceFactory =
-            new DefaultHttpDataSourceFactory(getUserAgentPrefix());
+            new DefaultHttpDataSourceFactory(getUserAgent());
     HttpMediaDrmCallback drmCallback =
             new HttpMediaDrmCallback(licenseUrl, licenseDataSourceFactory);
     if (keyRequestPropertiesArray != null) {
