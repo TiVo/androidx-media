@@ -452,7 +452,6 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
     mediaSourceLifeCycle = createMediaSourceLifeCycle();
 
     trickPlayControl.setPlayer(player);
-    player.setPlayWhenReady(playWhenReady);
 
     AnalyticsListener logger = eventListenerFactory.createEventLogger(trackSelector);
     if (logger != null) {
@@ -460,6 +459,7 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
     }
     playerErrorHandler = createPlayerErrorHandler();
     player.addListener(playerErrorHandler);
+    player.setPlayWhenReady(playWhenReady);
     return player;
   }
 
