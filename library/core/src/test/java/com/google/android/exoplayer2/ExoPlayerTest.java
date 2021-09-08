@@ -67,6 +67,7 @@ import com.google.android.exoplayer2.source.MediaSource.MediaPeriodId;
 import com.google.android.exoplayer2.source.MediaSourceEventListener;
 import com.google.android.exoplayer2.source.SampleStream;
 import com.google.android.exoplayer2.source.SilenceMediaSource;
+import com.google.android.exoplayer2.source.SinglePeriodTimeline;
 import com.google.android.exoplayer2.source.TrackGroup;
 import com.google.android.exoplayer2.source.TrackGroupArray;
 import com.google.android.exoplayer2.source.ads.AdPlaybackState;
@@ -146,6 +147,9 @@ public final class ExoPlayerTest {
 
   @Before
   public void setUp() {
+    // Uncomment during debug, useful for testing.  Allows logcat to sysout
+//    org.robolectric.shadows.ShadowLog.stream = System.out;
+
     context = ApplicationProvider.getApplicationContext();
     placeholderTimeline =
         new MaskingMediaSource.PlaceholderTimeline(
@@ -3163,6 +3167,74 @@ public final class ExoPlayerTest {
         .blockUntilEnded(TIMEOUT_MS);
 
     assertThat(positionWhenReady.get()).isEqualTo(10);
+  }
+
+  @Test
+  public void trackSelectionDoesNotResetToDefaultPeriodPosition()
+      throws Exception {
+    FakeMediaSource mediaSource =
+        new FakeMediaSource(new FakeTimeline(1), ExoPlayerTestRunner.VIDEO_FORMAT, ExoPlayerTestRunner.AUDIO_FORMAT);
+    FakeTrackSelector trackSelector = new FakeTrackSelector();
+    FakeRenderer videoRenderer = new FakeRenderer(C.TRACK_TYPE_VIDEO);
+    FakeRenderer audioRenderer = new FakeRenderer(C.TRACK_TYPE_AUDIO);
+    MediaItem mediaItem =
+        new MediaItem.Builder().setUri(Uri.EMPTY).build();
+    final long windowDefaultStartPositionUs = 5 * C.MICROS_PER_SECOND;
+    final AtomicLong expectedPosition = new AtomicLong(C.TIME_UNSET);
+    final int lastSeekPosition = 0;
+
+    Timeline liveTimeline =
+        new SinglePeriodTimeline(
+            /* periodDurationUs= */ 10 * C.MICROS_PER_SECOND,
+            /* windowDurationUs= */ 10 * C.MICROS_PER_SECOND,
+            /* windowPositionInPeriodUs= */ 0,
+            /* windowDefaultStartPositionUs= */ windowDefaultStartPositionUs,
+            /* isSeekable= */ true,
+            /* isDynamic= */ true,
+            /* isLive= */ true,
+            /* manifest= */ null,
+            mediaItem);
+
+    ActionSchedule actionSchedule =
+        new ActionSchedule.Builder(TAG)
+            .pause()
+            .waitForPlaybackState(Player.STATE_BUFFERING)
+            // Finish preparation.
+            .executeRunnable(() -> mediaSource.setNewSourceInfo(liveTimeline))
+            .waitForTimelineChanged()
+            .waitForPlaybackState(Player.STATE_READY)
+            .play()
+            .playUntilPosition(0, windowDefaultStartPositionUs)
+            .pause()
+            .seekAndWait(lastSeekPosition) // paused at this position, should not change from here
+            .executeRunnable(() -> {
+              DefaultTrackSelector.Parameters parameters = trackSelector.getParameters();
+              trackSelector.setParameters(parameters.buildUpon()
+                  .setMaxAudioBitrate(0)    // Cause track selection change
+                  .build()
+              );
+            })
+            .waitForPendingPlayerCommands()
+            .executeRunnable(new PlayerRunnable() {
+              @Override
+              public void run(SimpleExoPlayer player) {
+                expectedPosition.set(player.getCurrentPosition());
+              }
+            })
+            .stop()   // End live playback
+            .build();
+
+    new ExoPlayerTestRunner.Builder(context)
+        .setMediaSources(mediaSource)
+        .setTrackSelector(trackSelector)
+        .setRenderers(audioRenderer, videoRenderer)
+        .setActionSchedule(actionSchedule)
+        .setUseLazyPreparation(true)    // defer prepare until first source update (this is default)
+        .build()
+        .start()
+        .blockUntilEnded(TIMEOUT_MS);
+
+    assertThat(expectedPosition.get()).isEqualTo(lastSeekPosition);
   }
 
   @Test
