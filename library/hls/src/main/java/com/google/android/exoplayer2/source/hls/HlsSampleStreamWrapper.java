@@ -26,6 +26,7 @@ import com.google.android.exoplayer2.C;
 import com.google.android.exoplayer2.Format;
 import com.google.android.exoplayer2.FormatHolder;
 import com.google.android.exoplayer2.ParserException;
+import com.google.android.exoplayer2.SeekParameters;
 import com.google.android.exoplayer2.decoder.DecoderInputBuffer;
 import com.google.android.exoplayer2.drm.DrmInitData;
 import com.google.android.exoplayer2.drm.DrmSession;
@@ -532,6 +533,16 @@ import org.checkerframework.checker.nullness.qual.RequiresNonNull;
   public boolean onPlaylistError(Uri playlistUrl, long exclusionDurationMs) {
     return chunkSource.onPlaylistError(playlistUrl, exclusionDurationMs);
   }
+
+  public boolean isVideoSampleStream() {
+    return primarySampleQueueType == C.TRACK_TYPE_VIDEO;
+  }
+
+
+  public long getAdjustedSeekPositionUs(long positionUs, SeekParameters seekParameters) {
+    return chunkSource.getAdjustedSeekPositionUs(positionUs, seekParameters);
+  }
+
 
   // SampleStream implementation.
 

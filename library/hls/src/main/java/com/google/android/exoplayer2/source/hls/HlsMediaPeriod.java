@@ -410,7 +410,14 @@ public final class HlsMediaPeriod implements MediaPeriod, HlsSampleStreamWrapper
 
   @Override
   public long getAdjustedSeekPositionUs(long positionUs, SeekParameters seekParameters) {
-    return positionUs;
+    long seekTargetUs = positionUs;
+    for (HlsSampleStreamWrapper sampleStreamWrapper : enabledSampleStreamWrappers) {
+      if (sampleStreamWrapper.isVideoSampleStream()) {
+        seekTargetUs = sampleStreamWrapper.getAdjustedSeekPositionUs(positionUs, seekParameters);
+        break;
+      }
+    }
+    return seekTargetUs;
   }
 
   // HlsSampleStreamWrapper.Callback implementation.

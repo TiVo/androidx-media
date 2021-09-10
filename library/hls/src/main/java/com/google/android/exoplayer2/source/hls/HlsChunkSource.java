@@ -22,6 +22,7 @@ import android.os.SystemClock;
 import androidx.annotation.Nullable;
 import com.google.android.exoplayer2.C;
 import com.google.android.exoplayer2.Format;
+import com.google.android.exoplayer2.SeekParameters;
 import com.google.android.exoplayer2.source.BehindLiveWindowException;
 import com.google.android.exoplayer2.source.TrackGroup;
 import com.google.android.exoplayer2.source.chunk.BaseMediaChunkIterator;
@@ -215,6 +216,31 @@ import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
    */
   public void setIsTimestampMaster(boolean isTimestampMaster) {
     this.isTimestampMaster = isTimestampMaster;
+  }
+
+  long getAdjustedSeekPositionUs(long positionUs, SeekParameters seekParameters) {
+    long adjustedPositionUs = positionUs;
+
+    int selectedIndex = trackSelection.getSelectedIndex();
+    boolean haveTrackSelection = selectedIndex < playlistUrls.length && selectedIndex != C.INDEX_UNSET;
+    @Nullable HlsMediaPlaylist mediaPlaylist = null;
+    if (haveTrackSelection) {
+      mediaPlaylist = playlistTracker.getPlaylistSnapshot(playlistUrls[selectedIndex], /* isForPlayback= */ true);
+    }
+
+    // Resolve to a segment boundary, current track is fine (all should be same).
+    // and, segments must start with sync (EXT-X-INDEPENDENT-SEGMENTS must be present)
+    if (mediaPlaylist != null && mediaPlaylist.hasIndependentSegments) {
+      int segIndex = Util.binarySearchFloor(mediaPlaylist.segments, positionUs, true, true);
+      long firstSyncUs = mediaPlaylist.segments.get(segIndex).relativeStartTimeUs;
+      long secondSyncUs = firstSyncUs;
+      if (segIndex != mediaPlaylist.segments.size() - 1) {
+        secondSyncUs = mediaPlaylist.segments.get(segIndex + 1).relativeStartTimeUs;
+      }
+      adjustedPositionUs = seekParameters.resolveSeekPositionUs(positionUs, firstSyncUs, secondSyncUs);
+    }
+
+    return adjustedPositionUs;
   }
 
   /**
