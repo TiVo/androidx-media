@@ -6,6 +6,7 @@ import com.google.android.exoplayer2.C;
 import com.google.android.exoplayer2.SeekParameters;
 import com.google.android.exoplayer2.SimpleExoPlayer;
 import com.google.android.exoplayer2.util.Log;
+import com.google.android.exoplayer2.util.SystemClock;
 
 /**
  * ScrubTrickPlay is helper class that assists in implementing {@link TrickPlayControl.TrickMode#SCRUB}.
@@ -56,6 +57,7 @@ public class ScrubTrickPlay implements TrickPlayEventListener {
   private final TrickPlayControlInternal control;
 
   private long lastPosition = C.TIME_UNSET;
+  private long lastRenderTime = C.TIME_UNSET;
   private boolean renderPending;
   private SeekParameters savedSeekParamerters;
   private boolean savedPlayWhenReadyState;
@@ -96,7 +98,7 @@ public class ScrubTrickPlay implements TrickPlayEventListener {
   }
 
   void scrubStop() {
-    Log.d(TAG, "scrubStop() - current postion: " + player.getContentPosition());
+    Log.d(TAG, "scrubStop() - current position: " + player.getContentPosition());
     control.removeEventListener(this);
     if (savedSeekParamerters != null) {
       player.setSeekParameters(savedSeekParamerters);
@@ -106,7 +108,14 @@ public class ScrubTrickPlay implements TrickPlayEventListener {
 
   @Override
   public void trickFrameRendered(long frameRenderTimeUs) {
-    Log.d(TAG, "trickFrameRendered() - " + C.usToMs(frameRenderTimeUs));
+    if (lastRenderTime == C.TIME_UNSET) {
+      Log.d(TAG, "trickFrameRendered() - position: " + C.usToMs(frameRenderTimeUs));
+      lastRenderTime = SystemClock.DEFAULT.elapsedRealtime();
+    } else {
+      long renderDeltaTime = SystemClock.DEFAULT.elapsedRealtime() - lastRenderTime;
+      lastRenderTime = SystemClock.DEFAULT.elapsedRealtime();
+      Log.d(TAG, "trickFrameRendered() - position: " + C.usToMs(frameRenderTimeUs) + ", delta time: " + renderDeltaTime);
+    }
     renderPending = false;
   }
 }
