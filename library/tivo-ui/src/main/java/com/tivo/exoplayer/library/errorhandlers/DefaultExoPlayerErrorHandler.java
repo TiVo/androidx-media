@@ -46,7 +46,7 @@ public class DefaultExoPlayerErrorHandler implements Player.EventListener {
   }
 
   @Override
-  public void onPlayerStateChanged(boolean playWhenReady, int playbackState) {
+  public void onPlaybackStateChanged(int playbackState) {
     for (PlaybackExceptionRecovery handler : handlers) {
       if (handler.isRecoveryInProgress()) {
         handler.checkRecoveryCompleted();
