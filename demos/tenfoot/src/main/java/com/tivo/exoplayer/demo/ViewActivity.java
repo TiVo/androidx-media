@@ -741,7 +741,7 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
       if (vuid != null) {
           keyRequestProps = new String[] {"VUID", vuid};
       }
-      drmInfo = new WidevineDrmInfo(wvProxy, keyRequestProps);
+      drmInfo = new WidevineDrmInfo(wvProxy, keyRequestProps, false);
     } else {
       drmInfo = new DrmInfo(DrmInfo.CLEAR);
     }

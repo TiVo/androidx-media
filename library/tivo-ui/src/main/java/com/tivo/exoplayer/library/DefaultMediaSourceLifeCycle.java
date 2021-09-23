@@ -241,7 +241,7 @@ public class DefaultMediaSourceLifeCycle implements MediaSourceLifeCycle, Player
         DrmSessionManager drmSessionManager =
                 new DefaultDrmSessionManager.Builder()
                         .setUuidAndExoMediaDrmProvider(C.WIDEVINE_UUID, FrameworkMediaDrm.DEFAULT_PROVIDER)
-                        .setMultiSession(false)
+                        .setMultiSession(wDrmInfo.isMultiSessionEnabled())
                         .build(mediaDrmCallback);
         factory.setDrmSessionManager(drmSessionManager);
         itemBuilder.setDrmUuid(C.WIDEVINE_UUID);
