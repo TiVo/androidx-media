@@ -27,6 +27,7 @@ import com.google.android.exoplayer2.Player;
 import com.google.android.exoplayer2.SimpleExoPlayer;
 import com.google.android.exoplayer2.Timeline;
 import com.google.android.exoplayer2.analytics.AnalyticsListener;
+import com.google.android.exoplayer2.audio.AudioAttributes;
 import com.google.android.exoplayer2.demo.TrackSelectionDialog;
 import com.google.android.exoplayer2.source.MediaSourceFactory;
 import com.google.android.exoplayer2.source.UnrecognizedInputFormatException;
@@ -88,6 +89,7 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
   public static final String URI_LIST_EXTRA = "uri_list";
   public static final String CHUNKLESS_PREPARE = "chunkless";
   public static final String INITIAL_SEEK = "start_at";
+  public static final String START_PLAYING = "start_playing";
   public static final String SHOW_GEEK_STATS = "show_geek";
   public static final String DRM_SCHEME = "drm_scheme";
   public static final String DRM_VCAS_CA_ID = "vcas_ca_id";
@@ -285,6 +287,7 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
             1000,   // Faster channel change
             DefaultLoadControl.DEFAULT_BUFFER_FOR_PLAYBACK_AFTER_REBUFFER_MS);
     SimpleExoPlayer player = exoPlayerFactory.createPlayer(false, false, builder);
+    player.setAudioAttributes(AudioAttributes.DEFAULT,true);
 
     TrickPlayControl trickPlayControl = exoPlayerFactory.getCurrentTrickPlayControl();
     currentScrubHandler = new ScrubHandler(trickPlayControl);
@@ -594,13 +597,10 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
     outputProtectionMonitor.refreshState();
     stopPlaybackIfPlaying();
     long seekTo =  getIntent().getIntExtra(INITIAL_SEEK, C.POSITION_UNSET);
-    Log.d(TAG, "playUri() playUri: '" + uri + "' - chunkless: " + enableChunkless + " initialPos: " + seekTo);
+    boolean playWhenReady =  getIntent().getBooleanExtra(START_PLAYING, true);
+    Log.d(TAG, "playUri() playUri: '" + uri + "' - chunkless: " + enableChunkless + " initialPos: " + seekTo + " playWhenReady: " + playWhenReady);
     try {
-      if (seekTo != C.POSITION_UNSET) {
-        exoPlayerFactory.playUrl(uri, seekTo, drmInfo, enableChunkless);
-      } else {
-        exoPlayerFactory.playUrl(uri, drmInfo, enableChunkless);
-      }
+      exoPlayerFactory.playUrl(uri, drmInfo, seekTo, playWhenReady);
     } catch (UnrecognizedInputFormatException e) {
       showError("Can't play URI: " + uri, e);
     }
@@ -748,8 +748,8 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
 
 
     if (uris.length > 0) {
-      playUri(uris[0]);
       setIntent(intent);
+      playUri(uris[0]);
     }
   }
 

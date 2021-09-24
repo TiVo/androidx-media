@@ -6,6 +6,8 @@ import androidx.annotation.IntDef;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 
+import org.checkerframework.checker.units.qual.C;
+
 /** Base class to pass DRM specific metadata to
  * {@link com.tivo.exoplayer.library.SimpleExoPlayerFactory#playUrl(Uri, DrmInfo, boolean)}
  */
@@ -25,6 +27,7 @@ public class DrmInfo {
     public static final int WIDEVINE = 2;
     public static final int TIVO_CRYPT = 3;
 
+    public static final DrmInfo NO_DRM = new DrmInfo(CLEAR);
 
     public DrmInfo(@DrmType int drmType) {
         this.drmType = drmType;

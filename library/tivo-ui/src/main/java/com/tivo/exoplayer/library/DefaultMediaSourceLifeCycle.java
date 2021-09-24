@@ -6,7 +6,6 @@ import android.net.Uri;
 import android.os.Build;
 import androidx.annotation.Nullable;
 import com.google.android.exoplayer2.C;
-import com.google.android.exoplayer2.ExoPlayerLibraryInfo;
 import com.google.android.exoplayer2.MediaItem;
 import com.google.android.exoplayer2.Player;
 import com.google.android.exoplayer2.SimpleExoPlayer;
@@ -80,9 +79,31 @@ public class DefaultMediaSourceLifeCycle implements MediaSourceLifeCycle, Player
 
   @Override
   public void playUrl(Uri uri, long startPositionUs, DrmInfo drmInfo, boolean enableChunkless) throws UnrecognizedInputFormatException {
-    Log.d("ExoPlayer", "play URL " + uri);
+    Log.d(TAG, "play URL " + uri);
 
-    MediaSource mediaSource = buildMediaSource(uri, drmInfo, buildDataSourceFactory(drmInfo), enableChunkless);
+    playUrlInternal(uri, startPositionUs, drmInfo);
+    player.setPlayWhenReady(true);
+    player.prepare();
+  }
+
+  @Override
+  public void playUrl(Uri uri, long startPositionMs, boolean startPlaying, DrmInfo drmInfo) throws UnrecognizedInputFormatException {
+    Log.d(TAG, "play URL, startAt: " + startPositionMs + ", startPlaying: " + startPlaying + ", uri: " + uri);
+    playUrlInternal(uri, startPositionMs, drmInfo);
+    player.setPlayWhenReady(startPlaying);
+    player.prepare();
+  }
+
+  @Override
+  public void playUrl(Uri uri, long startPositionMs, DrmInfo drmInfo) throws UnrecognizedInputFormatException {
+    Log.d(TAG, "play URL, startAt: " + startPositionMs + ", uri: " + uri);
+    playUrlInternal(uri, startPositionMs, drmInfo);
+    player.prepare();
+  }
+
+
+  private void playUrlInternal(Uri uri, long startPositionUs, DrmInfo drmInfo) throws UnrecognizedInputFormatException {
+    MediaSource mediaSource = buildMediaSource(uri, drmInfo, buildDataSourceFactory(drmInfo), false);
     int currentState = player.getPlaybackState();
     if (currentState == Player.STATE_BUFFERING || currentState == Player.STATE_READY) {
       Log.d(TAG, "Player not idle, stopping playback with player in state: " + currentState);
@@ -90,7 +111,6 @@ public class DefaultMediaSourceLifeCycle implements MediaSourceLifeCycle, Player
     }
     currentMediaSource = mediaSource;
     deliveredInitialTimelineChange = false;
-    player.setPlayWhenReady(true);
     if (startPositionUs == C.POSITION_UNSET) {
       player.setMediaSource(currentMediaSource);
     } else {
@@ -98,9 +118,7 @@ public class DefaultMediaSourceLifeCycle implements MediaSourceLifeCycle, Player
       startPositionUs = Math.max(1, startPositionUs);
       player.setMediaSource(currentMediaSource, startPositionUs);
     }
-    player.prepare();
   }
-
 
   @Override
   public void setMediaSourceEventCallback(@Nullable MediaSourceEventCallback callback) {
@@ -284,7 +302,7 @@ public class DefaultMediaSourceLifeCycle implements MediaSourceLifeCycle, Player
   /**
    * After the player reads the initial M3u8 and parses it, the timeline is created.
    * Report the first such of these events, following a {@link MediaSource} change
-   * (via {@link MediaSourceLifeCycle#playUrl(Uri, long, DrmInfo, boolean)} call to any {@link MediaSourceEventCallback} listener
+   * (via {@link MediaSourceLifeCycle#playUrl(Uri)} call to any {@link MediaSourceEventCallback} listener
    *
    * @param timeline The current timeline
    * @param reason The reason for the timeline change.

@@ -471,7 +471,25 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
    * @param drmInfo - DRM information
    * @param enableChunkless - flag to enable chunkless prepare, TODO - will make this default
    * @throws UnrecognizedInputFormatException - if the URI is not in a supported container format.
+   *
+   * Deprecated, enableChunkless can be done by using the setSourceFactoriesCreatedCallback, see below
+   * <pre>
+   *           .setSourceFactoriesCreatedCallback(new SourceFactoriesCreated() {
+   *               @Override
+   *               public void factoriesCreated(@C.ContentType int type, MediaItem.Builder itemBuilder, MediaSourceFactory factory) {
+   *                 switch (type) {
+   *                   case C.TYPE_HLS:
+   *                     HlsMediaSource.Factory hlsFactory = (HlsMediaSource.Factory) factory;
+   *                     boolean allowChunkless = getIntent().getBooleanExtra(CHUNKLESS_PREPARE, false);
+   *                     break;
+   *                  ...
+   *                 }
+   *               }
+   *             })
+   *
+   *</pre>
    */
+  @Deprecated
   public void playUrl(Uri url, DrmInfo drmInfo, boolean enableChunkless) throws UnrecognizedInputFormatException {
     mediaSourceLifeCycle.playUrl(url, C.POSITION_UNSET, drmInfo, enableChunkless);
   }
@@ -485,9 +503,55 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
    * @param drmInfo - DRM information
    * @param enableChunkless - flag to enable chunkless prepare, TODO - will make this default
    * @throws UnrecognizedInputFormatException - if the URI is not in a supported container format.
+   *
+   * Deprecated, see {@link #playUrl(Uri, DrmInfo)}  etc for alternative
    */
+  @Deprecated
   public void playUrl(Uri url, long startPosUs, DrmInfo drmInfo, boolean enableChunkless) throws UnrecognizedInputFormatException {
     mediaSourceLifeCycle.playUrl(url, startPosUs, drmInfo, enableChunkless);
+  }
+
+
+  /**
+   * Start playback of the specified URL on the current ExoPlayer.  Must have previously
+   * called {@link #createPlayer()} or one of its variant signatures.  Playback starts
+   * at the default position (0 for VOD or the live edge for live)
+   *
+   * @param url - URL to play
+   * @param drmInfo - DRM information, use {@link DrmInfo#NO_DRM} for clear
+   * @throws UnrecognizedInputFormatException - if the URI is not in a supported container format.
+   */
+  public void playUrl(Uri url, DrmInfo drmInfo) throws UnrecognizedInputFormatException {
+    playUrl(url, drmInfo, C.TIME_UNSET);
+  }
+
+  /**
+   * Same as {@link #playUrl(Uri, DrmInfo)}} only specfiying a initial playback start position
+   *
+   * @param url - URL to play
+   * @param drmInfo - DRM information, use {@link DrmInfo#NO_DRM} for clear
+   * @param startPosMs - starting position (milliseconds) must be 0 - duration of playlist (or live offset)
+   * @throws UnrecognizedInputFormatException - if the URI is not in a supported container format.
+   */
+  public void playUrl(Uri url, DrmInfo drmInfo, long startPosMs) throws UnrecognizedInputFormatException {
+    mediaSourceLifeCycle.playUrl(url, startPosMs, drmInfo);
+  }
+
+
+  /**
+   * Same as {@link #playUrl(Uri, DrmInfo, long)}} only allows changing the default for playWhenReady that
+   * was specified in the call to {@link #createPlayer(boolean, boolean)}.  Note this change to playWhenReady
+   * is persistent.
+   *
+   * @param url - URL to play
+   * @param drmInfo - DRM information, use {@link DrmInfo#NO_DRM} for clear
+   * @param startPosMs - starting position (milliseconds) must be 0 - duration of playlist (or live offset)
+   *                   specifying {@link C#TIME_UNSET} will start at the default position
+   * @param startPlaying - override the the initial setting for playWhenReady, if false will start paused
+   * @throws UnrecognizedInputFormatException - if the URI is not in a supported container format.
+   */
+  public void playUrl(Uri url, DrmInfo drmInfo, long startPosMs, boolean startPlaying) throws UnrecognizedInputFormatException {
+    mediaSourceLifeCycle.playUrl(url, startPosMs, startPlaying, drmInfo);
   }
 
   /**
