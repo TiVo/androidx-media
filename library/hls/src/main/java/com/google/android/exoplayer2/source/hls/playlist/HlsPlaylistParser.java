@@ -714,11 +714,14 @@ public final class HlsPlaylistParser implements ParsingLoadable.Parser<HlsPlayli
       } else if (line.equals(TAG_DISCONTINUITY)) {
         relativeDiscontinuitySequence++;
       } else if (line.startsWith(TAG_PROGRAM_DATE_TIME)) {
-        long programDatetimeUs =
-            C.msToUs(Util.parseXsDateTime(line.substring(line.indexOf(':') + 1)));
-        // TODO Hack around Vecima sloppy time, they report milliseconds but really only accurate to second
-        programDatetimeUs = (programDatetimeUs / 1_000_000L) * 1_000_000L;
-        playlistStartTimeUs = programDatetimeUs - segmentStartTimeUs;
+        if (playlistStartTimeUs == 0) {
+          long programDatetimeUs =
+              C.msToUs(Util.parseXsDateTime(line.substring(line.indexOf(':') + 1)));
+          // TODO Hack around Vecima sloppy time, they report milliseconds but really only accurate to second
+          programDatetimeUs = (programDatetimeUs / 1_000_000L) * 1_000_000L;
+          // End Hack
+          playlistStartTimeUs = programDatetimeUs - segmentStartTimeUs;
+        }
       } else if (line.equals(TAG_GAP)) {
         hasGapTag = true;
       } else if (line.equals(TAG_INDEPENDENT_SEGMENTS)) {
