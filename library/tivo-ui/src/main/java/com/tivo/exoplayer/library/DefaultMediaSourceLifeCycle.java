@@ -34,6 +34,8 @@ import com.tivo.exoplayer.tivocrypt.TivoCryptDataSourceFactory;
 
 import java.io.File;
 import java.lang.reflect.Constructor;
+import java.util.HashMap;
+import java.util.Map;
 
 import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
 
@@ -263,7 +265,18 @@ public class DefaultMediaSourceLifeCycle implements MediaSourceLifeCycle, Player
                         .build(mediaDrmCallback);
         factory.setDrmSessionManager(drmSessionManager);
         itemBuilder.setDrmUuid(C.WIDEVINE_UUID);
-        itemBuilder.setDrmLicenseUri(wDrmInfo.getProxyUrl());   // TODO - not sure this is correct way to get the reqst props
+        itemBuilder.setDrmLicenseUri(wDrmInfo.getProxyUrl());
+
+        // TODO - fix this, broken API getKeyRequestProps() should return a Map
+        String keyValues[] = wDrmInfo.getKeyRequestProps();
+        Map<String, String> headers = new HashMap<>();
+        if (keyValues != null) {
+          assert keyValues.length % 2 == 0;
+          for (int i=0; i < keyValues.length; i+=2) {
+            headers.put(keyValues[i], keyValues[i+1]);
+          }
+        }
+        itemBuilder.setDrmLicenseRequestHeaders(headers);
       }
     }
     factoriesCreated.factoriesCreated(type, itemBuilder, factory);
