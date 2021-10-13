@@ -72,13 +72,7 @@ public class TivoCryptSsUtil {
    * decrypts the encrypted video content. Returns 0 is content was successfully decrypted
    * The inBuf is updated with decrypted data.
    */
-  public static native int decryptSegment(String keyLine, ByteBuffer inBuf, int datalength, String key);
-
-  /**
-   * sets the new segments IV
-   * @param iv
-   */
-  public static native void setIV(ByteBuffer iv);
+  public static native int decryptSegment(String keyLine, ByteBuffer iv, int ivLen, ByteBuffer inBuf, int datalength, String key);
 
   /**
    * Cleaning of native layer

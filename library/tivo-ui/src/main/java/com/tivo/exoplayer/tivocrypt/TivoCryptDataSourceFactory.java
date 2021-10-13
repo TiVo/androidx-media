@@ -24,7 +24,7 @@ import java.util.Map;
 
 public class TivoCryptDataSourceFactory implements DataSource.Factory {
 
-    public static final String TAG = "TivoCryptDataSourceFactory ";
+    public static final String TAG = "TivoCryptDataSourceFactory";
     private static final int BUFFER_SIZE = 18800;//this is the number VO used
 
     public static final int TIVO_CRYPT_ERROR_KEYLINE_PARSE_FAILED = 101;
@@ -40,7 +40,7 @@ public class TivoCryptDataSourceFactory implements DataSource.Factory {
     private DataSource.Factory mDelegateFactory;
 
     // Byte array used for zeroing ...
-    private static byte[] gZeroes = new byte[BUFFER_SIZE];
+    private static final byte[] gZeroes = new byte[BUFFER_SIZE];
 
     private Context mContext;
 
@@ -154,10 +154,12 @@ public class TivoCryptDataSourceFactory implements DataSource.Factory {
         // Intermediate copy buffer
         private byte[] mIntermediate;
 
+        private ByteBuffer mIv;
+
         public TivoCryptDataSource(DataSource upstream, Uri keyUri, byte[] iv) {
             mUpstream = upstream;
             mKeyUri = keyUri;
-            ByteBuffer ivBuffer = ByteBuffer.allocateDirect(IV_SIZE);
+            mIv = ByteBuffer.allocateDirect(IV_SIZE);
             //As per HLS spec IV attribute indicates that the Media Sequence Number is to be used
             //   as the IV when decrypting a Media Segment, by putting its big-endian
             //   binary representation into a 16-octet (128-bit) buffer and padding
@@ -171,10 +173,9 @@ public class TivoCryptDataSourceFactory implements DataSource.Factory {
             }
 
             for (int i = 0; i < (IV_SIZE - ivData.length); i++) {
-                ivBuffer.put((byte) 0);
+                mIv.put((byte) 0);
             }
-            ivBuffer.put(ivData);
-            TivoCryptSsUtil.setIV(ivBuffer);
+            mIv.put(ivData);
         }
 
         public void addTransferListener(TransferListener transferListener) {
@@ -195,7 +196,7 @@ public class TivoCryptDataSourceFactory implements DataSource.Factory {
             }
 
             // Start with a fresh buffer
-            mBuffer = ByteBufferPool.getInstance().acquireBuffer(BUFFER_SIZE);
+            mBuffer = ByteBufferPool.acquireBuffer(BUFFER_SIZE);
             mBuffer.clear();
 
             long available = mUpstream.open(dataSpec);
@@ -270,6 +271,8 @@ public class TivoCryptDataSourceFactory implements DataSource.Factory {
                     // Decrypt what was read in
                     int result = TivoCryptSsUtil.decryptSegment(
                             mKeyUri.toString(),
+                            mIv,
+                            mIv.position(),
                             mBuffer,
                             mBuffer.position(),
                             null);
@@ -333,7 +336,7 @@ public class TivoCryptDataSourceFactory implements DataSource.Factory {
                 if (remaining > 0) {
                     zeroBuffer(mBuffer, mBuffer.position(), remaining);
                 }
-                ByteBufferPool.getInstance().releaseBuffer(mBuffer);
+                ByteBufferPool.releaseBuffer(mBuffer);
                 mBuffer = null;
             }
         }
