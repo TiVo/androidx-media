@@ -218,7 +218,16 @@ import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
     this.isTimestampMaster = isTimestampMaster;
   }
 
-  long getAdjustedSeekPositionUs(long positionUs, SeekParameters seekParameters) {
+  /**
+   * Adjusts a seek position given the specified {@link SeekParameters}.  The HLS Segment start times
+   * are used as the sync points iff the playlist declares {@link HlsMediaPlaylist#hasIndependentSegments}
+   * indicating each segment starts with an IDR.
+   *
+   * @param positionUs The seek position in microseconds.
+   * @param seekParameters Parameters that control how the seek is performed.
+   * @return The adjusted seek position, in microseconds.
+   */
+  public long getAdjustedSeekPositionUs(long positionUs, SeekParameters seekParameters) {
     long adjustedPositionUs = positionUs;
 
     int selectedIndex = trackSelection.getSelectedIndex();
@@ -230,12 +239,15 @@ import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
 
     // Resolve to a segment boundary, current track is fine (all should be same).
     // and, segments must start with sync (EXT-X-INDEPENDENT-SEGMENTS must be present)
-    if (mediaPlaylist != null && mediaPlaylist.hasIndependentSegments) {
-      int segIndex = Util.binarySearchFloor(mediaPlaylist.segments, positionUs, true, true);
-      long firstSyncUs = mediaPlaylist.segments.get(segIndex).relativeStartTimeUs;
+    if (mediaPlaylist != null && mediaPlaylist.hasIndependentSegments && !mediaPlaylist.segments.isEmpty()) {
+      long startOfPlaylistInPeriodUs = mediaPlaylist.startTimeUs - playlistTracker.getInitialStartTimeUs();
+      long targetPositionInPlaylistUs = positionUs - startOfPlaylistInPeriodUs;
+
+      int segIndex = Util.binarySearchFloor(mediaPlaylist.segments, targetPositionInPlaylistUs, true, true);
+      long firstSyncUs = mediaPlaylist.segments.get(segIndex).relativeStartTimeUs + startOfPlaylistInPeriodUs;
       long secondSyncUs = firstSyncUs;
       if (segIndex != mediaPlaylist.segments.size() - 1) {
-        secondSyncUs = mediaPlaylist.segments.get(segIndex + 1).relativeStartTimeUs;
+        secondSyncUs = mediaPlaylist.segments.get(segIndex + 1).relativeStartTimeUs + startOfPlaylistInPeriodUs;
       }
       adjustedPositionUs = seekParameters.resolveSeekPositionUs(positionUs, firstSyncUs, secondSyncUs);
     }
