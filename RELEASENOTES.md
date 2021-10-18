@@ -1,5 +1,15 @@
 # Release notes #
-# Release notes #
+### 2.15.1-1-4-dev (not yet released)
+
+#### Google Module Changes
+
+Section documents our cherry-picks or other unshared changes to Google libraries (core, dash, HLS, extractor, etc)
+
+##### Cherry-pick and Back-port
+
+* From 2.19.0 
+  * Cherry-pick commit [bcaadf434](https://github.com/google/ExoPlayer/commit/bcaadf434f9824433135e6ba693670a482a2d098), the Google bug is [#9392](https://github.com/google/ExoPlayer/issues/9392), this should fix our [BZSTREAM-11343](https://jira.xperi.com/browse/BZSTREAM-11343)
+
 ### 2.15.1-1-3 (2023-08-01)
 
 #### Google Module Changes
