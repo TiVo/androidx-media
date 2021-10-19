@@ -621,7 +621,7 @@ public final class HlsPlaylistParser implements ParsingLoadable.Parser<HlsPlayli
       } else if (line.equals(TAG_IFRAME)) {
         isIFrameOnly = true;
       } else if (line.startsWith(TAG_START)) {
-        startOffsetUs = (long) (parseDoubleAttr(line, REGEX_TIME_OFFSET) * C.MICROS_PER_SECOND);
+        startOffsetUs = parseTimeSecondsToUs(line, REGEX_TIME_OFFSET);
       } else if (line.startsWith(TAG_INIT_SEGMENT)) {
         String uri = parseStringAttr(line, REGEX_URI, variableDefinitions);
         String byteRange = parseOptionalStringAttr(line, REGEX_ATTR_BYTERANGE, variableDefinitions);
@@ -902,10 +902,6 @@ public final class HlsPlaylistParser implements ParsingLoadable.Parser<HlsPlayli
     String timeValueSeconds = parseStringAttr(line, pattern, Collections.emptyMap());
     BigDecimal timeValue = new BigDecimal(timeValueSeconds);
     return timeValue.multiply(new BigDecimal(C.MICROS_PER_SECOND)).longValue();
-  }
-
-  private static double parseDoubleAttr(String line, Pattern pattern) throws ParserException {
-    return Double.parseDouble(parseStringAttr(line, pattern, Collections.emptyMap()));
   }
 
   private static String parseStringAttr(
