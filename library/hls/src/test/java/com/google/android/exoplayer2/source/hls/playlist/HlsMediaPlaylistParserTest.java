@@ -74,6 +74,9 @@ public class HlsMediaPlaylistParserTest {
             + "\n"
             + "#EXTINF:7.975,\n"
             + "https://priv.example.com/fileSequence2683.ts\n"
+            + "\n"
+            + "#EXTINF:2.002,\n"
+            + "https://priv.example.com/fileSequence2684.ts\n"
             + "#EXT-X-ENDLIST";
     InputStream inputStream = new ByteArrayInputStream(Util.getUtf8Bytes(playlistString));
     HlsPlaylist playlist = new HlsPlaylistParser().parse(playlistUri, inputStream);
@@ -88,7 +91,7 @@ public class HlsMediaPlaylistParserTest {
     assertThat(mediaPlaylist.protectionSchemes).isNull();
     List<Segment> segments = mediaPlaylist.segments;
     assertThat(segments).isNotNull();
-    assertThat(segments).hasSize(5);
+    assertThat(segments).hasSize(6);
 
     Segment segment = segments.get(0);
     assertThat(mediaPlaylist.discontinuitySequence + segment.relativeDiscontinuitySequence)
@@ -147,6 +150,9 @@ public class HlsMediaPlaylistParserTest {
     assertThat(segment.byteRangeLength).isEqualTo(C.LENGTH_UNSET);
     assertThat(segment.byteRangeOffset).isEqualTo(0);
     assertThat(segment.url).isEqualTo("https://priv.example.com/fileSequence2683.ts");
+
+    segment = segments.get(5);
+    assertThat(segment.durationUs).isEqualTo(2002000);
   }
 
   @Test

@@ -42,6 +42,7 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.math.BigDecimal;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -668,8 +669,7 @@ public final class HlsPlaylistParser implements ParsingLoadable.Parser<HlsPlayli
               parseStringAttr(line, REGEX_VALUE, variableDefinitions));
         }
       } else if (line.startsWith(TAG_MEDIA_DURATION)) {
-        segmentDurationUs =
-            (long) (parseDoubleAttr(line, REGEX_MEDIA_DURATION) * C.MICROS_PER_SECOND);
+        segmentDurationUs = parseTimeSecondsToUs(line, REGEX_MEDIA_DURATION);
         segmentTitle = parseOptionalStringAttr(line, REGEX_MEDIA_TITLE, "", variableDefinitions);
       } else if (line.startsWith(TAG_KEY)) {
         String method = parseStringAttr(line, REGEX_METHOD, variableDefinitions);
@@ -896,6 +896,12 @@ public final class HlsPlaylistParser implements ParsingLoadable.Parser<HlsPlayli
 
   private static long parseLongAttr(String line, Pattern pattern) throws ParserException {
     return Long.parseLong(parseStringAttr(line, pattern, Collections.emptyMap()));
+  }
+
+  private static long parseTimeSecondsToUs(String line, Pattern pattern) throws ParserException {
+    String timeValueSeconds = parseStringAttr(line, pattern, Collections.emptyMap());
+    BigDecimal timeValue = new BigDecimal(timeValueSeconds);
+    return timeValue.multiply(new BigDecimal(C.MICROS_PER_SECOND)).longValue();
   }
 
   private static double parseDoubleAttr(String line, Pattern pattern) throws ParserException {
