@@ -261,7 +261,9 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
     playerView.requestFocus();
     playerView.setShowBuffering(PlayerView.SHOW_BUFFERING_WHEN_PLAYING);
     timeBar = playerView.findViewById(R.id.exo_progress);
-    timeBar.setKeyTimeIncrement(10_000);
+
+    // TODO this should change to bigger step as repeat keys come in.
+    timeBar.setKeyTimeIncrement(2_000);
 
     playerView.setControllerAutoShow(false);
     playerView.setControllerShowTimeoutMs(-1);

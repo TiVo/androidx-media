@@ -2,6 +2,7 @@ package com.google.android.exoplayer2.trickplay;
 
 import android.content.Context;
 import android.media.MediaCodec;
+import android.os.Build;
 import android.os.Handler;
 import androidx.annotation.Nullable;
 
@@ -10,22 +11,15 @@ import com.google.android.exoplayer2.C;
 import com.google.android.exoplayer2.DefaultRenderersFactory;
 import com.google.android.exoplayer2.ExoPlaybackException;
 import com.google.android.exoplayer2.Format;
-import com.google.android.exoplayer2.FormatHolder;
 import com.google.android.exoplayer2.Renderer;
-import com.google.android.exoplayer2.audio.AudioProcessor;
-import com.google.android.exoplayer2.audio.AudioRendererEventListener;
 import com.google.android.exoplayer2.decoder.DecoderInputBuffer;
-import com.google.android.exoplayer2.drm.DrmSessionManager;
-import com.google.android.exoplayer2.drm.FrameworkMediaCrypto;
 import com.google.android.exoplayer2.mediacodec.MediaCodecSelector;
 import com.google.android.exoplayer2.util.Log;
-import com.google.android.exoplayer2.util.Util;
 import com.google.android.exoplayer2.video.MediaCodecVideoRenderer;
 import com.google.android.exoplayer2.video.VideoRendererEventListener;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
-import java.util.logging.Logger;
 
 class TrickPlayRendererFactory extends DefaultRenderersFactory {
 
@@ -109,6 +103,40 @@ class TrickPlayRendererFactory extends DefaultRenderersFactory {
       super.onPositionReset(positionUs, joining);
       Log.d(TAG, "onPositionReset() -  readPosUs: " + getReadingPositionUs() + " lastRenderTimeUs: " + lastRenderTimeUs);
       lastRenderTimeUs = C.TIME_UNSET;    // Force a render on a discontinuity
+    }
+
+    @RequiresApi(api = Build.VERSION_CODES.LOLLIPOP)
+    @Override
+    protected void onQueueInputBuffer(DecoderInputBuffer buffer) throws ExoPlaybackException {
+       super.onQueueInputBuffer(buffer);
+      switch (trickPlay.getCurrentTrickDirection()) {
+         case FORWARD:
+         case NONE:
+           break;
+
+         case SCRUB:
+         case REVERSE:
+           Log.d(TAG, "queueInputBuffer: timeMs: " + C.usToMs(buffer.timeUs) + " length: " + buffer.data.limit()
+               + " isKeyFrame: " + buffer.isKeyFrame()
+               + " isDecodeOnly: " + buffer.isDecodeOnly()
+               + " isDiscontinuity: " + buffer.isDiscontinuity());
+       }
+    }
+
+    @Override
+    protected boolean processOutputBuffer(long positionUs, long elapsedRealtimeUs, @Nullable MediaCodec codec, @Nullable ByteBuffer buffer, int bufferIndex, int bufferFlags, int sampleCount, long bufferPresentationTimeUs, boolean isDecodeOnlyBuffer, boolean isLastBuffer, Format format) throws ExoPlaybackException {
+      switch (trickPlay.getCurrentTrickDirection()) {
+        case FORWARD:
+        case NONE:
+          break;
+
+        case SCRUB:
+        case REVERSE:
+          isDecodeOnlyBuffer = false;
+          break;
+      }
+
+      return super.processOutputBuffer(positionUs, elapsedRealtimeUs, codec, buffer, bufferIndex, bufferFlags, sampleCount, bufferPresentationTimeUs, isDecodeOnlyBuffer, isLastBuffer, format);
     }
 
     @Override

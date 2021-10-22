@@ -3,10 +3,12 @@
 package com.google.android.exoplayer2.trickplay;
 
 import com.google.android.exoplayer2.C;
+import com.google.android.exoplayer2.Player;
 import com.google.android.exoplayer2.SeekParameters;
 import com.google.android.exoplayer2.SimpleExoPlayer;
 import com.google.android.exoplayer2.util.Log;
 import com.google.android.exoplayer2.util.SystemClock;
+import static com.google.android.exoplayer2.Player.DISCONTINUITY_REASON_SEEK;
 
 /**
  * ScrubTrickPlay is helper class that assists in implementing {@link TrickPlayControl.TrickMode#SCRUB}.
@@ -50,7 +52,7 @@ import com.google.android.exoplayer2.util.SystemClock;
  *
  * The demo-tenfoot UI has a sample that does just this.
  */
-public class ScrubTrickPlay implements TrickPlayEventListener {
+public class ScrubTrickPlay implements TrickPlayEventListener, Player.EventListener {
 
   private static final String TAG = "ScrubTrickPlay";
   private final SimpleExoPlayer player;
@@ -61,6 +63,7 @@ public class ScrubTrickPlay implements TrickPlayEventListener {
   private boolean renderPending;
   private SeekParameters savedSeekParamerters;
   private boolean savedPlayWhenReadyState;
+  private long lastSeekTime = C.TIME_UNSET;
 
   ScrubTrickPlay(SimpleExoPlayer player, TrickPlayControlInternal control) {
     this.player = player;
@@ -78,12 +81,25 @@ public class ScrubTrickPlay implements TrickPlayEventListener {
 
 
     if (isMoveThreshold && ! renderPending) {
-      lastPosition = positionMs;
-      Log.d(TAG, "scrubSeek() - issue seek, position: " + lastPosition);
-      renderPending = true;
-      player.seekTo(lastPosition);
+      executeSeek(positionMs);
+    } else if (isMoveThreshold) {
+      player.setPlayWhenReady(true);
     }
     return renderPending;
+  }
+
+  private void executeSeek(long positionMs) {
+    long currentPositionMs = player.getCurrentPosition();
+    Log.d(TAG, "executeSeek() - issue seek, to positionMs: " + positionMs + " currentPositionMs: " + currentPositionMs);
+    renderPending = true;
+    long delta = positionMs - currentPositionMs;
+    if (delta < 0) {
+      player.setSeekParameters(SeekParameters.PREVIOUS_SYNC);
+    } else {
+      player.setSeekParameters(SeekParameters.NEXT_SYNC);
+    }
+    lastSeekTime = SystemClock.DEFAULT.elapsedRealtime();
+    player.seekTo(positionMs);
   }
 
   void scrubStart() {
@@ -91,31 +107,66 @@ public class ScrubTrickPlay implements TrickPlayEventListener {
     savedPlayWhenReadyState = player.getPlayWhenReady();
     player.setPlayWhenReady(false);
     renderPending = false;
+    lastSeekTime = C.TIME_UNSET;
+    lastRenderTime = C.TIME_UNSET;
     savedSeekParamerters = player.getSeekParameters();
     player.setSeekParameters(SeekParameters.CLOSEST_SYNC);
     control.addEventListener(this);
-
+    player.addListener(this);
   }
 
   void scrubStop() {
     Log.d(TAG, "scrubStop() - current position: " + player.getContentPosition());
     control.removeEventListener(this);
+    player.removeListener(this);
     if (savedSeekParamerters != null) {
       player.setSeekParameters(savedSeekParamerters);
     }
     player.setPlayWhenReady(savedPlayWhenReadyState);
   }
 
+  // TrickPlayEventListener
+
   @Override
   public void trickFrameRendered(long frameRenderTimeUs) {
+    player.setPlayWhenReady(false);
+    long seekToRenderDelta = C.TIME_UNSET;
+    if (lastSeekTime != C.TIME_UNSET) {
+      seekToRenderDelta = SystemClock.DEFAULT.elapsedRealtime() - lastSeekTime;
+    }
     if (lastRenderTime == C.TIME_UNSET) {
-      Log.d(TAG, "trickFrameRendered() - position: " + C.usToMs(frameRenderTimeUs));
+      Log.d(TAG, "trickFrameRendered() - position: " + C.usToMs(frameRenderTimeUs) + ", seekToRender(ms): " + seekToRenderDelta);
       lastRenderTime = SystemClock.DEFAULT.elapsedRealtime();
     } else {
       long renderDeltaTime = SystemClock.DEFAULT.elapsedRealtime() - lastRenderTime;
       lastRenderTime = SystemClock.DEFAULT.elapsedRealtime();
-      Log.d(TAG, "trickFrameRendered() - position: " + C.usToMs(frameRenderTimeUs) + ", delta time: " + renderDeltaTime);
+      Log.d(TAG, "trickFrameRendered() - position: " + C.usToMs(frameRenderTimeUs) + ", seekToRender(ms): " + seekToRenderDelta + ", sinceRender(ms): " + renderDeltaTime);
     }
     renderPending = false;
+  }
+
+  // Player.EventListener
+
+  @Override
+  public void onPositionDiscontinuity(@Player.DiscontinuityReason int reason) {
+    long positionMs = player.getContentPosition();
+    Log.d(TAG, "onPositionDiscontinuity() - reason: " + reason + " position: " + positionMs + " lastPosition: " + lastPosition + " renderPending: " + renderPending);
+    switch (reason) {
+
+      case Player.DISCONTINUITY_REASON_AD_INSERTION:
+        lastPosition = C.POSITION_UNSET;
+        break;
+      case Player.DISCONTINUITY_REASON_INTERNAL:
+        lastPosition = C.POSITION_UNSET;
+        break;
+      case Player.DISCONTINUITY_REASON_PERIOD_TRANSITION:
+        lastPosition = C.POSITION_UNSET;
+        break;
+
+      case Player.DISCONTINUITY_REASON_SEEK:
+      case Player.DISCONTINUITY_REASON_SEEK_ADJUSTMENT:
+        lastPosition = positionMs;
+        break;
+    }
   }
 }
