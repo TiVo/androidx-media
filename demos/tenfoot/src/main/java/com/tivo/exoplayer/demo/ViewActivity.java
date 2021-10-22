@@ -58,6 +58,8 @@ import com.tivo.exoplayer.library.util.AccessibilityHelper;
 
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.HashMap;
 
 /**
  * Example player that uses a "ten foot" UI, that is majority of the UX is controlled by
@@ -736,10 +738,10 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
 
       Log.d(TAG, String.format("Requested Widevine DRM with addr:%s VUID:%s", wvProxy, vuid));
 
-      String[] keyRequestProps = null;
+      Map<String, String> keyRequestProps = new HashMap<String, String>();
 
       if (vuid != null) {
-          keyRequestProps = new String[] {"VUID", vuid};
+          keyRequestProps.put( "deviceId", vuid );
       }
       drmInfo = new WidevineDrmInfo(wvProxy, keyRequestProps, true);
     } else {

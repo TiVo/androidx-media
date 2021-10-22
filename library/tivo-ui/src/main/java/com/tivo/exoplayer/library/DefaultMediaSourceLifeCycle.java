@@ -267,15 +267,7 @@ public class DefaultMediaSourceLifeCycle implements MediaSourceLifeCycle, Player
         itemBuilder.setDrmUuid(C.WIDEVINE_UUID);
         itemBuilder.setDrmLicenseUri(wDrmInfo.getProxyUrl());
 
-        // TODO - fix this, broken API getKeyRequestProps() should return a Map
-        String keyValues[] = wDrmInfo.getKeyRequestProps();
-        Map<String, String> headers = new HashMap<>();
-        if (keyValues != null) {
-          assert keyValues.length % 2 == 0;
-          for (int i=0; i < keyValues.length; i+=2) {
-            headers.put(keyValues[i], keyValues[i+1]);
-          }
-        }
+        Map<String, String> headers = wDrmInfo.getKeyRequestProps();
         itemBuilder.setDrmLicenseRequestHeaders(headers);
       }
     }
@@ -285,16 +277,13 @@ public class DefaultMediaSourceLifeCycle implements MediaSourceLifeCycle, Player
   }
 
   private HttpMediaDrmCallback createMediaDrmCallback(
-          String licenseUrl, String[] keyRequestPropertiesArray) {
+          String licenseUrl, Map<String, String> keyRequestProperties) {
     HttpDataSource.Factory licenseDataSourceFactory =
             new DefaultHttpDataSourceFactory(getUserAgent());
     HttpMediaDrmCallback drmCallback =
             new HttpMediaDrmCallback(licenseUrl, licenseDataSourceFactory);
-    if (keyRequestPropertiesArray != null) {
-      for (int i = 0; i < keyRequestPropertiesArray.length - 1; i += 2) {
-        drmCallback.setKeyRequestProperty(keyRequestPropertiesArray[i],
-                keyRequestPropertiesArray[i + 1]);
-      }
+    for( Map.Entry<String,String> entry : keyRequestProperties.entrySet() ) {
+      drmCallback.setKeyRequestProperty(entry.getKey(), entry.getValue());
     }
     return drmCallback;
   }
