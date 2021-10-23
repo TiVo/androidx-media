@@ -6,20 +6,11 @@ def user_id
 def group_id
 def gradle_target
 
-node {
-  label 'docker'
-  user_id = sh(returnStdout: true, script: 'id -u').trim()
-  group_id = sh(returnStdout: true, script: 'id -g').trim()
 
-  // Only run debug build unit-test for pull request check build.
-  if (env.CHANGE_ID) {
-    gradle_target = "testDebugUnitTest";
-  } else {
-    gradle_target = "build";
-  }
-}
 pipeline { 
-  agent none
+  agent {
+    label 'docker'
+  }
 
   options {
     timeout(time: 1, unit: 'HOURS')
@@ -27,6 +18,21 @@ pipeline {
   }
 
   stages {
+    stage("Setup env") {
+      steps {
+        script {
+          user_id = sh(returnStdout: true, script: 'id -u').trim()
+          group_id = sh(returnStdout: true, script: 'id -g').trim()
+
+          // Only run debug build unit-test for pull request check build.
+          if (env.CHANGE_ID) {
+            gradle_target = "testDebugUnitTest";
+          } else {
+            gradle_target = "build";
+          }
+        }
+      }
+    }
 
     stage("Perform Build") {
       agent {
