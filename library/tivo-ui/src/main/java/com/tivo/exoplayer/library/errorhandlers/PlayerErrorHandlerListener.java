@@ -1,6 +1,7 @@
 package com.tivo.exoplayer.library.errorhandlers;// Copyright 2010 TiVo Inc.  All rights reserved.
 
 import com.google.android.exoplayer2.ExoPlaybackException;
+import com.google.android.exoplayer2.Player;
 import com.tivo.exoplayer.library.SimpleExoPlayerFactory;
 import com.tivo.exoplayer.library.errorhandlers.DefaultExoPlayerErrorHandler;
 import com.tivo.exoplayer.library.errorhandlers.PlaybackExceptionRecovery;
@@ -24,6 +25,9 @@ public interface PlayerErrorHandlerListener {
     /** Recovery successful */
     SUCCESS,
 
+    /** No recovery, but non-fatal error */
+    WARNING,
+
     /** Recovery Failed. */
     FAILED
   }
@@ -35,8 +39,17 @@ public interface PlayerErrorHandlerListener {
    *
    * This method is called first when an {@link PlaybackExceptionRecovery} instance accepts recovering
    * the error (with status IN_PROGRESS) then again each time the handler attempts recovery with:
-   * IN_PROGRESS, SUCCESS or FAILED if the error is being handled,
-   * successfully recovered or failed to be handled.
+   * IN_PROGRESS.  The recover HandlingStatus values are as follows:
+   *
+   * <ul>
+   *   <li>IN_PROGRESS &mdash; reports the ExoPlaybackException that is activly being recovered, this will
+   *   be called repeatedly until the error is either recovered or recovery fails.</li>
+   *   <li>SUCCESS &mdash; report that the error has been fully recovered from</li>
+   *   <li>FAILED &mdash; report that the error recovery failed or was not possible. Playback has stopped at
+   *   this point, same as reported directly via {@link Player.EventListener#onPlayerError(ExoPlaybackException)}</li>
+   *   <li>WARNING &mdash; reported for issues that degrade playback but the player is not stopped.  Callee
+   *   can choose to abort playback (with {@link Player#stop()}) and report the error</li>
+   * </ul>
    *
    * @param error the actual reported {@link ExoPlaybackException}
    * @param status, {@link HandlingStatus} for the error

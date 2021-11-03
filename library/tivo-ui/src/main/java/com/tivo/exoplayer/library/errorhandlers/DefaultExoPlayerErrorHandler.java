@@ -2,10 +2,20 @@ package com.tivo.exoplayer.library.errorhandlers;
 
 import androidx.annotation.CallSuper;
 import androidx.annotation.Nullable;
+
+import com.google.android.exoplayer2.C;
 import com.google.android.exoplayer2.ExoPlaybackException;
 import com.google.android.exoplayer2.Player;
+import com.google.android.exoplayer2.RendererCapabilities;
+import com.google.android.exoplayer2.source.TrackGroup;
+import com.google.android.exoplayer2.source.TrackGroupArray;
+import com.google.android.exoplayer2.trackselection.DefaultTrackSelector;
+import com.google.android.exoplayer2.trackselection.MappingTrackSelector;
+import com.google.android.exoplayer2.trackselection.TrackSelection;
+import com.google.android.exoplayer2.trackselection.TrackSelectionArray;
 import com.google.android.exoplayer2.util.Log;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -25,6 +35,8 @@ public class DefaultExoPlayerErrorHandler implements Player.EventListener {
 
   @Nullable private final PlayerErrorHandlerListener playerErrorHandlerListener;
 
+  @Nullable private DefaultTrackSelector trackSelector;
+
   /**
    * If you subclass implement this method. You can choose to add to the list of
    * {@link PlaybackExceptionRecovery} handlers, it is recommmeded you add to the end of the
@@ -40,10 +52,17 @@ public class DefaultExoPlayerErrorHandler implements Player.EventListener {
   }
 
   public void releaseResources() {
+    trackSelector = null;
     for (PlaybackExceptionRecovery handler : handlers) {
       handler.releaseResources();
     }
   }
+
+  public void setCurrentTrackSelector(DefaultTrackSelector trackSelector) {
+    this.trackSelector = trackSelector;
+  }
+
+  // Implement Player.EventListener
 
   @Override
   public void onPlaybackStateChanged(int playbackState) {
@@ -72,6 +91,66 @@ public class DefaultExoPlayerErrorHandler implements Player.EventListener {
       playerErrorProcessed(error, PlayerErrorHandlerListener.HandlingStatus.FAILED);
     } else {
       reportErrorStatus(activeHandler);
+    }
+  }
+
+  @Override
+  public void onTracksChanged(TrackGroupArray trackGroups, TrackSelectionArray trackSelections) {
+
+    // Check entry conditions for early exit, must have a trackselector current and a selection
+    if (trackSelector == null) {
+      Log.w(TAG, "Not checking selected tracks, no TrackSelector supplied");
+      return;
+    }
+
+    MappingTrackSelector.MappedTrackInfo mappedTrackInfo = trackSelector.getCurrentMappedTrackInfo();
+    if (mappedTrackInfo == null) {
+      Log.w(TAG, "Not checking selected tracks, no active selection");
+      return;
+    }
+
+    // Find the Video renderer and see if any or all of the tracks are reporting they don't support the
+    // format
+    //
+    int rendererCount = mappedTrackInfo.getRendererCount();
+    int videoRendererIndex = 0;
+    int mappedVideoTrackCount = 0;
+    int /* @MappingTrackSelector.MappedTrackInfo.RendererSupport */ rendererSupport = 0;
+
+    ArrayList<UnsupportedVideoFormatsException.UnsupportedTrack> unsupportedTracks = new ArrayList<>();
+    while (mappedTrackInfo.getRendererType(videoRendererIndex) != C.TRACK_TYPE_VIDEO && videoRendererIndex < rendererCount) {
+      videoRendererIndex++;
+    }
+    if (videoRendererIndex < rendererCount) {
+      rendererSupport = mappedTrackInfo.getRendererSupport(videoRendererIndex);
+      TrackGroupArray videoTrackGroups = mappedTrackInfo.getTrackGroups(videoRendererIndex);
+
+      // Likely there is only one for the video renderer
+      for (int groupIndex = 0; groupIndex < videoTrackGroups.length; groupIndex++) {
+        TrackGroup trackGroup = videoTrackGroups.get(groupIndex);
+        for (int trackIndex = 0; trackIndex < trackGroup.length; trackIndex++) {
+          mappedVideoTrackCount++;
+          int trackSupport = mappedTrackInfo.getTrackSupport(videoRendererIndex, groupIndex, trackIndex);
+          if (trackSupport != RendererCapabilities.FORMAT_HANDLED) {
+            unsupportedTracks.add(new UnsupportedVideoFormatsException.UnsupportedTrack(trackIndex, trackGroup.getFormat(trackIndex), trackSupport));
+          }
+        }
+      }
+    } else {
+      Log.w(TAG, "no video renderers found in track selection");
+    }
+
+    if (unsupportedTracks.size() == mappedVideoTrackCount) {
+      UnsupportedVideoFormatsException unsupportedTracksError = new UnsupportedVideoFormatsException(unsupportedTracks);
+      ExoPlaybackException error =
+          ExoPlaybackException.createForRenderer(
+              unsupportedTracksError,
+              mappedTrackInfo.getRendererName(videoRendererIndex),
+              videoRendererIndex,
+              null,  /* format */
+              unsupportedTracks.get(0).formatSupport
+              );
+      playerErrorHandlerListener.playerErrorProcessed(error, PlayerErrorHandlerListener.HandlingStatus.WARNING);
     }
   }
 

@@ -458,6 +458,7 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
       player.addAnalyticsListener(logger);
     }
     playerErrorHandler = createPlayerErrorHandler();
+    playerErrorHandler.setCurrentTrackSelector(trackSelector);
     player.addListener(playerErrorHandler);
     player.setPlayWhenReady(playWhenReady);
     return player;
