@@ -196,7 +196,7 @@ public class TivoCryptDataSourceFactory implements DataSource.Factory {
             }
 
             // Start with a fresh buffer
-            mBuffer = ByteBufferPool.acquireBuffer(BUFFER_SIZE);
+            mBuffer = ByteBufferPool.getInstance().acquireBuffer(BUFFER_SIZE);
             mBuffer.clear();
 
             long available = mUpstream.open(dataSpec);
@@ -336,7 +336,7 @@ public class TivoCryptDataSourceFactory implements DataSource.Factory {
                 if (remaining > 0) {
                     zeroBuffer(mBuffer, mBuffer.position(), remaining);
                 }
-                ByteBufferPool.releaseBuffer(mBuffer);
+                ByteBufferPool.getInstance().releaseBuffer(mBuffer);
                 mBuffer = null;
             }
         }

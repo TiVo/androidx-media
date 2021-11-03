@@ -9,11 +9,24 @@ import java.nio.ByteBuffer;
  */
 public class ByteBufferPool {
   private static final int BUFFER_POOL_SIZE = 3;
-  private static ByteBuffer[] buffersArray = new ByteBuffer[BUFFER_POOL_SIZE];
-  private static int buffersArrayCount;
+
+  private static ByteBufferPool gByteBufferPool;
+  private ByteBuffer[] buffersArray;
+  private int buffersArrayCount;
+
+  private ByteBufferPool(){
+    buffersArray =new ByteBuffer[BUFFER_POOL_SIZE];
+  }
+
+  public static synchronized ByteBufferPool getInstance(){
+    if(gByteBufferPool ==null){
+      gByteBufferPool = new ByteBufferPool();
+    }
+    return gByteBufferPool;
+  }
 
   //pool ByteBuffers
-  public static ByteBuffer acquireBuffer(int bufferSize) {
+  public ByteBuffer acquireBuffer(int bufferSize) {
     synchronized (buffersArray) {
       if (buffersArrayCount > 0) {
         // Use the last buffer
@@ -23,7 +36,7 @@ public class ByteBufferPool {
     }
   }
 
-  public static void releaseBuffer(ByteBuffer buffer) {
+  public void releaseBuffer(ByteBuffer buffer) {
     synchronized (buffersArray) {
       // If the pool is not at capacity yet, then add this one to the
       // pool
