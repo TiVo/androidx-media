@@ -137,6 +137,8 @@ public final class TsExtractor implements Extractor {
   private TsPayloadReader id3Reader;
   private int bytesSinceLastSync;
   private int pcrPid;
+  private int tsPacketNumber = 0;
+  private int lastPid;
 
   public TsExtractor() {
     this(/* defaultTsPayloadReaderFlags= */ 0);
@@ -221,6 +223,7 @@ public final class TsExtractor implements Extractor {
     continuityCounters = new SparseIntArray();
     durationReader = new TsDurationReader(timestampSearchBytes);
     pcrPid = -1;
+    lastPid = -1;
     resetPayloadReaders();
   }
 
@@ -250,6 +253,8 @@ public final class TsExtractor implements Extractor {
   @Override
   public void init(ExtractorOutput output) {
     this.output = output;
+    tsPacketNumber = 0;
+    lastPid = -1;
   }
 
   @Override
@@ -313,6 +318,12 @@ public final class TsExtractor implements Extractor {
     }
 
     if (!fillBufferWithAtLeastOnePacket(input)) {
+      if (lastPid != -1 && shouldConsumePacketPayload(lastPid)) {
+        TsPayloadReader payloadReader = tsPayloadReaders.get(lastPid);
+        if (payloadReader != null) {
+          payloadReader.endOfStream();
+        }
+      }
       return RESULT_END_OF_INPUT;
     }
 
@@ -343,6 +354,7 @@ public final class TsExtractor implements Extractor {
       tsPacketBuffer.setPosition(endOfPacket);
       return RESULT_CONTINUE;
     }
+    lastPid = pid;
 
     // Discontinuity check.
     if (mode != MODE_HLS) {
