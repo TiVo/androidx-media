@@ -22,8 +22,11 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.fragment.app.DialogFragment;
 import com.google.android.exoplayer2.C;
 import com.google.android.exoplayer2.DefaultLoadControl;
+import com.google.android.exoplayer2.ExoPlaybackException;
+import com.google.android.exoplayer2.Format;
 import com.google.android.exoplayer2.MediaItem;
 import com.google.android.exoplayer2.Player;
+import com.google.android.exoplayer2.RendererCapabilities;
 import com.google.android.exoplayer2.SimpleExoPlayer;
 import com.google.android.exoplayer2.Timeline;
 import com.google.android.exoplayer2.analytics.AnalyticsListener;
@@ -48,6 +51,7 @@ import com.tivo.exoplayer.library.SourceFactoriesCreated;
 import com.tivo.exoplayer.library.VcasDrmInfo;
 import com.tivo.exoplayer.library.WidevineDrmInfo;
 import com.tivo.exoplayer.library.errorhandlers.PlaybackExceptionRecovery;
+import com.tivo.exoplayer.library.errorhandlers.UnsupportedVideoFormatsException;
 import com.tivo.exoplayer.library.logging.ExtendedEventLogger;
 import com.tivo.exoplayer.library.metrics.ManagePlaybackMetrics;
 import com.tivo.exoplayer.library.metrics.PlaybackMetricsManagerApi;
@@ -174,6 +178,36 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
 
                 case SUCCESS:
                   Log.d(TAG, "playerErrorProcessed() - recovered from " + error.getMessage());
+                  break;
+
+                case WARNING:
+                  if (error.type == ExoPlaybackException.TYPE_RENDERER) {
+                    @RendererCapabilities.FormatSupport int formatSupport = error.rendererFormatSupport;
+                    String reason = "format: " + Format.toLogString(error.rendererFormat) + ", ";
+                    switch (formatSupport) {
+                      case RendererCapabilities.FORMAT_EXCEEDS_CAPABILITIES:
+                        reason = "Exceeds Capabilities";
+                        break;
+                      case RendererCapabilities.FORMAT_HANDLED:
+                        break;
+                      case RendererCapabilities.FORMAT_UNSUPPORTED_DRM:
+                        reason = "Unsupported DRM";
+                        break;
+                      case RendererCapabilities.FORMAT_UNSUPPORTED_SUBTYPE:
+                        reason = "Unsupported Subtype";
+                        break;
+                      case RendererCapabilities.FORMAT_UNSUPPORTED_TYPE:
+                        reason = "Unsupported Type";
+                        break;
+                    }
+                    ViewActivity.this.showError("No supported video tracks, " + reason, error);
+
+                  } else {
+                    ViewActivity.this.showError("Un-excpected playback error", error);
+                  }
+                  if (statsManager != null) {
+                    statsManager.endAllSessions();
+                  }
                   break;
 
                 case FAILED:

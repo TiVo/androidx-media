@@ -147,7 +147,7 @@ public class DefaultExoPlayerErrorHandler implements Player.EventListener {
               unsupportedTracksError,
               mappedTrackInfo.getRendererName(videoRendererIndex),
               videoRendererIndex,
-              null,  /* format */
+              unsupportedTracks.get(0).format,  /* format */
               unsupportedTracks.get(0).formatSupport
               );
       playerErrorHandlerListener.playerErrorProcessed(error, PlayerErrorHandlerListener.HandlingStatus.WARNING);
