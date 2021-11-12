@@ -1,13 +1,50 @@
 # Release notes #
 
-### 2.12.3-1.1-dev (Not yet released) ###
+### 2.12.3-1.1 (11-10-2021) ###
 
-* Time out on release to prevent ANRs if an underlying platform call is stuck (#4352).
+#### Our Internal Changes
+
+Fixes to our code base or Google's code based that are not yet shared.
+
+* Supports for detecting unsupported formats from track selection (eg `FORMAT_UNSUPPORTED_DRM`), reports an event if all video tracks are unplayable.  Example how to catch this in `ViewActivity`, see changes [bf4c3245a7](https://github.com/tivocorp/exoplayerprvt/commit/bf4c3245a7) and [2b7c18291e](https://github.com/tivocorp/exoplayerprvt/commit/2b7c18291e)
+* Add caDeviceId header with VUID for demo-tenfoot Widevine support, commit [f117e15057](https://github.com/tivocorp/exoplayerprvt/commit/f117e15057) 
+* TiVoCryot fixes for adding synchronized [2f042d628c](https://github.com/tivocorp/exoplayerprvt/commit/2f042d628c) 
+* Trick-play switches direct from FFx to REW mode, unreported bug [81d42c8dd0](https://github.com/tivocorp/exoplayerprvt/commit/81d42c8dd0)
+* Add fix for [WSIPCL-11330 - FFWD stuck at SOCU start](https://jira.tivo.com/browse/WSIPCL-11330), "Fix" is a hack to deal with Vecima issue, see commit [319887bdd7](https://github.com/tivocorp/exoplayerprvt/commit/319887bdd7)
+* For mobile, don't force playWhenReady in API call `playUrl()` [See commit e0898bea2f](https://github.com/tivocorp/exoplayerprvt/commit/e0898bea2f)
+* Fix [BZQSA-4302 - Player error when scrubbing](https://jira.tivo.com/browse/BZQSA-4302) &mdash; [commit  18e69aff1a](https://github.com/tivocorp/exoplayerprvt/commit/18e69aff1a) adds enable/disable DRM key rotation
+* Support for audio only track QoE, [05d9ee20a9](https://github.com/tivocorp/exoplayerprvt/commit/05d9ee20a9), [ec3d8afca6](https://github.com/tivocorp/exoplayerprvt/commit/ec3d8afca6) and [2a9f0f9636](https://github.com/tivocorp/exoplayerprvt/commit/2a9f0f9636)
 * Fix bug [PARTDEFECT-6244](https://jira.tivo.com/browse/PARTDEFECT-6244) - End of CEA608 stream not recogized,
   [c128f7e799](https://github.com/tivocorp/exoplayerprvt/commit/c128f7e799) - Fixing bad merge. The CeaDecoder.java missed a line during 2.12.3 integration
 * Update StuckPlaylistErrorRecovery with functioning support for 2.12.+ (note this is not yet used in Hydra) [55c9edac8b](https://github.com/tivocorp/exoplayerprvt/commit/55c9edac8b)
 
+#### Cherry-pick and Back-ports
+
+Changes from current Google releases after 2.12.3 or un-released code from dev-v2 cherry-picked to our code.
+See [Google Releases](https://github.com/google/ExoPlayer/releases) for their release notes.
+
+###### From Google Release 2.15.0
+
+* Report audio track type in `AnalyticsListener.onDownstreamFormatChanged()` - [2ee3c702c6](https://github.com/tivocorp/exoplayerprvt/commit/2ee3c702c6) this is [Google issue #9175](https://github.com/google/ExoPlayer/issues/9175))
+
+###### From Google Release 2.13.0
+* Time out on release to prevent ANRs if an underlying platform call is stuck [#4352](https://github.com/google/ExoPlayer/issues/4352).  Cherry-pick [Commit 47812ec](https://github.com/tivocorp/exoplayerprvt/commit/4ff8ed604a00ff2f043a095b29aa2631947812ec) is in Google's [Commit 832cc13](https://github.com/google/ExoPlayer/commit/008c80812b06384b416649196c7601543832cc13)
+
+            
+#### Our Pull Requests to Google
+
+Changes we have submitted to Google for bug fixes that are in pull requests that are either open or merged but not yet released.
+
+* Fix issues with conversions from long int to microseconds (use BigInt).  Commits are [c8e164c998](https://github.com/tivocorp/exoplayerprvt/commit/c8e164c998) and [a4ca1102a5](https://github.com/tivocorp/exoplayerprvt/commit/a4ca1102a5).  This change is covered by [Bug 9575](https://github.com/google/ExoPlayer/issues/9575) the fix for which is merged into Google `dev-v2`
+* [Pull #9536](https://github.com/google/ExoPlayer/pull/9536) Add `SeekParameters.*_SYNC` Support &mdash; seek adjust to nearest sync makes scrub based trick-play more responsive.  Our commits: [d480c1d7d1](https://github.com/tivocorp/exoplayerprvt/commit/d480c1d7d1)  and [8e93c4463b](https://github.com/tivocorp/exoplayerprvt/commit/8e93c4463b)
+*  Fix for [WSIPCL-11050 - FFWD trickplay got stuck at cache beginning](https://jira.tivo.com/browse/WSIPCL-11050) &mdash; There are a few commits, bugs and pull requests related to this including:
+   1. [Google Issue 9347](https://github.com/google/ExoPlayer/issues/9347) - our workaround is never seek to exactly 0.
+   2. [Pull 8386](https://github.com/google/ExoPlayer/pull/9386) &mdash; this fix is covered by our commits, [48f4390a0c](https://github.com/tivocorp/exoplayerprvt/commit/48f4390a0c) and [109232e5b4](https://github.com/tivocorp/exoplayerprvt/commit/109232e5b4).  These commits match the 2 commits at the head of the [pull request branch p-fix-exo-issue-9347](https://github.com/TiVo/ExoPlayer/commits/p-fix-exo-issue-9347).  Even if the final Google merge checkin does not match, the test case in [48f4390a0c](https://github.com/tivocorp/exoplayerprvt/commit/48f4390a0c) must run.
+
 #### Main Merge from Google 2.12.3 ####
+
+Our merge of 2.13.3 into our code base.
+
 * Merge and resolve with Google's tagged release 2.12.3.  Highlights of the release notes
 from their site since our last merge. That is 2.11.7 (2020-06-29) to 2.13.3 (2021-01-13)
 * Releases and their release notes covered by this merge include:
@@ -23,13 +60,7 @@ from their site since our last merge. That is 2.11.7 (2020-06-29) to 2.13.3 (202
   re-done, now a clean conflict free cherry-pick of the commit.
 
 #### Clean Cherry-Picks from dev-v2
-* [2ee3c702c6](https://github.com/tivocorp/exoplayerprvt/commit/2ee3c702c6) - Set HlsSampleStreamWrapper.trackType for audio-only playlists
-    *   HLS:
-        *   Report audio track type in
-            `AnalyticsListener.onDownstreamFormatChanged()` for audio-only
-            playlists, so that the `PlaybackStatsListener` can derive audio
-            format-related information.
-            ([#9175](https://github.com/google/ExoPlayer/issues/9175)).
+
 
 ### 2.11.6-3.7 (06-30-2021)
 * To fix issue [BZQSA-3914](https://jira.tivo.com/browse/BZQSA-3914) added method`getTracksFilteredForRendererSupport()`
