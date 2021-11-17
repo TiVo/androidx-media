@@ -109,46 +109,60 @@ public class DefaultExoPlayerErrorHandler implements Player.EventListener {
       return;
     }
 
-    // Find the Video renderer and see if any or all of the tracks are reporting they don't support the
-    // format
-    //
+    // check and throw exception if any or all of the video tracks are unsupported
+    checkForUnsupportedTracks(mappedTrackInfo, C.TRACK_TYPE_VIDEO);
+    // check and throw exception if any or all of the audio tracks are unsupported
+    checkForUnsupportedTracks(mappedTrackInfo, C.TRACK_TYPE_AUDIO);
+  }
+
+  /**
+   * Finds the renderer (based on trackType) and see if any or all of the tracks are reporting they don't support the
+   * format.
+   * In case all the tracks are unsupported, we throw an exception
+   *
+   * @param mappedTrackInfo The mapped track information.
+   * @param trackType The track type.
+   */
+  private void checkForUnsupportedTracks(MappingTrackSelector.MappedTrackInfo mappedTrackInfo, int trackType) {
+
     int rendererCount = mappedTrackInfo.getRendererCount();
-    int videoRendererIndex = 0;
-    int mappedVideoTrackCount = 0;
+    int rendererIndex = 0;
+    int mappedTrackCount = 0;
     int /* @MappingTrackSelector.MappedTrackInfo.RendererSupport */ rendererSupport = 0;
 
-    ArrayList<UnsupportedVideoFormatsException.UnsupportedTrack> unsupportedTracks = new ArrayList<>();
-    while (mappedTrackInfo.getRendererType(videoRendererIndex) != C.TRACK_TYPE_VIDEO && videoRendererIndex < rendererCount) {
-      videoRendererIndex++;
+    ArrayList<UnsupportedFormatsException.UnsupportedTrack> unsupportedTracks = new ArrayList<>();
+    while (mappedTrackInfo.getRendererType(rendererIndex) != trackType && rendererIndex < rendererCount) {
+      rendererIndex++;
     }
-    if (videoRendererIndex < rendererCount) {
-      rendererSupport = mappedTrackInfo.getRendererSupport(videoRendererIndex);
-      TrackGroupArray videoTrackGroups = mappedTrackInfo.getTrackGroups(videoRendererIndex);
 
-      // Likely there is only one for the video renderer
-      for (int groupIndex = 0; groupIndex < videoTrackGroups.length; groupIndex++) {
-        TrackGroup trackGroup = videoTrackGroups.get(groupIndex);
+    if (rendererIndex < rendererCount) {
+      rendererSupport = mappedTrackInfo.getRendererSupport(rendererIndex);
+      TrackGroupArray trackGroups = mappedTrackInfo.getTrackGroups(rendererIndex);
+
+      // Likely there is only one for the video/audio renderer
+      for (int groupIndex = 0; groupIndex < trackGroups.length; groupIndex++) {
+        TrackGroup trackGroup = trackGroups.get(groupIndex);
         for (int trackIndex = 0; trackIndex < trackGroup.length; trackIndex++) {
-          mappedVideoTrackCount++;
-          int trackSupport = mappedTrackInfo.getTrackSupport(videoRendererIndex, groupIndex, trackIndex);
+          mappedTrackCount++;
+          int trackSupport = mappedTrackInfo.getTrackSupport(rendererIndex, groupIndex, trackIndex);
           if (trackSupport != RendererCapabilities.FORMAT_HANDLED) {
-            unsupportedTracks.add(new UnsupportedVideoFormatsException.UnsupportedTrack(trackIndex, trackGroup.getFormat(trackIndex), trackSupport));
+            unsupportedTracks.add(new UnsupportedFormatsException.UnsupportedTrack(trackIndex, trackGroup.getFormat(trackIndex), trackSupport));
           }
         }
       }
     } else {
-      Log.w(TAG, "no video renderers found in track selection");
+        Log.w(TAG, "no type" + trackType + " renderers found in track selection");
     }
 
-    if (unsupportedTracks.size() == mappedVideoTrackCount) {
-      UnsupportedVideoFormatsException unsupportedTracksError = new UnsupportedVideoFormatsException(unsupportedTracks);
+    if (unsupportedTracks.size() == mappedTrackCount) {
+      UnsupportedFormatsException unsupportedTracksError = new UnsupportedFormatsException(unsupportedTracks);
       ExoPlaybackException error =
           ExoPlaybackException.createForRenderer(
               unsupportedTracksError,
-              mappedTrackInfo.getRendererName(videoRendererIndex),
-              videoRendererIndex,
-              unsupportedTracks.get(0).format,  /* format */
-              unsupportedTracks.get(0).formatSupport
+              mappedTrackInfo.getRendererName(rendererIndex),
+              rendererIndex,
+              unsupportedTracks.isEmpty() ? null : unsupportedTracks.get(0).format,  /* format */
+              unsupportedTracks.isEmpty() ? RendererCapabilities.FORMAT_HANDLED : unsupportedTracks.get(0).formatSupport
               );
       playerErrorHandlerListener.playerErrorProcessed(error, PlayerErrorHandlerListener.HandlingStatus.WARNING);
     }

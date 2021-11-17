@@ -51,7 +51,7 @@ import com.tivo.exoplayer.library.SourceFactoriesCreated;
 import com.tivo.exoplayer.library.VcasDrmInfo;
 import com.tivo.exoplayer.library.WidevineDrmInfo;
 import com.tivo.exoplayer.library.errorhandlers.PlaybackExceptionRecovery;
-import com.tivo.exoplayer.library.errorhandlers.UnsupportedVideoFormatsException;
+import com.tivo.exoplayer.library.errorhandlers.UnsupportedFormatsException;
 import com.tivo.exoplayer.library.logging.ExtendedEventLogger;
 import com.tivo.exoplayer.library.metrics.ManagePlaybackMetrics;
 import com.tivo.exoplayer.library.metrics.PlaybackMetricsManagerApi;
