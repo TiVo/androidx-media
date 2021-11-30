@@ -1,5 +1,27 @@
 # Release notes #
 
+### 2.12.3-2.0-dev (not yet released) ###
+
+#### Our Internal Changes
+
+* Report an "error" (`HandlingStatus.WARNING`) if there are no playable audio tracks, similar to what was done in 2.12.3-1.1 for no playable video tracks commit is [bb65b74b57](https://github.com/tivocorp/exoplayerprvt/commit/bb65b74b57)
+
+#### Cherry-pick and Back-ports
+
+Changes from current Google releases after 2.12.3 or un-released code from dev-v2 cherry-picked to our code.
+See [Google Releases](https://github.com/google/ExoPlayer/releases) for their release notes.
+
+###### From Google Release 2.14.2
+* Cherry-pick of change Google commit [08dbfd5](https://github.com/google/ExoPlayer/commit/08dbfd5c5ad9fdb9d0855d8ffc02096b6235052d). From their release notes:
+	*   Extractors:
+	    *   Fix issue where a `trun` atom could be associated with the wrong track
+	        in an FMP4 stream
+	        ([#9056](https://github.com/google/ExoPlayer/pull/9056)). The fix
+	        removes a previous workaround to handle content in which the `track_ID`
+	        is set incorrectly
+	        ([#4083](https://github.com/google/ExoPlayer/issues/4083)). Such content
+	        is malformed and should be re-encoded.
+	        
 ### 2.12.3-1.1 (11-10-2021) ###
 
 #### Our Internal Changes
@@ -25,7 +47,20 @@ See [Google Releases](https://github.com/google/ExoPlayer/releases) for their re
 
 ###### From Google Release 2.15.0
 
+
 * Report audio track type in `AnalyticsListener.onDownstreamFormatChanged()` - [2ee3c702c6](https://github.com/tivocorp/exoplayerprvt/commit/2ee3c702c6) this is [Google issue #9175](https://github.com/google/ExoPlayer/issues/9175))
+
+###### From Google Release 2.14.2
+* Cherry-pick of change Google commit [08dbfd5](https://github.com/google/ExoPlayer/commit/08dbfd5c5ad9fdb9d0855d8ffc02096b6235052d). From their release notes:
+	*   Extractors:
+	    *   Fix issue where a `trun` atom could be associated with the wrong track
+	        in an FMP4 stream
+	        ([#9056](https://github.com/google/ExoPlayer/pull/9056)). The fix
+	        removes a previous workaround to handle content in which the `track_ID`
+	        is set incorrectly
+	        ([#4083](https://github.com/google/ExoPlayer/issues/4083)). Such content
+	        is malformed and should be re-encoded.
+
 
 ###### From Google Release 2.13.0
 * Time out on release to prevent ANRs if an underlying platform call is stuck [#4352](https://github.com/google/ExoPlayer/issues/4352).  Cherry-pick [Commit 47812ec](https://github.com/tivocorp/exoplayerprvt/commit/4ff8ed604a00ff2f043a095b29aa2631947812ec) is in Google's [Commit 832cc13](https://github.com/google/ExoPlayer/commit/008c80812b06384b416649196c7601543832cc13)
