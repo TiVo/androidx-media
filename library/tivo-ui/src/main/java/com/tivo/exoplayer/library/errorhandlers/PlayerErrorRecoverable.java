@@ -58,7 +58,7 @@ public interface PlayerErrorRecoverable {
    *               changing to use MediaItem.  Use {@link #retryPlayback()} instead.
    */
   @Deprecated
-  void resetAndRetryPlayback();
+  default void resetAndRetryPlayback() { retryPlayback(); };
 
   /**
    * Returns the current active {@link SimpleExoPlayer}, if any

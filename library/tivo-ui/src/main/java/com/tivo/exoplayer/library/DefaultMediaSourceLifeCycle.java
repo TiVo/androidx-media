@@ -54,12 +54,11 @@ public class DefaultMediaSourceLifeCycle implements MediaSourceLifeCycle, Player
 
   private static final String TAG = "DefaultMediaSourceLifeCycle";
 
-  protected final SimpleExoPlayer player;
-  protected final Context context;
-  protected @MonotonicNonNull MediaSource currentMediaSource;
+  @Nullable private SimpleExoPlayer player;
+  private final Context context;
+  @Nullable private MediaSource currentMediaSource;
 
-  @Nullable
-  private MediaSourceEventCallback callback;
+  @Nullable private MediaSourceEventCallback callback;
 
   SourceFactoriesCreated factoriesCreated = new SourceFactoriesCreated() {};
 
@@ -82,6 +81,7 @@ public class DefaultMediaSourceLifeCycle implements MediaSourceLifeCycle, Player
   @Override
   public void playUrl(Uri uri, long startPositionUs, DrmInfo drmInfo, boolean enableChunkless) throws UnrecognizedInputFormatException {
     Log.d(TAG, "play URL " + uri);
+    assert player != null;
 
     playUrlInternal(uri, startPositionUs, drmInfo);
     player.setPlayWhenReady(true);
@@ -91,6 +91,7 @@ public class DefaultMediaSourceLifeCycle implements MediaSourceLifeCycle, Player
   @Override
   public void playUrl(Uri uri, long startPositionMs, boolean startPlaying, DrmInfo drmInfo) throws UnrecognizedInputFormatException {
     Log.d(TAG, "play URL, startAt: " + startPositionMs + ", startPlaying: " + startPlaying + ", uri: " + uri);
+    assert player != null;
     playUrlInternal(uri, startPositionMs, drmInfo);
     player.setPlayWhenReady(startPlaying);
     player.prepare();
@@ -99,6 +100,7 @@ public class DefaultMediaSourceLifeCycle implements MediaSourceLifeCycle, Player
   @Override
   public void playUrl(Uri uri, long startPositionMs, DrmInfo drmInfo) throws UnrecognizedInputFormatException {
     Log.d(TAG, "play URL, startAt: " + startPositionMs + ", uri: " + uri);
+    assert player != null;
     playUrlInternal(uri, startPositionMs, drmInfo);
     player.prepare();
   }
@@ -106,6 +108,7 @@ public class DefaultMediaSourceLifeCycle implements MediaSourceLifeCycle, Player
 
   private void playUrlInternal(Uri uri, long startPositionUs, DrmInfo drmInfo) throws UnrecognizedInputFormatException {
     MediaSource mediaSource = buildMediaSource(uri, drmInfo, buildDataSourceFactory(drmInfo), false);
+    assert player != null;
     int currentState = player.getPlaybackState();
     if (currentState == Player.STATE_BUFFERING || currentState == Player.STATE_READY) {
       Log.d(TAG, "Player not idle, stopping playback with player in state: " + currentState);
@@ -289,22 +292,20 @@ public class DefaultMediaSourceLifeCycle implements MediaSourceLifeCycle, Player
   }
 
   @Override
-  public void resetAndRestartPlayback() {
-    assert currentMediaSource != null;
-    player.prepare(currentMediaSource, true, true);
-  }
-
-  @Override
   public void releaseResources() {
     currentMediaSource = null;
-    player.removeListener(this);
+    if (player != null) {
+      player.removeListener(this);
+    }
+    player = null;
   }
 
 
   /**
    * After the player reads the initial M3u8 and parses it, the timeline is created.
    * Report the first such of these events, following a {@link MediaSource} change
-   * (via {@link MediaSourceLifeCycle#playUrl(Uri)} call to any {@link MediaSourceEventCallback} listener
+   * (via {@link MediaSourceLifeCycle#playUrl(Uri, long, boolean, DrmInfo)} (Uri)} call
+   * to any {@link MediaSourceEventCallback} listener
    *
    * @param timeline The current timeline
    * @param reason The reason for the timeline change.

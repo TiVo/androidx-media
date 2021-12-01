@@ -50,7 +50,7 @@ public class StuckPlaylistErrorRecovery implements PlaybackExceptionRecovery, Pl
         Log.w(TAG, "recoverFrom() - error count " + this.errorCount + " lastPositionMs: " + lastWindowStartMs);
 
         if (canRecover) {
-            errorRecoverable.resetAndRetryPlayback();
+            errorRecoverable.retryPlayback();
             currentError = exception;
         }
 

@@ -991,11 +991,6 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
     }
   }
 
-  @Override
-  public void resetAndRetryPlayback() {
-    mediaSourceLifeCycle.resetAndRestartPlayback();
-  }
-
   private void commitTrackSelectionParameters(DefaultTrackSelector.ParametersBuilder builder) {
     currentParameters = builder.build();
     if (trackSelector != null) {

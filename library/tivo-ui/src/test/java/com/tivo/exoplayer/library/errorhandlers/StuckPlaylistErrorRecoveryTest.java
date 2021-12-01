@@ -66,7 +66,7 @@ public class StuckPlaylistErrorRecoveryTest {
         // Mock setup
         when(mockPlayer.getCurrentTimeline()).thenReturn(Timeline.EMPTY);
 
-        verify(mockPlayerErrorRecoverable).resetAndRetryPlayback();
+        verify(mockPlayerErrorRecoverable).retryPlayback();
         assertThat(value).isTrue();
         assertThat(testee.currentErrorBeingHandled()).isEqualTo(error);
         assertThat(testee.checkRecoveryCompleted()).isFalse();
@@ -94,7 +94,7 @@ public class StuckPlaylistErrorRecoveryTest {
 
         boolean value = testee.recoverFrom(error);
 
-        verify(mockPlayerErrorRecoverable).resetAndRetryPlayback();
+        verify(mockPlayerErrorRecoverable).retryPlayback();
         assertThat(value).isTrue();
         assertThat(testee.currentErrorBeingHandled()).isEqualTo(error);
         assertThat(testee.checkRecoveryCompleted()).isFalse();

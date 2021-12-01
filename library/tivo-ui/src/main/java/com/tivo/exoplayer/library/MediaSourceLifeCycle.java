@@ -70,13 +70,6 @@ public interface MediaSourceLifeCycle {
 
 
   /**
-   * Restart playback with the current media source but reset the position
-   * to the default position (starting at 0 for VOD and the live offset for live)
-   *
-   */
-  void resetAndRestartPlayback();
-
-  /**
    * Release all listeners and objects associated with the player.  This is called
    * right after the player is released.  After this method is called this instance
    * reference is nulled out, so a new MediaSourceLifeCycle implementation will be
