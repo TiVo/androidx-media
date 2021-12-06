@@ -112,7 +112,17 @@ public class BehindLiveWindowExceptionRecovery implements PlaybackExceptionRecov
     }
 
     @Override
+    public void releaseResources() {
+        Log.i(TAG, "releaseResources() - player released, aborting any recovery.  currentError = " + currentError);
+        abortRecovery();
+    }
+
+    @Override
     public void abortRecovery() {
+        SimpleExoPlayer currentPlayer = playerErrorRecoverable.getCurrentPlayer();
+        if (currentPlayer != null) {
+            currentPlayer.removeListener(this);
+        }
         currentError = null;
     }
 
