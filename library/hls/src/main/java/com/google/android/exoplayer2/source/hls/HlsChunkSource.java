@@ -234,7 +234,8 @@ import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
     boolean haveTrackSelection = selectedIndex < playlistUrls.length && selectedIndex != C.INDEX_UNSET;
     @Nullable HlsMediaPlaylist mediaPlaylist = null;
     if (haveTrackSelection) {
-      mediaPlaylist = playlistTracker.getPlaylistSnapshot(playlistUrls[selectedIndex], /* isForPlayback= */ true);
+      int selectedIndexInTrackGroup = trackSelection.getIndexInTrackGroup(selectedIndex);
+      mediaPlaylist = playlistTracker.getPlaylistSnapshot(playlistUrls[selectedIndexInTrackGroup], /* isForPlayback= */ true);
     }
 
     // Resolve to a segment boundary, current track is fine (all should be same).

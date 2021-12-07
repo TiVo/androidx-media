@@ -18,6 +18,7 @@ import org.junit.runner.RunWith;
 import org.mockito.Mock;
 import org.mockito.Mockito;
 
+import com.google.android.exoplayer2.C;
 import com.google.android.exoplayer2.Format;
 import com.google.android.exoplayer2.SeekParameters;
 import com.google.android.exoplayer2.source.MediaPeriod;
@@ -25,6 +26,7 @@ import com.google.android.exoplayer2.source.hls.playlist.HlsMediaPlaylist;
 import com.google.android.exoplayer2.source.hls.playlist.HlsPlaylistParser;
 import com.google.android.exoplayer2.source.hls.playlist.HlsPlaylistTracker;
 import com.google.android.exoplayer2.testutil.ExoPlayerTestRunner;
+import com.google.android.exoplayer2.util.MimeTypes;
 import com.google.android.exoplayer2.util.Util;
 
 
@@ -60,6 +62,15 @@ public class HlsChunkSourceTest {
       "#EXT-X-ENDLIST\n" +
       "\n";
   public static final Uri PLAYLIST_URI = Uri.parse("http://example.com/");
+  private static final Uri IFRAME_URI = Uri.parse("http://example.com/iframe");
+  private static final Format IFRAME_FORMAT =
+      new Format.Builder()
+          .setSampleMimeType(MimeTypes.VIDEO_H264)
+          .setAverageBitrate(30_000)
+          .setWidth(1280)
+          .setHeight(720)
+          .setRoleFlags(C.ROLE_FLAG_TRICK_PLAY)
+          .build();
 
   // simulate the playlist has reloaded since the period start.
   private static final long PLAYLIST_START_PERIOD_OFFSET = 8_000_000L;
@@ -88,8 +99,8 @@ public class HlsChunkSourceTest {
     testee = new HlsChunkSource(
         mockExtractorFactory,
         mockPlaylistTracker,
-        new Uri[] {PLAYLIST_URI},
-        new Format[] { ExoPlayerTestRunner.VIDEO_FORMAT },
+        new Uri[] {IFRAME_URI, PLAYLIST_URI},
+        new Format[] { IFRAME_FORMAT, ExoPlayerTestRunner.VIDEO_FORMAT },
         mockDataSourceFactory,
         null,
         new TimestampAdjusterProvider(),
