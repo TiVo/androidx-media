@@ -79,11 +79,22 @@ public class DefaultExoPlayerErrorHandler implements Player.EventListener {
     Log.w(TAG, "onPlayerError: error: " + error);
     PlaybackExceptionRecovery activeHandler = null;
 
-    for (PlaybackExceptionRecovery handler : handlers) {
-      if (handler.recoverFrom(error)) {
-        Log.d(TAG, "onPlayerError recovery handler " + handler + " returned true");
-        activeHandler = handler;
-        break;
+    // This error is reported by player.release() on some Android platforms,
+    // it is impossbile to recover from
+    //  see: https://github.com/google/ExoPlayer/issues/4352
+    //  and commit: https://github.com/google/ExoPlayer/commit/008c80812b06384b416649196c7601543832cc13
+    // Since our 2.12 release this error is possible.
+    //
+    if (error.type == ExoPlaybackException.TYPE_TIMEOUT
+        && error.timeoutOperation == ExoPlaybackException.TIMEOUT_OPERATION_RELEASE) {
+     Log.d(TAG, "release timeout error, bypass error recovery as not possible.");
+    } else {
+      for (PlaybackExceptionRecovery handler : handlers) {
+        if (handler.recoverFrom(error)) {
+          Log.d(TAG, "onPlayerError recovery handler " + handler + " returned true");
+          activeHandler = handler;
+          break;
+        }
       }
     }
 
