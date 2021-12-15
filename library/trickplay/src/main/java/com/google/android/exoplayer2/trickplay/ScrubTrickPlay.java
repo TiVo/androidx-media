@@ -8,7 +8,6 @@ import com.google.android.exoplayer2.SeekParameters;
 import com.google.android.exoplayer2.SimpleExoPlayer;
 import com.google.android.exoplayer2.util.Log;
 import com.google.android.exoplayer2.util.SystemClock;
-import static com.google.android.exoplayer2.Player.DISCONTINUITY_REASON_SEEK;
 
 /**
  * ScrubTrickPlay is helper class that assists in implementing {@link TrickPlayControl.TrickMode#SCRUB}.
@@ -70,7 +69,7 @@ public class ScrubTrickPlay implements TrickPlayEventListener, Player.EventListe
     this.control = control;
   }
 
-  boolean scrubSeek(long positionMs) {
+  boolean scrubSeek(long positionMs, boolean forceIfNoRender) {
     boolean isMoveThreshold;
     if (lastPosition == C.TIME_UNSET) {
       isMoveThreshold = true;
@@ -79,8 +78,8 @@ public class ScrubTrickPlay implements TrickPlayEventListener, Player.EventListe
     }
     Log.d(TAG, "scrubSeek() - SCRUB called, position: " + positionMs + " lastPosition: " + lastPosition + " isMoveThreshold: " + isMoveThreshold + " renderPending: " + renderPending);
 
-
-    if (isMoveThreshold && ! renderPending) {
+    boolean renderWaitSatisfied = ! renderPending || forceIfNoRender;
+    if (isMoveThreshold && renderWaitSatisfied) {
       executeSeek(positionMs);
     } else if (isMoveThreshold) {
       player.setPlayWhenReady(true);
