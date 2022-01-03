@@ -63,3 +63,8 @@ dependencies {
     implementation 'com.tivo.android.exoplayer:verimatrix:4.3.5-0.2'
 }
 
+ext {
+    releaseArtifact = 'demo-tenfoot'
+    releaseDescription = 'TiVo ExoPlayer tenfoot demo app.'
+}
+apply from: '../../publish.gradle'

@@ -36,7 +36,7 @@ afterEvaluate {
             if (project.ext.has("tivoExoplayerPublishEnabled")
                     && project.ext.tivoExoplayerPublishEnabled) {
                 maven {
-                    url "http://repo-vip.tivo.com:8081/artifactory/libs-release-local"
+                    url "https://repo-vip.tivo.com:8443/artifactory/libs-release-local"
                     credentials {
                         username REPO_USER_NAME
                         password REPO_PASSWORD
@@ -50,7 +50,11 @@ afterEvaluate {
         }
         publications {
             release(MavenPublication) {
-                from components.release
+                if (components.any( {it.name.contains("apk")})) {
+                    from components.debug_apk
+                } else {
+                    from components.release
+                }
                 artifact androidSourcesJar
                 groupId = releaseGroupId
                 artifactId = releaseArtifact
@@ -80,6 +84,16 @@ afterEvaluate {
     }
 }
 tasks.withType(PublishToMavenRepository) { it.dependsOn lint, test }
+tasks.withType(PublishToMavenRepository) {
+    doFirst {
+        println("Publishing ${publication.groupId}:${publication.artifactId}:${publication.version} to ${repository.url}")
+    }
+}
+tasks.withType(PublishToMavenLocal) {
+    doFirst {
+        println("Publishing ${publication.groupId}:${publication.artifactId}:${publication.version} to maven local repo")
+    }
+}
 
 task androidSourcesJar(type: Jar) {
     archiveClassifier.set('sources')
