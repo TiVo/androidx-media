@@ -87,7 +87,7 @@ public class DefaultExoPlayerErrorHandler implements Player.EventListener {
     //
     if (error.type == ExoPlaybackException.TYPE_TIMEOUT
         && error.timeoutOperation == ExoPlaybackException.TIMEOUT_OPERATION_RELEASE) {
-     Log.d(TAG, "release timeout error, bypass error recovery as not possible.");
+     Log.e(TAG, "release timeout error, bypass error recovery as not possible.", error);
     } else {
       for (PlaybackExceptionRecovery handler : handlers) {
         if (handler.recoverFrom(error)) {
@@ -96,12 +96,12 @@ public class DefaultExoPlayerErrorHandler implements Player.EventListener {
           break;
         }
       }
-    }
 
-    if (activeHandler == null) {
-      playerErrorProcessed(error, PlayerErrorHandlerListener.HandlingStatus.FAILED);
-    } else {
-      reportErrorStatus(activeHandler);
+      if (activeHandler == null) {
+        playerErrorProcessed(error, PlayerErrorHandlerListener.HandlingStatus.FAILED);
+      } else {
+        reportErrorStatus(activeHandler);
+      }
     }
   }
 
