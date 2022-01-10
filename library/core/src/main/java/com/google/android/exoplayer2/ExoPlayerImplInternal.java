@@ -154,6 +154,13 @@ import java.util.concurrent.atomic.AtomicBoolean;
    * this does not matter for now.
    */
   private static final long MIN_RENDERER_SLEEP_DURATION_MS = 2000;
+  /**
+   * Duration for which the player needs to appear stuck before the playback is failed on the
+   * assumption that no further progress will be made. To appear stuck, the player's renderers must
+   * not be ready, there must be more media available to load, and the LoadControl must be refusing
+   * to load it.
+   */
+  private static final long PLAYBACK_STUCK_AFTER_MS = 4000;
 
   private final Renderer[] renderers;
   private final RendererCapabilities[] rendererCapabilities;
@@ -191,7 +198,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
   private boolean foregroundMode;
   private boolean requestForRendererSleep;
   private boolean offloadSchedulingEnabled;
-
   private int enabledRendererCount;
   @Nullable private SeekPosition pendingInitialSeekPosition;
   private long rendererPositionUs;
@@ -199,6 +205,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
   private boolean deliverPendingMessageAtStartPositionRequired;
 
   private boolean throwWhenStuckBuffering;
+  private long playbackMaybeBecameStuckAtMs;
 
   public ExoPlayerImplInternal(
       Renderer[] renderers,
@@ -228,6 +235,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
     this.pauseAtEndOfWindow = pauseAtEndOfWindow;
     this.clock = clock;
 
+    playbackMaybeBecameStuckAtMs = C.TIME_UNSET;
     throwWhenStuckBuffering = true;
     backBufferDurationUs = loadControl.getBackBufferDurationUs();
     retainBackBufferFromKeyframe = loadControl.retainBackBufferFromKeyframe();
@@ -603,6 +611,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
   private void setState(int state) {
     if (playbackInfo.playbackState != state) {
+      if (state != Player.STATE_BUFFERING) {
+        playbackMaybeBecameStuckAtMs = C.TIME_UNSET;
+      }
       playbackInfo = playbackInfo.copyWithPlaybackState(state);
     }
   }
@@ -916,6 +927,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
       stopRenderers();
     }
 
+    boolean playbackMaybeStuck = false;
     if (playbackInfo.playbackState == Player.STATE_BUFFERING) {
       for (int i = 0; i < renderers.length; i++) {
         if (isRendererEnabled(renderers[i])
@@ -927,12 +939,24 @@ import java.util.concurrent.atomic.AtomicBoolean;
           && !playbackInfo.isLoading
           && playbackInfo.totalBufferedDurationUs < 500_000
           && isLoadingPossible()) {
-        // Throw if the LoadControl prevents loading even if the buffer is empty or almost empty. We
-        // can't compare against 0 to account for small differences between the renderer position
-        // and buffered position in the media at the point where playback gets stuck.
-        throw new IllegalStateException("Playback stuck buffering and not loading");
+        // The renderers are not ready, there is more media available to load, and the LoadControl
+        // is refusing to load it (indicated by !playbackInfo.isLoading). This could be because the
+        // renderers are still transitioning to their ready states, but it could also indicate a
+        // stuck playback. The playbackInfo.totalBufferedDurationUs check further isolates the
+        // cause to a lack of media for the renderers to consume, to avoid classifying playbacks as
+        // stuck when they're waiting for other reasons (in particular, loading DRM keys).
+        playbackMaybeStuck = true;
       }
     }
+
+    if (!playbackMaybeStuck) {
+      playbackMaybeBecameStuckAtMs = C.TIME_UNSET;
+    } else if (playbackMaybeBecameStuckAtMs == C.TIME_UNSET) {
+      playbackMaybeBecameStuckAtMs = clock.elapsedRealtime();
+    } else if (clock.elapsedRealtime() - playbackMaybeBecameStuckAtMs >= PLAYBACK_STUCK_AFTER_MS) {
+      throw new IllegalStateException("Playback stuck buffering and not loading");
+    }
+
     if (offloadSchedulingEnabled != playbackInfo.offloadSchedulingEnabled) {
       playbackInfo = playbackInfo.copyWithOffloadSchedulingEnabled(offloadSchedulingEnabled);
     }
