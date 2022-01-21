@@ -57,6 +57,7 @@ public class TrickPlayControlFactory {
      * @param control the {@link TrickPlayControl} to cleanup
      */
     public void destroyTrickPlayControl(TrickPlayControl control) {
+        control.cleanUpForStop();;
         trackSelectionFactory.setTrickPlayControl(null);
     }
 

@@ -198,6 +198,12 @@ public interface TrickPlayControl {
     void removeEventListener(TrickPlayEventListener eventListener);
 
     /**
+     * Reset all internal state and remove all listeners.  Call this onStop prior to nulling the
+     * last reference to this trickplay controller to cleanup all internal Handlers
+     */
+    void cleanUpForStop();
+
+    /**
      * Trick modes include normal playback, one of 3 fast modes forward and reverse, and Scrub mode.
      * Scrub mode works best if {@link #isSmoothPlayAvailable()}, it pauses playback and sets trackselection
      * to use the smooth play tracks (I-Frame only) so a seek will play the frame at the seek target

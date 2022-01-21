@@ -1150,6 +1150,12 @@ class TrickPlayController implements TrickPlayControlInternal {
         removeListenerWithType(eventListener, ListenerRef.CallType.PLAYER);
     }
 
+    @Override
+    public void cleanUpForStop() {
+        setCurrentTrickMode(TrickMode.NORMAL);
+        listeners.clear();
+    }
+
     private boolean isVideoFormat(Format format) {
         boolean isVideo = false;
         int trackType = MimeTypes.getTrackType(format.sampleMimeType);
