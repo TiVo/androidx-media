@@ -101,14 +101,14 @@ class TrickPlayRendererFactory extends DefaultRenderersFactory {
     @Override
     protected void onPositionReset(long positionUs, boolean joining) throws ExoPlaybackException {
       super.onPositionReset(positionUs, joining);
-      Log.d(TAG, "onPositionReset() -  readPosUs: " + getReadingPositionUs() + " lastRenderTimeUs: " + lastRenderTimeUs);
-      lastRenderTimeUs = C.TIME_UNSET;    // Force a render on a discontinuity
+      Log.d(TAG, "onPositionReset() -  renderPosition: " + C.usToMs(positionUs) + " readPosition: " + C.usToMs(getReadingPositionUs()) + " lastRenderTimeUs: " + lastRenderTimeUs);
+      lastRenderTimeUs = C.TIME_UNSET;
     }
 
     @RequiresApi(api = Build.VERSION_CODES.LOLLIPOP)
     @Override
     protected void onQueueInputBuffer(DecoderInputBuffer buffer) throws ExoPlaybackException {
-       super.onQueueInputBuffer(buffer);
+      super.onQueueInputBuffer(buffer);
       switch (trickPlay.getCurrentTrickDirection()) {
          case FORWARD:
          case NONE:
@@ -148,7 +148,7 @@ class TrickPlayRendererFactory extends DefaultRenderersFactory {
       lastRenderTimeUs = System.nanoTime() / 1000;
 
       if (trickPlay.isSmoothPlayAvailable() && trickPlay.getCurrentTrickDirection() != TrickPlayControl.TrickPlayDirection.NONE) {
-        Log.d(TAG, "renderOutputBufferV21() in trickplay - pts: " + presentationTimeUs + " releaseTimeUs: " + (releaseTimeNs / 1000) + " index:" + index + " timeSinceLastUs: " + timeSinceLastRender);
+        Log.d(TAG, "renderOutputBufferV21() in trickplay - timestamp: " + C.usToMs(presentationTimeUs) + " releaseTimeUs: " + (releaseTimeNs / 1000) + " index:" + index + " timeSinceLastUs: " + timeSinceLastRender);
         trickPlay.dispatchTrickFrameRender(presentationTimeUs);
       }
     }

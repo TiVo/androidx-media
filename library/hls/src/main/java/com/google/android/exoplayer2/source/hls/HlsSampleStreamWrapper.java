@@ -51,6 +51,7 @@ import com.google.android.exoplayer2.source.SequenceableLoader;
 import com.google.android.exoplayer2.source.TrackGroup;
 import com.google.android.exoplayer2.source.TrackGroupArray;
 import com.google.android.exoplayer2.source.chunk.Chunk;
+import com.google.android.exoplayer2.source.chunk.MediaChunk;
 import com.google.android.exoplayer2.source.chunk.MediaChunkIterator;
 import com.google.android.exoplayer2.trackselection.TrackSelection;
 import com.google.android.exoplayer2.upstream.Allocator;
@@ -877,6 +878,9 @@ import org.checkerframework.checker.nullness.qual.RequiresNonNull;
           retryDelayMs != C.TIME_UNSET
               ? Loader.createRetryAction(/* resetErrorCount= */ false, retryDelayMs)
               : Loader.DONT_RETRY_FATAL;
+      if ((loadable.trackFormat.roleFlags & C.ROLE_FLAG_TRICK_PLAY) != 0) {
+        loadErrorAction = Loader.DONT_RETRY;
+      }
     }
 
     boolean wasCanceled = !loadErrorAction.isRetry();
@@ -1528,23 +1532,23 @@ import org.checkerframework.checker.nullness.qual.RequiresNonNull;
 
     // TODO: Uncomment this to reject samples with unexpected timestamps. See
     // https://github.com/google/ExoPlayer/issues/7030.
-    // /**
-    //  * The fraction of the chunk duration from which timestamps of samples loaded from within a
-    //  * chunk are allowed to deviate from the expected range.
-    //  */
-    // private static final double MAX_TIMESTAMP_DEVIATION_FRACTION = 0.5;
-    //
-    // /**
-    //  * A minimum tolerance for sample timestamps in microseconds. Timestamps of samples loaded
-    //  * from within a chunk are always allowed to deviate up to this amount from the expected
-    //  * range.
-    //  */
-    // private static final long MIN_TIMESTAMP_DEVIATION_TOLERANCE_US = 4_000_000;
-    //
-    // @Nullable private HlsMediaChunk sourceChunk;
-    // private long sourceChunkLastSampleTimeUs;
-    // private long minAllowedSampleTimeUs;
-    // private long maxAllowedSampleTimeUs;
+     /**
+      * The fraction of the chunk duration from which timestamps of samples loaded from within a
+      * chunk are allowed to deviate from the expected range.
+      */
+     private static final double MAX_TIMESTAMP_DEVIATION_FRACTION = 0.5;
+
+     /**
+      * A minimum tolerance for sample timestamps in microseconds. Timestamps of samples loaded
+      * from within a chunk are always allowed to deviate up to this amount from the expected
+      * range.
+      */
+     private static final long MIN_TIMESTAMP_DEVIATION_TOLERANCE_US = 2_000_000;
+
+     @Nullable private HlsMediaChunk sourceChunk;
+     private long sourceChunkLastSampleTimeUs;
+     private long minAllowedSampleTimeUs;
+     private long maxAllowedSampleTimeUs;
 
     private final Map<String, DrmInitData> overridingDrmInitData;
     @Nullable private DrmInitData drmInitData;
@@ -1564,14 +1568,14 @@ import org.checkerframework.checker.nullness.qual.RequiresNonNull;
 
       // TODO: Uncomment this to reject samples with unexpected timestamps. See
       // https://github.com/google/ExoPlayer/issues/7030.
-      // sourceChunk = chunk;
-      // sourceChunkLastSampleTimeUs = C.TIME_UNSET;
-      // long allowedDeviationUs =
-      //     Math.max(
-      //         (long) ((chunk.endTimeUs - chunk.startTimeUs) * MAX_TIMESTAMP_DEVIATION_FRACTION),
-      //         MIN_TIMESTAMP_DEVIATION_TOLERANCE_US);
-      // minAllowedSampleTimeUs = chunk.startTimeUs - allowedDeviationUs;
-      // maxAllowedSampleTimeUs = chunk.endTimeUs + allowedDeviationUs;
+       sourceChunk = chunk;
+       sourceChunkLastSampleTimeUs = C.TIME_UNSET;
+       long allowedDeviationUs =
+           Math.max(
+               (long) ((chunk.endTimeUs - chunk.startTimeUs) * MAX_TIMESTAMP_DEVIATION_FRACTION),
+               MIN_TIMESTAMP_DEVIATION_TOLERANCE_US);
+       minAllowedSampleTimeUs = chunk.startTimeUs - allowedDeviationUs;
+       maxAllowedSampleTimeUs = chunk.endTimeUs + allowedDeviationUs;
     }
 
     public void setDrmInitData(@Nullable DrmInitData drmInitData) {
@@ -1642,14 +1646,24 @@ import org.checkerframework.checker.nullness.qual.RequiresNonNull;
         int size,
         int offset,
         @Nullable CryptoData cryptoData) {
-      // TODO: Uncomment this to reject samples with unexpected timestamps. See
-      // https://github.com/google/ExoPlayer/issues/7030.
-      // if (timeUs < minAllowedSampleTimeUs || timeUs > maxAllowedSampleTimeUs) {
-      //   Util.sneakyThrow(
-      //       new UnexpectedSampleTimestampException(
-      //           sourceChunk, sourceChunkLastSampleTimeUs, timeUs));
-      // }
+
+       if (timeUs < minAllowedSampleTimeUs || timeUs > maxAllowedSampleTimeUs) {
+         Log.w(TAG, "timestamp in segment out of range, deltaUs: " + (sourceChunk.startTimeUs - timeUs) + "  timeUs: " + timeUs
+             + " start/end: " + sourceChunk.startTimeUs + "/" + sourceChunk.endTimeUs
+             + " url: " + sourceChunk.dataSpec.toString());
+
+         // TODO: Uncomment this to reject samples with unexpected timestamps. See
+         // TODO(scm): Out of prudence, just log the warning for now... We will need fixes from Vecima or a way to recover this first
+         // https://github.com/google/ExoPlayer/issues/7030.
+         //   Util.sneakyThrow(
+         //       new UnexpectedSampleTimestampException(
+         //           sourceChunk, sourceChunkLastSampleTimeUs, timeUs));
+       }
       // sourceChunkLastSampleTimeUs = timeUs;
+
+//       if ((flags & C.BUFFER_FLAG_KEY_FRAME) != 0 && getUpstreamFormat() != null && getUpstreamFormat().width > 0) {
+//         Log.d(TAG, "commit sample - timeMs: " + C.usToMs(timeUs) + ", seg startMs: " + C.usToMs(sourceChunk.startTimeUs) + ", seg: " + sourceChunk.dataSpec.toString());
+//       }
       super.sampleMetadata(timeUs, flags, size, offset, cryptoData);
     }
   }

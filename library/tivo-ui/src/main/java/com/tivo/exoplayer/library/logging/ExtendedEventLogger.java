@@ -14,6 +14,7 @@ import com.google.android.exoplayer2.source.MediaSourceEventListener;
 import com.google.android.exoplayer2.source.TrackGroupArray;
 import com.google.android.exoplayer2.trackselection.MappingTrackSelector;
 import com.google.android.exoplayer2.trackselection.TrackSelectionArray;
+import com.google.android.exoplayer2.upstream.DataSpec;
 import com.google.android.exoplayer2.util.EventLogger;
 import com.google.android.exoplayer2.util.Log;
 import com.google.android.exoplayer2.util.MimeTypes;
@@ -78,6 +79,7 @@ public class ExtendedEventLogger extends EventLogger {
             str.append(" range(o/l): ");
             str.append(loadEventInfo.dataSpec.position); str.append("/"); str.append(loadEventInfo.dataSpec.length);
         }
+        str.append(" timeMs(s/end): " + mediaLoadData.mediaStartTimeMs); str.append("/"); str.append(mediaLoadData.mediaEndTimeMs);
         str.append(" uri: "); str.append(loadEventInfo.uri);
         logd(eventTime,"loadStarted", str.toString());
 
@@ -103,7 +105,18 @@ public class ExtendedEventLogger extends EventLogger {
             MediaLoadData mediaLoadData,
             IOException error,
             boolean wasCanceled) {
-        loge(eventTime, "internalError","loadError - URL: " + loadEventInfo.uri , error);
+        String uri = "";
+        DataSpec dataSpec = loadEventInfo.dataSpec;
+        if (dataSpec.position == 0 && dataSpec.length == C.LENGTH_UNSET) {
+            uri = loadEventInfo.uri.toString();
+        } else {
+            String rangeRequest = "bytes=" + dataSpec.position + "-";
+            if (dataSpec.length != C.LENGTH_UNSET) {
+                rangeRequest += String.valueOf(dataSpec.position + dataSpec.length - 1);
+            }
+            uri = loadEventInfo.uri.toString() + " - Range: " + rangeRequest;
+        }
+        loge(eventTime, "internalError","loadError - URL: " + uri , error);
     }
 
     @Override

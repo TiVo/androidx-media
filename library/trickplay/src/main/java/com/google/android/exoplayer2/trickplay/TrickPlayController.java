@@ -369,7 +369,7 @@ class TrickPlayController implements TrickPlayControlInternal {
         static final int MSG_TRICKPLAY_TIMED_SEEK = 2;
 
         // FPS target, this is the render rate we hope for
-        static final int TARGET_FPS = 3;
+        static final int TARGET_FPS = 5;
         static final int targetFrameIntervalMs = 1000 / TARGET_FPS;
 
         private ScrubTrickPlay scrubTrickPlay;
@@ -438,21 +438,36 @@ class TrickPlayController implements TrickPlayControlInternal {
         }
 
         /**
-         * Issue the actual seek to the player.  The seek value is based on the current media
+         * Issue the seek request to the {@link ScrubTrickPlay}. The seek value is based on the current media
          * time (playback position) reported by the {@link #currentMediaClock}.
          *
-         * The position is truncated to a 1 second boundary (to better match the i-Frame intervals) and
-         * min'd with the upper bound of the seekable range.
+         * The actual final seek position is adjusted by ExoPlayer to match to nearest sync (IDR) based on
+         * the seek direction. Because of this it is possible the player position may be slightly ahead of or behind the requested
+         * position. In the cases this position error results in moving the wrong direction do not issue the seek.
+         *
+         * @return true if seek was issued
          */
-        private void seekToMediaClock() {
+        private boolean seekToMediaClock() {
+            boolean issuedSeek;
             long largestSafeSeekPositionMs = trickPlayController.getLargestSafeSeekPositionMs();
             long seekTargetMs = C.usToMs(currentMediaClock.getPositionUs());
-            seekTargetMs = (seekTargetMs / 1000L) * 1000L;
             seekTargetMs = Math.min(seekTargetMs, largestSafeSeekPositionMs);
-
-            Log.d(TAG, "seekToMediaClock() - issuing, seekTarget: " + seekTargetMs / 1000.0f + debugTimeStr());
-            lastIssuedSeekTimeMs = seekTargetMs;
-            scrubTrickPlay.scrubSeek(seekTargetMs, true);
+            long currentPositionMs = player.getCurrentPosition();
+            TrickPlayDirection direction = trickPlayController.getCurrentTrickDirection();
+            long deltaMs = seekTargetMs - currentPositionMs;
+            if (direction == TrickPlayDirection.FORWARD && deltaMs <= 0
+                || direction == TrickPlayDirection.REVERSE && deltaMs >= 0) {
+                issuedSeek = false;
+                Log.d(TAG, "seekToMediaClock() - skipping, seekTarget: " + seekTargetMs
+                    + " delta to position (" + deltaMs +") moves in wrong direction for mode: " + direction);
+            } else {
+                lastIssuedSeekTimeMs = seekTargetMs;
+                long timeLastSeek = scrubTrickPlay.getTimeSinceLastSeekIssued();
+                boolean shouldForceSeek = timeLastSeek != C.TIME_UNSET && timeLastSeek > 8 * targetFrameIntervalMs;
+                Log.d(TAG, "seekToMediaClock() - issuing, seekTarget: " + seekTargetMs / 1000.0f + debugTimeStr() + " forced: " + shouldForceSeek);
+                issuedSeek = scrubTrickPlay.scrubSeek(seekTargetMs, shouldForceSeek);
+            }
+            return issuedSeek;
         }
 
         private String debugTimeStr() {
@@ -479,6 +494,7 @@ class TrickPlayController implements TrickPlayControlInternal {
         }
 
         private void stopTrickPlay() {
+            Log.d(TAG, "stop seek trick-play - mode " + trickPlayController.currentTrickMode + " current pos: " + currentMediaClock.getPositionUs());
             player.removeAnalyticsListener(this);
             trickPlayController.removeEventListener(this);
             trickPlayStarted = false;

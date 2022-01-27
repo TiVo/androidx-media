@@ -6,6 +6,7 @@ import com.google.android.exoplayer2.C;
 import com.google.android.exoplayer2.Player;
 import com.google.android.exoplayer2.SeekParameters;
 import com.google.android.exoplayer2.SimpleExoPlayer;
+import com.google.android.exoplayer2.util.Clock;
 import com.google.android.exoplayer2.util.Log;
 import com.google.android.exoplayer2.util.SystemClock;
 
@@ -69,38 +70,39 @@ public class ScrubTrickPlay implements TrickPlayEventListener, Player.EventListe
     this.control = control;
   }
 
-  boolean scrubSeek(long positionMs, boolean forceIfNoRender) {
+  /**
+   * Issues a scrub trickplay seek, that is a seek with playWhenReady false intended just to move the
+   * position and trigger a first frame render.  Note the seek is not issued, unless forced, if render
+   * is still pending for the previous call to scrubSeek().
+   *
+   * @param positionMs - position to seek to
+   * @param forced - force the seek, even if no render since previous seek
+   * @return true if the seek was issued (a render is pending)
+   */
+  boolean scrubSeek(long positionMs, boolean forced) {
     boolean isMoveThreshold;
     if (lastPosition == C.TIME_UNSET) {
       isMoveThreshold = true;
     } else {
       isMoveThreshold = Math.abs(positionMs - lastPosition) > 1000;
     }
-    Log.d(TAG, "scrubSeek() - SCRUB called, position: " + positionMs + " lastPosition: " + lastPosition + " isMoveThreshold: " + isMoveThreshold + " renderPending: " + renderPending);
+    Log.d(TAG, "scrubSeek() - SCRUB called, position: " + positionMs
+        + " lastPosition: " + lastPosition
+        + " isMoveThreshold: " + isMoveThreshold
+        + " renderPending: " + renderPending
+        + " forced: " + forced);
 
-    boolean renderWaitSatisfied = ! renderPending || forceIfNoRender;
-    if (isMoveThreshold && renderWaitSatisfied) {
+    if (isMoveThreshold && (forced || ! renderPending)) {
       executeSeek(positionMs);
-    } else if (isMoveThreshold) {
-      player.setPlayWhenReady(true);
     }
+
     return renderPending;
   }
 
-  private void executeSeek(long positionMs) {
-    long currentPositionMs = player.getCurrentPosition();
-    Log.d(TAG, "executeSeek() - issue seek, to positionMs: " + positionMs + " currentPositionMs: " + currentPositionMs);
-    renderPending = true;
-    long delta = positionMs - currentPositionMs;
-    if (delta < 0) {
-      player.setSeekParameters(SeekParameters.PREVIOUS_SYNC);
-    } else {
-      player.setSeekParameters(SeekParameters.NEXT_SYNC);
-    }
-    lastSeekTime = SystemClock.DEFAULT.elapsedRealtime();
-    player.seekTo(positionMs);
-  }
-
+  /**
+   * Enter scrub trickplay mode.  This clears the internal variables, sets current seek parameters
+   * to {@link SeekParameters#CLOSEST_SYNC} and prepares for calls to {@link #scrubSeek(long, boolean)})
+   */
   void scrubStart() {
     Log.d(TAG, "scrubStart()");
     savedPlayWhenReadyState = player.getPlayWhenReady();
@@ -114,6 +116,18 @@ public class ScrubTrickPlay implements TrickPlayEventListener, Player.EventListe
     player.addListener(this);
   }
 
+  long getLastRenderTime() {
+    return lastRenderTime;
+  }
+
+  long getTimeSinceLastRender() {
+    return renderPending ? Clock.DEFAULT.elapsedRealtime() - lastRenderTime : C.TIME_UNSET;
+  }
+
+  long getTimeSinceLastSeekIssued() {
+    return lastSeekTime == C.TIME_UNSET ? C.TIME_UNSET : Clock.DEFAULT.elapsedRealtime() - lastSeekTime;
+  }
+
   void scrubStop() {
     Log.d(TAG, "scrubStop() - current position: " + player.getContentPosition());
     control.removeEventListener(this);
@@ -122,6 +136,22 @@ public class ScrubTrickPlay implements TrickPlayEventListener, Player.EventListe
       player.setSeekParameters(savedSeekParamerters);
     }
     player.setPlayWhenReady(savedPlayWhenReadyState);
+  }
+
+  // Internal methods
+
+  private void executeSeek(long positionMs) {
+    long currentPositionMs = player.getCurrentPosition();
+    Log.d(TAG, "executeSeek() - issue seek, to positionMs: " + positionMs + " currentPositionMs: " + currentPositionMs);
+    renderPending = true;
+    long delta = positionMs - currentPositionMs;
+    if (delta < 0) {
+      player.setSeekParameters(SeekParameters.PREVIOUS_SYNC);
+    } else {
+      player.setSeekParameters(SeekParameters.NEXT_SYNC);
+    }
+    lastSeekTime = SystemClock.DEFAULT.elapsedRealtime();
+    player.seekTo(positionMs);
   }
 
   // TrickPlayEventListener
@@ -149,7 +179,8 @@ public class ScrubTrickPlay implements TrickPlayEventListener, Player.EventListe
   @Override
   public void onPositionDiscontinuity(@Player.DiscontinuityReason int reason) {
     long positionMs = player.getContentPosition();
-    Log.d(TAG, "onPositionDiscontinuity() - reason: " + reason + " position: " + positionMs + " lastPosition: " + lastPosition + " renderPending: " + renderPending);
+    Log.d(TAG, "onPositionDiscontinuity() - reason: " + reason + " position: " + positionMs
+        + " lastPosition: " + lastPosition + " delta: " + (positionMs - lastPosition) + " renderPending: " + renderPending);
     switch (reason) {
 
       case Player.DISCONTINUITY_REASON_AD_INSERTION:
