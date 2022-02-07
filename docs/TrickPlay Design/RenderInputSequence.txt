@@ -1,0 +1,47 @@
+title ExoPlayer Render Decoder Ingress Process
+participant EPII
+participant SampleQueue
+participant MCRenderer
+participant MCVideoRenderer
+participant MediaCodec
+EPII->MCRenderer:<<init>>
+activate MCRenderer
+note right of MCRenderer: buffer = new DecoderInputBuffer()\ninputIndex = -1
+deactivate MCRenderer
+
+EPII->MCRenderer:render(postionUs)
+activate MCRenderer
+loop while feedInputBuffer() true
+MCRenderer->MCRenderer:feedInputBuffer() 
+activate MCRenderer
+note right of MCRenderer:keepFeeding = true
+end
+alt inputIndex < 0
+MCRenderer->MediaCodec:dequeueInputBufferIndex()
+activate MediaCodec
+MediaCodec-->MCRenderer:inputIndex = return value
+deactivate MediaCodec
+end 
+alt inputIndex >= 0
+MCRenderer->MediaCodec:getInputBuffer(inputIndex)
+activate MediaCodec
+MediaCodec-->MCRenderer:buffer.data = returned ByteBuffer
+deactivate MediaCodec
+MCRenderer->MCRenderer:result  = readSource(...,buffer)
+activate MCRenderer
+MCRenderer->SampleQueue:readData(...,buffer)
+activate SampleQueue
+SampleQueue-->MCRenderer:return result
+deactivate SampleQueue
+alt result == RESULT_BUFFER_READ
+MCRenderer->MediaCodec:queue[Secure]InputBuffer(inputIndex)
+note right of MCRenderer:update readingPositionUs\ninputIndex = -1\nbuffer.data = null\nkeepFeeding = true
+else result == FORMAT_READ
+else result == NOTHING_READ
+note right of MCRenderer:keepFeeding = false
+end
+else no buffer available
+note right of MCRenderer:keepFeeding = false
+end 
+MCRenderer-->MCRenderer:return keepFeeding
+deactivate MCRenderer

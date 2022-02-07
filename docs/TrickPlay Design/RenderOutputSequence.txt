@@ -1,0 +1,25 @@
+title ExoPlayer Render Frame Process
+participant EPII
+participant MCRenderer
+participant MCVideoRenderer
+participant MediaCodec
+EPII->MCRenderer:render(postionUs)
+activate MCRenderer
+loop while drainOuputBuffer() true
+MCRenderer->MCRenderer:drainOuputBuffer() 
+activate MCRenderer
+end
+MCRenderer->MediaCodec:dequeueOutputBufferIndex()
+activate MediaCodec
+MediaCodec-->MCRenderer:return decoded frame
+MCRenderer->MCVideoRenderer:processOutputBuffer
+activate MCVideoRenderer
+alt firstFrame OR time - position < 50ms
+MCVideoRenderer->MediaCodec:releaseOutputBuffer()
+else drop frame (late)
+MCVideoRenderer->MediaCodec:releaseOutputBuffer(false)
+else hold frame
+end
+MCVideoRenderer-->MCRenderer:return true if rendered
+deactivate MCVideoRenderer
+deactivate MCRenderer
