@@ -6,6 +6,7 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.media.AudioManager;
 import android.media.MediaDrm;
+import android.media.MediaDrmResetException;
 import android.media.UnsupportedSchemeException;
 import android.os.Build;
 import android.os.Handler;
@@ -146,7 +147,6 @@ public class OutputProtectionMonitor extends Handler {
         context.unregisterReceiver(receiver);
 
         drmHandler.removeCallbacksAndMessages(null);
-        drmHandler.cleanupMediaDrm();
         drmHandlerThread.quit();
         drmHandlerThread = null;
 
@@ -257,7 +257,6 @@ public class OutputProtectionMonitor extends Handler {
     @RequiresApi(api = Build.VERSION_CODES.JELLY_BEAN_MR2)
     private static class DrmHandler extends Handler {
 
-        MediaDrm widevineDrm;
         Method getConnectedHdcpLevelMethod;
         OutputProtectionMonitor protectionMonitor;
         @HdcpLevel int requiredHdcpLevel;
@@ -267,12 +266,6 @@ public class OutputProtectionMonitor extends Handler {
             super(looper);
             this.protectionMonitor = protectionMonitor;
             this.requiredHdcpLevel = protectionMonitor.getRequiredHdcpLevel();
-
-            try {
-                widevineDrm = new MediaDrm(C.WIDEVINE_UUID);
-            } catch (UnsupportedSchemeException e) {
-                Log.e(TAG, "Widevine UUID is not supported on this version: " + Build.VERSION.RELEASE);
-            }
         }
 
         @Override
@@ -295,21 +288,30 @@ public class OutputProtectionMonitor extends Handler {
             protectionMonitor.obtainMessage(msg.what, isSecure).sendToTarget();
         }
 
-        private void cleanupMediaDrm() {
-            if (widevineDrm != null) {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                    widevineDrm.close();
-                } else {
-                    widevineDrm.release();
-                }
-            }
-        }
 
         private boolean checkHdcpStatus() {
             Integer hdcpLevel = null;
-
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P && widevineDrm != null) {
-                hdcpLevel = widevineDrm.getConnectedHdcpLevel();
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                MediaDrm widevineDrm = null;
+                try {
+                    widevineDrm = new MediaDrm(C.WIDEVINE_UUID);
+                } catch (UnsupportedSchemeException e) {
+                    Log.e(TAG, "Widevine UUID is not supported on this version: " + Build.VERSION.RELEASE);
+                    widevineDrm = null;
+                }
+                if (widevineDrm != null) {
+                    try {
+                        hdcpLevel = widevineDrm.getConnectedHdcpLevel();
+                    } catch (MediaDrmResetException e) {
+                        Log.e(TAG, "MediaDrmResetException" + Build.VERSION.RELEASE);
+                        hdcpLevel = null;
+                    }
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                        widevineDrm.close();
+                    } else {
+                        widevineDrm.release();
+                    }
+                }
             }
 
             if (hdcpLevel == null) {
