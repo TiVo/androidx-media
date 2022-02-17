@@ -23,6 +23,7 @@
       app:scrubber_color="@color/tpScrubberColor"
       app:played_color="@color/tpPlayedColor"
       app:buffered_color="@color/tpBufferedColor"
+      app:resize_mode="fit"
     />
 
 </FrameLayout>

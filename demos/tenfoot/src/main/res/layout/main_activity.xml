@@ -1,60 +1,52 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
               xmlns:app="http://schemas.android.com/apk/res-auto"
-              android:orientation="vertical"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:orientation="vertical"
               android:layout_width="match_parent"
               android:layout_height="match_parent"
               android:padding="20dp">
-  <LinearLayout
-    android:layout_width="wrap_content"
-    android:layout_height="wrap_content"
-    android:layout_marginBottom="10dp"
-    android:orientation="horizontal">
-    <Button
-      android:id="@+id/load_urls"
-      android:layout_marginRight="10dp"
-      android:layout_width="wrap_content"
-      android:layout_height="wrap_content"
-      android:layout_weight="1"
-      android:text="Load"/>
-    <TextView
-      android:layout_width="wrap_content"
-      android:layout_height="wrap_content"
-      android:text="URLs:"/>
+
+  <androidx.constraintlayout.widget.ConstraintLayout
+      android:id="@+id/url_selection"
+      android:layout_width="match_parent"
+      android:layout_height="59dp"
+      android:layout_marginBottom="10dp"
+      android:background="@drawable/section_border">
+
     <Spinner
-      android:id="@+id/url_spinner"
-      android:layout_width="700dp"
-      android:layout_height="wrap_content"/>
+        android:id="@+id/url_spinner"
+        android:layout_width="650dp"
+        android:layout_height="32dp"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
     <Button
-      android:id="@+id/play_all"
-      android:layout_marginLeft="10dp"
-      android:layout_width="wrap_content"
-      android:layout_height="wrap_content"
-      android:layout_weight="1"
-      android:drawableLeft="@drawable/exo_icon_play"
-      android:text="All"/>
-  </LinearLayout>
-  <LinearLayout
-    android:layout_width="match_parent"
-    android:layout_height="wrap_content"
-    android:layout_marginBottom="10dp">
+        android:id="@+id/play_button"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="24dp"
+        android:layout_marginLeft="24dp"
+        android:drawableLeft="@drawable/exo_controls_play"
+        android:text="Play"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toEndOf="@+id/url_spinner"
+        app:layout_constraintTop_toTopOf="parent" />
+
     <Button
-      android:id="@+id/play_button"
-      android:layout_width="98dp"
-      android:layout_height="match_parent"
-      android:drawableLeft="@drawable/exo_controls_play" android:text="Play"/>
-    <EditText
-      android:id="@+id/url_string"
-      android:layout_weight="1"
-      android:layout_width="wrap_content"
-      android:layout_height="wrap_content"/>
-    <Button
-      android:id="@+id/clear_url"
-      android:layout_width="90dp"
-      android:layout_height="match_parent"
-      android:drawableLeft="@android:drawable/ic_menu_delete"
-      android:text="Clr"/>
-  </LinearLayout>
+        android:id="@+id/play_all"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="16dp"
+        android:layout_marginLeft="16dp"
+        android:drawableLeft="@drawable/exo_icon_play"
+        android:text="Play All"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toEndOf="@+id/play_button"
+        app:layout_constraintTop_toTopOf="parent" />
+  </androidx.constraintlayout.widget.ConstraintLayout>
+
   <LinearLayout
     android:id="@+id/encryption_setting"
     android:layout_width="match_parent"
@@ -97,4 +89,74 @@
           app:switchPadding="8dp"
           android:layout_marginBottom="10dp"
           android:checked="true"/>
+
+  <androidx.constraintlayout.widget.ConstraintLayout
+      android:layout_width="match_parent"
+      android:layout_height="144dp"
+      android:background="@drawable/section_border">
+
+    <Button
+        android:id="@+id/clear_url"
+        android:layout_width="56dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="16dp"
+        android:layout_marginLeft="16dp"
+        android:layout_marginTop="8dp"
+        android:drawableLeft="@android:drawable/ic_menu_delete"
+        app:layout_constraintStart_toEndOf="@+id/url_string"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <EditText
+        android:id="@+id/url_string"
+        android:layout_width="763dp"
+        android:layout_height="48dp"
+        android:layout_marginStart="16dp"
+        android:layout_marginLeft="16dp"
+        android:layout_marginTop="8dp"
+        android:layout_weight="1"
+        android:inputType="textUri"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <TextView
+        android:id="@+id/load_instructions"
+        android:layout_width="500dp"
+        android:layout_height="17dp"
+        android:layout_marginStart="16dp"
+        android:layout_marginLeft="16dp"
+        android:layout_marginTop="18dp"
+        android:background="@color/exo_gray_ripple"
+        android:text="Load file:"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/url_string"
+        app:layout_constraintVertical_bias="0.32" />
+
+    <Button
+        android:id="@+id/load_urls"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:text="Load"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_bias="0.07"
+        app:layout_constraintStart_toEndOf="@+id/load_instructions"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintVertical_bias="0.72" />
+
+    <Button
+        android:id="@+id/save_urls"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="32dp"
+        android:layout_marginLeft="32dp"
+        android:layout_weight="1"
+        android:text="Save"
+        android:visibility="visible"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toEndOf="@+id/load_urls"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintVertical_bias="0.721" />
+  </androidx.constraintlayout.widget.ConstraintLayout>
 </LinearLayout>

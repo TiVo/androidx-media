@@ -16,22 +16,34 @@ import android.widget.Button;
 import android.widget.EditText;
 import android.widget.Spinner;
 import android.widget.Switch;
+import android.widget.TextView;
 import android.widget.Toast;
 import androidx.annotation.NonNull;
 import androidx.annotation.RequiresApi;
 import androidx.fragment.app.FragmentActivity;
 import com.google.android.exoplayer2.util.Log;
 import java.io.BufferedReader;
+import java.io.BufferedWriter;
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileReader;
+import java.io.FileWriter;
 import java.io.IOException;
+import java.io.UnsupportedEncodingException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Properties;
+import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
+import java.util.regex.Pattern;
+
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
 
 public class MainActivity extends FragmentActivity {
 
@@ -44,6 +56,7 @@ public class MainActivity extends FragmentActivity {
   protected ArrayAdapter<CharSequence> urlAdapter;
 
   private List<String> urlList;
+  private Map<Pattern, Map<String, String>> drmSettings;
 
   @Override
   public void onCreate(Bundle savedInstanceState) {
@@ -109,6 +122,7 @@ public class MainActivity extends FragmentActivity {
         Uri videoUri = Uri.parse(uriString);
         addUrlToList(uriString);
         startVideoIntent.setData(videoUri);
+        addVcasExtrasToIntent(new String[]{uriString}, startVideoIntent);
         issuePlayIntent(startVideoIntent);
       }
     });
@@ -127,6 +141,7 @@ public class MainActivity extends FragmentActivity {
         urls[i] = spinnerAdapter.getItem(i).toString();
       }
       if (urls.length > 0) {
+        addVcasExtrasToIntent(urls, playAll);
         playAll.putExtra(ViewActivity.URI_LIST_EXTRA, urls);
         issuePlayIntent(playAll);
       }
@@ -139,12 +154,31 @@ public class MainActivity extends FragmentActivity {
         urlAdapter.clear();
         urlAdapter.addAll(urlList);
       } catch (FileNotFoundException e) {
-        Toast.makeText(getApplicationContext(), "No file "+e.toString()+" found.", Toast.LENGTH_LONG).show();
+        Toast.makeText(getApplicationContext(), "No file " + e.toString() + " found.", Toast.LENGTH_LONG).show();
       } catch (IOException e) {
         Log.w(ViewActivity.TAG, "No URLS loaded from play_urls", e);
       }
     });
+
+    Button saveButton = findViewById(R.id.save_urls);
+    saveButton.setOnClickListener(v -> {
+      try {
+        saveUrlsToFile();
+      } catch (IOException e) {
+        Log.w(ViewActivity.TAG, "No URLS saved", e);
+      }
+    });
+
+    TextView instructions = findViewById(R.id.load_instructions);
+    if (instructions != null) {
+      String base = instructions.getText().toString();
+      instructions.setText(base + "  " + getSavedUrlsFile().getAbsolutePath());
+    }
+
+    drmSettings = loadDrmSettings();
+    Log.d(ViewActivity.TAG, "text: " + drmSettings);
   }
+
 
   protected void issuePlayIntent(Intent startVideoIntent) {
     startVideoIntent.putExtra(ViewActivity.CHUNKLESS_PREPARE, chunklessSwitch.isChecked());
@@ -158,6 +192,64 @@ public class MainActivity extends FragmentActivity {
     startVideoIntent = new Intent(this, ViewActivity.class);
     startVideoIntent.setAction(action);
     return startVideoIntent;
+  }
+
+  private Map<Pattern, Map<String, String>> loadDrmSettings() {
+    File appFiles = getApplicationContext().getExternalFilesDir(null);
+    File settings = new File(appFiles, "drm_settings.json");
+    StringBuffer buffer = new StringBuffer();
+    Map<Pattern, Map<String, String>> value = new HashMap<>();
+    try {
+      BufferedReader reader = new BufferedReader(new FileReader(settings));
+      String line;
+      while ((line = reader.readLine()) != null){
+        buffer.append(line);
+      }
+      JSONObject jsonObject = new JSONObject(buffer.toString());
+      value = parseDrmSettings(jsonObject);
+    } catch (IOException e) {
+      Log.d(ViewActivity.TAG, "failed to read drm_settings from " + settings.getAbsolutePath());
+    } catch (JSONException e) {
+      Log.e(ViewActivity.TAG, "failed to parse JSON from " + settings.getAbsolutePath(), e);
+    }
+    return value;
+  }
+
+
+  private Map<Pattern, Map<String, String>> parseDrmSettings(JSONObject drmSettings) throws JSONException {
+    Map<Pattern, Map<String, String>> urlPatternToSetings = new LinkedHashMap<>();
+    JSONArray settingsList = drmSettings.getJSONArray("settings");
+    for (int i=0; i < settingsList.length(); i++) {
+      JSONObject setting = settingsList.getJSONObject(i);
+      JSONArray urlPatterns = (JSONArray) setting.remove("url_patterns");
+      Map<String, String> intentExtras = new HashMap<>();
+      Iterator<String> keys = setting.keys();
+      while(keys.hasNext()) {
+        String key = keys.next();
+        intentExtras.put(key, setting.getString(key));
+      }
+      for (int j=0; j < urlPatterns.length(); j++) {
+        urlPatternToSetings.put(Pattern.compile((String) urlPatterns.get(j)), intentExtras);
+      }
+    }
+    return urlPatternToSetings;
+  }
+
+  private void addVcasExtrasToIntent(String uris[], Intent startVideoIntent) {
+    for (String videoUri : uris) {
+      for (Map.Entry<Pattern, Map<String, String>> setting : drmSettings.entrySet()) {
+        if (setting.getKey().matcher(videoUri).matches()) {
+          for (Map.Entry<String, String> intentExtra : setting.getValue().entrySet()) {
+            startVideoIntent.putExtra(intentExtra.getKey(), intentExtra.getValue());
+          }
+        }
+      }
+    }
+  }
+
+  public static String getDeviceIdFromHSNT(String hsnt) throws UnsupportedEncodingException {
+    byte[] hsntBytes = hsnt.getBytes("US-ASCII");
+    return UUID.nameUUIDFromBytes(hsntBytes).toString();
   }
 
   @Override
@@ -185,8 +277,7 @@ public class MainActivity extends FragmentActivity {
    */
   private List<String> loadUrlsFromFile() throws IOException {
     ArrayList<String> urls = new ArrayList<>();
-    File appFiles = getApplicationContext().getExternalFilesDir(null);
-    File play_urls = new File(appFiles, "play_urls");
+    File play_urls = getSavedUrlsFile();
     if (play_urls.canRead()) {
       BufferedReader reader = new BufferedReader(new FileReader(play_urls));
       String line;
@@ -197,6 +288,37 @@ public class MainActivity extends FragmentActivity {
       throw new FileNotFoundException(play_urls.toString());
     }
     return urls;
+  }
+
+
+  private void saveUrlsToFile() throws IOException {
+    File saved_urls = getSavedUrlsFile();
+    boolean existsForAppend = saved_urls.canWrite();
+    String message;
+    if (existsForAppend || saved_urls.createNewFile()) {
+      BufferedWriter writer = new BufferedWriter(new FileWriter(saved_urls, true));
+      for (String url : urlList) {
+        writer.write(url);
+        writer.newLine();
+      }
+      writer.close();
+
+      if (existsForAppend) {
+        message = "added " + urlList.size() + " URLs to file " + saved_urls.getAbsolutePath();
+      } else {
+        message = "saved " + urlList.size() + " URLs to file " + saved_urls.getAbsolutePath();
+      }
+    } else {
+      message = "created failed for " + saved_urls.getAbsolutePath();
+    }
+    Log.d(ViewActivity.TAG, message);
+    Toast.makeText(this, message, Toast.LENGTH_LONG).show();
+
+  }
+
+  private File getSavedUrlsFile() {
+    File appFiles = getApplicationContext().getExternalFilesDir(null);
+    return new File(appFiles, "play_urls");
   }
 
   @RequiresApi(23)
