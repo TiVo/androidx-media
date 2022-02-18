@@ -295,22 +295,18 @@ public class OutputProtectionMonitor extends Handler {
                 MediaDrm widevineDrm = null;
                 try {
                     widevineDrm = new MediaDrm(C.WIDEVINE_UUID);
-                } catch (UnsupportedSchemeException e) {
-                    Log.e(TAG, "Widevine UUID is not supported on this version: " + Build.VERSION.RELEASE);
-                    widevineDrm = null;
-                }
-                if (widevineDrm != null) {
-                    try {
-                        hdcpLevel = widevineDrm.getConnectedHdcpLevel();
-                    } catch (MediaDrmResetException e) {
-                        Log.e(TAG, "MediaDrmResetException" + Build.VERSION.RELEASE);
-                        hdcpLevel = null;
-                    }
+                    hdcpLevel = widevineDrm.getConnectedHdcpLevel();
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                         widevineDrm.close();
                     } else {
                         widevineDrm.release();
                     }
+                } catch (UnsupportedSchemeException e) {
+                    Log.e(TAG, "Widevine UUID is not supported on this version: " + Build.VERSION.RELEASE);
+                    hdcpLevel = null;
+                } catch (MediaDrmResetException e) {
+                    Log.e(TAG, "MediaDrmResetException" + Build.VERSION.RELEASE);
+                    hdcpLevel = null;
                 }
             }
 
