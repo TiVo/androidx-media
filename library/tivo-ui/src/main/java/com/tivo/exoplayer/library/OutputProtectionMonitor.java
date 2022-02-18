@@ -292,15 +292,10 @@ public class OutputProtectionMonitor extends Handler {
         private boolean checkHdcpStatus() {
             Integer hdcpLevel = null;
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                MediaDrm widevineDrm = null;
                 try {
-                    widevineDrm = new MediaDrm(C.WIDEVINE_UUID);
+                    MediaDrm widevineDrm = new MediaDrm(C.WIDEVINE_UUID);
                     hdcpLevel = widevineDrm.getConnectedHdcpLevel();
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                        widevineDrm.close();
-                    } else {
-                        widevineDrm.release();
-                    }
+                    widevineDrm.close();
                 } catch (UnsupportedSchemeException e) {
                     Log.e(TAG, "Widevine UUID is not supported on this version: " + Build.VERSION.RELEASE);
                     hdcpLevel = null;
