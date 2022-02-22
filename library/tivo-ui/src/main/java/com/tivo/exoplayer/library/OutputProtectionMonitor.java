@@ -1,5 +1,6 @@
 package com.tivo.exoplayer.library;
 
+import android.annotation.SuppressLint;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
@@ -299,7 +300,7 @@ public class OutputProtectionMonitor extends Handler {
                 } catch (UnsupportedSchemeException e) {
                     Log.e(TAG, "Widevine UUID is not supported on this version: " + Build.VERSION.RELEASE);
                     hdcpLevel = null;
-                } catch (MediaDrmResetException e) {
+                } catch (@SuppressLint({"NewApi", "LocalSuppress"}) MediaDrmResetException e) {
                     Log.e(TAG, "MediaDrmResetException" + Build.VERSION.RELEASE);
                     hdcpLevel = null;
                 }

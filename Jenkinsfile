@@ -25,8 +25,8 @@ pipeline {
           group_id = sh(returnStdout: true, script: 'id -g').trim()
 
           // Only run debug build unit-test for pull request check build.
-          if (env.CHANGE_ID) {
-            gradle_target = "testDebugUnitTest";
+          if (env.CHANGE_ID) {    // CHANGE_ID is the pull request ID
+            gradle_target = "check";
           } else {
             gradle_target = "build";
           }
