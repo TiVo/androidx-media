@@ -167,7 +167,6 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer {
   private boolean tunneling;
   private int tunnelingAudioSessionId;
   /* package */ @Nullable OnFrameRenderedListenerV23 tunnelingOnFrameRenderedListener;
-  private long lastInputTimeUs;
   private long lastOutputTimeUs;
   private int pendingOutputStreamOffsetCount;
   @Nullable private VideoFrameMetadataListener frameMetadataListener;
@@ -258,7 +257,6 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer {
     frameReleaseTimeHelper = new VideoFrameReleaseTimeHelper(this.context);
     eventDispatcher = new EventDispatcher(eventHandler, eventListener);
     deviceNeedsNoPostProcessWorkaround = deviceNeedsNoPostProcessWorkaround();
-    lastInputTimeUs = C.TIME_UNSET;
     lastOutputTimeUs = C.TIME_UNSET;
     joiningDeadlineMs = C.TIME_UNSET;
     currentWidth = Format.NO_VALUE;
@@ -398,7 +396,6 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer {
     clearRenderedFirstFrame();
     initialPositionUs = C.TIME_UNSET;
     consecutiveDroppedFrameCount = 0;
-    lastInputTimeUs = C.TIME_UNSET;
     lastOutputTimeUs = C.TIME_UNSET;
     if (joining) {
       setJoiningDeadlineMs();
@@ -441,7 +438,7 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer {
   protected boolean hasOutputReady() {
     boolean fifoReady = true;
     if (tunneling && lastOutputTimeUs != C.TIME_UNSET) {
-      long fifoLengthUs = lastInputTimeUs - lastOutputTimeUs;
+      long fifoLengthUs = getLargestQueuedPresentationTimeUs() - lastOutputTimeUs;
 
       // make sure there is at least 1/3s of video available in decoder FIFO,
       // otherwise decoder may start stalling
@@ -478,7 +475,6 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer {
     clearReportedVideoSize();
     clearRenderedFirstFrame();
     lastOutputTimeUs = C.TIME_UNSET;
-    lastInputTimeUs = C.TIME_UNSET;
     haveReportedFirstFrameRenderedForCurrentSurface = false;
     frameReleaseTimeHelper.disable();
     tunnelingOnFrameRenderedListener = null;
