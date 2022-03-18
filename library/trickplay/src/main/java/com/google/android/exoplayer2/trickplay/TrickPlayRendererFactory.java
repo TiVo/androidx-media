@@ -2,6 +2,7 @@ package com.google.android.exoplayer2.trickplay;
 
 import android.content.Context;
 import android.media.MediaCodec;
+import android.media.MediaCrypto;
 import android.os.Build;
 import android.os.Handler;
 import androidx.annotation.Nullable;
@@ -11,8 +12,11 @@ import com.google.android.exoplayer2.C;
 import com.google.android.exoplayer2.DefaultRenderersFactory;
 import com.google.android.exoplayer2.ExoPlaybackException;
 import com.google.android.exoplayer2.Format;
+import com.google.android.exoplayer2.FormatHolder;
 import com.google.android.exoplayer2.Renderer;
 import com.google.android.exoplayer2.decoder.DecoderInputBuffer;
+import com.google.android.exoplayer2.mediacodec.MediaCodecAdapter;
+import com.google.android.exoplayer2.mediacodec.MediaCodecInfo;
 import com.google.android.exoplayer2.mediacodec.MediaCodecSelector;
 import com.google.android.exoplayer2.util.Log;
 import com.google.android.exoplayer2.video.MediaCodecVideoRenderer;
@@ -61,6 +65,10 @@ class TrickPlayRendererFactory extends DefaultRenderersFactory {
     private TrickPlayControlInternal trickPlay;
 
     private long lastRenderTimeUs = C.TIME_UNSET;
+    private long lastRenderPositionUs = C.TIME_UNSET;
+    private int duplicateIframeCount = 0;
+    private ByteBuffer lastIFrameData = null;
+    private boolean needsMultipleInputBuffersWorkaround;
 
     TrickPlayAwareMediaCodecVideoRenderer(
         TrickPlayControlInternal trickPlayController,
@@ -99,6 +107,68 @@ class TrickPlayRendererFactory extends DefaultRenderersFactory {
     }
 
     @Override
+    protected void configureCodec(MediaCodecInfo codecInfo, MediaCodecAdapter codecAdapter, Format format, @Nullable MediaCrypto crypto, float codecOperatingRate) {
+      super.configureCodec(codecInfo, codecAdapter, format, crypto, codecOperatingRate);
+      needsMultipleInputBuffersWorkaround = codecNeedsMultipleInputWorkaround(codecInfo.name);
+    }
+
+    /**
+     * Broadcom video codec implementations seem to require some number of frames to be queued for
+     * decode before they will produce the first decoded output frame.
+     *
+     * @param name the codec name to check
+     * @return true if workaround is requiried
+     */
+    private boolean codecNeedsMultipleInputWorkaround(@Nullable String name) {
+      return "OMX.broadcom.video_decoder".equals(name);
+    }
+
+    /**
+     * Override to queue the same i-Frame mulitple times to the decoder, if this is required to
+     * make it produce an output frame.
+     *
+     * Algorithm is simple, keep a copy of the last frame's data in an buffer, copy it to the
+     * input DecoderInputBuffer without calling super.readSource() until the required frame count is
+     * reached.  The value of 3 frames was empirically determined
+     *
+     * This is a workaround for https://jira.xperi.com/browse/PARTDEFECT-11896
+     *
+     * @param formatHolder A {@link FormatHolder} to populate in the case of reading a format.
+     * @param buffer A {@link DecoderInputBuffer} to populate in the case of reading a sample or the
+     *     end of the stream. If the end of the stream has been reached, the {@link
+     *     C#BUFFER_FLAG_END_OF_STREAM} flag will be set on the buffer.
+     * @param formatRequired Whether the caller requires that the format of the stream be read even if
+     *     it's not changing. A sample will never be read if set to true, however it is still possible
+     *     for the end of stream or nothing to be read.
+     *
+     * @return super value, or RESULT_BUFFER_READ to re-queue the last iframe
+     */
+    @Override
+    protected int readSource(FormatHolder formatHolder, DecoderInputBuffer buffer, boolean formatRequired) {
+      int returnValue;
+      if (trickPlay.getCurrentTrickDirection() == TrickPlayControl.TrickPlayDirection.REVERSE && needsMultipleInputBuffersWorkaround) {
+        if (lastIFrameData == null) {
+          returnValue = super.readSource(formatHolder, buffer, /* formatRequired= */ formatRequired);
+          if (returnValue == C.RESULT_BUFFER_READ && buffer.isKeyFrame()) {
+            lastIFrameData = buffer.data.duplicate();
+          }
+        } else {
+          if (duplicateIframeCount++ > 2) {
+            duplicateIframeCount = 0;
+            returnValue = super.readSource(formatHolder, buffer, /* formatRequired= */ formatRequired);
+            lastIFrameData = null;
+          } else {
+            buffer.data = lastIFrameData;
+            returnValue = C.RESULT_BUFFER_READ;
+          }
+        }
+      } else {
+        returnValue = super.readSource(formatHolder, buffer, /* formatRequired= */ formatRequired);
+      }
+      return returnValue;
+    }
+
+    @Override
     protected void onPositionReset(long positionUs, boolean joining) throws ExoPlaybackException {
       super.onPositionReset(positionUs, joining);
       Log.d(TAG, "onPositionReset() -  renderPosition: " + C.usToMs(positionUs) + " readPosition: " + C.usToMs(getReadingPositionUs()) + " lastRenderTimeUs: " + lastRenderTimeUs);
@@ -124,6 +194,12 @@ class TrickPlayRendererFactory extends DefaultRenderersFactory {
     }
 
     @Override
+    public void render(long positionUs, long elapsedRealtimeUs) throws ExoPlaybackException {
+      super.render(positionUs, elapsedRealtimeUs);
+      lastRenderPositionUs = positionUs;
+    }
+
+    @Override
     protected boolean processOutputBuffer(long positionUs, long elapsedRealtimeUs, @Nullable MediaCodec codec, @Nullable ByteBuffer buffer, int bufferIndex, int bufferFlags, int sampleCount, long bufferPresentationTimeUs, boolean isDecodeOnlyBuffer, boolean isLastBuffer, Format format) throws ExoPlaybackException {
       switch (trickPlay.getCurrentTrickDirection()) {
         case FORWARD:
@@ -146,9 +222,10 @@ class TrickPlayRendererFactory extends DefaultRenderersFactory {
       super.renderOutputBufferV21(codec, index, presentationTimeUs, releaseTimeNs);
       long timeSinceLastRender =  lastRenderTimeUs == C.TIME_UNSET ? C.TIME_UNSET : (System.nanoTime() / 1000) - lastRenderTimeUs;
       lastRenderTimeUs = System.nanoTime() / 1000;
+      long positionDeltaUs = presentationTimeUs - lastRenderPositionUs;
 
       if (trickPlay.isSmoothPlayAvailable() && trickPlay.getCurrentTrickDirection() != TrickPlayControl.TrickPlayDirection.NONE) {
-        Log.d(TAG, "renderOutputBufferV21() in trickplay - timestamp: " + C.usToMs(presentationTimeUs) + " releaseTimeUs: " + (releaseTimeNs / 1000) + " index:" + index + " timeSinceLastUs: " + timeSinceLastRender);
+        Log.d(TAG, "renderOutputBufferV21() in trickplay - timestamp: " + C.usToMs(presentationTimeUs) + " delta(us): " + positionDeltaUs + " releaseTimeUs: " + (releaseTimeNs / 1000) + " index:" + index + " timeSinceLastUs: " + timeSinceLastRender);
         trickPlay.dispatchTrickFrameRender(presentationTimeUs);
       }
     }
