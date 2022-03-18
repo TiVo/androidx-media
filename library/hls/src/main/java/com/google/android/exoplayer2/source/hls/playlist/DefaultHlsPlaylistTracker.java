@@ -495,7 +495,8 @@ public final class DefaultHlsPlaylistTracker
         return false;
       }
       long currentTimeMs = SystemClock.elapsedRealtime();
-      long snapshotValidityDurationMs = max(30000, C.usToMs(playlistSnapshot.durationUs));
+      long snapshotValidityDurationMs = playlistSnapshot.targetDurationUs != C.TIME_UNSET ?
+              2 * C.usToMs( playlistSnapshot.targetDurationUs ) : 12000;
       return playlistSnapshot.hasEndTag
           || playlistSnapshot.playlistType == HlsMediaPlaylist.PLAYLIST_TYPE_EVENT
           || playlistSnapshot.playlistType == HlsMediaPlaylist.PLAYLIST_TYPE_VOD
