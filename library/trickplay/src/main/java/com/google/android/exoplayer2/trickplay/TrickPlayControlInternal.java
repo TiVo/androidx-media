@@ -36,4 +36,19 @@ public interface TrickPlayControlInternal extends TrickPlayControl {
    */
   void dispatchTrickFrameRender(long renderedFramePositionUs);
 
+  /**
+   * Used to enable/disable forward playback speed trick play.
+   * The
+   *
+   * @param enabled - new value for playback speed trick play enablement.
+   */
+  void enablePlaybackSpeedForwardTrickPlay(boolean enabled);
+
+  /**
+   * Indicates if the trick play controller is configured to use playback speed forward trick play
+   *
+   * @return false if the trick play controller has been configured to not use playback speed trick play
+   */
+  boolean isPlaybackSpeedForwardTrickPlayEnabled();
+
 }

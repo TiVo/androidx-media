@@ -14,6 +14,7 @@ import com.google.android.exoplayer2.Format;
 import com.google.android.exoplayer2.source.TrackGroup;
 import com.google.android.exoplayer2.source.chunk.MediaChunkIterator;
 import com.google.android.exoplayer2.trickplay.TrickPlayControl;
+import com.google.android.exoplayer2.trickplay.TrickPlayControlInternal;
 import com.google.android.exoplayer2.upstream.BandwidthMeter;
 import com.google.android.exoplayer2.util.MimeTypes;
 import static com.google.common.truth.Truth.assertThat;
@@ -32,7 +33,7 @@ public class IFrameAwareAdaptiveTrackSelectionTest {
     private BandwidthMeter mockBandwidthMeter;
 
     @Mock
-    private TrickPlayControl mockTrickPlayControl;
+    private TrickPlayControlInternal mockTrickPlayControl;
 
 
     private TrackSelection.Definition[] definitions;

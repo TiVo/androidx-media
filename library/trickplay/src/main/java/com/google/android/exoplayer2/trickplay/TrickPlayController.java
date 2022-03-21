@@ -76,6 +76,7 @@ class TrickPlayController implements TrickPlayControlInternal {
     /** Keep track of the last N rendered frame PTS values for jumpback seek
      */
     private final LastNPositions lastRenderPositions = new LastNPositions();
+    private boolean playbackSpeedForwardTrickPlayEnabled = true;
 
     TrickPlayController(DefaultTrackSelector trackSelector) {
         this.trackSelector = trackSelector;
@@ -369,8 +370,10 @@ class TrickPlayController implements TrickPlayControlInternal {
         static final int MSG_TRICKPLAY_TIMED_SEEK = 2;
 
         // FPS target, this is the render rate we hope for
-        static final int TARGET_FPS = 5;
-        static final int targetFrameIntervalMs = 1000 / TARGET_FPS;
+        static final int TP1_TARGET_FPS = 3;
+        static final int TP2_TARGET_FPS = 4;
+        static final int TP3_TARGET_FPS = 5;
+        static int targetFrameIntervalMs = 1000 / TP3_TARGET_FPS;
 
         private ScrubTrickPlay scrubTrickPlay;
 
@@ -400,6 +403,25 @@ class TrickPlayController implements TrickPlayControlInternal {
             PlaybackParameters playbackParameters = new PlaybackParameters(Math.abs(currentSpeed));
             currentMediaClock.setPlaybackParameters(playbackParameters);
             currentMediaClock.setForward(isForward);
+
+            switch (currentTrickMode) {
+                case FF1:
+                case FR1:
+                    targetFrameIntervalMs = 1000 / TP1_TARGET_FPS;
+                    break;
+                case FF2:
+                case FR2:
+                    targetFrameIntervalMs = 1000 / TP2_TARGET_FPS;
+                    break;
+                case FF3:
+                case FR3:
+                    targetFrameIntervalMs = 1000 / TP3_TARGET_FPS;
+                    break;
+                default:
+                    targetFrameIntervalMs = 1000 / TP3_TARGET_FPS;
+                    break;
+            }
+            currentSeekIntervalMs = targetFrameIntervalMs;
             Log.d(TAG, "updateTrickMode() - to: " + currentTrickMode + " current pos: " + currentMediaClock.getPositionUs());
         }
 
@@ -723,7 +745,9 @@ class TrickPlayController implements TrickPlayControlInternal {
             player.setPlaybackParameters(new PlaybackParameters(getSpeedFor(newMode)));
         } else {
             Log.d(TAG, "Start seek-based trickplay " + newMode + " at media time " + player.getCurrentPosition());
-            if (TrickPlayControl.directionForMode(previousMode) != TrickPlayDirection.REVERSE) {
+            if (TrickPlayControl.directionForMode(previousMode) == TrickPlayDirection.NONE ||
+                    TrickPlayControl.directionForMode(previousMode) == TrickPlayDirection.SCRUB ||
+                    usePlaybackSpeedTrickPlay(previousMode)) {
                 startSeekBasedTrickplay();
                 setTrackSelectionForTrickPlay(newMode, previousMode);
             }
@@ -803,6 +827,14 @@ class TrickPlayController implements TrickPlayControlInternal {
         }
     }
 
+    public boolean isPlaybackSpeedForwardTrickPlayEnabled() {
+        return playbackSpeedForwardTrickPlayEnabled;
+    }
+
+    public void enablePlaybackSpeedForwardTrickPlay(boolean enabled) {
+        playbackSpeedForwardTrickPlayEnabled = enabled;
+    }
+
     /**
      * Test if can effect trick-play with the {@link Player#setPlaybackParameters(PlaybackParameters)} call
      * to set playback speed.  {@link PlaybackParameters} does not allow reverse (negative speed).
@@ -812,8 +844,8 @@ class TrickPlayController implements TrickPlayControlInternal {
      */
     private boolean usePlaybackSpeedTrickPlay(TrickMode mode) {
         boolean modeAllowsPlayback =
-            TrickPlayControl.directionForMode(mode) == TrickPlayDirection.FORWARD || TrickPlayControl.directionForMode(mode) == TrickPlayDirection.SCRUB;
-        return modeAllowsPlayback && isSmoothPlayAvailable();
+                TrickPlayControl.directionForMode(mode) == TrickPlayDirection.FORWARD || TrickPlayControl.directionForMode(mode) == TrickPlayDirection.SCRUB;
+        return isPlaybackSpeedForwardTrickPlayEnabled() && modeAllowsPlayback && isSmoothPlayAvailable();
     }
 
 

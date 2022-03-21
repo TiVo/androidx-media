@@ -7,11 +7,11 @@ import com.google.android.exoplayer2.C;
 import com.google.android.exoplayer2.Format;
 import com.google.android.exoplayer2.source.TrackGroup;
 import com.google.android.exoplayer2.trickplay.TrickPlayControl;
+import com.google.android.exoplayer2.trickplay.TrickPlayControlInternal;
 import com.google.android.exoplayer2.upstream.BandwidthMeter;
 import com.google.android.exoplayer2.util.Clock;
-import com.google.android.exoplayer2.util.Log;
 import com.google.android.exoplayer2.util.MimeTypes;
-import com.google.android.exoplayer2.util.Util;
+
 import java.util.ArrayList;
 import java.util.Comparator;
 
@@ -40,7 +40,7 @@ public class IFrameAwareAdaptiveTrackSelection extends AdaptiveTrackSelection {
     private final Clock clock;
 
     @Nullable
-    private TrickPlayControl trickPlayControl;
+    private TrickPlayControlInternal trickPlayControl;
 
     public Factory() {
       this(DEFAULT_MIN_DURATION_FOR_QUALITY_INCREASE_MS, DEFAULT_MAX_DURATION_FOR_QUALITY_DECREASE_MS, DEFAULT_MIN_DURATION_TO_RETAIN_AFTER_DISCARD_MS,
@@ -87,7 +87,7 @@ public class IFrameAwareAdaptiveTrackSelection extends AdaptiveTrackSelection {
     /**
      * If the created {@link TrackSelection} objects should consider trick-play state, call this method.
      */
-    public void setTrickPlayControl(@Nullable TrickPlayControl trickPlayControl) {
+    public void setTrickPlayControl(@Nullable TrickPlayControlInternal trickPlayControl) {
       this.trickPlayControl = trickPlayControl;
     }
 
@@ -135,7 +135,7 @@ public class IFrameAwareAdaptiveTrackSelection extends AdaptiveTrackSelection {
     }
   }
 
-  private @Nullable final TrickPlayControl control;
+  private @Nullable final TrickPlayControlInternal control;
 
   public IFrameAwareAdaptiveTrackSelection(
           TrackGroup group, int[] tracks,
@@ -147,7 +147,7 @@ public class IFrameAwareAdaptiveTrackSelection extends AdaptiveTrackSelection {
           float bandwidthFraction,
           float bufferedFractionToLiveEdgeForQualityIncrease,
           Clock clock,
-          @Nullable TrickPlayControl control) {
+          @Nullable TrickPlayControlInternal control) {
     super(group, tracks, bandwidthMeter, reservedBandwidth, minDurationForQualityIncreaseMs, maxDurationForQualityDecreaseMs,
             minDurationToRetainAfterDiscardMs, bandwidthFraction, bufferedFractionToLiveEdgeForQualityIncrease,
             clock);
@@ -171,8 +171,14 @@ public class IFrameAwareAdaptiveTrackSelection extends AdaptiveTrackSelection {
           break;
 
         case FORWARD:
-          Float trickPlaySpeed = control.getSpeedFor(control.getCurrentTrickMode());
-          canSelect = Factory.isIframeOnly(format) && isBestIFrameFormat(format, trackBitrate, trickPlaySpeed, effectiveBitrate);
+          if (control.isPlaybackSpeedForwardTrickPlayEnabled()) {
+            Float trickPlaySpeed = control.getSpeedFor(control.getCurrentTrickMode());
+            canSelect = Factory.isIframeOnly(format) && isBestIFrameFormat(format, trackBitrate, trickPlaySpeed, effectiveBitrate);
+          } else {
+            //We're doing only seek-based VTP we the full iframe list for FORWARD too.
+            canSelect = Factory.isIframeOnly(format) && isMaxBitrateFormat(format);
+          }
+
           break;
 
         case SCRUB:

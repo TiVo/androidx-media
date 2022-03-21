@@ -2335,11 +2335,15 @@ public class DefaultTrackSelector extends MappingTrackSelector {
    * @return Whether the device supports tunneling VTP.
    */
   private static boolean platformSupportsTunnelingTrickPlay() {
-    return (Build.MANUFACTURER.equals("Technicolor") &&
-            ((Build.DEVICE.equals("uiw4059mil") && compareVersions(Build.VERSION.INCREMENTAL, "1.1-220218") >= 0) ||
+    return ((Build.MANUFACTURER.equals("Technicolor") &&
+                    // Ruby Millicom
+                    ((Build.DEVICE.equals("uiw4059mil") && compareVersions(Build.VERSION.INCREMENTAL, "1.1-220218") >= 0) ||
+                    // Jade Millicom
                     (Build.DEVICE.equals("uiw4054mil") && compareVersions(Build.VERSION.INCREMENTAL, "9.0-220225") >= 0) ||
-                    (Build.DEVICE.equals("uiw4054hwc") && compareVersions(Build.VERSION.INCREMENTAL, "5.3.1") >= 0)) ||
+                    // Jade Hotwire
+                    (Build.DEVICE.equals("uiw4054hwc") && compareVersions(Build.VERSION.INCREMENTAL, "5.3.1") >= 0))) ||
             (Build.MANUFACTURER.equals("ARRIS") &&
+                    // Comscope VIP6102W
                     (Build.DEVICE.equals("vip6102w") && compareVersions(Build.VERSION.INCREMENTAL, "10.01.04.03.36") >= 0)));
   }
 
@@ -2401,6 +2405,9 @@ public class DefaultTrackSelector extends MappingTrackSelector {
         }
       }
     }
+
+    // Enable tunneling if request and supported on audio and video OR if the platform supports
+    // VTP in tunneling mode and the it's supported by the video decoder.
     enableTunneling &= (tunnelingAudioRendererIndex != -1 && tunnelingVideoRendererIndex != -1) ||
             (tunnelingVideoRendererIndex != -1 && videoOnly && platformSupportsTunnelingTrickPlay());
     if (enableTunneling) {

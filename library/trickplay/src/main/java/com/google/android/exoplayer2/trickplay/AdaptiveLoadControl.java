@@ -6,7 +6,6 @@ import com.google.android.exoplayer2.Renderer;
 import com.google.android.exoplayer2.source.TrackGroupArray;
 import com.google.android.exoplayer2.trackselection.TrackSelectionArray;
 import com.google.android.exoplayer2.upstream.Allocator;
-import com.google.android.exoplayer2.util.Log;
 import com.google.android.exoplayer2.util.Util;
 
 public class AdaptiveLoadControl implements LoadControl, TrickPlayEventListener {
@@ -69,7 +68,12 @@ public class AdaptiveLoadControl implements LoadControl, TrickPlayEventListener 
     if (trickPlayController.isSmoothPlayAvailable()) {
       switch (trickPlayController.getCurrentTrickDirection()) {
         case FORWARD:
-          requiredBufferedTimeUs = Util.getMediaDurationForPlayoutDuration(50_000_000, playbackSpeed);
+          if (trickPlayController.isPlaybackSpeedForwardTrickPlayEnabled()) {
+            requiredBufferedTimeUs = Util.getMediaDurationForPlayoutDuration(50_000_000, playbackSpeed);
+          } else {
+            // We're doing only seek-based VTP we only want 1 iframe. Hopefully, the iframes are > 1 second apart.
+            requiredBufferedTimeUs = 1_000_000L;
+          }
           break;
 
         case SCRUB:
@@ -77,7 +81,7 @@ public class AdaptiveLoadControl implements LoadControl, TrickPlayEventListener 
           break;
           
         case REVERSE:
-          requiredBufferedTimeUs = 5_000_000L;    // Pointless to buffer, each seek will flush it.
+          requiredBufferedTimeUs = 1_000_000L;    // Pointless to buffer, each seek will flush it.
           break;
 
         case NONE:

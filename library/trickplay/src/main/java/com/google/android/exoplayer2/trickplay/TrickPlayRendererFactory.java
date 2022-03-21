@@ -2,9 +2,9 @@ package com.google.android.exoplayer2.trickplay;
 
 import android.content.Context;
 import android.media.MediaCodec;
-import android.media.MediaCrypto;
 import android.os.Build;
 import android.os.Handler;
+import android.os.Bundle;
 import androidx.annotation.Nullable;
 
 import androidx.annotation.RequiresApi;
@@ -12,10 +12,8 @@ import com.google.android.exoplayer2.C;
 import com.google.android.exoplayer2.DefaultRenderersFactory;
 import com.google.android.exoplayer2.ExoPlaybackException;
 import com.google.android.exoplayer2.Format;
-import com.google.android.exoplayer2.FormatHolder;
 import com.google.android.exoplayer2.Renderer;
 import com.google.android.exoplayer2.decoder.DecoderInputBuffer;
-import com.google.android.exoplayer2.mediacodec.MediaCodecAdapter;
 import com.google.android.exoplayer2.mediacodec.MediaCodecInfo;
 import com.google.android.exoplayer2.mediacodec.MediaCodecSelector;
 import com.google.android.exoplayer2.util.Log;
@@ -66,9 +64,13 @@ class TrickPlayRendererFactory extends DefaultRenderersFactory {
 
     private long lastRenderTimeUs = C.TIME_UNSET;
     private long lastRenderPositionUs = C.TIME_UNSET;
-    private int duplicateIframeCount = 0;
-    private ByteBuffer lastIFrameData = null;
-    private boolean needsMultipleInputBuffersWorkaround;
+
+    private static final int BCM_DECODE_ALL = 1;
+    private static final int BCM_DECODE_IDR = 2;
+    private static final int BCM_DECODE_FULL_SPEED = 1000;
+    private static final int BCM_DISABLE = 0;
+    private static final int BCM_ENABLE = 1;
+    private boolean skipFlush = false;
 
     TrickPlayAwareMediaCodecVideoRenderer(
         TrickPlayControlInternal trickPlayController,
@@ -102,70 +104,68 @@ class TrickPlayRendererFactory extends DefaultRenderersFactory {
 
     @Override
     protected void onStarted() {
+      trickPlay.enablePlaybackSpeedForwardTrickPlay(!codecRequiresTunnelingTrickModeVsync());
       super.onStarted();
       Log.d(TAG, "Renderer onStarted() called - lastRenderTimeUs " + lastRenderTimeUs);
     }
 
     @Override
-    protected void configureCodec(MediaCodecInfo codecInfo, MediaCodecAdapter codecAdapter, Format format, @Nullable MediaCrypto crypto, float codecOperatingRate) {
-      super.configureCodec(codecInfo, codecAdapter, format, crypto, codecOperatingRate);
-      needsMultipleInputBuffersWorkaround = codecNeedsMultipleInputWorkaround(codecInfo.name);
-    }
-
-    /**
-     * Broadcom video codec implementations seem to require some number of frames to be queued for
-     * decode before they will produce the first decoded output frame.
-     *
-     * @param name the codec name to check
-     * @return true if workaround is requiried
-     */
-    private boolean codecNeedsMultipleInputWorkaround(@Nullable String name) {
-      return "OMX.broadcom.video_decoder".equals(name);
-    }
-
-    /**
-     * Override to queue the same i-Frame mulitple times to the decoder, if this is required to
-     * make it produce an output frame.
-     *
-     * Algorithm is simple, keep a copy of the last frame's data in an buffer, copy it to the
-     * input DecoderInputBuffer without calling super.readSource() until the required frame count is
-     * reached.  The value of 3 frames was empirically determined
-     *
-     * This is a workaround for https://jira.xperi.com/browse/PARTDEFECT-11896
-     *
-     * @param formatHolder A {@link FormatHolder} to populate in the case of reading a format.
-     * @param buffer A {@link DecoderInputBuffer} to populate in the case of reading a sample or the
-     *     end of the stream. If the end of the stream has been reached, the {@link
-     *     C#BUFFER_FLAG_END_OF_STREAM} flag will be set on the buffer.
-     * @param formatRequired Whether the caller requires that the format of the stream be read even if
-     *     it's not changing. A sample will never be read if set to true, however it is still possible
-     *     for the end of stream or nothing to be read.
-     *
-     * @return super value, or RESULT_BUFFER_READ to re-queue the last iframe
-     */
-    @Override
-    protected int readSource(FormatHolder formatHolder, DecoderInputBuffer buffer, boolean formatRequired) {
-      int returnValue;
-      if (trickPlay.getCurrentTrickDirection() == TrickPlayControl.TrickPlayDirection.REVERSE && needsMultipleInputBuffersWorkaround) {
-        if (lastIFrameData == null) {
-          returnValue = super.readSource(formatHolder, buffer, /* formatRequired= */ formatRequired);
-          if (returnValue == C.RESULT_BUFFER_READ && buffer.isKeyFrame()) {
-            lastIFrameData = buffer.data.duplicate();
-          }
-        } else {
-          if (duplicateIframeCount++ > 2) {
-            duplicateIframeCount = 0;
-            returnValue = super.readSource(formatHolder, buffer, /* formatRequired= */ formatRequired);
-            lastIFrameData = null;
-          } else {
-            buffer.data = lastIFrameData;
-            returnValue = C.RESULT_BUFFER_READ;
-          }
-        }
+    protected boolean hasOutputReady() {
+      // We don't want to put up the spinner or stop the player if in tunneling trick mode
+      if (codecRequiresTunnelingTrickModeVsync() && trickPlay.getCurrentTrickDirection() != TrickPlayControl.TrickPlayDirection.NONE) {
+        return true;
       } else {
-        returnValue = super.readSource(formatHolder, buffer, /* formatRequired= */ formatRequired);
+        return super.hasOutputReady();
       }
-      return returnValue;
+    }
+
+    private boolean codecRequiresTunnelingTrickModeVsync() {
+      @Nullable MediaCodec codec = getCodec();
+      @Nullable MediaCodecInfo codecInfo = getCodecInfo();
+      return (codecInfo!=null && codec!=null &&
+              codecInfo.name.contains("tunnel") &&
+              codecInfo.name.startsWith("OMX.bcm.vdec"));
+    }
+
+    @RequiresApi(api = Build.VERSION_CODES.KITKAT)
+    private void configureVendorTrickMode() {
+      if (codecRequiresTunnelingTrickModeVsync()) {
+        Bundle codecParameters = new Bundle();
+        if (trickPlay.getCurrentTrickMode() == TrickPlayControl.TrickMode.NORMAL) {
+          Log.d(TAG, "disabling vendor.brcm.tunnel-trickmode-vsync");
+          // Go back to tunneling TSM
+          codecParameters.putInt("vendor.brcm.tunnel-trickmode-vsync", BCM_DISABLE);
+          // Decode at normal speed
+          codecParameters.putInt("vendor.brcm.tunnel-trickmode-decode-rate", BCM_DECODE_FULL_SPEED);
+          codecParameters.putInt("vendor.brcm.tunnel-trickmode-decode-mode", BCM_DECODE_ALL);
+        }
+        else {
+          Log.d(TAG, "enabling vendor.brcm.tunnel-trickmode-vsync");
+          //Release frames relative to vsync
+          codecParameters.putInt("vendor.brcm.tunnel-trickmode-vsync", BCM_ENABLE);
+          codecParameters.putInt("vendor.brcm.tunnel-trickmode-decode-rate", BCM_DECODE_FULL_SPEED);
+          codecParameters.putInt("vendor.brcm.tunnel-trickmode-decode-mode", BCM_DECODE_IDR);
+        }
+        @Nullable MediaCodec codec = getCodec();
+        if (codec!=null) {
+          codec.setParameters(codecParameters);
+        }
+      }
+    }
+
+    @RequiresApi(api = Build.VERSION_CODES.KITKAT)
+    @Override
+    protected void onEnabled(boolean joining, boolean mayRenderStartOfStream) throws ExoPlaybackException {
+      Log.d(TAG, "Renderer onEnabled()");
+      super.onEnabled(joining, mayRenderStartOfStream);
+      configureVendorTrickMode();
+      // Skip the flush if we are doing seek-based FW or RW VTP. We are only sending 1 frame per seek
+      // so there should be nothing to flush. The flush also resets the BCM decoder into a state where
+      // it needs 2 frames to display. The flush also requires us to delay the next sync until it reaches
+      // the display on all platforms.
+      skipFlush = (trickPlay.getCurrentTrickDirection() == TrickPlayControl.TrickPlayDirection.REVERSE ||
+              (trickPlay.getCurrentTrickDirection() == TrickPlayControl.TrickPlayDirection.FORWARD &&
+                      !trickPlay.isPlaybackSpeedForwardTrickPlayEnabled()));
     }
 
     @Override
@@ -175,10 +175,25 @@ class TrickPlayRendererFactory extends DefaultRenderersFactory {
       lastRenderTimeUs = C.TIME_UNSET;
     }
 
+    @Override
+    protected boolean flushOrReleaseCodec() {
+      if (!skipFlush) {
+      return super.flushOrReleaseCodec();
+      }
+      else {
+        return false;
+      }
+    }
+
     @RequiresApi(api = Build.VERSION_CODES.LOLLIPOP)
     @Override
     protected void onQueueInputBuffer(DecoderInputBuffer buffer) throws ExoPlaybackException {
       super.onQueueInputBuffer(buffer);
+      if (skipFlush && buffer.isKeyFrame()) {
+        trickPlay.dispatchTrickFrameRender(buffer.timeUs);
+        Log.d(TAG, "onQueueInputBuffer() trick play pts: " + buffer.timeUs);
+      }
+
       switch (trickPlay.getCurrentTrickDirection()) {
          case FORWARD:
          case NONE:
@@ -224,7 +239,9 @@ class TrickPlayRendererFactory extends DefaultRenderersFactory {
       lastRenderTimeUs = System.nanoTime() / 1000;
       long positionDeltaUs = presentationTimeUs - lastRenderPositionUs;
 
-      if (trickPlay.isSmoothPlayAvailable() && trickPlay.getCurrentTrickDirection() != TrickPlayControl.TrickPlayDirection.NONE) {
+      if (!skipFlush && trickPlay.isSmoothPlayAvailable() &&
+              (trickPlay.getCurrentTrickDirection() == TrickPlayControl.TrickPlayDirection.FORWARD ||
+                      trickPlay.getCurrentTrickDirection() == TrickPlayControl.TrickPlayDirection.SCRUB )) {
         Log.d(TAG, "renderOutputBufferV21() in trickplay - timestamp: " + C.usToMs(presentationTimeUs) + " delta(us): " + positionDeltaUs + " releaseTimeUs: " + (releaseTimeNs / 1000) + " index:" + index + " timeSinceLastUs: " + timeSinceLastRender);
         trickPlay.dispatchTrickFrameRender(presentationTimeUs);
       }

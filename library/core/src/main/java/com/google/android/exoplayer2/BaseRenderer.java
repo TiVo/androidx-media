@@ -374,7 +374,7 @@ public abstract class BaseRenderer implements Renderer, RendererCapabilities {
    *     for the end of stream or nothing to be read.
    * @return The status of read, one of {@link SampleStream.ReadDataResult}.
    */
-  protected int readSource(
+  protected final int readSource(
       FormatHolder formatHolder, DecoderInputBuffer buffer, boolean formatRequired) {
     @SampleStream.ReadDataResult
     int result = Assertions.checkNotNull(stream).readData(formatHolder, buffer, formatRequired);
