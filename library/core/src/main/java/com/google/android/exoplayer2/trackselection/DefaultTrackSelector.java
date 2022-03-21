@@ -17,6 +17,7 @@ package com.google.android.exoplayer2.trackselection;
 
 import android.content.Context;
 import android.graphics.Point;
+import android.os.Build;
 import android.os.Parcel;
 import android.os.Parcelable;
 import android.text.TextUtils;
@@ -2298,6 +2299,52 @@ public class DefaultTrackSelector extends MappingTrackSelector {
   // Utility methods.
 
   /**
+   * Compare two device "." or "-" separated version numbers to see which is later.
+   *
+   * @return 0 if versions are equal, -1 if version2 is later and 1 if version1 is later.
+   */
+  private static int compareVersions(String version1, String version2) {
+    String[] string1Vals = version1.split("\\.|-");
+    String[] string2Vals = version2.split("\\.|-");
+    int length = Math.max(string1Vals.length, string2Vals.length);
+    for (int i = 0; i < length; i++) {
+      try {
+        Integer v1 = 0;
+        Integer v2 = 0;
+        v1 = (i < string1Vals.length) ? Integer.parseInt(string1Vals[i]) : 0;
+        v2 = (i < string2Vals.length) ? Integer.parseInt(string2Vals[i]) : 0;
+        //Making sure Version1 bigger than version2
+        if (v1 > v2) {
+          return 1;
+        }
+        //Making sure Version1 smaller than version2
+        else if (v1 < v2) {
+          return -1;
+        }
+      } catch (NumberFormatException n) {
+        // ... Do nothing.
+      }
+    }
+    //Both are equal
+    return 0;
+  }
+
+  /**
+   * Returns true if the device firmware is known to support visual trick play in tunneling mode.
+   *
+   * @return Whether the device supports tunneling VTP.
+   */
+  private static boolean platformSupportsTunnelingTrickPlay() {
+    return (Build.MANUFACTURER.equals("Technicolor") &&
+            ((Build.DEVICE.equals("uiw4059mil") && compareVersions(Build.VERSION.INCREMENTAL, "1.1-220218") >= 0) ||
+                    (Build.DEVICE.equals("uiw4054mil") && compareVersions(Build.VERSION.INCREMENTAL, "9.0-220225") >= 0) ||
+                    (Build.DEVICE.equals("uiw4054hwc") && compareVersions(Build.VERSION.INCREMENTAL, "5.3.1") >= 0)) ||
+            (Build.MANUFACTURER.equals("ARRIS") &&
+                    (Build.DEVICE.equals("vip6102w") && compareVersions(Build.VERSION.INCREMENTAL, "10.01.04.03.36") >= 0)));
+  }
+
+
+  /**
    * Determines whether tunneling should be enabled, replacing {@link RendererConfiguration}s in
    * {@code rendererConfigurations} with configurations that enable tunneling on the appropriate
    * renderers if so.
@@ -2324,14 +2371,15 @@ public class DefaultTrackSelector extends MappingTrackSelector {
     // one video renderer to support tunneling and have a selection.
     int tunnelingAudioRendererIndex = -1;
     int tunnelingVideoRendererIndex = -1;
+    boolean videoOnly = true;
     boolean enableTunneling = true;
     for (int i = 0; i < mappedTrackInfo.getRendererCount(); i++) {
       int rendererType = mappedTrackInfo.getRendererType(i);
       TrackSelection trackSelection = trackSelections[i];
       if ((rendererType == C.TRACK_TYPE_AUDIO || rendererType == C.TRACK_TYPE_VIDEO)
-          && trackSelection != null) {
+              && trackSelection != null) {
         if (rendererSupportsTunneling(
-            renderererFormatSupports[i], mappedTrackInfo.getTrackGroups(i), trackSelection)) {
+                renderererFormatSupports[i], mappedTrackInfo.getTrackGroups(i), trackSelection)) {
           if (rendererType == C.TRACK_TYPE_AUDIO) {
             if (tunnelingAudioRendererIndex != -1) {
               enableTunneling = false;
@@ -2348,13 +2396,19 @@ public class DefaultTrackSelector extends MappingTrackSelector {
             }
           }
         }
+        if (rendererType == C.TRACK_TYPE_AUDIO) {
+          videoOnly = false;
+        }
       }
     }
-    enableTunneling &= tunnelingAudioRendererIndex != -1 && tunnelingVideoRendererIndex != -1;
+    enableTunneling &= (tunnelingAudioRendererIndex != -1 && tunnelingVideoRendererIndex != -1) ||
+            (tunnelingVideoRendererIndex != -1 && videoOnly && platformSupportsTunnelingTrickPlay());
     if (enableTunneling) {
       RendererConfiguration tunnelingRendererConfiguration =
           new RendererConfiguration(tunnelingAudioSessionId);
-      rendererConfigurations[tunnelingAudioRendererIndex] = tunnelingRendererConfiguration;
+      if (tunnelingAudioRendererIndex != -1) {
+        rendererConfigurations[tunnelingAudioRendererIndex] = tunnelingRendererConfiguration;
+      }
       rendererConfigurations[tunnelingVideoRendererIndex] = tunnelingRendererConfiguration;
     }
   }
