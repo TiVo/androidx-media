@@ -109,16 +109,6 @@ class TrickPlayRendererFactory extends DefaultRenderersFactory {
       Log.d(TAG, "Renderer onStarted() called - lastRenderTimeUs " + lastRenderTimeUs);
     }
 
-    @Override
-    protected boolean hasOutputReady() {
-      // We don't want to put up the spinner or stop the player if in tunneling trick mode
-      if (codecRequiresTunnelingTrickModeVsync() && trickPlay.getCurrentTrickDirection() != TrickPlayControl.TrickPlayDirection.NONE) {
-        return true;
-      } else {
-        return super.hasOutputReady();
-      }
-    }
-
     private boolean codecRequiresTunnelingTrickModeVsync() {
       @Nullable MediaCodec codec = getCodec();
       @Nullable MediaCodecInfo codecInfo = getCodecInfo();
