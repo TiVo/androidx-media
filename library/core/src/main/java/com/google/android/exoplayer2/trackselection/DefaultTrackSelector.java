@@ -2300,6 +2300,7 @@ public class DefaultTrackSelector extends MappingTrackSelector {
 
   /**
    * Compare two device "." or "-" separated version numbers to see which is later.
+   * WARNING TiVo specific Utility methods not integrated in core ExoPlayer.
    *
    * @return 0 if versions are equal, -1 if version2 is later and 1 if version1 is later.
    */
@@ -2331,6 +2332,7 @@ public class DefaultTrackSelector extends MappingTrackSelector {
 
   /**
    * Returns true if the device firmware is known to support visual trick play in tunneling mode.
+   * WARNING TiVo specific Utility methods not integrated in core ExoPlayer.
    *
    * @return Whether the device supports tunneling VTP.
    */
@@ -2352,6 +2354,7 @@ public class DefaultTrackSelector extends MappingTrackSelector {
    * Determines whether tunneling should be enabled, replacing {@link RendererConfiguration}s in
    * {@code rendererConfigurations} with configurations that enable tunneling on the appropriate
    * renderers if so.
+   * WARNING contains TiVo specific modifications not integrated in core ExoPlayer.
    *
    * @param mappedTrackInfo Mapped track information.
    * @param renderererFormatSupports The {@link Capabilities} for each mapped track, indexed by
@@ -2381,9 +2384,9 @@ public class DefaultTrackSelector extends MappingTrackSelector {
       int rendererType = mappedTrackInfo.getRendererType(i);
       TrackSelection trackSelection = trackSelections[i];
       if ((rendererType == C.TRACK_TYPE_AUDIO || rendererType == C.TRACK_TYPE_VIDEO)
-              && trackSelection != null) {
+          && trackSelection != null) {
         if (rendererSupportsTunneling(
-                renderererFormatSupports[i], mappedTrackInfo.getTrackGroups(i), trackSelection)) {
+            renderererFormatSupports[i], mappedTrackInfo.getTrackGroups(i), trackSelection)) {
           if (rendererType == C.TRACK_TYPE_AUDIO) {
             if (tunnelingAudioRendererIndex != -1) {
               enableTunneling = false;
