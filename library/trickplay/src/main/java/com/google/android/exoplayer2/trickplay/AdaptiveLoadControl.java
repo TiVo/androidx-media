@@ -72,7 +72,7 @@ public class AdaptiveLoadControl implements LoadControl, TrickPlayEventListener 
             requiredBufferedTimeUs = Util.getMediaDurationForPlayoutDuration(50_000_000, playbackSpeed);
           } else {
             // We're doing only seek-based VTP we only want 1 iframe. Hopefully, the iframes are > 1 second apart.
-            requiredBufferedTimeUs = 1_000_000L;
+            requiredBufferedTimeUs = 5_000_000L;
           }
           break;
 
@@ -81,7 +81,7 @@ public class AdaptiveLoadControl implements LoadControl, TrickPlayEventListener 
           break;
           
         case REVERSE:
-          requiredBufferedTimeUs = 1_000_000L;    // Pointless to buffer, each seek will flush it.
+          requiredBufferedTimeUs = 5_000_000L;    // Pointless to buffer, each seek will flush it.
           break;
 
         case NONE:
