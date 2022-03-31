@@ -337,27 +337,30 @@ public final class HlsMediaPlaylist extends HlsPlaylist {
    * @param other The playlist to compare.
    * @return Whether this playlist is a valid to RFC8216 update of {@code other}.
    */
-  public boolean isUpdateValid(HlsMediaPlaylist other) {
+  public boolean isUpdateValid(@Nullable HlsMediaPlaylist other) {
     boolean isValid = isNewerThan(other);
     if (isValid && other != null) {
-      long removedSegments = mediaSequence - other.mediaSequence;
+      long expectedMediaSequence = other.mediaSequence;
       long removedTimeUs = 0;
       for (Segment segment : other.segments) {
-        if (removedSegments-- == 0) {
+        if (expectedMediaSequence < mediaSequence) {
+          removedTimeUs += segment.durationUs;
+          expectedMediaSequence++;
+        } else {
           break;
         }
-        removedTimeUs += segment.durationUs;
       }
 
       // Valid if other has expected segments and time change is correct
 
-      isValid = removedSegments == 0
-          && startTimeUs - other.startTimeUs == removedTimeUs;
+      long pdtDeltaUs = startTimeUs - other.startTimeUs;
+      isValid = expectedMediaSequence == mediaSequence && pdtDeltaUs == removedTimeUs;
 
       if (!isValid) {
-        Log.d(TAG, "remvoed time US: " + removedTimeUs);
+        Log.e(TAG, "invalid playlist update, removed segments duration: " + C.usToMs(removedTimeUs) +
+            ", does not match PDT change: " + C.usToMs(pdtDeltaUs));
         final SimpleDateFormat UTC_DATETIME
-            = new SimpleDateFormat("dd/MM/yyyy HH:mm:ss.S Z", Locale.getDefault());
+          = new SimpleDateFormat("dd/MM/yyyy HH:mm:ss.S Z", Locale.getDefault());
         Log.d(TAG, "old - MSN: " + other.mediaSequence +
             " start/duration: " + UTC_DATETIME.format(C.usToMs(other.startTimeUs)) + " / " + C.usToMs(other.durationUs));
         Log.d(TAG, "new - MSN: " + mediaSequence +

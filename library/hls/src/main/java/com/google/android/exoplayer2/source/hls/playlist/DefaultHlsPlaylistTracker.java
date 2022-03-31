@@ -36,6 +36,7 @@ import com.google.android.exoplayer2.upstream.Loader;
 import com.google.android.exoplayer2.upstream.Loader.LoadErrorAction;
 import com.google.android.exoplayer2.upstream.ParsingLoadable;
 import com.google.android.exoplayer2.util.Assertions;
+import com.google.android.exoplayer2.util.Log;
 import com.google.android.exoplayer2.util.Util;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -48,6 +49,7 @@ public final class DefaultHlsPlaylistTracker
 
   /** Factory for {@link DefaultHlsPlaylistTracker} instances. */
   public static final Factory FACTORY = DefaultHlsPlaylistTracker::new;
+  private static final String TAG = "DefaultHlsPlaylistTracker";
 
   /**
    * Default coefficient applied on the target duration of a playlist to determine the amount of
