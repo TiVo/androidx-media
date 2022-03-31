@@ -652,6 +652,9 @@ public final class DefaultHlsPlaylistTracker
       if (playlistSnapshot != oldPlaylist) {
         playlistError = null;
         lastSnapshotChangeMs = currentTimeMs;
+        if (! playlistSnapshot.isUpdateValid(oldPlaylist)) {
+          Log.e(TAG, "invalid update of playlist: " + playlistUrl);
+        }
         onPlaylistUpdated(playlistUrl, playlistSnapshot);
       } else if (!playlistSnapshot.hasEndTag) {
         if (loadedPlaylist.mediaSequence + loadedPlaylist.segments.size()

@@ -20,14 +20,19 @@ import androidx.annotation.Nullable;
 import com.google.android.exoplayer2.C;
 import com.google.android.exoplayer2.drm.DrmInitData;
 import com.google.android.exoplayer2.offline.StreamKey;
+import com.google.android.exoplayer2.util.Log;
+
 import java.lang.annotation.Documented;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
+import java.text.SimpleDateFormat;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 
 /** Represents an HLS media playlist. */
 public final class HlsMediaPlaylist extends HlsPlaylist {
+  public static final String TAG = "HlsMediaPlaylist";
 
   /** Media segment reference. */
   @SuppressWarnings("ComparableType")
@@ -322,6 +327,44 @@ public final class HlsMediaPlaylist extends HlsPlaylist {
     int otherSegmentCount = other.segments.size();
     return segmentCount > otherSegmentCount
         || (segmentCount == otherSegmentCount && hasEndTag && !other.hasEndTag);
+  }
+
+  /**
+   * If this playlist is newer than {@code other} and the changes are valid to
+   * the RFC, that is: The duration of the removed segments (as computed by the media
+   * sequence change) is equal to the playlist start time change.
+   *
+   * @param other The playlist to compare.
+   * @return Whether this playlist is a valid to RFC8216 update of {@code other}.
+   */
+  public boolean isUpdateValid(HlsMediaPlaylist other) {
+    boolean isValid = isNewerThan(other);
+    if (isValid && other != null) {
+      long removedSegments = mediaSequence - other.mediaSequence;
+      long removedTimeUs = 0;
+      for (Segment segment : other.segments) {
+        if (removedSegments-- == 0) {
+          break;
+        }
+        removedTimeUs += segment.durationUs;
+      }
+
+      // Valid if other has expected segments and time change is correct
+
+      isValid = removedSegments == 0
+          && startTimeUs - other.startTimeUs == removedTimeUs;
+
+      if (!isValid) {
+        Log.d(TAG, "remvoed time US: " + removedTimeUs);
+        final SimpleDateFormat UTC_DATETIME
+            = new SimpleDateFormat("dd/MM/yyyy HH:mm:ss.S Z", Locale.getDefault());
+        Log.d(TAG, "old - MSN: " + other.mediaSequence +
+            " start/duration: " + UTC_DATETIME.format(C.usToMs(other.startTimeUs)) + " / " + C.usToMs(other.durationUs));
+        Log.d(TAG, "new - MSN: " + mediaSequence +
+            " start/duration: " + UTC_DATETIME.format(C.usToMs(startTimeUs)) + " / " + C.usToMs(durationUs));
+      }
+    }
+    return isValid;
   }
 
   /**
