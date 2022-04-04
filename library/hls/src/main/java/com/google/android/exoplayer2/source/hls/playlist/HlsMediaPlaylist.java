@@ -15,6 +15,7 @@
  */
 package com.google.android.exoplayer2.source.hls.playlist;
 
+import android.net.Uri;
 import androidx.annotation.IntDef;
 import androidx.annotation.Nullable;
 import com.google.android.exoplayer2.C;
@@ -435,10 +436,10 @@ public final class HlsMediaPlaylist extends HlsPlaylist {
         segments);
   }
 
-  public HlsMediaPlaylist copyWithNewSegments(List<Segment> updateSegments) {
+  public HlsMediaPlaylist cloneCuratedPlaylist(List<Segment> updateSegments, Uri updatedUri) {
     return new HlsMediaPlaylist(
             playlistType,
-            baseUri,
+            updatedUri.toString(),
             tags,
             startOffsetUs,
             startTimeUs,

@@ -38,7 +38,7 @@ public class FrameCuratorPlaylistParser implements ParsingLoadable.Parser<HlsPla
             List<HlsMediaPlaylist.Segment> updateSegments = curateSmallestIFrames(mediaPlaylist, subsetTarget);
 
 
-            playlist = mediaPlaylist.copyWithNewSegments(updateSegments);
+            playlist = mediaPlaylist.cloneCuratedPlaylist(updateSegments, uri);
         }
         return playlist;
     }
