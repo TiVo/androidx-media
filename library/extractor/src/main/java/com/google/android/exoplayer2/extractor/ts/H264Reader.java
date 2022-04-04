@@ -47,6 +47,8 @@ public final class H264Reader implements ElementaryStreamReader {
   private static final int NAL_UNIT_TYPE_SEI = 6; // Supplemental enhancement information
   private static final int NAL_UNIT_TYPE_SPS = 7; // Sequence parameter set
   private static final int NAL_UNIT_TYPE_PPS = 8; // Picture parameter set
+  private static final int NAL_UNIT_TYPE_FILLER = 12; // Filler data
+
 
   private final SeiReader seiReader;
   private final boolean allowNonIdrKeyframes;
@@ -143,6 +145,12 @@ public final class H264Reader implements ElementaryStreamReader {
 
       // We've seen the start of a NAL unit of the following type.
       int nalUnitType = NalUnitUtil.getNalUnitType(dataArray, nalUnitOffset);
+
+      if (nalUnitType == NAL_UNIT_TYPE_FILLER) {
+        // We've scanned and hit filler data without finding the start of another NAL unit.
+        nalUnitData(dataArray, offset, limit);
+        return;
+      }
 
       // This is the number of bytes from the current offset to the start of the next NAL unit.
       // It may be negative if the NAL unit started in the previously consumed data.
