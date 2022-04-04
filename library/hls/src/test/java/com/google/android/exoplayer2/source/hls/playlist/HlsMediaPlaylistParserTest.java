@@ -464,6 +464,88 @@ public class HlsMediaPlaylistParserTest {
   }
 
   @Test
+  public void testPlaylistUpdateValid_truncateToMs() throws IOException {
+    Uri mockUrl = Uri.parse("https://example.com/test3.m3u8");
+    String playlistOld =
+        "#EXTM3U\n" +
+        "#EXT-X-VERSION:8\n" +
+        "#EXT-X-MEDIA-SEQUENCE:274575440\n" +
+        "#EXT-X-TARGETDURATION:8\n" +
+        "#EXT-X-PROGRAM-DATE-TIME:2022-04-04T19:21:32.646Z\n" +
+        "#EXTINF:6.016000,\n" +
+        "CCURStream_5_1_AAC-10_T1649100092646000~D6016000.tsa\n" +
+        "#EXTINF:5.994667,\n" +
+        "CCURStream_5_1_AAC-10_T1649100098662000~D5994666.tsa\n" +
+        "#EXTINF:6.016000,\n" +
+        "CCURStream_5_1_AAC-10_T1649100104656666~D6016000.tsa\n";
+
+    String playlistNew =
+        "#EXTM3U\n" +
+        "#EXT-X-VERSION:8\n" +
+        "#EXT-X-MEDIA-SEQUENCE:274575442\n" +
+        "#EXT-X-TARGETDURATION:8\n" +
+        "#EXT-X-PROGRAM-DATE-TIME:2022-04-04T19:21:44.656Z\n" +
+        "#EXTINF:6.016000,\n" +
+        "CCURStream_5_1_AAC-10_T1649100104656666~D6016000.tsa\n" +
+        "#EXTINF:5.994667,\n" +
+        "CCURStream_5_1_AAC-10_T1649100110672666~D5994666.tsa\n" +
+        "#EXTINF:6.016000,\n" +
+        "CCURStream_5_1_AAC-10_T1649100116667333~D6016000.tsa\n" +
+        "#EXTINF:5.994667,\n";
+
+    InputStream inputStream = new ByteArrayInputStream(Util.getUtf8Bytes(playlistOld));
+    HlsMediaPlaylist oldPlaylist =
+        (HlsMediaPlaylist) new HlsPlaylistParser().parse(mockUrl, inputStream);
+    inputStream = new ByteArrayInputStream(Util.getUtf8Bytes(playlistNew));
+    HlsMediaPlaylist newPlaylist =
+        (HlsMediaPlaylist) new HlsPlaylistParser().parse(mockUrl, inputStream);
+
+    assertThat(newPlaylist.isNewerThan(oldPlaylist)).isTrue();
+    assertThat(newPlaylist.isUpdateValid(oldPlaylist)).isTrue();
+  }
+
+  @Test
+  public void testPlaylistUpdateValid_failBadMediaSequence() throws IOException {
+    Uri mockUrl = Uri.parse("https://example.com/test3.m3u8");
+    String playlistOld =
+        "#EXTM3U\n" +
+            "#EXT-X-VERSION:8\n" +
+            "#EXT-X-MEDIA-SEQUENCE:274575441\n" +
+            "#EXT-X-TARGETDURATION:8\n" +
+            "#EXT-X-PROGRAM-DATE-TIME:2022-04-04T19:21:32.646Z\n" +
+            "#EXTINF:6.016000,\n" +
+            "CCURStream_5_1_AAC-10_T1649100092646000~D6016000.tsa\n" +
+            "#EXTINF:5.994667,\n" +
+            "CCURStream_5_1_AAC-10_T1649100098662000~D5994666.tsa\n" +
+            "#EXTINF:6.016000,\n" +
+            "CCURStream_5_1_AAC-10_T1649100104656666~D6016000.tsa\n";
+
+    String playlistNew =
+        "#EXTM3U\n" +
+            "#EXT-X-VERSION:8\n" +
+            "#EXT-X-MEDIA-SEQUENCE:274575442\n" +
+            "#EXT-X-TARGETDURATION:8\n" +
+            "#EXT-X-PROGRAM-DATE-TIME:2022-04-04T19:21:44.656Z\n" +
+            "#EXTINF:6.016000,\n" +
+            "CCURStream_5_1_AAC-10_T1649100104656666~D6016000.tsa\n" +
+            "#EXTINF:5.994667,\n" +
+            "CCURStream_5_1_AAC-10_T1649100110672666~D5994666.tsa\n" +
+            "#EXTINF:6.016000,\n" +
+            "CCURStream_5_1_AAC-10_T1649100116667333~D6016000.tsa\n" +
+            "#EXTINF:5.994667,\n";
+
+    InputStream inputStream = new ByteArrayInputStream(Util.getUtf8Bytes(playlistOld));
+    HlsMediaPlaylist oldPlaylist =
+        (HlsMediaPlaylist) new HlsPlaylistParser().parse(mockUrl, inputStream);
+    inputStream = new ByteArrayInputStream(Util.getUtf8Bytes(playlistNew));
+    HlsMediaPlaylist newPlaylist =
+        (HlsMediaPlaylist) new HlsPlaylistParser().parse(mockUrl, inputStream);
+
+    assertThat(newPlaylist.isNewerThan(oldPlaylist)).isTrue();
+    assertThat(newPlaylist.isUpdateValid(oldPlaylist)).isFalse();
+  }
+
+  @Test
   public void masterPlaylistAttributeInheritance() throws IOException {
     Uri playlistUri = Uri.parse("https://example.com/test3.m3u8");
     String playlistString =

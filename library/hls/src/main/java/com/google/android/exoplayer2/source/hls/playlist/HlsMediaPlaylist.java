@@ -351,14 +351,18 @@ public final class HlsMediaPlaylist extends HlsPlaylist {
         }
       }
 
-      // Valid if other has expected segments and time change is correct
-
       long pdtDeltaUs = startTimeUs - other.startTimeUs;
-      isValid = expectedMediaSequence == mediaSequence && pdtDeltaUs == removedTimeUs;
 
+      isValid = expectedMediaSequence == mediaSequence;
+
+      // Program Date Time is only to milli-second resolution, Not clear if Vecima rounds the durations to
+      // Milliseconds or truncates the PDT.  So we treat within a MS as valid.
+      isValid = isValid && Math.abs(pdtDeltaUs - removedTimeUs) <= 1000;
+
+      // PDT is valid down to the millisecond, durations are arbitrary.  Truncate the duration to MS
       if (!isValid) {
-        Log.e(TAG, "invalid playlist update, removed segments duration: " + C.usToMs(removedTimeUs) +
-            ", does not match PDT change: " + C.usToMs(pdtDeltaUs));
+        Log.e(TAG, "invalid playlist update, removed segments duration: " +  removedTimeUs +
+            ", does not match PDT change: " + pdtDeltaUs);
         final SimpleDateFormat UTC_DATETIME
           = new SimpleDateFormat("dd/MM/yyyy HH:mm:ss.S Z", Locale.getDefault());
         Log.d(TAG, "old - MSN: " + other.mediaSequence +
