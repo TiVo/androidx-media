@@ -1,23 +1,28 @@
 package com.google.android.exoplayer2.trickplay.hls;
 
 import android.net.Uri;
+import android.util.Pair;
 import androidx.test.core.app.ApplicationProvider;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.List;
 
 import org.junit.Before;
-import org.junit.BeforeClass;
+import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import com.google.android.exoplayer2.source.hls.playlist.DefaultHlsPlaylistParserFactory;
+import com.google.android.exoplayer2.source.hls.playlist.HlsMasterPlaylist;
 import com.google.android.exoplayer2.source.hls.playlist.HlsMediaPlaylist;
 import com.google.android.exoplayer2.source.hls.playlist.HlsPlaylist;
+import com.google.android.exoplayer2.source.hls.playlist.HlsPlaylistParserFactory;
 import com.google.android.exoplayer2.testutil.TestUtil;
 import com.google.android.exoplayer2.upstream.ParsingLoadable;
+import com.google.common.base.Charsets;
 import static com.google.common.truth.Truth.assertThat;
 import static com.google.common.truth.Truth.assertWithMessage;
 
@@ -31,25 +36,6 @@ public class FrameCuratorPlaylistParserTest {
         InputStream testPlaylistStream = TestUtil.getInputStream(ApplicationProvider.getApplicationContext(), "testplaylist.m3u8");
         ParsingLoadable.Parser<HlsPlaylist> playlistParser = new DefaultHlsPlaylistParserFactory().createPlaylistParser();
         mediaPlaylist = (HlsMediaPlaylist) playlistParser.parse(Uri.EMPTY, testPlaylistStream);
-    }
-
-    @Test
-    public void testMinSizeSegment() {
-        FrameCuratorPlaylistParser testee = new FrameCuratorPlaylistParser();
-        HlsMediaPlaylist.Segment result = testee.smallestSegmentInRange(mediaPlaylist.segments, 3, 9);
-        // #EXT-X-BYTERANGE:97760@623408
-        assertThat(result.byteRangeLength).isEqualTo(97760);
-        assertThat(result.byteRangeOffset).isEqualTo(623408);
-    }
-
-
-    @Test
-    public void testIncludesLastSegment() {
-        FrameCuratorPlaylistParser testee = new FrameCuratorPlaylistParser();
-        int lastIndex = mediaPlaylist.segments.size() - 1;
-        HlsMediaPlaylist.Segment last = mediaPlaylist.segments.get(lastIndex);
-        HlsMediaPlaylist.Segment result = testee.smallestSegmentInRange(mediaPlaylist.segments, lastIndex, lastIndex);
-        assertThat(result).isSameInstanceAs(last);
     }
 
     @Test
@@ -77,20 +63,63 @@ public class FrameCuratorPlaylistParserTest {
     }
 
     @Test
-    public void testCurateSmallest() {
-        FrameCuratorPlaylistParser testee = new FrameCuratorPlaylistParser();
-        List<HlsMediaPlaylist.Segment> result = testee.curateSmallestIFrames(mediaPlaylist, 10);
-        int expected = (int) (Math.ceil(mediaPlaylist.segments.size() / 10) + 1);
-        assertThat(result.size()).isEqualTo(expected);
+    public void testComputeSegmentsDelta() throws IOException {
+        HlsPlaylistParserFactory parserFactory = new DefaultHlsPlaylistParserFactory();
+        ParsingLoadable.Parser<HlsPlaylist> playlistParser = parserFactory.createPlaylistParser();
 
-        long totalDuration = 0;
-        for (HlsMediaPlaylist.Segment segment : result) {
-            totalDuration += segment.durationUs;
-//            System.out.println("duration\t"+segment.durationUs);
-        }
-        assertThat(totalDuration).isEqualTo(mediaPlaylist.durationUs);
+        InputStream testPlaylistStream = TestUtil.getInputStream(ApplicationProvider.getApplicationContext(), "testplaylist_update_previous_1.m3u8");
+        HlsMediaPlaylist previous = (HlsMediaPlaylist) playlistParser.parse(Uri.EMPTY, testPlaylistStream);
+
+        testPlaylistStream = TestUtil.getInputStream(ApplicationProvider.getApplicationContext(), "testplaylist_update_current_1.m3u8");
+        HlsMediaPlaylist updated = (HlsMediaPlaylist) playlistParser.parse(Uri.EMPTY, testPlaylistStream);
+
+        Pair<List<HlsMediaPlaylist.Segment>, List<HlsMediaPlaylist.Segment>> pair
+            = FrameCuratorPlaylistParser.computeSegmentsDelta(updated, previous);
+
+        assertThat(pair.first.size()).isEqualTo(updated.mediaSequence - previous.mediaSequence);
 
     }
 
+    @Test
+    public void testCuratedPlaylistUpdate() throws IOException {
+        String testMaster = "#EXTM3U\n" +
+            "#EXT-X-VERSION:5\n" +
+            "#EXT-X-STREAM-INF:BANDWIDTH=2160000,CODECS=\"mp4a.40.2,avc1.64001f\",RESOLUTION=720x480\n" +
+            "dummy.m3u8\n" +
+            "#EXT-X-I-FRAME-STREAM-INF:BANDWIDTH=1373400,URI=\"test_playlist.m3u8\",CODECS=\"avc1.640020\",RESOLUTION=1280x720\n";
+
+
+        // Dual Mode parser will parse the master above and create a curated iFrame playlist from test_playlist
+        // State for updates is initialized and saved in the FrameCuratorPlaylistParser created each time a master playlist is
+        // parsed (every channel change)
+        HlsPlaylistParserFactory parserFactory = new DualModeHlsPlaylistParserFactory(new DefaultHlsPlaylistParserFactory());
+        ParsingLoadable.Parser<HlsPlaylist> masterParser = parserFactory.createPlaylistParser();
+        ByteArrayInputStream inputStream =
+            new ByteArrayInputStream(testMaster.getBytes(Charsets.UTF_8));
+        HlsMasterPlaylist master = (HlsMasterPlaylist) masterParser.parse(Uri.EMPTY, inputStream);
+        Uri dualModeVariantUri = null;
+        for (HlsMasterPlaylist.Variant variant : master.variants) {
+            if (variant.url.getFragment() != null) {
+                dualModeVariantUri = variant.url;
+            }
+        }
+
+        // The DefaultHlsPlaylistTracker creates the playlist parser once on load/parse complete for the master
+        // playlist, so this is used to save playlist state across loads.
+        //
+        ParsingLoadable.Parser<HlsPlaylist> playlistParser = parserFactory.createPlaylistParser(master);
+
+        // Load and parse first playlist.
+        InputStream testPlaylistStream = TestUtil.getInputStream(ApplicationProvider.getApplicationContext(), "testplaylist_update_previous.m3u8");
+        HlsPlaylist playlist = playlistParser.parse(dualModeVariantUri, testPlaylistStream);
+        assertThat(playlist).isInstanceOf(HlsMediaPlaylist.class);
+
+        // load and parse update.
+        testPlaylistStream = TestUtil.getInputStream(ApplicationProvider.getApplicationContext(), "testplaylist_update_current.m3u8");
+        HlsPlaylist playlistUpdate = playlistParser.parse(dualModeVariantUri, testPlaylistStream);
+        assertThat(playlistUpdate).isInstanceOf(HlsMediaPlaylist.class);
+
+        assertThat(((HlsMediaPlaylist) playlistUpdate).isUpdateValid((HlsMediaPlaylist) playlist)).isTrue();
+    }
 
 }

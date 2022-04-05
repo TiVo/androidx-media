@@ -15,7 +15,6 @@
  */
 package com.google.android.exoplayer2.source.hls.playlist;
 
-import android.net.Uri;
 import androidx.annotation.IntDef;
 import androidx.annotation.Nullable;
 import com.google.android.exoplayer2.C;
@@ -170,6 +169,22 @@ public final class HlsMediaPlaylist extends HlsPlaylist {
               updatedDurationUs,
               relativeDiscontinuitySequence,
               relativeStartTimeUs,
+              drmInitData,
+              fullSegmentEncryptionKeyUri,
+              encryptionIV,
+              byteRangeOffset,
+              byteRangeLength,
+              hasGapTag);
+    }
+
+    public Segment copyWithUpdates(long updatedRelativeStartTimeUs, int discSequenceDelta) {
+      return new Segment(
+              url,
+              initializationSegment,
+              title,
+              durationUs,
+              relativeDiscontinuitySequence - discSequenceDelta,
+              updatedRelativeStartTimeUs,
               drmInitData,
               fullSegmentEncryptionKeyUri,
               encryptionIV,
@@ -436,16 +451,33 @@ public final class HlsMediaPlaylist extends HlsPlaylist {
         segments);
   }
 
-  public HlsMediaPlaylist cloneCuratedPlaylist(List<Segment> updateSegments, Uri updatedUri) {
+  public HlsMediaPlaylist copyWithUpdates(List<Segment> updateSegments,
+                                          String updatedUri,
+                                          long newStartTimeUs,
+                                          long updatedMediaSequence,
+                                          int newDiscontinuitySequence) {
+    boolean updatedHasDiscontinuitySequence = hasDiscontinuitySequence;
+    int updatedDiscontinuitySequence = discontinuitySequence;
+    if (newDiscontinuitySequence != C.INDEX_UNSET) {
+      updatedHasDiscontinuitySequence = true;
+      updatedDiscontinuitySequence = newDiscontinuitySequence;
+    }
+
+    boolean updatedHasProgramDateTime = hasProgramDateTime;
+    long updatedStartTimeUs = startTimeUs;
+    if (newStartTimeUs != C.TIME_UNSET) {
+      updatedStartTimeUs = newStartTimeUs;
+      updatedHasProgramDateTime = true;
+    }
     return new HlsMediaPlaylist(
             playlistType,
-            updatedUri.toString(),
+            updatedUri,
             tags,
             startOffsetUs,
-            startTimeUs,
-            hasDiscontinuitySequence,
-            discontinuitySequence,
-            mediaSequence,
+            updatedStartTimeUs,
+            updatedHasDiscontinuitySequence,
+            updatedDiscontinuitySequence,
+            updatedMediaSequence,
             version,
             targetDurationUs,
             hasIndependentSegments,

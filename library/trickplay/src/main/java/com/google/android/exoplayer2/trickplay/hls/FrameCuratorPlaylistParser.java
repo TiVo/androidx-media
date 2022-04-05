@@ -1,14 +1,15 @@
 package com.google.android.exoplayer2.trickplay.hls;
 
 import android.net.Uri;
-import androidx.annotation.NonNull;
-import androidx.annotation.Nullable;
+import android.util.Pair;
 import androidx.annotation.VisibleForTesting;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import com.google.android.exoplayer2.source.hls.playlist.DefaultHlsPlaylistParserFactory;
 import com.google.android.exoplayer2.source.hls.playlist.HlsMasterPlaylist;
@@ -16,17 +17,26 @@ import com.google.android.exoplayer2.source.hls.playlist.HlsMediaPlaylist;
 import com.google.android.exoplayer2.source.hls.playlist.HlsPlaylist;
 import com.google.android.exoplayer2.source.hls.playlist.HlsPlaylistParserFactory;
 import com.google.android.exoplayer2.upstream.ParsingLoadable;
+import com.google.android.exoplayer2.util.Log;
 
 public class FrameCuratorPlaylistParser implements ParsingLoadable.Parser<HlsPlaylist> {
-    @Nullable private final ParsingLoadable.Parser<HlsPlaylist> parserDelegate;
+    private static final String TAG = "FrameCuratedPlaylistParser";
+
+    private final ParsingLoadable.Parser<HlsPlaylist> parserDelegate;
+    private final Map<Uri, HlsMediaPlaylist> previousPlaylists;
+    private final Map<Uri, HlsMediaPlaylist> previousSourcePlaylist;
 
     public FrameCuratorPlaylistParser(HlsPlaylistParserFactory hlsPlaylistParserFactory, HlsMasterPlaylist masterPlaylist) {
         parserDelegate = hlsPlaylistParserFactory.createPlaylistParser(masterPlaylist);
+        previousPlaylists = new HashMap<>();
+        previousSourcePlaylist = new HashMap<>();
     }
 
     @VisibleForTesting
     FrameCuratorPlaylistParser() {
         parserDelegate = new DefaultHlsPlaylistParserFactory().createPlaylistParser();
+        previousPlaylists = new HashMap<>();
+        previousSourcePlaylist = new HashMap<>();
     }
 
     @Override
@@ -34,58 +44,37 @@ public class FrameCuratorPlaylistParser implements ParsingLoadable.Parser<HlsPla
         HlsPlaylist playlist = parserDelegate.parse(uri, inputStream);
         if (playlist instanceof HlsMediaPlaylist && uri.getFragment() != null) {
             int subsetTarget = Integer.parseInt(uri.getFragment());
-            HlsMediaPlaylist mediaPlaylist = (HlsMediaPlaylist) playlist;
-            List<HlsMediaPlaylist.Segment> updateSegments = curateSmallestIFrames(mediaPlaylist, subsetTarget);
+            HlsMediaPlaylist sourcePlaylist = (HlsMediaPlaylist) playlist;
 
+            SmallestIFramesCurator smallestIFramesCurator = new SmallestIFramesCurator(previousPlaylists.get(uri));
+            HlsMediaPlaylist previousSource = previousSourcePlaylist.get(uri);
+            HlsMediaPlaylist curatedPlaylist;
+            if (previousSource == null) {
+                curatedPlaylist = smallestIFramesCurator.generateCuratedPlaylist(sourcePlaylist, subsetTarget, uri);
+            } else {
+                curatedPlaylist = smallestIFramesCurator.updateCurrentCurated(sourcePlaylist, previousSource, subsetTarget);
+            }
 
-            playlist = mediaPlaylist.cloneCuratedPlaylist(updateSegments, uri);
+            previousPlaylists.put(uri, curatedPlaylist);
+            previousSourcePlaylist.put(uri, sourcePlaylist);
+            playlist = curatedPlaylist;
         }
         return playlist;
     }
 
-    @VisibleForTesting
-    List<HlsMediaPlaylist.Segment> curateSmallestIFrames(HlsMediaPlaylist mediaPlaylist, int subset) {
-        List<HlsMediaPlaylist.Segment> baseSegments = mediaPlaylist.segments;
-        List<HlsMediaPlaylist.Segment> curatedSegments = new ArrayList<>();
+    static Pair<List<HlsMediaPlaylist.Segment>, List<HlsMediaPlaylist.Segment>> computeSegmentsDelta(
+        HlsMediaPlaylist updated, HlsMediaPlaylist previous) {
+        List<HlsMediaPlaylist.Segment> removed = new ArrayList<>();
+        List<HlsMediaPlaylist.Segment> added = new ArrayList<>();
+        if (updated.isUpdateValid(previous)) {
+            int mediaSequenceDelta = (int) (updated.mediaSequence - previous.mediaSequence);
+            removed.addAll(previous.segments.subList(0, mediaSequenceDelta));
 
-        if (baseSegments.size() > 0) {
-            curatedSegments.add(baseSegments.get(0));
+            int firstAdded = updated.segments.size() - mediaSequenceDelta;
+            added.addAll(updated.segments.subList(firstAdded, updated.segments.size()));
+        } else {
+            Log.w(TAG, "Warning, update is not valid so ignoring");
         }
-
-        int tolerance = (int) Math.floor(subset * .25);
-
-        for (int segNum = subset - tolerance; segNum < baseSegments.size(); segNum += subset) {
-            int lastIndex =
-                    Math.min(baseSegments.size() - 1, segNum + 2 * tolerance);
-            curatedSegments.add(smallestSegmentInRange(baseSegments, segNum, lastIndex));
-        }
-        List<HlsMediaPlaylist.Segment> clonedSegments = new ArrayList<>();
-        for (int idx = 0; idx < curatedSegments.size(); idx++) {
-            HlsMediaPlaylist.Segment current = curatedSegments.get(idx);
-            long duration;
-            if (idx == curatedSegments.size() - 1) {
-                duration = mediaPlaylist.durationUs - current.relativeStartTimeUs;
-            } else {
-                HlsMediaPlaylist.Segment nextSegment = curatedSegments.get(idx + 1);
-                duration = nextSegment.relativeStartTimeUs - current.relativeStartTimeUs;
-            }
-            clonedSegments.add(current.copyWithDuration(duration));
-        }
-
-        return clonedSegments;
-    }
-
-    @VisibleForTesting
-    @NonNull
-    HlsMediaPlaylist.Segment smallestSegmentInRange(List<HlsMediaPlaylist.Segment> segments, int startIndex, int endIndex) {
-        long minLength = Long.MAX_VALUE;
-        HlsMediaPlaylist.Segment minSizeSegment = null;
-        for (HlsMediaPlaylist.Segment segment : segments.subList(startIndex, endIndex)) {
-            if (segment.byteRangeLength < minLength) {
-                minSizeSegment = segment;
-                minLength = segment.byteRangeLength;
-            }
-        }
-        return minSizeSegment == null ? segments.get(endIndex) : minSizeSegment;
+        return new Pair<>(removed, added);
     }
 }
