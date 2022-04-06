@@ -5,14 +5,15 @@ import android.net.Uri;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.Iterator;
 
 import com.google.android.exoplayer2.C;
 import com.google.android.exoplayer2.Format;
 import com.google.android.exoplayer2.source.hls.playlist.HlsMasterPlaylist;
-import com.google.android.exoplayer2.source.hls.playlist.HlsMediaPlaylist;
 import com.google.android.exoplayer2.source.hls.playlist.HlsPlaylist;
 import com.google.android.exoplayer2.source.hls.playlist.HlsPlaylistParserFactory;
 import com.google.android.exoplayer2.upstream.ParsingLoadable;
+import com.google.android.exoplayer2.util.Util;
 
 public class DualModeHlsPlaylistParserFactory implements HlsPlaylistParserFactory {
     static final int IFRAME_SUBSET_TARGET = 7;      // TODO this may become a list of values
@@ -46,15 +47,17 @@ public class DualModeHlsPlaylistParserFactory implements HlsPlaylistParserFactor
                             highestIframe = sourceVariant;
                         }
 
+                        // TODO - perhaps these get removed and all replaced with curated?
                         if (sourceVariant.format.label == null) {
                             Format updatedFormat = sourceVariant.format.buildUpon()
-                                    .setLabel("iFrame_" + variantIndx)
+                                    .setLabel("iFrame_org")
                                     .build();
                             augmentedVariants.set(variantIndx, cloneVariantWithFormat(sourceVariant, updatedFormat));
                         }
                     }
                     variantIndx++;
                 }
+                removeAudioOnlyVaraints(augmentedVariants);
 
                 if (highestIframe != null) {
                     Uri clonedVariantUri = highestIframe.url.buildUpon()
@@ -86,6 +89,29 @@ public class DualModeHlsPlaylistParserFactory implements HlsPlaylistParserFactor
                 }
             }
             return playlist;
+        }
+
+        /**
+         * Remove any audio only varaints that polute the master playlist, unless that is all there
+         * is.
+         *
+         * @param augmentedVariants
+         */
+        private void removeAudioOnlyVaraints(ArrayList<HlsMasterPlaylist.Variant> augmentedVariants) {
+            boolean hasVideo = false;
+            for (HlsMasterPlaylist.Variant variant : augmentedVariants) {
+                hasVideo |= Util.getCodecCountOfType(variant.format.codecs, C.TRACK_TYPE_VIDEO) != 0;
+            }
+            if (hasVideo) {
+                Iterator<HlsMasterPlaylist.Variant> it = augmentedVariants.iterator();
+                while (it.hasNext()) {
+                    HlsMasterPlaylist.Variant variant = it.next();
+                    if (Util.getCodecCountOfType(variant.format.codecs, C.TRACK_TYPE_VIDEO) == 0) {
+                        it.remove();
+                    }
+                }
+            }
+
         }
     }
 
