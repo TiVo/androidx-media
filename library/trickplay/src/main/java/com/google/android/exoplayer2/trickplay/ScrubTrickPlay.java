@@ -158,7 +158,6 @@ public class ScrubTrickPlay implements TrickPlayEventListener, Player.EventListe
 
   @Override
   public void trickFrameRendered(long frameRenderTimeUs) {
-    player.setPlayWhenReady(false);
     long seekToRenderDelta = C.TIME_UNSET;
     if (lastSeekTime != C.TIME_UNSET) {
       seekToRenderDelta = SystemClock.DEFAULT.elapsedRealtime() - lastSeekTime;
