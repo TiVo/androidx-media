@@ -15,6 +15,7 @@ import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
+import com.google.android.exoplayer2.C;
 import com.google.android.exoplayer2.source.hls.playlist.DefaultHlsPlaylistParserFactory;
 import com.google.android.exoplayer2.source.hls.playlist.HlsMediaPlaylist;
 import com.google.android.exoplayer2.source.hls.playlist.HlsPlaylist;
@@ -116,6 +117,9 @@ public class SmallestIFrameCuratorTest {
       assertThat(original).isNotNull();
       assertThat(original.relativeDiscontinuitySequence).isEqualTo(segment.relativeDiscontinuitySequence);
 //            System.out.println("duration\t"+segment.durationUs);
+
+      // Start time of segments must match original
+      assertThat(original.relativeStartTimeUs).isEqualTo(segment.relativeStartTimeUs);
     }
     assertThat(totalDuration).isEqualTo(mediaPlaylist.durationUs);
 
@@ -190,7 +194,11 @@ public class SmallestIFrameCuratorTest {
   public static void dumpSegments(List<HlsMediaPlaylist.Segment> segments) {
     int i=1;
     for (HlsMediaPlaylist.Segment segment: segments) {
-      System.out.println("segment " + (i++) + " DSN: " + segment.relativeDiscontinuitySequence + " startUs: " + segment.relativeStartTimeUs + " durationUs: " + segment.durationUs + " uri:" + segment.url);
+      String url = segment.url;
+      if (segment.byteRangeLength != C.LENGTH_UNSET) {
+        url = url + ",Range: " + segment.byteRangeOffset + "/" + segment.byteRangeLength;
+      }
+      System.out.println("segment " + (i++) + " DSN: " + segment.relativeDiscontinuitySequence + " startUs: " + segment.relativeStartTimeUs + " durationUs: " + segment.durationUs + " uri:" + url);
     }
   }
 
