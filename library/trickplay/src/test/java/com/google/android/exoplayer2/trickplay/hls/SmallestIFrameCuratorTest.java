@@ -8,7 +8,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 
 import org.junit.Before;
@@ -21,14 +20,13 @@ import com.google.android.exoplayer2.source.hls.playlist.HlsMediaPlaylist;
 import com.google.android.exoplayer2.source.hls.playlist.HlsPlaylist;
 import com.google.android.exoplayer2.testutil.TestUtil;
 import com.google.android.exoplayer2.upstream.ParsingLoadable;
+import static com.google.android.exoplayer2.trickplay.hls.HlsPlaylistUtils.createMockSegment;
 import static com.google.common.truth.Truth.assertThat;
 
 @RunWith(AndroidJUnit4.class)
 public class SmallestIFrameCuratorTest {
 
   private HlsMediaPlaylist mediaPlaylist;
-  private ArrayList<HlsMediaPlaylist.Segment> mockSegments;
-  private HlsMediaPlaylist mockPreviousPlaylist;
   private HlsMediaPlaylist currentPlaylist1;
   private HlsMediaPlaylist previousPlaylist1;
   private HlsMediaPlaylist currentPlaylist2;
@@ -39,29 +37,6 @@ public class SmallestIFrameCuratorTest {
     InputStream testPlaylistStream = TestUtil.getInputStream(ApplicationProvider.getApplicationContext(), "testplaylist.m3u8");
     ParsingLoadable.Parser<HlsPlaylist> playlistParser = new DefaultHlsPlaylistParserFactory().createPlaylistParser();
     mediaPlaylist = (HlsMediaPlaylist) playlistParser.parse(Uri.EMPTY, testPlaylistStream);
-    mockSegments = new ArrayList<>(Arrays.asList(
-        new HlsMediaPlaylist.Segment("1.ts", 1, 10, null, null),
-        new HlsMediaPlaylist.Segment("2.ts", 2, 10, null, null),
-        new HlsMediaPlaylist.Segment("3.ts", 3, 10, null, null),
-        new HlsMediaPlaylist.Segment("4.ts", 4, 10, null, null)
-    ));
-    mockPreviousPlaylist = new HlsMediaPlaylist(
-        HlsMediaPlaylist.PLAYLIST_TYPE_UNKNOWN,
-        "",
-        Collections.emptyList(),
-        0,
-        1_000_000,
-        false,
-        0,
-        123,
-        8,
-        6,
-        true,
-        false,
-        true,
-        null,
-        mockSegments
-    );
 
     testPlaylistStream = TestUtil.getInputStream(ApplicationProvider.getApplicationContext(), "testplaylist_update_current_1.m3u8");
     currentPlaylist1 = (HlsMediaPlaylist) playlistParser.parse(Uri.EMPTY, testPlaylistStream);

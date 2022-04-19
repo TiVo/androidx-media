@@ -33,7 +33,7 @@ public class DualModeHlsPlaylistParserFactoryTest {
     @Before
     public void setupTest() throws IOException {
         InputStream masterPlaylistSource = TestUtil.getInputStream(ApplicationProvider.getApplicationContext(), "testmaster.m3u8");
-        parserFactory = new DualModeHlsPlaylistParserFactory(new DefaultHlsPlaylistParserFactory());
+        parserFactory = new DualModeHlsPlaylistParserFactory(new DefaultHlsPlaylistParserFactory(), new int[] {5});
         ParsingLoadable.Parser<HlsPlaylist> masterParser = parserFactory.createPlaylistParser();
         HlsPlaylist playlist = masterParser.parse(Uri.EMPTY, masterPlaylistSource);
         assertThat(playlist).isInstanceOf(HlsMasterPlaylist.class);
