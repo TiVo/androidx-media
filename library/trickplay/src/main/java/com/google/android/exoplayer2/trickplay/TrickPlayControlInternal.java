@@ -1,5 +1,8 @@
 package com.google.android.exoplayer2.trickplay;
 
+import com.google.android.exoplayer2.Format;
+import com.google.android.exoplayer2.trickplay.hls.FrameRateAnalyzer;
+
 /**
  * Internal interface (used by trickplay code that overides ExoPlayer classes internally) to
  * TrickPlayController.
@@ -22,11 +25,28 @@ public interface TrickPlayControlInternal extends TrickPlayControl {
   void removeEventListenerInternal(TrickPlayEventListener eventListener);
 
   /**
-   * If the renderer should control frame rate.
+   * Frame rate increase as playback speed increases, reverse frame rates are
+   * slower then forward as UX dictates humans respond differently to high speed reverse
+   * vs forward.
    *
-   * @return true to use trick-play rendering.
+   * NOTE this is based on speed rather then {@link TrickMode} as long term plan is to
+   * allow direct speed selection not just buckets
+   *
+   * @param speed playback speed (<0 is reverse)
+   * @return target frame rate
    */
-  boolean useTrickPlayRendering();
+  float getTargetFrameRateForPlaybackSpeed(float speed);
+
+  /**
+   * Given an iFrame {@link Format} object look up it's actual normal speed frame rate.
+   *
+   * This method just a proxy, see {@link FrameRateAnalyzer#getFrameRateFor(Format)} for
+   * full description of the operation.
+   *
+   * @param format the format to lookup frame rate for
+   * @return the actual, estimated frame rate, or {@link Format#NO_VALUE} if frame rate is not yet known
+   */
+  float getFrameRateForFormat(Format format);
 
   /**
    * Called from the renderer (on the ExoPlayer's player thread) to report rendering a frame

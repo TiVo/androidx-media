@@ -8,6 +8,7 @@ import com.google.android.exoplayer2.Format;
 import com.google.android.exoplayer2.source.TrackGroup;
 import com.google.android.exoplayer2.trickplay.TrickPlayControl;
 import com.google.android.exoplayer2.trickplay.TrickPlayControlInternal;
+import com.google.android.exoplayer2.trickplay.hls.AugmentedPlaylistParser;
 import com.google.android.exoplayer2.upstream.BandwidthMeter;
 import com.google.android.exoplayer2.util.Clock;
 import com.google.android.exoplayer2.util.MimeTypes;
@@ -220,12 +221,63 @@ public class IFrameAwareAdaptiveTrackSelection extends AdaptiveTrackSelection {
     return value;
   }
 
+  /**
+   * Examines each of the iFrame only Formats in this {@link TrackSelection} to find the
+   * one nearest to the target playback speed ({@link TrickPlayControlInternal#getTargetFrameRateForPlaybackSpeed(float)})
+   *
+   * Neither HLS or DASH require trickplay variants to specify frame rate, so this is inferred by analyzing
+   * the segment durations in the iFrame only playlist.  For the curated playlists, {@link Format#frameRate} is
+   * set as the fraction of the source playlist's frame rate (which may not be specified).
+   *
+   * If the no playlist has yet been loaded and the original source playlist frame rate is unknown this method will
+   * just return the source playlist format
+   *
+   * @param playbackSpeed - current trickplay speed (forward, so > 0)
+   * @return the matching Format closest matching format or the source.
+   */
+  @VisibleForTesting
+  Format closestTargetFrameRateMatch(float playbackSpeed) {
+    @Nullable Format closest = null;
+    if (control != null) {
+      float targetFrameRate = control.getTargetFrameRateForPlaybackSpeed(playbackSpeed);
+      float lowestDelta = Float.MAX_VALUE;
+      for (int i = 0; i < length(); i++) {
+        Format candidate = getFormat(i);
+        if (Factory.isIframeOnly(candidate)) {
+          final float frameRateForFormat = control.getFrameRateForFormat(candidate);
+          if (frameRateForFormat != Format.NO_VALUE) {
+            float actualFrameRate = frameRateForFormat * playbackSpeed;
+            float delta = Math.abs(targetFrameRate - actualFrameRate);
+            if (delta < lowestDelta) {
+              closest = candidate;
+              lowestDelta = delta;
+            }
+          }
+        }
+      }
+    }
+    return closest == null ? getSourceIFrameFormat() : closest;
+  }
+
+  private Format getSourceIFrameFormat() {
+    @Nullable Format format = null;
+    for (int index = 0; format == null && index < length(); index++) {
+      Format candidate = getFormat(index);
+      if (AugmentedPlaylistParser.SRC_FORMAT_LABEL.equals(candidate.label)) {
+        format = candidate;
+      }
+    }
+    assert format != null;
+    return format;
+  }
+
   private boolean isBestIFrameFormat(Format format, int trackBitrate, float playbackSpeed, long effectiveBitrate) {
     boolean canSelect;
-    if (playbackSpeed <= 15.0f) {
-      canSelect = super.canSelectFormat(format, trackBitrate, playbackSpeed, effectiveBitrate);
-    } else {
+    @Nullable Format closestFrameRateMatch = closestTargetFrameRateMatch(playbackSpeed);
+    if (closestFrameRateMatch == null) {
       canSelect = isMinBitrateFormat(format);
+    } else {
+      canSelect = closestFrameRateMatch.equals(format);
     }
     return canSelect;
   }

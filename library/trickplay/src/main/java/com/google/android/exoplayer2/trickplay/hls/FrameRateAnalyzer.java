@@ -3,6 +3,7 @@ package com.google.android.exoplayer2.trickplay.hls;
 import android.net.Uri;
 import android.os.Build;
 import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 import androidx.annotation.RequiresApi;
 import androidx.annotation.VisibleForTesting;
 
@@ -13,6 +14,7 @@ import java.util.Objects;
 
 import com.google.android.exoplayer2.C;
 import com.google.android.exoplayer2.Format;
+import com.google.android.exoplayer2.FormatHolder;
 import com.google.android.exoplayer2.source.hls.playlist.HlsMasterPlaylist;
 import com.google.android.exoplayer2.source.hls.playlist.HlsMediaPlaylist;
 import com.google.android.exoplayer2.util.Log;
@@ -29,7 +31,8 @@ import com.google.android.exoplayer2.util.Log;
 public class FrameRateAnalyzer {
   private static final String TAG = "FrameRateAnalyzer";
 
-  private final Map<FormatKey, Float> frameRatesByFormat;
+  @NonNull private final Map<FormatKey, Float> frameRatesByFormat;
+  @Nullable private final Format iFrameOnlySourceFormat;
 
   /**
    * The HlsSampleStreamWrapper clones the sample {@link Format} object and combines it with
@@ -38,16 +41,10 @@ public class FrameRateAnalyzer {
    */
   @VisibleForTesting
   static class FormatKey {
-    private final int bitrate;
-    private final int width;
-    private final int height;
-    private final float frameRate;
+    private final Format baseFormat;
 
     FormatKey(Format format) {
-      bitrate = format.bitrate;
-      width = format.width;
-      height = format.height;
-      frameRate = format.frameRate;
+      baseFormat = format;
     }
 
     @Override
@@ -55,20 +52,21 @@ public class FrameRateAnalyzer {
       if (this == o) return true;
       if (o == null || getClass() != o.getClass()) return false;
       FormatKey formatKey = (FormatKey) o;
-      return bitrate == formatKey.bitrate
-          && width == formatKey.width
-          && height == formatKey.height
-          && Float.compare(formatKey.frameRate, frameRate) == 0;
+      return baseFormat.bitrate == formatKey.baseFormat.bitrate
+          && baseFormat.width == formatKey.baseFormat.width
+          && baseFormat.height == formatKey.baseFormat.height
+          && Float.compare(formatKey.baseFormat.frameRate, baseFormat.frameRate) == 0;
     }
 
     @RequiresApi(api = Build.VERSION_CODES.KITKAT)
     @Override
     public int hashCode() {
-      return Objects.hash(bitrate, width, height, frameRate);
+      return Objects.hash(baseFormat.bitrate, baseFormat.width, baseFormat.height, baseFormat.frameRate);
     }
   }
 
-  public FrameRateAnalyzer() {
+  public FrameRateAnalyzer(@Nullable Format sourceIframeOnly) {
+    iFrameOnlySourceFormat = sourceIframeOnly;
     frameRatesByFormat = new HashMap<>();
   }
 
@@ -95,11 +93,16 @@ public class FrameRateAnalyzer {
     if (matched != null) {
       if ((matched.format.roleFlags & C.ROLE_FLAG_TRICK_PLAY) == C.ROLE_FLAG_TRICK_PLAY) {
         float frameRate = analyzeFrameRate(mediaPlaylist);
-        final FormatKey key = new FormatKey(matched.format);
-        if (! frameRatesByFormat.containsKey(key)) {
-          Log.d(TAG, "initial frame rate of " + frameRate + " for format " + Format.toLogString(matched.format));
+        if (frameRate != Format.NO_VALUE) {
+          final FormatKey key = new FormatKey(matched.format);
+          if (! frameRatesByFormat.containsKey(key)) {
+            Log.d(TAG, "initial frame rate of " + frameRate + " for format " + Format.toLogString(matched.format));
+          }
+          frameRatesByFormat.put(key, frameRate);
+        } else {
+          Log.w(TAG, "Skiping empty playlist frame rate calculation, for format "
+              + Format.toLogString(matched.format) + " playlist URI: " + mediaPlaylist.baseUri);
         }
-        frameRatesByFormat.put(key, frameRate);
       }
     } else {
       Log.w(TAG, "playlist URI " + targetUri + " not matched in master playlist variants.");
@@ -112,33 +115,89 @@ public class FrameRateAnalyzer {
    * Look up the actual frame rate for the media playlist (assumed to be iFrame only) associated with
    * the <i>format</i> and return it.
    *
-   * If the media playlist has seen at least one update then the actual frame rate was computed by
-   * {@link #analyzeFrameRate(HlsMediaPlaylist)}, return this.  Otherwise if any other media playlist
-   * was updated, use the ratio of the {@link Format#frameRate} values between the two playlists times the
-   * updated playlist's measured frame rate value.  Lastly, return the input format's {@link Format#frameRate}
-   * value, these are set assuming the original source iFrame playlist is 1 second duration iFrames, less then
-   * perfect, but will update on first playlist load.
+   * The HLS 'FRAME-RATE' is in the {@link Format#frameRate}, however the intention of this is
+   * for specifying normal video bitrate is over 30FPS, so in the spec it's OPTIONAL.
    *
-   * This method is called by the player thread for track selection
+   * For curated (internally generated) iFrame only variants, the {@link Format#frameRate} is set
+   * to the fraction of the original source variant.  For example, if the curation half's the
+   * frame rate of the source it's {@link Format#frameRate} would be 0.5f.  So once we measure any
+   * the variant's frame rate, all other variants frame rates can be estimated.  So there are three
+   * possible cases:
+   *
+   * <ol>
+   *   <li>Playlist matching the input Format has loaded at least once</li>
+   *   <li>Any other playlist has loaded at least once</li>
+   *   <li>No playlist has loaded</li>
+   * </ol>
+   *
+   * Case 1 -- The format has seen at least one update then the actual frame rate was computed by
+   * {@link #analyzeFrameRate(HlsMediaPlaylist)}, return it.
+   *
+   * Case 2 -- if any other media playlist was updated, use it's measured frame rate times the the
+   * ratio of the input {@link Format#frameRate} to the measured playlist's {@link Format#frameRate}
+   * as an estimate of the input {@link Format}'s frame rate.  Say you have 2 dervied playlists and
+   * a source playlist, given frame rates F1, F2, and Fs, this is the relationships
+   *
+   * F1 = Fs * Format1.frameRate
+   * F2 = Fs * Format2.frameRate
+   *
+   * So if you know F1 from measuring and don't know Fs then you have:
+   *   Fs = F1 / Format1.frameRate, thus
+   *   F2 = F1 * Format2.frameRate / Format1.frameRate
+   *
+   * Case 3 -- No playlist has loaded, And the original source frame rate is completely unknown return
+   * {@link Format#NO_VALUE}, else even if no playlist was loaded, if we know the original source
+   * playlist frame rate, then compute similar to case 2 use the ratio of the two {@link Format#frameRate}
+   * values
    *
    * @param format format to match to a playlist variant
-   * @return the analyzed frame rate (if playlist update) or approximate (guessed) rate
+   * @return the analyzed frame rate (if playlist update), an approximate (guessed) rate, or {@link Format#NO_VALUE}
    */
    public synchronized float getFrameRateFor(Format format) {
     Float value = frameRatesByFormat.get(new FormatKey(format));
-    if (value == null && frameRatesByFormat.size() > 0) {
+    if (frameRatesByFormat.size() > 0 && value == null) {   // case 2
       Map.Entry<FormatKey, Float> entry = frameRatesByFormat.entrySet().iterator().next();
+      float rateRatio = frameRateMultiplier(format) / frameRateMultiplier(entry.getKey().baseFormat);
+      value = rateRatio * entry.getValue();
+    } else if (frameRatesByFormat.size() == 0) {            // case 3
+      value = (float) Format.NO_VALUE;
 
-      // If playlist for the requested format has not loaded, guess the frame rate by using
-      // the ratio of frame rates from any other playlist that was loaded.
-      value = (format.frameRate / entry.getKey().frameRate) * entry.getValue();
-      Log.d(TAG, "getFrameRateFor() estimate for " + Format.toLogString(format) + " value " + value);
-    } else if (value != null) {
-      Log.d(TAG, "getFrameRateFor() format " + Format.toLogString(format) + " is " + value);
+      // If original source frame rate is known, return it or use the ratio method
+      if (iFrameOnlySourceFormat != null) {
+        if (iFrameOnlySourceFormat.equals(format)) {
+          value = iFrameOnlySourceFormat.frameRate;
+        } else if (iFrameOnlySourceFormat.frameRate != Format.NO_VALUE) {
+          value = iFrameOnlySourceFormat.frameRate * format.frameRate;
+        }
+      }
     }
-    return value == null ? format.frameRate : value;
+     return value;
   }
 
+  /**
+   * Return the ratio to the source iFrame only format, or 1.0f if the input format
+   * is a source iFrame only playlist
+   *
+   * @param format input iFrame format, for curated playlists the {@link Format#frameRate}
+   *               is the ratio to the source iFrame playlist's frame rate
+   * @return ratio
+   */
+  private float frameRateMultiplier(Format format) {
+    boolean isSourceFormat = AugmentedPlaylistParser.SRC_FORMAT_LABEL.equals(format.label);
+    return isSourceFormat ? 1.0f : format.frameRate;
+  }
+
+  /**
+   * Looks at the set of iFrame only segments in an iFrame only playlist and
+   * computes the average (mean) segment duration in seconds.  This can be used
+   * to determine the frame rate (FPS) of the playlist, simply 1/returned value.
+   *
+   * If there are no segments in the playlist (duration is thus 0) returns
+   * {@link Format#NO_VALUE}
+   *
+   * @param mediaPlaylist - media HLS playlist to analyze segments in
+   * @return the average duration of a segment in seconds
+   */
   @VisibleForTesting
   float analyzeFrameRate(@NonNull HlsMediaPlaylist mediaPlaylist) {
     long totalDurationUs = 0L;
@@ -147,6 +206,19 @@ public class FrameRateAnalyzer {
       frameCount++;
       totalDurationUs += segment.durationUs;
     }
-    return (frameCount * 1_000_000.0f) / totalDurationUs;
+    return totalDurationUs > 0L ? (frameCount * 1_000_000.0f) / totalDurationUs : Format.NO_VALUE;
   }
+
+
+  public static Format findIFrameOnlySourceFormat(HlsMasterPlaylist masterPlaylist) {
+    Format sourceFormat = null;
+    for (int i=0; i < masterPlaylist.variants.size() && sourceFormat == null; i++) {
+      HlsMasterPlaylist.Variant variant = masterPlaylist.variants.get(i);
+      if (AugmentedPlaylistParser.SRC_FORMAT_LABEL.equals(variant.format.label)) {
+        sourceFormat = variant.format;
+      }
+    }
+    return sourceFormat;
+  }
+
 }

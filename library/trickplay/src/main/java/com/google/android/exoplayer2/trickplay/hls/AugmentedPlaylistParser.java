@@ -23,7 +23,8 @@ import com.google.android.exoplayer2.util.Util;
  * playlists in the source master.
  *
  */
-class AugmentedPlaylistParser implements ParsingLoadable.Parser<HlsPlaylist> {
+public class AugmentedPlaylistParser implements ParsingLoadable.Parser<HlsPlaylist> {
+  public static final String SRC_FORMAT_LABEL = "iFrame_org";
   private final ParsingLoadable.Parser<HlsPlaylist> delegatePlaylistParser;
   private final int[] subsetTargets;
 
@@ -60,8 +61,7 @@ class AugmentedPlaylistParser implements ParsingLoadable.Parser<HlsPlaylist> {
           // TODO - perhaps these get removed and all replaced with curated?
           if (sourceVariant.format.label == null) {
             Format updatedFormat = sourceVariant.format.buildUpon()
-                .setLabel("iFrame_org")
-                .setFrameRate(1.0f)         // Base is 1.0x frame rate, actual determined on playlist load
+                .setLabel(SRC_FORMAT_LABEL)
                 .build();
             augmentedVariants.set(variantIndx, cloneVariantWithFormat(sourceVariant, updatedFormat));
           }

@@ -14,6 +14,8 @@ import com.google.android.exoplayer2.LoadControl;
 import com.google.android.exoplayer2.Player;
 import com.google.android.exoplayer2.Timeline;
 import com.google.android.exoplayer2.source.TrackGroup;
+import com.google.android.exoplayer2.source.hls.HlsManifest;
+import com.google.android.exoplayer2.trickplay.hls.FrameRateAnalyzer;
 import com.google.android.exoplayer2.util.MimeTypes;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -78,6 +80,10 @@ class TrickPlayController implements TrickPlayControlInternal {
      */
     private final LastNPositions lastRenderPositions = new LastNPositions();
     private boolean playbackSpeedForwardTrickPlayEnabled = true;
+
+    /** Setup on first playlist load, used to resolve the frame rate for an iFrame variant
+     */
+    private FrameRateAnalyzer frameRateAnalyzer;
 
     TrickPlayController(DefaultTrackSelector trackSelector) {
         this.trackSelector = trackSelector;
@@ -265,9 +271,25 @@ class TrickPlayController implements TrickPlayControlInternal {
         }
 
         @Override
-        public void onTimelineChanged(EventTime eventTime, int reason) {
-            if (reason == Player.TIMELINE_CHANGE_REASON_SOURCE_UPDATE) {
-                exitTrickPlayIfTimelineExceeded(eventTime.timeline);
+        public void onTimelineChanged(EventTime eventTime, @Player.TimelineChangeReason int reason) {
+            switch (reason) {
+                case Player.TIMELINE_CHANGE_REASON_PLAYLIST_CHANGED:        // TODO - VTP should have exited ?
+                    frameRateAnalyzer = null;
+                    break;
+                case Player.TIMELINE_CHANGE_REASON_SOURCE_UPDATE:
+                    Timeline timeline = eventTime.timeline;
+
+                    // TODO, this will need changes for DASH, and it only supports single window timeline
+                    Timeline.Window window = timeline.getWindow(0, new Timeline.Window());
+                    if (window.manifest instanceof HlsManifest) {
+                        HlsManifest manifest = (HlsManifest) window.manifest;
+                        if (frameRateAnalyzer == null) {
+                            frameRateAnalyzer = new FrameRateAnalyzer(FrameRateAnalyzer.findIFrameOnlySourceFormat(manifest.masterPlaylist));
+                        }
+                        frameRateAnalyzer.playlistUpdated(manifest.masterPlaylist, manifest.mediaPlaylist);
+                    }
+                    exitTrickPlayIfTimelineExceeded(timeline);
+                    break;
             }
         }
 
@@ -700,10 +722,32 @@ class TrickPlayController implements TrickPlayControlInternal {
     // Internal API - used privately in the trickplay library
     ////
 
-    // NOTE this method must be fast and will be called from the ExoPlayer playback thread
     @Override
-    public synchronized boolean useTrickPlayRendering() {
-      return getCurrentTrickDirection() == TrickPlayDirection.FORWARD && isSmoothPlayAvailable();
+    public synchronized float getTargetFrameRateForPlaybackSpeed(float speed) {
+        float frameRate;
+
+        // Calculate from a 3 data point linear reqression based on the
+        // target speeds for the 3 forward and 3 reverse speeds.
+        // forward rates higher then reverse.  The closest fit formula
+        // is ŷ = bX + a, a plethora of calculators are available to generate the
+        // values, I used https://www.socscistatistics.com/tests/regression/default.aspx
+        //
+        // As the JavaDoc for the method says, we can use different, even non linear
+        // if the speeds are more continuous in the future.
+        //
+        final float beta = speed < 0 ? 0.04286f : 0.09048f;
+        frameRate = (Math.abs(speed) *  beta) + 2.5f;
+
+        return Math.round(frameRate);
+    }
+
+    @Override
+    public synchronized float getFrameRateForFormat(Format format) {
+        float frameRate = 1.0f;
+        if (frameRateAnalyzer != null) {
+            frameRate = frameRateAnalyzer.getFrameRateFor(format);
+        }
+        return frameRate;
     }
 
 
@@ -867,7 +911,7 @@ class TrickPlayController implements TrickPlayControlInternal {
      *
      * @param mode - the {@link com.google.android.exoplayer2.trickplay.TrickPlayControl.TrickMode} to get
      * @param isIFramesAvailable - if speed should be iFrame based.
-     * @return
+     * @return playback speed to set for the mode
      */
     private static Float getDefaultSpeedForMode(TrickMode mode, boolean isIFramesAvailable) {
         Float speed = 0.0f;
