@@ -11,6 +11,14 @@
 Changes from current Google releases after 2.12.3 or un-released code from dev-v2 cherry-picked to our code.
 See [Google Releases](https://github.com/google/ExoPlayer/releases) for their release notes.
 
+###### From Google Release 2.15.0
+
+- Cherry pick commits to remove bintray jCenter and replace with Google Maven, includes:
+
+  - Update Gradle to 6.7.1 ([f4f31273 Update to Gradle...](https://github.com/google/ExoPlayer/commit/f4f312738b6794db9aa46667b3b84bb5be1a1716)) - required for AGP 4.2.0 ([AGP 4.2.0 Release Notes](https://developer.android.com/studio/releases/gradle-plugin#4-2-0)) 
+
+  - Update build tools (AGP) and remove jCenter, ([e99ca161 Upgrade build tools and switch to mavenCentral](https://github.com/google/ExoPlayer/commit/e99ca16176a9b5b3bdf6463cbd05f338baeecdd1))
+
 ###### From Google Release 2.14.2
 
 * Cherry-pick of change Google commit [b5a464c](https://github.com/google/ExoPlayer/commit/b5a464cbccd8109aabf0e6bc40f7c0860580c874). From their release notes:
