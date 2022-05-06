@@ -19,28 +19,21 @@ ENV HOME=/home/$UNAME
 ENV ANDROID_SDK_ROOT="/home/$UNAME/Android/sdk"
 ENV PATH="$PATH:$ANDROID_SDK_ROOT/cmdline-tools/latest/bin"
 
+# Bootstrap a version (6.0, https://developer.android.com/studio/releases/cmdline-tools) of commandlinetools
+# to get a workable sdkmanager.  Then use that sdkmanager to install latest
 #
-# This madness shuffle is how to install 4.0 commandline tools like Android Studio does
-# without installing all of Android studio
-# see: https://stackoverflow.com/questions/60440509/android-command-line-tools-sdkmanager-always-shows-warning-could-not-create-se
-#
-#
-# Basically the commandlinetools-linux-7302050_latest.zip includes one directory too high, so the monkey business here
-# does the equiv of tar --strip-components=1
-#
-# This first RUN creates a layer with just the Android SDK tools, next specific SDKs are installed
-#
-RUN mkdir -p $ANDROID_SDK_ROOT/cmdline-tools/latest \
-   && curl -s https://dl.google.com/android/repository/commandlinetools-linux-7302050_latest.zip > /tmp/cmdline-tools.zip \
-   && unzip -d $ANDROID_SDK_ROOT/cmdline-tools/latest /tmp/cmdline-tools.zip \
-   && mv $ANDROID_SDK_ROOT/cmdline-tools/latest/cmdline-tools/* $ANDROID_SDK_ROOT/cmdline-tools/latest/
+ENV CMDLINE_TOOLS="commandlinetools-linux-8092744_latest.zip"
+RUN if which sdkmanager; then echo "using sdkmanager: $(which sdkmanager)"; else curl -s https://dl.google.com/android/repository/$CMDLINE_TOOLS > /tmp/$CMDLINE_TOOLS \
+   && unzip -d /tmp /tmp/$CMDLINE_TOOLS \
+   && yes | /tmp/cmdline-tools/bin/sdkmanager --sdk_root=$ANDROID_SDK_ROOT "cmdline-tools;latest" ; fi
+
 #
 # Use Android's SDK manager to install the needed platforms and tools, this is in it's own layer to allow
 # containers with alternate platforms to reuse the base SDK tools.  It is also possible to install
 # or patch the SDK's in gradle within the running container as this is installed in the writeable userhome
 #
 RUN yes | sdkmanager  --licenses \
-    && yes | sdkmanager   "platform-tools" "platforms;android-29" \
-    && sdkmanager --list_installed
+    && yes | sdkmanager "platform-tools" "cmdline-tools;latest" "build-tools;31.0.0" "platforms;android-29" "platforms;android-30" \
+    && sdkmanager --list
 
 
