@@ -278,8 +278,8 @@ class AsynchronousMediaCodecBufferEnqueuer implements MediaCodecInputBufferEnque
    * buffers (see [Internal: b/149908061]).
    */
   private static boolean needsSynchronizationWorkaround() {
-    String manufacturer = Util.toLowerInvariant(Util.MANUFACTURER);
-    return manufacturer.contains("samsung") || manufacturer.contains("motorola");
+    //We all need syncronized secure input queueing
+    return true;
   }
 
   private static String createThreadLabel(int trackType) {

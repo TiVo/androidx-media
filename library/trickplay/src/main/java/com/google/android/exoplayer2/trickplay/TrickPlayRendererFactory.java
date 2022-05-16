@@ -24,6 +24,7 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 
 class TrickPlayRendererFactory extends DefaultRenderersFactory {
+  public static final String TAG = "TrickPlayRendererFactory";
 
   private final TrickPlayControlInternal trickPlayController;
 
@@ -44,16 +45,17 @@ class TrickPlayRendererFactory extends DefaultRenderersFactory {
       long allowedVideoJoiningTimeMs,
       ArrayList<Renderer> out) {
 
-    out.add(
-        new TrickPlayAwareMediaCodecVideoRenderer(
+    MediaCodecVideoRenderer videoRenderer = new TrickPlayAwareMediaCodecVideoRenderer(
             trickPlayController,
             context,
             mediaCodecSelector,
             allowedVideoJoiningTimeMs,
             enableDecoderFallback,
             eventHandler,
-            eventListener, MAX_DROPPED_VIDEO_FRAME_COUNT_TO_NOTIFY));
-
+            eventListener, MAX_DROPPED_VIDEO_FRAME_COUNT_TO_NOTIFY);
+    Log.d(TAG, "Using videoMediaCodecOperationMode=" + videoMediaCodecOperationMode);
+    videoRenderer.experimentalSetMediaCodecOperationMode(videoMediaCodecOperationMode);
+    out.add(videoRenderer);
   }
 
 
