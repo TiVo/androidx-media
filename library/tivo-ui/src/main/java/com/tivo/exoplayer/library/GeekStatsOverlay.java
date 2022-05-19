@@ -221,7 +221,7 @@ public class GeekStatsOverlay implements AnalyticsListener, Runnable {
       Format format = lastDownstreamVideoFormat
           == null ? player.getVideoFormat() : lastDownstreamVideoFormat;
 
-      trackInfo += getFormatString(format) + " - abr: " + levelSwitchCount + " ";
+      trackInfo += getFormatString(format);
 
       trackInfo += getDecoderCountersString(player.getVideoDecoderCounters());
     }
@@ -249,11 +249,20 @@ public class GeekStatsOverlay implements AnalyticsListener, Runnable {
   private String getDecoderCountersString(DecoderCounters decoderCounters) {
     String value = "";
     if (decoderCounters != null) {
-      value += String.format(Locale.getDefault(), "(qib:%d db:%d mcdb:%d r:%d)",
-          decoderCounters.inputBufferCount,
-          decoderCounters.droppedBufferCount,
-          decoderCounters.maxConsecutiveDroppedBufferCount,
-          decoderCounters.renderedOutputBufferCount);
+      if (decoderCounters.totalVideoFrameProcessingOffsetUs > 0) {
+        value += String.format(Locale.getDefault(), "(qib:%d db:%d mcdb:%d r:%d vfpo:%3.1f)",
+            decoderCounters.inputBufferCount,
+            decoderCounters.droppedBufferCount,
+            decoderCounters.maxConsecutiveDroppedBufferCount,
+            decoderCounters.renderedOutputBufferCount,
+            (float) C.usToMs(decoderCounters.totalVideoFrameProcessingOffsetUs) / (float) decoderCounters.videoFrameProcessingOffsetCount);
+      } else {
+        value += String.format(Locale.getDefault(), "(qib:%d db:%d mcdb:%d r:%d)",
+            decoderCounters.inputBufferCount,
+            decoderCounters.droppedBufferCount,
+            decoderCounters.maxConsecutiveDroppedBufferCount,
+            decoderCounters.renderedOutputBufferCount);
+      }
     }
     return value;
   }
@@ -480,7 +489,7 @@ public class GeekStatsOverlay implements AnalyticsListener, Runnable {
 
       if (loadEventInfo.loadDurationMs > 0) {
         long kbps = (loadEventInfo.bytesLoaded / loadEventInfo.loadDurationMs) * 8;
-        loadingLevel.setText(getFormatString(format) + " - " + kbps + "kbps");
+        loadingLevel.setText("ABRs: " + levelSwitchCount + "  Trk: " + getFormatString(format) + " - " + kbps + "kbps");
       }
     }
   }
