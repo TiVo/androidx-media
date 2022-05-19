@@ -93,7 +93,7 @@ public class DefaultRenderersFactory implements RenderersFactory {
   private boolean enableDecoderFallback;
   private MediaCodecSelector mediaCodecSelector;
   private @MediaCodecRenderer.MediaCodecOperationMode int audioMediaCodecOperationMode;
-  protected @MediaCodecRenderer.MediaCodecOperationMode int videoMediaCodecOperationMode;
+  private @MediaCodecRenderer.MediaCodecOperationMode int videoMediaCodecOperationMode;
   private boolean enableFloatOutput;
   private boolean enableAudioTrackPlaybackParams;
   private boolean enableOffload;

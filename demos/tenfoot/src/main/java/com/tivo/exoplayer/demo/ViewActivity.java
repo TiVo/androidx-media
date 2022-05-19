@@ -32,6 +32,7 @@ import com.google.android.exoplayer2.Timeline;
 import com.google.android.exoplayer2.analytics.AnalyticsListener;
 import com.google.android.exoplayer2.audio.AudioAttributes;
 import com.google.android.exoplayer2.demo.TrackSelectionDialog;
+import com.google.android.exoplayer2.mediacodec.MediaCodecRenderer;
 import com.google.android.exoplayer2.source.MediaSourceFactory;
 import com.google.android.exoplayer2.source.UnrecognizedInputFormatException;
 import com.google.android.exoplayer2.source.hls.HlsMediaSource;
@@ -94,6 +95,7 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
   public static final String ENABLE_TUNNELED_PLAYBACK = "enable_tunneled_playback";
   public static final String URI_LIST_EXTRA = "uri_list";
   public static final String CHUNKLESS_PREPARE = "chunkless";
+  public static final String ENABLE_ASYNC_RENDER = "enable_async_renderer";
   public static final String INITIAL_SEEK = "start_at";
   public static final String START_PLAYING = "start_playing";
   public static final String SHOW_GEEK_STATS = "show_geek";
@@ -162,7 +164,7 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
     Context context = getApplicationContext();
 
     SimpleExoPlayerFactory.initializeLogging(context, DEFAULT_LOG_LEVEL);
-    exoPlayerFactory = new SimpleExoPlayerFactory.Builder(context)
+    SimpleExoPlayerFactory.Builder builder = new SimpleExoPlayerFactory.Builder(context)
             .setPlaybackErrorHandlerListener((error, status) -> {
               switch (status) {
                 case IN_PROGRESS:
@@ -243,8 +245,14 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
                 }
               }
             })
-            .setUserAgentPrefix("TenFootDemo")
-            .build();
+            .setUserAgentPrefix("TenFootDemo");
+
+    boolean enableAsyncRenderer = getIntent().getBooleanExtra(ENABLE_ASYNC_RENDER, false);
+    if (enableAsyncRenderer) {
+      builder.setMediaCodecOperationMode(MediaCodecRenderer.OPERATION_MODE_ASYNCHRONOUS_DEDICATED_THREAD_ASYNCHRONOUS_QUEUEING);
+    }
+
+    exoPlayerFactory = builder.build();
 
     LayoutInflater inflater = LayoutInflater.from(context);
     ViewGroup activityView = (ViewGroup) inflater.inflate(R.layout.view_activity, null);

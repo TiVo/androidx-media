@@ -89,6 +89,15 @@
           app:switchPadding="8dp"
           android:layout_marginBottom="10dp"
           android:checked="true"/>
+  <Switch
+          android:id="@+id/async_render_mode"
+          android:layout_width="wrap_content"
+          android:layout_height="wrap_content"
+          android:layoutDirection="rtl"
+          android:text="Enable Async MediaCodec"
+          app:switchPadding="8dp"
+          android:layout_marginBottom="10dp"
+          android:checked="false"/>
 
   <androidx.constraintlayout.widget.ConstraintLayout
       android:layout_width="match_parent"

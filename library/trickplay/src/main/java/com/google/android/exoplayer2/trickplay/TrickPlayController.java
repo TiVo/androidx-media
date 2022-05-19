@@ -8,6 +8,7 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
 
+import com.google.android.exoplayer2.DefaultRenderersFactory;
 import com.google.android.exoplayer2.Format;
 import com.google.android.exoplayer2.LoadControl;
 import com.google.android.exoplayer2.Player;
@@ -563,7 +564,7 @@ class TrickPlayController implements TrickPlayControlInternal {
     }
 
     @Override
-    public RenderersFactory createRenderersFactory(Context context) {
+    public DefaultRenderersFactory createRenderersFactory(Context context) {
         return new TrickPlayRendererFactory(context, this);
 //        return new DefaultRenderersFactory(context);
     }

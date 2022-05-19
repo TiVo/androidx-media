@@ -9,6 +9,7 @@ import androidx.annotation.RequiresApi;
 
 import com.google.android.exoplayer2.C;
 import com.google.android.exoplayer2.DefaultLoadControl;
+import com.google.android.exoplayer2.DefaultRenderersFactory;
 import com.google.android.exoplayer2.ExoPlaybackException;
 import com.google.android.exoplayer2.ExoPlayerLibraryInfo;
 import com.google.android.exoplayer2.Format;
@@ -19,6 +20,7 @@ import com.google.android.exoplayer2.RendererCapabilities;
 import com.google.android.exoplayer2.RenderersFactory;
 import com.google.android.exoplayer2.SimpleExoPlayer;
 import com.google.android.exoplayer2.analytics.AnalyticsListener;
+import com.google.android.exoplayer2.mediacodec.MediaCodecRenderer;
 import com.google.android.exoplayer2.source.TrackGroup;
 import com.google.android.exoplayer2.source.TrackGroupArray;
 import com.google.android.exoplayer2.source.UnrecognizedInputFormatException;
@@ -140,6 +142,10 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
   /** can be set from the Factory method */
   private String userAgentPrefix;
 
+  /** If the factory has set a value for mediaCodedOpertionMode */
+  private boolean nonDefaultMediaCodecOperationMode;
+  private @MediaCodecRenderer.MediaCodecOperationMode int mediaCodecOperationMode;
+
   /**
    * Simple callback to produce an AnalyticsListener for logging purposes.
    */
@@ -174,6 +180,8 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
     private EventListenerFactory factory;
     private SourceFactoriesCreated factoriesCreatedCallback;
     private String userAgentPrefix;
+    private @MediaCodecRenderer.MediaCodecOperationMode int mediaCodecOperationMode;
+    private boolean nonDefaultMediaCodecOperationMode = false;
 
     public Builder(Context context) {
       this.context = context;
@@ -234,12 +242,27 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
       return this;
     }
 
+    /**
+     * Set the {@link MediaCodecRenderer.MediaCodecOperationMode} to use for audio and video
+     * MediaCodec renderers.
+     *
+     * @param mode mode to set, default is OPERATION_MODE_SYNCHRONOUS (TODO this will change for 1.16 update)
+     * @return this builder for chaining
+     */
+    public Builder setMediaCodecOperationMode(@MediaCodecRenderer.MediaCodecOperationMode int mode) {
+      mediaCodecOperationMode = mode;
+      nonDefaultMediaCodecOperationMode = true;
+      return this;
+    }
+
     public SimpleExoPlayerFactory build() {
       SimpleExoPlayerFactory simpleExoPlayerFactory = new SimpleExoPlayerFactory(context);
       simpleExoPlayerFactory.playerErrorHandlerListener = this.listener;
       simpleExoPlayerFactory.eventListenerFactory = this.factory;
       simpleExoPlayerFactory.factoriesCreatedCallback = this.factoriesCreatedCallback;
       simpleExoPlayerFactory.userAgentPrefix = userAgentPrefix;
+      simpleExoPlayerFactory.nonDefaultMediaCodecOperationMode = nonDefaultMediaCodecOperationMode;
+      simpleExoPlayerFactory.mediaCodecOperationMode = mediaCodecOperationMode;
       return simpleExoPlayerFactory;
     }
   }
@@ -439,7 +462,11 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
     TrackSelection.Factory trackSelectionFactory = trickPlayControlFactory.getTrackSelectionFactory();
     trackSelector = createTrackSelector(defaultTunneling, context, trackSelectionFactory);
     trickPlayControl = trickPlayControlFactory.createTrickPlayControl(trackSelector);
-    RenderersFactory renderersFactory = trickPlayControl.createRenderersFactory(context);
+    DefaultRenderersFactory renderersFactory = trickPlayControl.createRenderersFactory(context);
+
+    if (nonDefaultMediaCodecOperationMode) {
+      renderersFactory.experimentalSetMediaCodecOperationMode(mediaCodecOperationMode);
+    }
 
     LoadControl loadControl = trickPlayControl.createLoadControl(controlBuilder.createDefaultLoadControl());
 

@@ -15,6 +15,7 @@ import com.google.android.exoplayer2.Format;
 import com.google.android.exoplayer2.Renderer;
 import com.google.android.exoplayer2.decoder.DecoderInputBuffer;
 import com.google.android.exoplayer2.mediacodec.MediaCodecInfo;
+import com.google.android.exoplayer2.mediacodec.MediaCodecRenderer;
 import com.google.android.exoplayer2.mediacodec.MediaCodecSelector;
 import com.google.android.exoplayer2.util.Log;
 import com.google.android.exoplayer2.video.MediaCodecVideoRenderer;
@@ -27,11 +28,18 @@ class TrickPlayRendererFactory extends DefaultRenderersFactory {
   public static final String TAG = "TrickPlayRendererFactory";
 
   private final TrickPlayControlInternal trickPlayController;
+  private @MediaCodecRenderer.MediaCodecOperationMode int videoMediaCodecOperationMode;
 
   TrickPlayRendererFactory(Context context, TrickPlayControlInternal controller) {
     super(context);
     trickPlayController = controller;
     setAllowedVideoJoiningTimeMs(0);
+  }
+
+  @Override
+  public DefaultRenderersFactory experimentalSetVideoMediaCodecOperationMode(@MediaCodecRenderer.MediaCodecOperationMode int mode) {
+    videoMediaCodecOperationMode = mode;
+    return super.experimentalSetVideoMediaCodecOperationMode(mode);
   }
 
   @Override

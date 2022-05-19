@@ -53,6 +53,7 @@ public class MainActivity extends FragmentActivity {
   Switch tunnelingSwitch;
   Switch chunklessSwitch;
   Switch geekStatsSwitch;
+  Switch asyncRenderSwitch;
   protected ArrayAdapter<CharSequence> urlAdapter;
 
   private List<String> urlList;
@@ -106,6 +107,7 @@ public class MainActivity extends FragmentActivity {
 
     tunnelingSwitch = (Switch) findViewById(R.id.enable_tunneling);
     geekStatsSwitch = (Switch) findViewById(R.id.geek_stats_switch);
+    asyncRenderSwitch = (Switch) findViewById(R.id.async_render_mode);
     chunklessSwitch = (Switch) findViewById(R.id.enable_chunkless_prepare);
     ArrayAdapter<CharSequence> encryptAdapter = ArrayAdapter.createFromResource(this,
         R.array.encryption_type, android.R.layout.simple_spinner_item);
@@ -183,6 +185,7 @@ public class MainActivity extends FragmentActivity {
   protected void issuePlayIntent(Intent startVideoIntent) {
     startVideoIntent.putExtra(ViewActivity.CHUNKLESS_PREPARE, chunklessSwitch.isChecked());
     startVideoIntent.putExtra(ViewActivity.SHOW_GEEK_STATS, geekStatsSwitch.isChecked());
+    startVideoIntent.putExtra(ViewActivity.ENABLE_ASYNC_RENDER, asyncRenderSwitch.isChecked());
     startVideoIntent.putExtra(ViewActivity.ENABLE_TUNNELED_PLAYBACK, tunnelingSwitch.isChecked());
     startActivity(startVideoIntent);
   }
