@@ -8,6 +8,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 
 import org.junit.Before;
@@ -164,6 +165,35 @@ public class SmallestIFrameCuratorTest {
       HlsMediaPlaylist.Segment raw = rawUpdatedSegments.get(i);
       assertThat(clone.relativeDiscontinuitySequence).isEqualTo(raw.relativeDiscontinuitySequence - expectedDiscontinuitySequenceNumber);
     }
+  }
+
+  /**
+   * Velocix origin produces iFrame playlists with no segments and no program date time, all we can
+   * do is ignore these and hope they will produce valid ones at some point (otherwise it will be a
+   * playlist stuck exception)
+   */
+  @Test
+  public void computePlaylistUpdates_ignoresInvalidUpdate() {
+    // Initial curation of first playlist
+    HlsMediaPlaylist curated = new SmallestIFramesCurator().generateCuratedPlaylist(previousPlaylist2, 5, Uri.EMPTY);
+
+    // Compute the updates
+    SmallestIFramesCurator testee = new SmallestIFramesCurator(curated);
+
+    // Playlist is "updated" by Velocix (MSN changes), but has no segments
+    final HlsMediaPlaylist emptyPlaylistUpdate = currentPlaylist1.copyWithUpdates(
+        Collections.emptyList(),
+        "",
+        0,
+        previousPlaylist2.mediaSequence + 3,
+        0);
+    SmallestIFramesCurator.PlaylistUpdates update = testee.computePlaylistUpdates(emptyPlaylistUpdate, previousPlaylist2);
+
+    SmallestIFramesCurator.PlaylistUpdates emptyUpdate = new SmallestIFramesCurator.PlaylistUpdates();
+    assertThat(update.addedSegments).isEqualTo(emptyUpdate.addedSegments);
+    assertThat(update.removeCount).isEqualTo(emptyUpdate.removeCount);
+    assertThat(update.timeDeltaUs).isEqualTo(emptyUpdate.timeDeltaUs);
+    assertThat(update.discontinuityDelta).isEqualTo(emptyUpdate.discontinuityDelta);
   }
 
   public static void dumpSegments(List<HlsMediaPlaylist.Segment> segments) {

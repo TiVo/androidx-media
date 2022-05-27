@@ -228,26 +228,27 @@ public class SmallestIFramesCurator {
     if (latest.isNewerThan(previous)) {
       if (! latest.isUpdateValid(previous)) {
         Log.w(TAG, "invalid update of " + latest.baseUri + " detected.");
-      }
-      final int mediaSequenceDelta = (int) (latest.mediaSequence - previous.mediaSequence);
-      List<HlsMediaPlaylist.Segment> removed = previous.segments.subList(0, mediaSequenceDelta);
+      } else {
+        final int mediaSequenceDelta = (int) (latest.mediaSequence - previous.mediaSequence);
+        List<HlsMediaPlaylist.Segment> removed = previous.segments.subList(0, mediaSequenceDelta);
 
-      for (HlsMediaPlaylist.Segment oldest : previousCuratedPlaylist.segments) {
-        if (isSegmentInList(oldest, removed)) {
-          updates.discontinuityDelta = Math.max(updates.discontinuityDelta, oldest.relativeDiscontinuitySequence);
-          updates.removeCount++;
-          updates.timeDeltaUs += oldest.durationUs;
-        } else {
-          break;    // once oldest matches nothing, can stop
+        for (HlsMediaPlaylist.Segment oldest : previousCuratedPlaylist.segments) {
+          if (isSegmentInList(oldest, removed)) {
+            updates.discontinuityDelta = Math.max(updates.discontinuityDelta, oldest.relativeDiscontinuitySequence);
+            updates.removeCount++;
+            updates.timeDeltaUs += oldest.durationUs;
+          } else {
+            break;    // once oldest matches nothing, can stop
+          }
         }
-      }
-      boolean foundLastPrevSegment = false;
-      HlsMediaPlaylist.Segment prevLast = previous.segments.get(previous.segments.size() - 1);
-      for (HlsMediaPlaylist.Segment addCandidate : latest.segments) {
-        if (foundLastPrevSegment) {
-          updates.addedSegments.add(addCandidate);
+        boolean foundLastPrevSegment = false;
+        HlsMediaPlaylist.Segment prevLast = previous.segments.get(previous.segments.size() - 1);
+        for (HlsMediaPlaylist.Segment addCandidate : latest.segments) {
+          if (foundLastPrevSegment) {
+            updates.addedSegments.add(addCandidate);
+          }
+          foundLastPrevSegment = foundLastPrevSegment || areSegmentsEqual(addCandidate, prevLast);
         }
-        foundLastPrevSegment = foundLastPrevSegment || areSegmentsEqual(addCandidate, prevLast);
       }
     }
 

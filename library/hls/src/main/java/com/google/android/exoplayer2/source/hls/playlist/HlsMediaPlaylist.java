@@ -370,15 +370,29 @@ public final class HlsMediaPlaylist extends HlsPlaylist {
       long pdtDeltaUs = startTimeUs - other.startTimeUs;
 
       isValid = expectedMediaSequence == mediaSequence;
+      if (! isValid) {
+        Log.w(TAG, "removed segments count does not match MSN delta,  old segment count: " + other.segments.size() + " MSN delta: " + (mediaSequence - other.mediaSequence));
 
+      }
       // Program Date Time is only to milli-second resolution, Not clear if Vecima rounds the durations to
-      // Milliseconds or truncates the PDT.  So we treat within a MS as valid.
-      isValid = isValid && Math.abs(pdtDeltaUs - removedTimeUs) <= 1000;
+      // Milliseconds or truncates the PDT, Velocix is only accurate to the nearest second, sadly
+      isValid = isValid && Math.abs(pdtDeltaUs - removedTimeUs) <= 1_000_000;
 
+      if (other.segments.size() == 0) {
+        if (other.mediaSequence != mediaSequence) {
+          Log.w(TAG, "no segments in previous playlist, but MSN indicates segments removed.");
+          isValid = false;
+        } else if (segments.size() > 0){
+          Log.w(TAG, "no segments in previous playlist, MSN matches so only adds.");
+        } else {
+          Log.w(TAG, "empty update of an empty playlist, update is invalid.");
+          isValid = false;
+        }
+      }
       // PDT is valid down to the millisecond, durations are arbitrary.  Truncate the duration to MS
       if (!isValid) {
-        Log.e(TAG, "invalid playlist update, removed segments duration: " +  removedTimeUs +
-            ", does not match PDT change: " + pdtDeltaUs);
+        Log.w(TAG, "Ignoring invalid playlist update, for " + baseUri);
+        Log.w(TAG, "removed segments duration: " +  removedTimeUs + ", PDT change: " + pdtDeltaUs);
         final SimpleDateFormat UTC_DATETIME
           = new SimpleDateFormat("dd/MM/yyyy HH:mm:ss.S Z", Locale.getDefault());
         Log.d(TAG, "old - MSN: " + other.mediaSequence +
