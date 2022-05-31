@@ -1,40 +1,106 @@
 # Release notes #
 
-### 2.12.3-2.0-dev (not yet released) ###
+### 2.12.3-2.0 (05-31-2022) ###
 
 #### Our Internal Changes
 
-* Report an "error" (`HandlingStatus.WARNING`) if there are no playable audio tracks, similar to what was done in 2.12.3-1.1 for no playable video tracks commit is [bb65b74b57](https://github.com/tivocorp/exoplayerprvt/commit/bb65b74b57)
+- Support fix for [WSIPCL-12818 - V593 error popup when switching back to HDMI port on TV](https://jira.xperi.com/browse/WSIPCL-12818) &mdash; add check for HDCP2.2 level in `OutputProtectionMonitor`
+  
+- Reduce frame drops for 60fps Widevine for SEI500
+  - Added hook to enable MediaCodec Async mode &mdash; using MediaCodec in Async mode was first introduced in 2.12.0, as of 2.17.1 it is default for Android 12+ (see [Make asynchronous queueing non-experimental](https://github.com/google/ExoPlayer/commit/7a2c7c3297ea7dbe265cab215974178648c7d009)).  We have "cherry-picked" enough of this change to allow setting it on for Andriod API >=23.  Changes include:
+    * Includes MediaCodec mode API in `SimpleExoPlayerFactory` [dafd0909f0](https://github.com/tivocorp/exoplayerprvt/commit/dafd0909f0) May 19 2022
+    * GeekStats includes VFPO metric &mdash;  [ac937b3b9e](https://github.com/tivocorp/exoplayerprvt/commit/ac937b3b9e)  May 19 2022
+    * Allow asynchronous queuing with the trick play aware renderer &mdash; [628657a82b](https://github.com/tivocorp/exoplayerprvt/commit/628657a82b)
+
+- Dual Mode TrickPlay
+  -  Validates HLS media playlist updates &mdash; [dba164829f](https://github.com/tivocorp/exoplayerprvt/commit/dba164829f) , required to work around Vecima and Velocix issues, including, [PARTDEFECT-13652 - Empty IFrame Variant... (Velocix)](https://jira.xperi.com/browse/PARTDEFECT-13652)
+    
+  - iFrame ABR track selection adapts on target frame rate  &mdash; [091102de98](https://github.com/tivocorp/exoplayerprvt/commit/091102de98) 
+  
+  - Support multiple curated iFrame only variants &mdash;  [853010ed47](https://github.com/tivocorp/exoplayerprvt/commit/853010ed47)
+  
+  - *Fix Dual Mode playlists issue causing playback to start back to begining* &mdash; The previous handling for this genreated updated curated playlists that did not reflect the changes to the source playlist correctly. This lead to issues like BLWE which caused  [WSIPCL-12356](https://jira.xperi.com/browse/WSIPCL-12356) [DualModeTP] On all channels sometimes the trick play FF restarts from the beginning.  Commits involved:  [af2f553a2a](https://github.com/tivocorp/exoplayerprvt/commit/af2f553a2a) ,[b8ae541396](https://github.com/tivocorp/exoplayerprvt/commit/b8ae541396) ,[e71e21b39a](https://github.com/tivocorp/exoplayerprvt/commit/e71e21b39a)  and, [d68d503b70](https://github.com/tivocorp/exoplayerprvt/commit/d68d503b70) 
+  
+  - *Remove unused audio only variants* ([48918f9b05](https://github.com/tivocorp/exoplayerprvt/commit/48918f9b05) 2022-04-12 Steve Mayhew) &mdash;  ExoPlayer will not play audio only variants with HLS. For audio only playback we  use bare MPEG-TS streams.  Removing these improves live edge update time
+  - Fix for bug [WSIPCL-13498 playback pause doesn't exit](https://jira.xperi.com/browse/WSIPCL-13498) ([0fa73430ef](https://github.com/tivocorp/exoplayerprvt/commit/0fa73430ef) 2022-04-07 mbolaris)
+- Latent support for Tunneled TrickPlay
+  - Revert decrease in the requiredBufferedTimeUs for seek-based VTP – 2022-03-30 [eb38d58af0](https://github.com/tivocorp/exoplayerprvt/commit/eb38d58af0)
+  - Changes for Broadcom tunneling mode no black flash seek-based VTP. – 2022-03-22 [cb738131f9](https://github.com/tivocorp/exoplayerprvt/commit/cb738131f9)
+  - Remain in tunneling mode with just video when the platform has tunneling VTP support. – 2022-03-22 [2aae14403b](https://github.com/tivocorp/exoplayerprvt/commit/2aae14403b)
+
+* Improved reverse trick-play support (Higher frame rate)
+  * Issues forced seek if no render in 8 * target FPS – 2022-03-21 [3ab1b037b9](https://github.com/tivocorp/exoplayerprvt/commit/3ab1b037b9)
+  
+  * Faster rewind performance using `ScrubTrickPlay` logic – 2022-03-21 [eb9a8171a8](https://github.com/tivocorp/exoplayerprvt/commit/eb9a8171a8)
+  
+  * More reliable renders for `ScrubTrickPlay` – 2022-03-21 [64fe188d86](https://github.com/tivocorp/exoplayerprvt/commit/64fe188d86)
+  
+  * Cleans up reverse VTP handlers on Activity stop – 2022-01-21 [e28beba5b2](https://github.com/tivocorp/exoplayerprvt/commit/e28beba5b2)
+  
+* Other Changes:
+
+  * Extractors:
+    * Fixes to MPEG-TS Extractors (**need** pull requests):
+      * Add handling for iframe transport segments with filler data. – 2022-04-05 [059e639524](https://github.com/tivocorp/exoplayerprvt/commit/059e639524)
+      * Commits IDR NALU on end of stream – 2021-12-15 [cb3b671021](https://github.com/tivocorp/exoplayerprvt/commit/cb3b671021)
+
+  * Text: 
+    * Fix issues with CEA-708 and match code more closely to 2.15.1 release (also see Cherry-picks section)
+    * Fixes issues with ENDED state not reported, [PARTDEFECT-6244](https://jira.xperi.com/browse/PARTDEFECT-6244) and [PARTDEFECT-12121](https://jira.xperi.com/browse/PARTDEFECT-12121) (revert to 2.12.3 version does this):
+      * CEA-708 Decoder fixes for issue [#1807](https://github.com/google/ExoPlayer/issues/1807). -- 2022-05-28 [2c528686be](https://github.com/tivocorp/exoplayerprvt/commit/2c528686be)
+      * Reverts text/cea to state as of google's 2.12.3 -- 2022-05-25 [ad95432d1e](https://github.com/tivocorp/exoplayerprvt/commit/ad95432d1e)
+
+
+  * Fix for WSIPCL-12725, regression for buffering state in tunneling mode () [31fb98bd50](https://github.com/tivocorp/exoplayerprvt/commit/31fb98bd50) 2022-03-15 Spencer Alves)
+  * Handle stale `MediaDrm`  fixe HDCP connection check:
+    * Move getConnectedHdcpLevel() into try with new MediaDrm() – 2022-02-22 [4fbc135953](https://github.com/tivocorp/exoplayerprvt/commit/4fbc135953)
+    * Get a new MediaDrm in checkHdcpStatus() and add try catch around getConnectedHdcpLevel() – 2022-02-22 [a61008a0e7](https://github.com/tivocorp/exoplayerprvt/commit/a61008a0e7)
+
+  * Add warning callback to report no playable audio tracks, MOBILE-18718 ([bb65b74b57](https://github.com/tivocorp/exoplayerprvt/commit/bb65b74b57) 2021-11-17 anjummkkr https://github.com/tivocorp/exoplayerprvt/commit/bb65b74b57)
+
+
 
 #### Cherry-pick and Back-ports
 
-Changes from current Google releases after 2.12.3 or un-released code from dev-v2 cherry-picked to our code.
-See [Google Releases](https://github.com/google/ExoPlayer/releases) for their release notes.
+Changes from current Google releases after 2.12.3 or un-released code from dev-v2 cherry-picked to our code.  See [Google Releases](https://github.com/google/ExoPlayer/releases) for their release notes.
+
+###### From Google Release 2.17.0
+
+* Cherry pick commit that "tunes" playback stuck, our commit: [ec8245400f](https://github.com/tivocorp/exoplayerprvt/commit/ec8245400f) a cherry-pick of the r2.17.0 version &mdash;  This stuck detection has a dubious history:
+  1. Originally added in 2.12.0 (so we have it) as an experimental feature by commit [99667a - Detect stuck-buffering cases in the player](https://github.com/google/ExoPlayer/commit/99667a6dc16f3445524c1d1dc6e0f955c690a29e).   
+  2. In r2.13.0 the experimental disabled was removed, making the check permanent, by [Remove experimental method to disable stuck buffering detection.](https://github.com/google/ExoPlayer/commit/0226543090e58d43110f380efc04d4b43b73394c)
+  3. Latest r2.17.0 softens the check to allow 4 seconds of stuckness before failing, [Require playback to be stuck for a minimum period before failing](https://github.com/google/ExoPlayer/commit/8c89c9c688d978427a34499cf5b7724bc64ecc8d)
 
 ###### From Google Release 2.15.0
 
 - Cherry pick commits to remove bintray jCenter and replace with Google Maven, includes:
-
   - Update Gradle to 6.7.1 ([f4f31273 Update to Gradle...](https://github.com/google/ExoPlayer/commit/f4f312738b6794db9aa46667b3b84bb5be1a1716)) - required for AGP 4.2.0 ([AGP 4.2.0 Release Notes](https://developer.android.com/studio/releases/gradle-plugin#4-2-0)) 
 
   - Update build tools (AGP) and remove jCenter, ([e99ca161 Upgrade build tools and switch to mavenCentral](https://github.com/google/ExoPlayer/commit/e99ca16176a9b5b3bdf6463cbd05f338baeecdd1))
 
 ###### From Google Release 2.14.2
 
-* Cherry-pick of change Google commit [b5a464c](https://github.com/google/ExoPlayer/commit/b5a464cbccd8109aabf0e6bc40f7c0860580c874). From their release notes:
+* Cherry-pick of change Google commit [b5a464c](https://github.com/google/ExoPlayer/commit/b5a464cbccd8109aabf0e6bc40f7c0860580c874). From Google's release notes:
 	* HLS
 	  * Forward the FRAME-RATE value from the master playlist to renditions.
 	    ([#8960](https://github.com/google/ExoPlayer/issues/8960)).
-* Cherry-pick of change Google commit [08dbfd5](https://github.com/google/ExoPlayer/commit/08dbfd5c5ad9fdb9d0855d8ffc02096b6235052d). From their release notes:
-  *   Extractors:
-      *   Fix issue where a `trun` atom could be associated with the wrong track
-          in an FMP4 stream
-          ([#9056](https://github.com/google/ExoPlayer/pull/9056)). The fix
-          removes a previous workaround to handle content in which the `track_ID`
-          is set incorrectly
-          ([#4083](https://github.com/google/ExoPlayer/issues/4083)). Such content
-          is malformed and should be re-encoded.
-          
+###### From Google Release 2.14.1
+
+- Cherry pick fix for "Flash to black", our commits, [dc9ddd9c4c](https://github.com/tivocorp/exoplayerprvt/commit/dc9ddd9c4c) and [e87ff4e8fa](https://github.com/tivocorp/exoplayerprvt/commit/e87ff4e8fa).   From Google release notes:
+  - DRM:
+    - Keep secure `MediaCodec` instances initialized when disabling (but not resetting) `MediaCodecRenderer`. This helps re-use secure decoders in more contexts, which avoids the 'black flash' caused by detaching a `Surface` from a secure decoder on some devices ([#8842](https://github.com/google/ExoPlayer/issues/8842)). It will also result in DRM license refresh network requests while the player is stopped if `Player#setForegroundMode` is true.
+    - Fix issue where offline keys were unnecessarily (and incorrectly) restored into a session before being released. This call sequence is explicitly disallowed in OEMCrypto v16.
+
+###### From Google Release 2.13.0
+
+- Cherry-picks of CEA-708 issues fixed with our pull requests and merged by Google
+
+  - Our commits that are cherry-picks from the merged pull request:
+
+    * Merge pull request [#8415](https://github.com/google/ExoPlayer/pull/8415) from TiVo:p-fix-cea708anchor -- 2022-05-28 [98ad3eaedd](https://github.com/tivocorp/exoplayerprvt/commit/98ad3eaedd)
+
+    * This pull request is for issue[#1807](https://github.com/google/ExoPlayer/pull/8415). Refactoring the PR #8356 -- 2022-05-28 [e67958d112](https://github.com/tivocorp/exoplayerprvt/commit/e67958d112)
+
 ### 2.12.3-1.1 (11-10-2021) ###
 
 #### Our Internal Changes
