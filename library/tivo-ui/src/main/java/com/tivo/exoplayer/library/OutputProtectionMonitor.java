@@ -53,6 +53,7 @@ public class OutputProtectionMonitor extends Handler {
     private int delayIdx = 0;
     // assume output is secure until discovered otherwise
     private boolean isSecure = true;
+    private boolean isHdcpLevelV2_2 = false;
     private @HdcpLevel int requiredHdcpLevel;
     HandlerThread drmHandlerThread;
     DrmHandler drmHandler;
@@ -173,6 +174,14 @@ public class OutputProtectionMonitor extends Handler {
     }
 
     /**
+     * Returns true if HDCP 2.2
+     * @return
+     */
+    public boolean isHdcpV2_2() {
+        return isHdcpLevelV2_2;
+    }
+
+    /**
      * Returns HDCP level required for the output to be secure.
      * @return
      */
@@ -187,11 +196,18 @@ public class OutputProtectionMonitor extends Handler {
     public void handleMessage(@NonNull Message msg) {
         switch(msg.what) {
             case MSG_UPDATE_HDCP_STATUS:
+                isHdcpLevelV2_2 = false;
                 boolean isHdcpSecure = (Boolean) msg.obj;
+                int hdcpLevel = msg.arg1;
                 boolean newIsSecure = evaluateSecureStatus(isHdcpSecure);
                 if (isSecure != newIsSecure)
                 {
                     isSecure = newIsSecure;
+                    notifyStatusChange();
+                }
+                if (hdcpLevel >= MediaDrm.HDCP_V2_2) {
+                    Log.w(TAG, "hdcpLevel is HDCP_V2_2 or above");
+                    isHdcpLevelV2_2 = true;
                     notifyStatusChange();
                 }
                 break;
@@ -261,6 +277,8 @@ public class OutputProtectionMonitor extends Handler {
         Method getConnectedHdcpLevelMethod;
         OutputProtectionMonitor protectionMonitor;
         @HdcpLevel int requiredHdcpLevel;
+        @MediaDrm.HdcpLevel int hdcpLevel = MediaDrm.HDCP_LEVEL_UNKNOWN;
+        boolean isErrorGettingHdcpLevel = false;
 
         @RequiresApi(api = Build.VERSION_CODES.JELLY_BEAN_MR2)
         public DrmHandler(Looper looper, OutputProtectionMonitor protectionMonitor) {
@@ -286,27 +304,32 @@ public class OutputProtectionMonitor extends Handler {
             }
 
             // post status update back to the monitor
-            protectionMonitor.obtainMessage(msg.what, isSecure).sendToTarget();
+            if (isErrorGettingHdcpLevel) {
+                protectionMonitor.obtainMessage(msg.what, 0, 0, isSecure).sendToTarget();
+            }
+            else {
+                protectionMonitor.obtainMessage(msg.what, hdcpLevel, 0, isSecure).sendToTarget();
+            }
         }
 
 
         private boolean checkHdcpStatus() {
-            Integer hdcpLevel = null;
+            hdcpLevel = MediaDrm.HDCP_LEVEL_UNKNOWN;
+            isErrorGettingHdcpLevel = true;
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                 try {
                     MediaDrm widevineDrm = new MediaDrm(C.WIDEVINE_UUID);
                     hdcpLevel = widevineDrm.getConnectedHdcpLevel();
                     widevineDrm.close();
+                    isErrorGettingHdcpLevel = false;
                 } catch (UnsupportedSchemeException e) {
                     Log.e(TAG, "Widevine UUID is not supported on this version: " + Build.VERSION.RELEASE);
-                    hdcpLevel = null;
                 } catch (@SuppressLint({"NewApi", "LocalSuppress"}) MediaDrmResetException e) {
                     Log.e(TAG, "MediaDrmResetException" + Build.VERSION.RELEASE);
-                    hdcpLevel = null;
                 }
             }
 
-            if (hdcpLevel == null) {
+            if (isErrorGettingHdcpLevel) {
                 // FireTV devices have been tested as the only ones known to
                 // not support getConnectedHdcpLevel(), and they already
                 // disable all HDMI output when HDCP is not authorized so are
@@ -314,7 +337,7 @@ public class OutputProtectionMonitor extends Handler {
                 return true;
             }
             else {
-                switch (hdcpLevel.intValue()) {
+                switch (hdcpLevel) {
                     case MediaDrm.HDCP_LEVEL_UNKNOWN:
                         Log.w(TAG, "MediaDrm HDCP level is " +
                                 "HDCP_LEVEL_UNKNOWN");
