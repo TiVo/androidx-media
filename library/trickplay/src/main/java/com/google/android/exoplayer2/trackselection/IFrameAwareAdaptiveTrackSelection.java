@@ -14,6 +14,7 @@ import com.google.android.exoplayer2.util.Clock;
 import com.google.android.exoplayer2.util.MimeTypes;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Comparator;
 
 /**
@@ -94,33 +95,51 @@ public class IFrameAwareAdaptiveTrackSelection extends AdaptiveTrackSelection {
 
     @VisibleForTesting
     int[] filterTracks(TrackGroup group, int []tracks) {
-      ArrayList<Integer> list = new ArrayList<>();
-      for (int i = 0; i < group.length; i++) {
-        Format format = group.getFormat(i);
-        assert trickPlayControl != null;
-        TrickPlayControl.TrickPlayDirection mode = trickPlayControl.getCurrentTrickDirection();
-        if ((isIframeOnly(format) && (mode != TrickPlayControl.TrickPlayDirection.NONE))
-                || (!isIframeOnly(format) && (mode == TrickPlayControl.TrickPlayDirection.NONE))) {
-          list.add(i);
+      int[] filtered = tracks;    // default is no further filtering is required.
+
+      boolean isSelectionOverride = group.length != tracks.length;
+      boolean isIframeOnlyOverride = false;
+      if (isSelectionOverride) {
+        for (int i=0; i < tracks.length && !isIframeOnlyOverride; i++) {
+          isIframeOnlyOverride = isIframeOnly(group.getFormat(tracks[i]));
         }
       }
-      int[] filtered = new int[list.size()];
-      int i=0;
-      for (Integer value : list) {
-        filtered[i++] = value;
+
+      // if there are no selection overrides, or the selection overrides do not
+      // include iFrame only tracks, then we need add filtering of iFrame only tracks
+      // based on the trickplay mode.  Otherwise we can simply return the already filtered
+      //
+      if (!isSelectionOverride || !isIframeOnlyOverride) {
+        assert trickPlayControl != null;
+        boolean isTrickPlayEnabled = trickPlayControl.getCurrentTrickDirection() != TrickPlayControl.TrickPlayDirection.NONE;
+        ArrayList<Integer> list = new ArrayList<>();
+        for (int i = 0; i < group.length; i++) {
+          Format format = group.getFormat(i);
+          if (!isIframeOnly(format) && !isTrickPlayEnabled) {
+            if (!isSelectionOverride || Arrays.binarySearch(tracks, i) >= 0) {
+              list.add(i);
+            }
+          } else if (isIframeOnly(format) && isTrickPlayEnabled) {
+            list.add(i);
+          }
+        }
+        filtered = new int[list.size()];
+        int i = 0;
+        for (Integer value : list) {
+          filtered[i++] = value;
+        }
       }
       return filtered;
     }
 
     @VisibleForTesting
     boolean shouldFilterTracks(TrackGroup group, int[] tracks) {
-        boolean noSelectionOverides = group.length == tracks.length;
-        boolean isAllVideo = isVideoGroup(group);
-        boolean hasAnyIframe = false;
-        for (int i=0; i < group.length && ! hasAnyIframe; i++) {
-          hasAnyIframe = isIframeOnly(group.getFormat(i));
-        }
-        return trickPlayControl != null && isAllVideo && hasAnyIframe && noSelectionOverides;
+      boolean isAllVideo = isVideoGroup(group);
+      boolean hasAnyIframe = false;
+      for (int i=0; i < group.length && ! hasAnyIframe; i++) {
+        hasAnyIframe = isIframeOnly(group.getFormat(i));
+      }
+      return trickPlayControl != null && isAllVideo && hasAnyIframe;
     }
 
     public static boolean isIframeOnly(Format format) {

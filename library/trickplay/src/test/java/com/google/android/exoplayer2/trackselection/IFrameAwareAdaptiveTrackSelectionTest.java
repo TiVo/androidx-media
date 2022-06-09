@@ -7,6 +7,7 @@ import java.util.Arrays;
 import java.util.Collections;
 
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
@@ -18,7 +19,6 @@ import com.google.android.exoplayer2.source.TrackGroup;
 import com.google.android.exoplayer2.source.chunk.MediaChunkIterator;
 import com.google.android.exoplayer2.trickplay.TrickPlayControl;
 import com.google.android.exoplayer2.trickplay.TrickPlayControlInternal;
-import com.google.android.exoplayer2.trickplay.hls.AugmentedPlaylistParser;
 import com.google.android.exoplayer2.upstream.BandwidthMeter;
 import com.google.android.exoplayer2.util.MimeTypes;
 import static com.google.common.truth.Truth.assertThat;
@@ -109,7 +109,9 @@ public class IFrameAwareAdaptiveTrackSelectionTest {
     }
 
     @Test
-    public void testFilterTracks() {
+    public void testFilterTracks_filtersIframe() {
+
+        // in trickplay mode, filters to iFrame only tracks
         when(mockTrickPlayControl.getCurrentTrickDirection()).thenReturn(TrickPlayControl.TrickPlayDirection.FORWARD);
         when(mockTrickPlayControl.getCurrentTrickMode()).thenReturn(TrickPlayControl.TrickMode.FF1);
         TrackGroup group = definitions[0].group;
@@ -121,6 +123,7 @@ public class IFrameAwareAdaptiveTrackSelectionTest {
             assertThat(group.getFormat(index).roleFlags).isEqualTo(C.ROLE_FLAG_TRICK_PLAY);
         }
 
+        // in normal mode, filters to only normal tracks
         when(mockTrickPlayControl.getCurrentTrickDirection()).thenReturn(TrickPlayControl.TrickPlayDirection.NONE);
         when(mockTrickPlayControl.getCurrentTrickMode()).thenReturn(TrickPlayControl.TrickMode.NORMAL);
 
@@ -132,6 +135,48 @@ public class IFrameAwareAdaptiveTrackSelectionTest {
     }
 
     @Test
+    public void testFilterTracks_honorsOverrides() {
+        when(mockTrickPlayControl.getCurrentTrickDirection()).thenReturn(TrickPlayControl.TrickPlayDirection.NONE);
+        when(mockTrickPlayControl.getCurrentTrickMode()).thenReturn(TrickPlayControl.TrickMode.NORMAL);
+        TrackGroup group = definitions[0].group;
+
+        // In normal mode with filtered tracks iFrame only are removed and filtered set remains
+        int[] subset = new int[] { 1, 2 };      // regular format2 and 3 only
+        int[] selectedTracks = factory.filterTracks(group, subset);
+        assertThat(selectedTracks).isEqualTo(subset);
+
+        // in iFrame only mode, all iFrame tracks only are returned even with override that is not iFrame only override
+        when(mockTrickPlayControl.getCurrentTrickDirection()).thenReturn(TrickPlayControl.TrickPlayDirection.FORWARD);
+        when(mockTrickPlayControl.getCurrentTrickMode()).thenReturn(TrickPlayControl.TrickMode.FF1);
+        subset = new int[] { 1, 2 };      // regular format2 and 3 only are selected as override
+        selectedTracks = factory.filterTracks(group, subset);
+        for (int index : selectedTracks) {
+            assertThat(group.getFormat(index).roleFlags).isEqualTo(C.ROLE_FLAG_TRICK_PLAY);
+        }
+    }
+
+    @Test
+    public void testFilterTracks_iFrameOverridePreserved() {
+
+        // in normal mode or iFrame only mode, an override that selects only iFrame tracks is preserved in both modes
+        // this use case allows testing iFrame only tracks individually or in subsets
+        //
+        when(mockTrickPlayControl.getCurrentTrickDirection()).thenReturn(TrickPlayControl.TrickPlayDirection.NONE);
+        when(mockTrickPlayControl.getCurrentTrickMode()).thenReturn(TrickPlayControl.TrickMode.NORMAL);
+        TrackGroup group = definitions[0].group;
+        int[] subset = new int[] { 3, 4};      // iFrame only
+        int[] selectedTracks = factory.filterTracks(group, subset);
+        assertThat(selectedTracks).isEqualTo(subset);
+
+        when(mockTrickPlayControl.getCurrentTrickDirection()).thenReturn(TrickPlayControl.TrickPlayDirection.FORWARD);
+        when(mockTrickPlayControl.getCurrentTrickMode()).thenReturn(TrickPlayControl.TrickMode.FF1);
+        group = definitions[0].group;
+        subset = new int[] { 3, 4};      // iFrame only
+        selectedTracks = factory.filterTracks(group, subset);
+        assertThat(selectedTracks).isEqualTo(subset);
+    }
+
+    @Test
     public void testShouldFilterTracks() {
         when(mockTrickPlayControl.getCurrentTrickDirection()).thenReturn(TrickPlayControl.TrickPlayDirection.FORWARD);
         when(mockTrickPlayControl.getCurrentTrickMode()).thenReturn(TrickPlayControl.TrickMode.FF1);
@@ -140,13 +185,6 @@ public class IFrameAwareAdaptiveTrackSelectionTest {
         boolean noFilter = factory.shouldFilterTracks(noIFrameFormatsGroup, new int[] {0,1,2});
         assertThat(noFilter).isFalse();
 
-        // Selection override should block filter.
-        noFilter = factory.shouldFilterTracks(definitions[0].group, new int[] {1});
-        assertThat(noFilter).isFalse();
-
-        // Selection override should block filter.
-        boolean should = factory.shouldFilterTracks(definitions[0].group, definitions[0].tracks);
-        assertThat(should).isTrue();
     }
 
     @Test
