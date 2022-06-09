@@ -205,7 +205,9 @@ public class OutputProtectionMonitor extends Handler {
                     isSecure = newIsSecure;
                     notifyStatusChange();
                 }
-                if (hdcpLevel >= MediaDrm.HDCP_V2_2) {
+                // Notify the change in HDCP level. Listeneres are interested
+                // in knowing about HDCPV2.2 and HDCPV2.3
+                if (isLevelAtLeastHdcp2_2(hdcpLevel)) {
                     Log.w(TAG, "hdcpLevel is HDCP_V2_2 or above");
                     isHdcpLevelV2_2 = true;
                     notifyStatusChange();
@@ -214,6 +216,17 @@ public class OutputProtectionMonitor extends Handler {
             default:
                 Log.e(TAG, "Unknown message: " + msg.what);
         }
+    }
+
+    private boolean isLevelAtLeastHdcp2_2(/* @MediaDrm.HdcpLevel */ int hdcpLevel) 
+    {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            return hdcpLevel == MediaDrm.HDCP_V2_2 ||
+            // HDCP 2.3 only in > Pie 
+            Build.VERSION.SDK_INT > 28 && hdcpLevel == MediaDrm.HDCP_V2_3;
+        }
+        // HDCP V2.2 is added in Android P. Consider false on earlier versions
+        return false;
     }
 
     private void notifyStatusChange()
@@ -277,7 +290,7 @@ public class OutputProtectionMonitor extends Handler {
         Method getConnectedHdcpLevelMethod;
         OutputProtectionMonitor protectionMonitor;
         @HdcpLevel int requiredHdcpLevel;
-        @MediaDrm.HdcpLevel int hdcpLevel = MediaDrm.HDCP_LEVEL_UNKNOWN;
+        int hdcpLevel = 0; /* MediaDrm.HDCP_LEVEL_UNKNOWN - only in Android Pie */
         boolean isErrorGettingHdcpLevel = false;
 
         @RequiresApi(api = Build.VERSION_CODES.JELLY_BEAN_MR2)
@@ -314,7 +327,6 @@ public class OutputProtectionMonitor extends Handler {
 
 
         private boolean checkHdcpStatus() {
-            hdcpLevel = MediaDrm.HDCP_LEVEL_UNKNOWN;
             isErrorGettingHdcpLevel = true;
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                 try {

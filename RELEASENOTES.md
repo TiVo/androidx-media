@@ -1,5 +1,10 @@
 # Release notes #
 
+### 2.12.3-2.1-dev (06-09-2022) ###
+
+- Uses correct logic for validating HDCP >= 2.2 
+ - Fix for [WSIPCL-13900 - Getting V593 DRM Error after unplug and plug back in HDMI during Linear playback](https://jira.xperi.com/browse/WSIPCL-13900) &mdash;?| Fix the isHdcpLevelV2_2() logic to consider MediaDrm.HDCP_NO_DIGITAL_OUTPUT as NOT HDCP level 2.2 by eliminate numeric comparisons assuming ordering of private static final values in MediaDrm.
+
 ### 2.12.3-2.0 (05-31-2022) ###
 
 #### Our Internal Changes
