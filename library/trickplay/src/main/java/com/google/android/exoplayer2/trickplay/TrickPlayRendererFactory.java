@@ -27,6 +27,8 @@ import java.util.ArrayList;
 class TrickPlayRendererFactory extends DefaultRenderersFactory {
   public static final String TAG = "TrickPlayRendererFactory";
 
+  protected static final int MAX_DROPPED_VIDEO_FRAME_COUNT_TO_NOTIFY = 10;
+
   private final TrickPlayControlInternal trickPlayController;
   private @MediaCodecRenderer.MediaCodecOperationMode int videoMediaCodecOperationMode;
 
