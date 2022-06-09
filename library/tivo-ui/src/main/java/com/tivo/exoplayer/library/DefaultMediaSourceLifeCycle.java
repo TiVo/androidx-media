@@ -19,6 +19,7 @@ import com.google.android.exoplayer2.source.MediaSource;
 import com.google.android.exoplayer2.source.MediaSourceFactory;
 import com.google.android.exoplayer2.source.ProgressiveMediaSource;
 import com.google.android.exoplayer2.source.UnrecognizedInputFormatException;
+import com.google.android.exoplayer2.source.dash.DashMediaSource;
 import com.google.android.exoplayer2.source.hls.HlsMediaSource;
 import com.google.android.exoplayer2.source.hls.playlist.DefaultHlsPlaylistParserFactory;
 import com.google.android.exoplayer2.trickplay.hls.DualModeHlsPlaylistParserFactory;
@@ -246,8 +247,10 @@ public class DefaultMediaSourceLifeCycle implements MediaSourceLifeCycle, Player
       case C.TYPE_OTHER:
         factory =  new ProgressiveMediaSource.Factory(dataSourceFactory);
         break;
-      case C.TYPE_DASH:   // TODO - add library dependency for DashMediaSource.Factory
+      case C.TYPE_DASH:
         itemBuilder.setMimeType(MimeTypes.APPLICATION_MPD);
+        factory = new DashMediaSource.Factory(dataSourceFactory);
+        break;
 
       case C.TYPE_SS: // TODO - If we want to support SmoothStreaming, add SSDataSource dependency
         itemBuilder.setMimeType(MimeTypes.APPLICATION_SS);
