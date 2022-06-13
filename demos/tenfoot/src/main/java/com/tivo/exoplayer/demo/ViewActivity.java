@@ -27,6 +27,7 @@ import com.google.android.exoplayer2.Format;
 import com.google.android.exoplayer2.MediaItem;
 import com.google.android.exoplayer2.Player;
 import com.google.android.exoplayer2.RendererCapabilities;
+import com.google.android.exoplayer2.SeekParameters;
 import com.google.android.exoplayer2.SimpleExoPlayer;
 import com.google.android.exoplayer2.Timeline;
 import com.google.android.exoplayer2.analytics.AnalyticsListener;
@@ -52,7 +53,6 @@ import com.tivo.exoplayer.library.SourceFactoriesCreated;
 import com.tivo.exoplayer.library.VcasDrmInfo;
 import com.tivo.exoplayer.library.WidevineDrmInfo;
 import com.tivo.exoplayer.library.errorhandlers.PlaybackExceptionRecovery;
-import com.tivo.exoplayer.library.errorhandlers.UnsupportedFormatsException;
 import com.tivo.exoplayer.library.logging.ExtendedEventLogger;
 import com.tivo.exoplayer.library.metrics.ManagePlaybackMetrics;
 import com.tivo.exoplayer.library.metrics.PlaybackMetricsManagerApi;
@@ -90,6 +90,7 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
   public static final String ACTION_VIEW_LIST = "com.tivo.exoplayer.action.VIEW_LIST";
   public static final String ACTION_GEEK_STATS = "com.tivo.exoplayer.action.GEEK_STATS";
   public static final String ACTION_STOP = "com.tivo.exoplayer.action.STOP_PLAYBACK";
+  public static final String ACTION_SEEK = "com.tivo.exoplayer.action.SEEK_TO";
 
   // Intent data
   public static final String ENABLE_TUNNELED_PLAYBACK = "enable_tunneled_playback";
@@ -97,6 +98,8 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
   public static final String CHUNKLESS_PREPARE = "chunkless";
   public static final String ENABLE_ASYNC_RENDER = "enable_async_renderer";
   public static final String INITIAL_SEEK = "start_at";
+  public static final String SEEK_TO = "seek_to";
+  public static final String SEEK_NEAREST_SYNC = "seek_nearest";
   public static final String START_PLAYING = "start_playing";
   public static final String SHOW_GEEK_STATS = "show_geek";
   public static final String DRM_SCHEME = "drm_scheme";
@@ -313,6 +316,26 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
 
       case ACTION_STOP:
         stopPlaybackIfPlaying();
+        break;
+
+      case ACTION_SEEK:
+        long seekTo =  intent.getIntExtra(SEEK_TO, C.POSITION_UNSET);
+        boolean nearestSync = intent.getBooleanExtra(SEEK_NEAREST_SYNC, false);
+        if (seekTo == C.POSITION_UNSET) {
+          Log.e(TAG, "Must specify seek position with --ei " +SEEK_TO + " = n, in ms");
+        } else {
+          TrickPlayControl trickPlayControl = exoPlayerFactory.getCurrentTrickPlayControl();
+          SimpleExoPlayer player = exoPlayerFactory.getCurrentPlayer();
+          SeekParameters savedParams = null;
+          if (nearestSync) {
+            savedParams = player.getSeekParameters();
+            player.setSeekParameters(SeekParameters.CLOSEST_SYNC);
+          }
+          boundedSeekTo(player, trickPlayControl, seekTo);
+          if (savedParams != null) {
+            player.setSeekParameters(savedParams);
+          }
+        }
         break;
 
       default:
