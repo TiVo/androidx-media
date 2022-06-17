@@ -98,10 +98,11 @@ public class IFrameAwareAdaptiveTrackSelection extends AdaptiveTrackSelection {
       int[] filtered = tracks;    // default is no further filtering is required.
 
       boolean isSelectionOverride = group.length != tracks.length;
-      boolean isIframeOnlyOverride = false;
+      boolean isOnlyIframeOnlyOverride = false;
       if (isSelectionOverride) {
-        for (int i=0; i < tracks.length && !isIframeOnlyOverride; i++) {
-          isIframeOnlyOverride = isIframeOnly(group.getFormat(tracks[i]));
+        isOnlyIframeOnlyOverride = true;
+        for (int i=0; i < tracks.length && isOnlyIframeOnlyOverride; i++) {
+          isOnlyIframeOnlyOverride = isIframeOnly(group.getFormat(tracks[i]));
         }
       }
 
@@ -109,7 +110,7 @@ public class IFrameAwareAdaptiveTrackSelection extends AdaptiveTrackSelection {
       // include iFrame only tracks, then we need add filtering of iFrame only tracks
       // based on the trickplay mode.  Otherwise we can simply return the already filtered
       //
-      if (!isSelectionOverride || !isIframeOnlyOverride) {
+      if (!isSelectionOverride || !isOnlyIframeOnlyOverride) {
         assert trickPlayControl != null;
         boolean isTrickPlayEnabled = trickPlayControl.getCurrentTrickDirection() != TrickPlayControl.TrickPlayDirection.NONE;
         ArrayList<Integer> list = new ArrayList<>();

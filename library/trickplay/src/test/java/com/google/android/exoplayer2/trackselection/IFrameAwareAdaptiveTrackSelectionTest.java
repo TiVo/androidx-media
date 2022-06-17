@@ -140,16 +140,26 @@ public class IFrameAwareAdaptiveTrackSelectionTest {
         when(mockTrickPlayControl.getCurrentTrickMode()).thenReturn(TrickPlayControl.TrickMode.NORMAL);
         TrackGroup group = definitions[0].group;
 
-        // In normal mode with filtered tracks iFrame only are removed and filtered set remains
-        int[] subset = new int[] { 1, 2 };      // regular format2 and 3 only
-        int[] selectedTracks = factory.filterTracks(group, subset);
-        assertThat(selectedTracks).isEqualTo(subset);
+        // Filtered set from DefaultTrackSelector will always include the iFrame only tracks, for this
+        // test just disable one non-iFrame track
+        ArrayList<Integer> subset = new ArrayList<>();
+        for (int i=0; i < group.length; i++) {
+            if (i > 0) {
+                subset.add(i);
+            }
+        }
 
-        // in iFrame only mode, all iFrame tracks only are returned even with override that is not iFrame only override
+        // In normal mode with filtered tracks iFrame only are removed and filtered set remains
+        int[] selectedTracks = factory.filterTracks(group, fromList(subset));
+        assertThat(selectedTracks.length).isEqualTo(subset.size() - iFrameTrackCount);
+        for (int index : selectedTracks) {
+            assertThat(group.getFormat(index).roleFlags).isEqualTo(0);
+        }
+
+        // in iFrame only mode, only iFrame tracks only are returned
         when(mockTrickPlayControl.getCurrentTrickDirection()).thenReturn(TrickPlayControl.TrickPlayDirection.FORWARD);
         when(mockTrickPlayControl.getCurrentTrickMode()).thenReturn(TrickPlayControl.TrickMode.FF1);
-        subset = new int[] { 1, 2 };      // regular format2 and 3 only are selected as override
-        selectedTracks = factory.filterTracks(group, subset);
+        selectedTracks = factory.filterTracks(group, fromList(subset));
         for (int index : selectedTracks) {
             assertThat(group.getFormat(index).roleFlags).isEqualTo(C.ROLE_FLAG_TRICK_PLAY);
         }
@@ -326,5 +336,14 @@ public class IFrameAwareAdaptiveTrackSelectionTest {
             .setHeight(height)
             .setFrameRate(frameRate)
             .build();
+    }
+
+    private static int[] fromList(ArrayList<Integer> source) {
+        int[] retValue = new int[source.size()];
+        int i = 0;
+        for (Integer value : source) {
+            retValue[i++] = value;
+        }
+        return retValue;
     }
 }
