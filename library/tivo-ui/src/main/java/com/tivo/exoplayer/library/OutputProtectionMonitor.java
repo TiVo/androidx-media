@@ -196,20 +196,18 @@ public class OutputProtectionMonitor extends Handler {
     public void handleMessage(@NonNull Message msg) {
         switch(msg.what) {
             case MSG_UPDATE_HDCP_STATUS:
-                isHdcpLevelV2_2 = false;
                 boolean isHdcpSecure = (Boolean) msg.obj;
-                int hdcpLevel = msg.arg1;
+                boolean hdcpLevelChanged = isLevelAtLeastHdcp2_2(msg.arg1);
                 boolean newIsSecure = evaluateSecureStatus(isHdcpSecure);
                 if (isSecure != newIsSecure)
                 {
                     isSecure = newIsSecure;
                     notifyStatusChange();
                 }
-                // Notify the change in HDCP level. Listeneres are interested
-                // in knowing about HDCPV2.2 and HDCPV2.3
-                if (isLevelAtLeastHdcp2_2(hdcpLevel)) {
-                    Log.w(TAG, "hdcpLevel is HDCP_V2_2 or above");
-                    isHdcpLevelV2_2 = true;
+                // Notify the change in HDCP level.
+                if (isHdcpLevelV2_2 != hdcpLevelChanged) {
+                    Log.w(TAG, "hdcpLevel HDCP_V2_2 is changed to " + hdcpLevelChanged);
+                    isHdcpLevelV2_2 = hdcpLevelChanged;
                     notifyStatusChange();
                 }
                 break;
