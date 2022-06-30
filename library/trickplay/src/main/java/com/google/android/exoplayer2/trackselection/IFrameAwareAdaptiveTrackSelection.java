@@ -6,6 +6,7 @@ import androidx.annotation.VisibleForTesting;
 import com.google.android.exoplayer2.C;
 import com.google.android.exoplayer2.Format;
 import com.google.android.exoplayer2.source.TrackGroup;
+import com.google.android.exoplayer2.source.chunk.MediaChunk;
 import com.google.android.exoplayer2.trickplay.TrickPlayControl;
 import com.google.android.exoplayer2.trickplay.TrickPlayControlInternal;
 import com.google.android.exoplayer2.trickplay.hls.AugmentedPlaylistParser;
@@ -16,6 +17,7 @@ import com.google.android.exoplayer2.util.MimeTypes;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.List;
 
 /**
  * TrackSelection implementation that adapts based on bandwidth as does {@link AdaptiveTrackSelection}
@@ -157,6 +159,7 @@ public class IFrameAwareAdaptiveTrackSelection extends AdaptiveTrackSelection {
   }
 
   private @Nullable final TrickPlayControlInternal control;
+  private @Nullable TrickPlayControl.TrickMode lastEvaluateTrickMode;
 
   public IFrameAwareAdaptiveTrackSelection(
           TrackGroup group, int[] tracks,
@@ -173,6 +176,34 @@ public class IFrameAwareAdaptiveTrackSelection extends AdaptiveTrackSelection {
             minDurationToRetainAfterDiscardMs, bandwidthFraction, bufferedFractionToLiveEdgeForQualityIncrease,
             clock);
     this.control = control;
+  }
+
+  @Override
+  public int evaluateQueueSize(long playbackPositionUs, List<? extends MediaChunk> queue) {
+    int size = queue.size();
+    if (control != null && control.getCurrentTrickDirection() == TrickPlayControl.TrickPlayDirection.FORWARD) {
+      TrickPlayControl.TrickMode prevMode = lastEvaluateTrickMode;
+      TrickPlayControl.TrickMode currMode = control.getCurrentTrickMode();
+      lastEvaluateTrickMode = currMode;
+      if (prevMode != null && size > 1) {
+        Float currentSpeed = control.getSpeedFor(currMode);
+        Float prevSpeed = control.getSpeedFor(prevMode);
+        if (control.getTargetFrameRateForPlaybackSpeed(currentSpeed) < control.getTargetFrameRateForPlaybackSpeed(prevSpeed)) {
+          Format bestFormat = closestTargetFrameRateMatch(currentSpeed);
+          boolean firstOldFormatFound = false;
+          for (int i = 1; i < queue.size() && ! firstOldFormatFound; i++) {
+            MediaChunk chunk = queue.get(i);
+            if (chunk.trackFormat.frameRate != Format.NO_VALUE && chunk.trackFormat.frameRate != bestFormat.frameRate) {
+              size = i;
+              firstOldFormatFound = true;
+            }
+          }
+        }
+      }
+    } else {
+      size = super.evaluateQueueSize(playbackPositionUs, queue);
+    }
+    return size;
   }
 
   @Override

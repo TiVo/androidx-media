@@ -2,6 +2,12 @@ package com.google.android.exoplayer2.trackselection;
 
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 
+import com.google.android.exoplayer2.source.chunk.MediaChunk;
+import com.google.android.exoplayer2.testutil.AutoAdvancingFakeClock;
+import com.google.android.exoplayer2.testutil.FakeClock;
+import com.google.android.exoplayer2.testutil.FakeMediaChunk;
+import com.google.android.exoplayer2.util.Clock;
+import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -21,6 +27,12 @@ import com.google.android.exoplayer2.trickplay.TrickPlayControl;
 import com.google.android.exoplayer2.trickplay.TrickPlayControlInternal;
 import com.google.android.exoplayer2.upstream.BandwidthMeter;
 import com.google.android.exoplayer2.util.MimeTypes;
+
+import static com.google.android.exoplayer2.trackselection.AdaptiveTrackSelection.DEFAULT_BANDWIDTH_FRACTION;
+import static com.google.android.exoplayer2.trackselection.AdaptiveTrackSelection.DEFAULT_BUFFERED_FRACTION_TO_LIVE_EDGE_FOR_QUALITY_INCREASE;
+import static com.google.android.exoplayer2.trackselection.AdaptiveTrackSelection.DEFAULT_MAX_DURATION_FOR_QUALITY_DECREASE_MS;
+import static com.google.android.exoplayer2.trackselection.AdaptiveTrackSelection.DEFAULT_MIN_DURATION_FOR_QUALITY_INCREASE_MS;
+import static com.google.android.exoplayer2.trackselection.AdaptiveTrackSelection.DEFAULT_MIN_DURATION_TO_RETAIN_AFTER_DISCARD_MS;
 import static com.google.common.truth.Truth.assertThat;
 import static org.mockito.ArgumentMatchers.isA;
 import static org.mockito.Mockito.when;
@@ -48,11 +60,19 @@ public class IFrameAwareAdaptiveTrackSelectionTest {
     private int iFrameTrackCount;
     private int maxNonIframeBitrate;
     private Format srcTpFormat;
+    private Clock mockClock;
 
     @Before
     public void setUp() {
         initMocks(this);
-        factory = new IFrameAwareAdaptiveTrackSelection.Factory();
+        mockClock = new FakeClock(0);
+        factory = new IFrameAwareAdaptiveTrackSelection.Factory(
+            DEFAULT_MIN_DURATION_FOR_QUALITY_INCREASE_MS,
+            DEFAULT_MAX_DURATION_FOR_QUALITY_DECREASE_MS,
+            1,
+            DEFAULT_BANDWIDTH_FRACTION,
+            DEFAULT_BUFFERED_FRACTION_TO_LIVE_EDGE_FOR_QUALITY_INCREASE,
+            mockClock);
 
         // Normal tracks, in order of bitrate
         maxNonIframeBitrate = 300;
@@ -91,6 +111,22 @@ public class IFrameAwareAdaptiveTrackSelectionTest {
         noIFrameFormatsGroup = new TrackGroup(format1, format2, format3);
 
         when(mockTrickPlayControl.isPlaybackSpeedForwardTrickPlayEnabled()).thenReturn(true);
+
+        when(mockTrickPlayControl.getSpeedFor(isA(TrickPlayControl.TrickMode.class))).then((InvocationOnMock invocation) -> {
+            switch ((TrickPlayControl.TrickMode) invocation.getArgument(0)) {
+                case FF1:
+                    return 15.0f;
+                case FF2:
+                    return 30.0f;
+                case FF3:
+                    return 60.0f;
+                case NORMAL:
+                    return 1.0f;
+                default:
+                    throw new UnsupportedOperationException("only forward modes required");
+            }
+        });
+
         factory.setTrickPlayControl(mockTrickPlayControl);
     }
 
@@ -279,6 +315,82 @@ public class IFrameAwareAdaptiveTrackSelectionTest {
         assertThat(result.frameRate).isWithin(0.001f).of(0.333f);
 
         assertThat(result).isNotNull();
+    }
+
+    @Test
+    public void test_evaluateQueueSize_normalMode() {
+        // Normal mode should basically call the super class (which prunes < 1080 segments)
+        when(mockBandwidthMeter.getBitrateEstimate()).thenReturn(0L);       // no bitrate is < than this
+        when(mockTrickPlayControl.getCurrentTrickDirection()).thenReturn(TrickPlayControl.TrickPlayDirection.NONE);
+        when(mockTrickPlayControl.getCurrentTrickMode()).thenReturn(TrickPlayControl.TrickMode.NORMAL);
+
+        TrackSelection selections[] = factory.createTrackSelections(definitions, mockBandwidthMeter);
+        TrackSelection trackSelection = selections[0];
+
+        MediaChunk[] chunks = new MediaChunk[] {
+            new FakeMediaChunk(videoFormat(0, "1", 1080, 1920, 0, 60.0f), 0, 6_000_000),
+            new FakeMediaChunk(videoFormat(0, "1", 1080, 1920, 0, 60.0f), 6, 12_000_000),
+            new FakeMediaChunk(videoFormat(0, "1", 640, 480, 0, 60.0f), 12_000_000, 18_000_000)
+        };
+        int expectedSize = trackSelection.evaluateQueueSize(0, Arrays.asList(chunks));
+
+        // 640 chunk is discarded
+        assertThat(expectedSize).isEqualTo(2);
+    }
+
+    @Test
+    public void test_evaluateQueueSize_fastForwardDownshift() {
+        // Start out VTP in FF3 mode
+        when(mockBandwidthMeter.getBitrateEstimate()).thenReturn(0L);       // no bitrate is < than this
+        when(mockTrickPlayControl.getCurrentTrickDirection()).thenReturn(TrickPlayControl.TrickPlayDirection.FORWARD);
+        when(mockTrickPlayControl.getCurrentTrickMode()).thenReturn(TrickPlayControl.TrickMode.FF3);
+
+        // numbers assume 1 FPS source format
+        assertThat(srcTpFormat.frameRate).isEqualTo(1.0f);
+        // For the purpose of this test the fixed frame rate values from the Formats are enough
+        when(mockTrickPlayControl.getFrameRateForFormat(isA(Format.class))).then((InvocationOnMock invocation) -> ((Format) invocation.getArgument(0)).frameRate);
+
+        // make FF1 is exact match for subset 2 (tp_2) with .5fps
+        when(mockTrickPlayControl.getTargetFrameRateForPlaybackSpeed(15.0f)).thenReturn(7.5f);
+
+        // For FF3, 8 FPS target will make the 0.2fps format closest to a match (12FPS at 60x)
+        when(mockTrickPlayControl.getTargetFrameRateForPlaybackSpeed(60.0f)).thenReturn(8.0f);
+
+        when(mockTrickPlayControl.getFrameRateForFormat(isA(Format.class))).then((InvocationOnMock invocation) -> ((Format) invocation.getArgument(0)).frameRate);
+
+
+        TrackSelection selections[] = factory.createTrackSelections(definitions, mockBandwidthMeter);
+        TrackSelection trackSelection = selections[0];
+
+        // Make the initial selection
+        trackSelection.updateSelectedTrack(0, 50_000_000, 100_000_000,
+            Collections.emptyList(), THREE_EMPTY_MEDIA_CHUNK_ITERATORS);
+
+        Format selectedFormat = trackSelection.getFormat(trackSelection.getSelectedIndex());
+        assertThat(selectedFormat.frameRate).isEqualTo(0.2f);
+
+        // Fake loading a couple of segments at this format, they should not be pruned
+        ArrayList<MediaChunk> loadedChunks = new ArrayList<>();
+        long positionUs = 0;
+        int loadedSegmentsCount = 3;
+        for (int i=0; i < loadedSegmentsCount; i++) {
+            loadedChunks.add(new FakeMediaChunk(selectedFormat, positionUs, positionUs + 3_000_000));
+            positionUs += 3_000_000;
+        }
+        int expectedSize = trackSelection.evaluateQueueSize(0, loadedChunks);
+        assertThat(expectedSize).isEqualTo(loadedSegmentsCount);
+
+        // Switch to FF1 and, then the .5fps should be best
+        when(mockTrickPlayControl.getCurrentTrickMode()).thenReturn(TrickPlayControl.TrickMode.FF1);
+        trackSelection.updateSelectedTrack(0, 50_000_000, 100_000_000,
+            Collections.emptyList(), THREE_EMPTY_MEDIA_CHUNK_ITERATORS);
+
+        assertThat(trackSelection.getFormat(trackSelection.getSelectedIndex()).frameRate).isEqualTo(0.5f);
+
+        // On a downshift in speed we must quickly buffer higher frame rate, so only should keep 1 chunk
+        expectedSize = trackSelection.evaluateQueueSize(0, loadedChunks);
+        assertThat(expectedSize).isEqualTo(1);
+
     }
 
     @Test
