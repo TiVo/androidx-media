@@ -145,10 +145,13 @@ import org.checkerframework.checker.nullness.qual.RequiresNonNull;
           playlistUrl.equals(previousChunk.playlistUrl) && previousChunk.loadCompleted;
       id3Decoder = previousChunk.id3Decoder;
       scratchId3Data = previousChunk.scratchId3Data;
+      boolean chunkSamplesDoNotOverlap = segmentStartTimeInPeriodUs >= previousChunk.endTimeUs
+          || ((previousChunk.trackFormat.roleFlags & C.ROLE_FLAG_TRICK_PLAY) != 0 && (format.roleFlags & C.ROLE_FLAG_TRICK_PLAY) != 0);
+
       boolean canContinueWithoutSplice =
           isFollowingChunk
               || (mediaPlaylist.hasIndependentSegments
-                  && segmentStartTimeInPeriodUs >= previousChunk.endTimeUs);
+                  && chunkSamplesDoNotOverlap);
       shouldSpliceIn = !canContinueWithoutSplice;
       previousExtractor =
           isSameInitData
