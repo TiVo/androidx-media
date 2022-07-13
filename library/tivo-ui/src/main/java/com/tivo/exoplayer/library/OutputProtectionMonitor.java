@@ -53,7 +53,9 @@ public class OutputProtectionMonitor extends Handler {
     private int delayIdx = 0;
     // assume output is secure until discovered otherwise
     private boolean isSecure = true;
+    // assume HDCP is below 2.2 until discovered otherwise
     private boolean isHdcpLevelV2_2 = false;
+    private boolean isRefreshStateRequested = false;
     private @HdcpLevel int requiredHdcpLevel;
     HandlerThread drmHandlerThread;
     DrmHandler drmHandler;
@@ -162,6 +164,7 @@ public class OutputProtectionMonitor extends Handler {
     {
         Log.i(TAG, "Refresh");
         delayIdx = 0;
+        isRefreshStateRequested = true;
         drmHandler.obtainMessage(MSG_UPDATE_HDCP_STATUS).sendToTarget();
     }
 
@@ -204,11 +207,12 @@ public class OutputProtectionMonitor extends Handler {
                     isSecure = newIsSecure;
                     notifyStatusChange();
                 }
-                // Notify the change in HDCP level.
-                if (isHdcpLevelV2_2 != hdcpLevelChanged) {
+                // Notify the change in HDCP level. Notify always after refresh is called.
+                if ((isHdcpLevelV2_2 != hdcpLevelChanged) || isRefreshStateRequested) {
                     Log.w(TAG, "hdcpLevel HDCP_V2_2 is changed to " + hdcpLevelChanged);
                     isHdcpLevelV2_2 = hdcpLevelChanged;
                     notifyStatusChange();
+                    isRefreshStateRequested = false;
                 }
                 break;
             default:
