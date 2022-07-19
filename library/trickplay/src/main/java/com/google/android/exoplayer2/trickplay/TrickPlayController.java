@@ -1026,6 +1026,16 @@ class TrickPlayController implements TrickPlayControlInternal {
             currentWindow.isDynamic ? C.usToMs(currentWindow.defaultPositionUs)
                 : C.usToMs(currentWindow.durationUs);
 
+        // In tunneling mode dont allow trick play till the end. Starting play
+        // back at end of video segment with misaligned or no audio segment in
+        // tunneling mode cause video decoder get stuck forever. Not allowing
+        // forward trick play in the last segment fixes this issue. The segment
+        // length is assumed to be 6 seconds.
+        DefaultTrackSelector.Parameters trackSelectorParameters = trackSelector.getParameters();
+        if (trackSelectorParameters.tunnelingAudioSessionId != C.AUDIO_SESSION_ID_UNSET) {
+            lastSeekablePosition = (lastSeekablePosition > 6000)?lastSeekablePosition - 6000:lastSeekablePosition;
+        }
+
         // TODO - trickplay reverse, as well as being behind the live window can leave the
         // TODO - current position negative, the code below works as expected in this case, but note well.
         //
