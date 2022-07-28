@@ -1,67 +1,58 @@
+/*
+ * Copyright 2021 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package com.google.android.exoplayer2.source.hls;
+
 import static com.google.common.truth.Truth.assertThat;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 
 import android.net.Uri;
+import androidx.test.core.app.ApplicationProvider;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
-
-import java.io.ByteArrayInputStream;
+import com.google.android.exoplayer2.C;
+import com.google.android.exoplayer2.Format;
+import com.google.android.exoplayer2.SeekParameters;
+import com.google.android.exoplayer2.source.hls.playlist.HlsMediaPlaylist;
+import com.google.android.exoplayer2.source.hls.playlist.HlsPlaylistParser;
+import com.google.android.exoplayer2.source.hls.playlist.HlsPlaylistTracker;
+import com.google.android.exoplayer2.testutil.ExoPlayerTestRunner;
+import com.google.android.exoplayer2.testutil.FakeDataSource;
+import com.google.android.exoplayer2.testutil.TestUtil;
+import com.google.android.exoplayer2.util.MimeTypes;
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.Collections;
-
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
 import org.mockito.Mockito;
 
-import com.google.android.exoplayer2.C;
-import com.google.android.exoplayer2.Format;
-import com.google.android.exoplayer2.SeekParameters;
-import com.google.android.exoplayer2.source.MediaPeriod;
-import com.google.android.exoplayer2.source.hls.playlist.HlsMediaPlaylist;
-import com.google.android.exoplayer2.source.hls.playlist.HlsPlaylistParser;
-import com.google.android.exoplayer2.source.hls.playlist.HlsPlaylistTracker;
-import com.google.android.exoplayer2.testutil.ExoPlayerTestRunner;
-import com.google.android.exoplayer2.util.MimeTypes;
-import com.google.android.exoplayer2.util.Util;
-
-
+/** Unit tests for {@link HlsChunkSource}. */
 @RunWith(AndroidJUnit4.class)
 public class HlsChunkSourceTest {
 
-  public static final String TEST_PLAYLIST = "#EXTM3U\n" +
-      "#EXT-X-MEDIA-SEQUENCE:1606273114\n" +
-      "#EXT-X-VERSION:6\n" +
-      "#EXT-X-PLAYLIST-TYPE:VOD\n" +
-      "#EXT-X-I-FRAMES-ONLY\n" +
-      "#EXT-X-INDEPENDENT-SEGMENTS\n" +
-      "#EXT-X-MAP:URI=\"init-CCUR_iframe.tsv\"\n" +
-      "#EXT-X-PROGRAM-DATE-TIME:2020-11-25T02:58:34+00:00\n" +
-      "#EXTINF:4,\n" +
-      "#EXT-X-BYTERANGE:52640@19965036\n" +
-      "1606272900-CCUR_iframe.tsv\n" +
-      "#EXTINF:4,\n" +
-      "#EXT-X-BYTERANGE:77832@20253992\n" +
-      "1606272900-CCUR_iframe.tsv\n" +
-      "#EXTINF:4,\n" +
-      "#EXT-X-BYTERANGE:168824@21007496\n" +
-      "1606272900-CCUR_iframe.tsv\n" +
-      "#EXTINF:4,\n" +
-      "#EXT-X-BYTERANGE:177848@21888840\n" +
-      "1606272900-CCUR_iframe.tsv\n" +
-      "#EXTINF:4,\n" +
-      "#EXT-X-BYTERANGE:69560@22496456\n" +
-      "1606272900-CCUR_iframe.tsv\n" +
-      "#EXTINF:4,\n" +
-      "#EXT-X-BYTERANGE:41360@22830156\n" +
-      "1606272900-CCUR_iframe.tsv\n" +
-      "#EXT-X-ENDLIST\n" +
-      "\n";
-  public static final Uri PLAYLIST_URI = Uri.parse("http://example.com/");
+  private static final String PLAYLIST = "media/m3u8/media_playlist";
+  private static final String PLAYLIST_LIVE_FIRST =
+      "media/m3u8/media_playlist_live_first";
+  private static final String PLAYLIST_LIVE_SECOND =
+      "media/m3u8/media_playlist_live_second";
+  private static final String PLAYLIST_EMPTY = "media/m3u8/media_playlist_empty";
+  private static final Uri PLAYLIST_URI = Uri.parse("http://example.com/");
+  private static final long PLAYLIST_START_PERIOD_OFFSET_US = 8_000_000L;
   private static final Uri IFRAME_URI = Uri.parse("http://example.com/iframe");
   private static final Format IFRAME_FORMAT =
       new Format.Builder()
@@ -72,134 +63,147 @@ public class HlsChunkSourceTest {
           .setRoleFlags(C.ROLE_FLAG_TRICK_PLAY)
           .build();
 
-  // simulate the playlist has reloaded since the period start.
-  private static final long PLAYLIST_START_PERIOD_OFFSET = 8_000_000L;
-
-  private HlsExtractorFactory mockExtractorFactory = HlsExtractorFactory.DEFAULT;
-
-  @Mock
-  private HlsPlaylistTracker mockPlaylistTracker;
-
-  @Mock
-  private HlsDataSourceFactory mockDataSourceFactory;
-  private HlsChunkSource testee;
-  private HlsMediaPlaylist playlist;
+  @Mock private HlsPlaylistTracker mockPlaylistTracker;
+  @Mock private HlsDataSourceFactory mockDataSourceFactory;
+  private HlsChunkSource testChunkSource;
 
   @Before
   public void setup() throws IOException {
-    // sadly, auto mock does not work, you get NoClassDefFoundError: com/android/dx/rop/type/Type
-//    MockitoAnnotations.initMocks(this);
     mockPlaylistTracker = Mockito.mock(HlsPlaylistTracker.class);
     mockDataSourceFactory = Mockito.mock(HlsDataSourceFactory.class);
-    InputStream inputStream = new ByteArrayInputStream(Util.getUtf8Bytes(TEST_PLAYLIST));
-    playlist = (HlsMediaPlaylist) new HlsPlaylistParser().parse(PLAYLIST_URI, inputStream);
 
-    when(mockPlaylistTracker.getPlaylistSnapshot(eq(PLAYLIST_URI), anyBoolean())).thenReturn(playlist);
+    InputStream inputStream =
+        TestUtil.getInputStream(
+            ApplicationProvider.getApplicationContext(), PLAYLIST_LIVE_FIRST);
+    HlsMediaPlaylist playlist =
+        (HlsMediaPlaylist) new HlsPlaylistParser().parse(PLAYLIST_URI, inputStream);
+    when(mockPlaylistTracker.getPlaylistSnapshot(eq(PLAYLIST_URI), anyBoolean()))
+        .thenReturn(playlist);
 
-    testee = new HlsChunkSource(
-        mockExtractorFactory,
-        mockPlaylistTracker,
-        new Uri[] {IFRAME_URI, PLAYLIST_URI},
-        new Format[] { IFRAME_FORMAT, ExoPlayerTestRunner.VIDEO_FORMAT },
-        mockDataSourceFactory,
-        null,
-        new TimestampAdjusterProvider(),
-        null);
+    testChunkSource =
+        new HlsChunkSource(
+            HlsExtractorFactory.DEFAULT,
+            mockPlaylistTracker,
+            new Uri[] {IFRAME_URI, PLAYLIST_URI},
+            new Format[] {IFRAME_FORMAT, ExoPlayerTestRunner.VIDEO_FORMAT},
+            mockDataSourceFactory,
+            /* mediaTransferListener= */ null,
+            new TimestampAdjusterProvider(),
+            /* muxedCaptionFormats= */ null);
 
     when(mockPlaylistTracker.isSnapshotValid(eq(PLAYLIST_URI))).thenReturn(true);
-
-    // mock a couple of target duration (4s) updates to the playlist since period starts
-    when(mockPlaylistTracker.getInitialStartTimeUs()).thenReturn(playlist.startTimeUs - PLAYLIST_START_PERIOD_OFFSET);
+    // Mock that segments totalling PLAYLIST_START_PERIOD_OFFSET_US in duration have been removed
+    // from the start of the playlist.
+    when(mockPlaylistTracker.getInitialStartTimeUs())
+        .thenReturn(playlist.startTimeUs - PLAYLIST_START_PERIOD_OFFSET_US);
   }
 
   @Test
-  public void getAdjustedSeekPositionUs_PreviousSync() {
-    long adjusted = testee.getAdjustedSeekPositionUs(playlistTimeToPeriodTimeUs(17_000_000), SeekParameters.PREVIOUS_SYNC);
-    assertThat(periodTimeToPlaylistTime(adjusted)).isEqualTo(16_000_000);
+  public void getAdjustedSeekPositionUs_previousSync() {
+    long adjustedPositionUs =
+        testChunkSource.getAdjustedSeekPositionUs(
+            playlistTimeToPeriodTimeUs(17_000_000), SeekParameters.PREVIOUS_SYNC);
+
+    assertThat(periodTimeToPlaylistTimeUs(adjustedPositionUs)).isEqualTo(16_000_000);
   }
 
   @Test
-  public void getAdjustedSeekPositionUs_NextSync() {
-    long adjusted = testee.getAdjustedSeekPositionUs(playlistTimeToPeriodTimeUs(17_000_000), SeekParameters.NEXT_SYNC);
-    assertThat(periodTimeToPlaylistTime(adjusted)).isEqualTo(20_000_000);
+  public void getAdjustedSeekPositionUs_nextSync() {
+    long adjustedPositionUs =
+        testChunkSource.getAdjustedSeekPositionUs(
+            playlistTimeToPeriodTimeUs(17_000_000), SeekParameters.NEXT_SYNC);
+
+    assertThat(periodTimeToPlaylistTimeUs(adjustedPositionUs)).isEqualTo(20_000_000);
   }
 
   @Test
-  public void getAdjustedSeekPositionUs_NextSyncAtEnd() {
-    long adjusted = testee.getAdjustedSeekPositionUs(playlistTimeToPeriodTimeUs(24_000_000), SeekParameters.NEXT_SYNC);
-    assertThat(periodTimeToPlaylistTime(adjusted)).isEqualTo(24_000_000);
+  public void getAdjustedSeekPositionUs_nextSyncAtEnd() {
+    long adjustedPositionUs =
+        testChunkSource.getAdjustedSeekPositionUs(
+            playlistTimeToPeriodTimeUs(24_000_000), SeekParameters.NEXT_SYNC);
+
+    assertThat(periodTimeToPlaylistTimeUs(adjustedPositionUs)).isEqualTo(24_000_000);
   }
 
   @Test
-  public void getAdjustedSeekPositionUs_ClosestSync() {
-    long adjusted = testee.getAdjustedSeekPositionUs(playlistTimeToPeriodTimeUs(17_000_000), SeekParameters.CLOSEST_SYNC);
-    assertThat(periodTimeToPlaylistTime(adjusted)).isEqualTo(16_000_000);
+  public void getAdjustedSeekPositionUs_closestSyncBefore() {
+    long adjustedPositionUs =
+        testChunkSource.getAdjustedSeekPositionUs(
+            playlistTimeToPeriodTimeUs(17_000_000), SeekParameters.CLOSEST_SYNC);
 
-    adjusted = testee.getAdjustedSeekPositionUs(playlistTimeToPeriodTimeUs(19_000_000), SeekParameters.CLOSEST_SYNC);
-    assertThat(periodTimeToPlaylistTime(adjusted)).isEqualTo(20_000_000);
+    assertThat(periodTimeToPlaylistTimeUs(adjustedPositionUs)).isEqualTo(16_000_000);
   }
 
   @Test
-  public void getAdjustedSeekPositionUs_Exact() {
-    long adjusted = testee.getAdjustedSeekPositionUs(playlistTimeToPeriodTimeUs(17_000_000), SeekParameters.EXACT);
-    assertThat(periodTimeToPlaylistTime(adjusted)).isEqualTo(17_000_000);
+  public void getAdjustedSeekPositionUs_closestSyncAfter() {
+    long adjustedPositionUs =
+        testChunkSource.getAdjustedSeekPositionUs(
+            playlistTimeToPeriodTimeUs(19_000_000), SeekParameters.CLOSEST_SYNC);
+
+    assertThat(periodTimeToPlaylistTimeUs(adjustedPositionUs)).isEqualTo(20_000_000);
   }
 
   @Test
-  public void getAdjustedSeekPositionUs_NoIndependedSegments() {
-    HlsMediaPlaylist mockPlaylist = getMockEmptyPlaylist(false);
-    when(mockPlaylistTracker.getPlaylistSnapshot(eq(PLAYLIST_URI), anyBoolean())).thenReturn(mockPlaylist);
-    long adjusted = testee.getAdjustedSeekPositionUs(playlistTimeToPeriodTimeUs(100_000_000), SeekParameters.EXACT);
-    assertThat(periodTimeToPlaylistTime(adjusted)).isEqualTo(100_000_000);
-  }
+  public void getAdjustedSeekPositionUs_exact() {
+    long adjustedPositionUs =
+        testChunkSource.getAdjustedSeekPositionUs(
+            playlistTimeToPeriodTimeUs(17_000_000), SeekParameters.EXACT);
 
+    assertThat(periodTimeToPlaylistTimeUs(adjustedPositionUs)).isEqualTo(17_000_000);
+  }
 
   @Test
-  public void getAdjustedSeekPositionUs_EmptyPlaylist() {
-    HlsMediaPlaylist mockPlaylist = getMockEmptyPlaylist(true);
-    when(mockPlaylistTracker.getPlaylistSnapshot(eq(PLAYLIST_URI), anyBoolean())).thenReturn(mockPlaylist);
-    long adjusted = testee.getAdjustedSeekPositionUs(playlistTimeToPeriodTimeUs(100_000_000), SeekParameters.EXACT);
-    assertThat(periodTimeToPlaylistTime(adjusted)).isEqualTo(100_000_000);
+  public void getAdjustedSeekPositionUs_noIndependentSegments() throws IOException {
+    InputStream inputStream =
+        TestUtil.getInputStream(ApplicationProvider.getApplicationContext(), PLAYLIST);
+    HlsMediaPlaylist playlist =
+        (HlsMediaPlaylist) new HlsPlaylistParser().parse(PLAYLIST_URI, inputStream);
+    when(mockPlaylistTracker.getPlaylistSnapshot(eq(PLAYLIST_URI), anyBoolean()))
+        .thenReturn(playlist);
+
+    long adjustedPositionUs =
+        testChunkSource.getAdjustedSeekPositionUs(
+            playlistTimeToPeriodTimeUs(100_000_000), SeekParameters.NEXT_SYNC);
+
+    assertThat(periodTimeToPlaylistTimeUs(adjustedPositionUs)).isEqualTo(100_000_000);
   }
 
+  @Test
+  public void getAdjustedSeekPositionUs_stalePlaylist() throws IOException {
+    InputStream inputStream =
+        TestUtil.getInputStream(ApplicationProvider.getApplicationContext(), PLAYLIST_LIVE_SECOND);
+    HlsMediaPlaylist playlist =
+        (HlsMediaPlaylist) new HlsPlaylistParser().parse(PLAYLIST_URI, inputStream);
+    when(mockPlaylistTracker.getPlaylistSnapshot(eq(PLAYLIST_URI), anyBoolean()))
+        .thenReturn(playlist);
+    long adjustedPositionUs =
+        testChunkSource.getAdjustedSeekPositionUs(
+            playlistTimeToPeriodTimeUs(100_000_000), SeekParameters.NEXT_SYNC);
 
-
-  /**
-   * Convert playlist start relative time to {@link MediaPeriod} relative time.
-   *
-   * It is easier to express test case values relative to the playlist.
-   *
-   * @param playlistTimeUs - playlist time (first segment start is time 0)
-   * @return period time, offset of the playlist update (the Window) from start of period
-   */
-  private long playlistTimeToPeriodTimeUs(long playlistTimeUs) {
-    return playlistTimeUs + PLAYLIST_START_PERIOD_OFFSET;
+    assertThat(periodTimeToPlaylistTimeUs(adjustedPositionUs)).isEqualTo(100_000_000);
   }
 
-  private long periodTimeToPlaylistTime(long periodTimeUs) {
-    return periodTimeUs - PLAYLIST_START_PERIOD_OFFSET;
+  @Test
+  public void getAdjustedSeekPositionUs_emptyPlaylist() throws IOException {
+    InputStream inputStream =
+        TestUtil.getInputStream(ApplicationProvider.getApplicationContext(), PLAYLIST_EMPTY);
+    HlsMediaPlaylist playlist =
+        (HlsMediaPlaylist) new HlsPlaylistParser().parse(PLAYLIST_URI, inputStream);
+    when(mockPlaylistTracker.getPlaylistSnapshot(eq(PLAYLIST_URI), anyBoolean()))
+        .thenReturn(playlist);
+
+    long adjustedPositionUs =
+        testChunkSource.getAdjustedSeekPositionUs(
+            playlistTimeToPeriodTimeUs(100_000_000), SeekParameters.NEXT_SYNC);
+
+    assertThat(periodTimeToPlaylistTimeUs(adjustedPositionUs)).isEqualTo(100_000_000);
   }
 
+  private static long playlistTimeToPeriodTimeUs(long playlistTimeUs) {
+    return playlistTimeUs + PLAYLIST_START_PERIOD_OFFSET_US;
+  }
 
-  private HlsMediaPlaylist getMockEmptyPlaylist(boolean hasIndependentSegments) {
-    // difficult to mock a final class, so use acutal class
-
-    return new HlsMediaPlaylist(
-        HlsMediaPlaylist.PLAYLIST_TYPE_UNKNOWN,
-        PLAYLIST_URI.toString(),
-        Collections.emptyList(),
-        0,
-        0,
-        false,
-        0,
-        0,
-        8,
-        6,
-        hasIndependentSegments,
-        true,
-        true,
-        null,
-        Collections.emptyList()
-    );
+  private static long periodTimeToPlaylistTimeUs(long periodTimeUs) {
+    return periodTimeUs - PLAYLIST_START_PERIOD_OFFSET_US;
   }
 }
