@@ -1,11 +1,27 @@
 # Release notes #
 
-### 2.12.3-2.1-dev (06-09-2022) ###
+### 2.12.3-2.1 (08-02-2022)
 
 #### Our Internal Changes
 
-- Uses correct logic for validating HDCP >= 2.2 
- - Fix for [WSIPCL-13900 - Getting V593 DRM Error after unplug and plug back in HDMI during Linear playback](https://jira.xperi.com/browse/WSIPCL-13900) &mdash;?| Fix the isHdcpLevelV2_2() logic to consider MediaDrm.HDCP_NO_DIGITAL_OUTPUT as NOT HDCP level 2.2 by eliminate numeric comparisons assuming ordering of private static final values in MediaDrm.
+* Visual Trick Play:
+
+  * Fix for [PARTDEFECT-13609 ... LiveTV - Rewind goes back to beginning of cache](https://jira.xperi.com/browse/PARTDEFECT-13609) and related bugs.  This was an ExoPlayer issue with code we shared, covered by this Google pull request, [10484](https://github.com/google/ExoPlayer/pull/10484),  our checkin: "Seek nearest SYNC does not adjust stale playlists [18f824064b](https://github.com/tivocorp/exoplayerprvt/commit/18f824064b)"
+  * Not allowing fast forward trick mode in the last segment while in tunneling mode to avoid video decoder getting stuck. – Wed Jul 20 06:32:23 2022 -0700 [d24ae63549](https://github.com/tivocorp/exoplayerprvt/commit/d24ae63549)
+  * Fix for forward frame rate issues,  [WSIPCL-13391 Dual-mode VTP has inconsistent FFx1 frame rate](https://jira.xperi.com/browse/WSIPCL-13391), "Downshift in forward trickplay dumps buffered" [d9f06224ae](https://github.com/tivocorp/exoplayerprvt/commit/d9f06224ae)"
+
+* Other Fixes:
+
+  * Supports playback of a DASH mpd  [24741e916c](https://github.com/tivocorp/exoplayerprvt/commit/24741e916c)
+  * Added setApplyConstraintsFrameRate() track selection parameter  [163be9ed76](https://github.com/tivocorp/exoplayerprvt/commit/163be9ed76)
+
+  * Notify HDCP 2.2 level everytime after refreshState() is called. The OutputProtectionMonitor listener calls refeshState for every playback. Notify the current state regardless whether it changed or not. That way the listener is in sync with OutputProtectionMonitor – Wed Jul 13 17:50:33 2022 -0700 [69b4c187d0](https://github.com/tivocorp/exoplayerprvt/commit/69b4c187d0)
+
+
+  - Uses correct logic for validating HDCP >= 2.2 
+
+    - Fix for [WSIPCL-13900 - Getting V593 DRM Error after unplug and plug back in HDMI during Linear playback](https://jira.xperi.com/browse/WSIPCL-13900) &mdash;?| Fix the isHdcpLevelV2_2() logic to consider MediaDrm.HDCP_NO_DIGITAL_OUTPUT as NOT HDCP level 2.2 by eliminate numeric comparisons assuming ordering of private static final values in MediaDrm.
+
 
 #### Cherry-pick and Back-ports
 
