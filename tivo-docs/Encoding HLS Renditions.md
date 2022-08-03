@@ -28,7 +28,7 @@ Section *4.3.4.1.1 Rendition Group* specifies "MUST" requirements that satisfy n
    exception of the URI and CHANNELS attributes.
 ```
 
-This first paragraph suggests how multiple channel sets for surround sound (2.1, 5.1 and 7.1 for example) can all be in the same group, by simply changing the CHANNELS count.  We strongly suggest changing the name as the player UI may note decode the channel count.  The ExoPlayer auto-select does select based on channel count matching the playback device.
+This first paragraph suggests how multiple channel sets for surround sound (2.1, 5.1 and 7.1 for example) can all be in the same group, by simply changing the CHANNELS count.  We strongly suggest changing the name as the player UI may not decode the channel count.  The ExoPlayer auto-select does select based on channel count matching the playback device.
 
 The following paragraph is where the issues come in
 
@@ -48,7 +48,7 @@ Having multiple disparate audio codecs in the CODECS attribute referencing the s
 
 ## Rendition Group Encoding
 
-To begin playback player the player must choose an initial Varaint + Rendition.   To do this, for each Rendition Group (each unique GROUP-ID of a given TYPE), the player will:
+To begin playback the player must choose an initial Varaint + Rendition.   To do this, for each Rendition Group (each unique GROUP-ID of a given TYPE), the player will:
 
 1. Creates an track of the specified type (AUDIO, SUBTITLE, CC)
 2. Attempt to determine the codec for the specified type by matching the GROUP-ID to a referenced Variant's CODEC string
