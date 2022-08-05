@@ -2377,8 +2377,10 @@ public class DefaultTrackSelector extends MappingTrackSelector {
    */
   private static boolean platformSupportsTunnelingTrickPlay() {
     return ((Build.MANUFACTURER.equals("Technicolor") &&
+                    // Jade 21
+                    (Build.DEVICE.equals("jade21") ||
                     // Ruby Millicom
-                    ((Build.DEVICE.equals("uiw4059mil") && compareVersions(Build.VERSION.INCREMENTAL, "1.1-220218") >= 0) ||
+                    (Build.DEVICE.equals("uiw4059mil") && compareVersions(Build.VERSION.INCREMENTAL, "1.1-220218") >= 0) ||
                     // Jade Millicom
                     (Build.DEVICE.equals("uiw4054mil") && compareVersions(Build.VERSION.INCREMENTAL, "9.0-220225") >= 0) ||
                     // Jade Hotwire
