@@ -1,0 +1,98 @@
+diff --git a/library/core/src/main/java/com/google/android/exoplayer2/audio/AudioCapabilitiesReceiver.java b/library/core/src/main/java/com/google/android/exoplayer2/audio/AudioCapabilitiesReceiver.java
+index caed07b6ad..f8750187f2 100644
+--- a/library/core/src/main/java/com/google/android/exoplayer2/audio/AudioCapabilitiesReceiver.java
++++ b/library/core/src/main/java/com/google/android/exoplayer2/audio/AudioCapabilitiesReceiver.java
+@@ -24,7 +24,12 @@ import android.database.ContentObserver;
+ import android.media.AudioManager;
+ import android.net.Uri;
+ import android.os.Handler;
++
+ import androidx.annotation.Nullable;
++import androidx.mediarouter.media.MediaControlIntent;
++import androidx.mediarouter.media.MediaRouteSelector;
++import androidx.mediarouter.media.MediaRouter;
++import androidx.mediarouter.media.MediaRouter.RouteInfo;
+ import com.google.android.exoplayer2.util.Assertions;
+ import com.google.android.exoplayer2.util.Util;
+ 
+@@ -54,6 +59,10 @@ public final class AudioCapabilitiesReceiver {
+   @Nullable /* package */ AudioCapabilities audioCapabilities;
+   private boolean registered;
+ 
++  Intent stickyIntent = null;
++  private MediaRouter mediaRouter;
++  private MediaRouteSelector mSelector;
++
+   /**
+    * @param context A context for registering the receiver.
+    * @param listener The listener to notify when audio capabilities change.
+@@ -70,6 +79,11 @@ public final class AudioCapabilitiesReceiver {
+             ? new ExternalSurroundSoundSettingObserver(
+                 handler, context.getContentResolver(), externalSurroundSoundUri)
+             : null;
++
++    mediaRouter = MediaRouter.getInstance(context);
++    mSelector = new MediaRouteSelector.Builder()
++            .addControlCategory(MediaControlIntent.CATEGORY_LIVE_AUDIO)
++            .build();
+   }
+ 
+   /**
+@@ -88,7 +102,6 @@ public final class AudioCapabilitiesReceiver {
+     if (externalSurroundSoundSettingObserver != null) {
+       externalSurroundSoundSettingObserver.register();
+     }
+-    Intent stickyIntent = null;
+     if (receiver != null) {
+       IntentFilter intentFilter = new IntentFilter(AudioManager.ACTION_HDMI_AUDIO_PLUG);
+       stickyIntent =
+@@ -96,6 +109,10 @@ public final class AudioCapabilitiesReceiver {
+               receiver, intentFilter, /* broadcastPermission= */ null, handler);
+     }
+     audioCapabilities = AudioCapabilities.getCapabilities(context, stickyIntent);
++
++    mediaRouter.addCallback(mSelector, mediaRouterCallback,
++            MediaRouter.CALLBACK_FLAG_REQUEST_DISCOVERY);
++
+     return audioCapabilities;
+   }
+ 
+@@ -114,6 +131,9 @@ public final class AudioCapabilitiesReceiver {
+     if (externalSurroundSoundSettingObserver != null) {
+       externalSurroundSoundSettingObserver.unregister();
+     }
++
++    mediaRouter.removeCallback(mediaRouterCallback);
++
+     registered = false;
+   }
+ 
+@@ -159,4 +179,28 @@ public final class AudioCapabilitiesReceiver {
+       onNewAudioCapabilities(AudioCapabilities.getCapabilities(context));
+     }
+   }
++
++  // Define the Callback object and its method to detect the Bluetooth speaker connenction
++  private final MediaRouter.Callback mediaRouterCallback =
++          new MediaRouter.Callback() {
++            @Override
++            public void onRouteChanged(MediaRouter router, RouteInfo route) {
++            }
++
++            @Override
++            public void onRouteSelected(MediaRouter router, RouteInfo route) {
++              if (route.getDeviceType() == 3) {
++                AudioCapabilities.setExternalPcmOnlySoundset(true);
++                onNewAudioCapabilities(AudioCapabilities.getCapabilities(context, null));
++              }
++            }
++
++            @Override
++            public void onRouteUnselected(MediaRouter router, RouteInfo route, int reason) {
++              if (route.getDeviceType() == 3) {
++                AudioCapabilities.setExternalPcmOnlySoundset(false);
++                onNewAudioCapabilities(AudioCapabilities.getCapabilities(context, stickyIntent));
++              }
++            }
++          };
+ }
