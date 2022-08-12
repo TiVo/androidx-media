@@ -25,13 +25,9 @@ allprojects {
     repositories {
         google()
         mavenCentral()
-        maven { url "https://oss.sonatype.org/content/repositories/snapshots" }
         maven {
             url 'http://repo-vip.tivo.com:8081/artifactory/libs-release'
         }
-    }
-    project.ext {
-        tivoExoplayerPublishEnabled = true
     }
     if (it.hasProperty('externalBuildDir')) {
         if (!new File(externalBuildDir).isAbsolute()) {

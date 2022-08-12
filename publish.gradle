@@ -13,38 +13,17 @@
 // limitations under the License.
 
 apply plugin: 'maven-publish'
-
-
-if (project.ext.has("tivoExoplayerPublishEnabled")
-        && project.ext.tivoExoplayerPublishEnabled) {
-    ext {
-        releaseGroupId = 'com.tivo.android.exoplayer'
-    }
-
-    if (project.ext.releaseVersion.endsWith("-dev") && System.getenv('BUILD_NUMBER') != null) {
-        project.ext.releaseVersion = project.ext.releaseVersion + "-" + System.getenv('BUILD_NUMBER')
-    }
-} else {
-    ext {
-        releaseGroupId = 'com.google.android.exoplayer'
-    }
+if (project.ext.releaseVersion.endsWith("-dev") && System.getenv('BUILD_NUMBER') != null) {
+    project.ext.releaseVersion = project.ext.releaseVersion + "-" + System.getenv('BUILD_NUMBER')
 }
-
 afterEvaluate {
     publishing {
         repositories {
-            if (project.ext.has("tivoExoplayerPublishEnabled")
-                    && project.ext.tivoExoplayerPublishEnabled) {
-                maven {
-                    url "https://repo-vip.tivo.com:8443/artifactory/libs-release-local"
-                    credentials {
-                        username REPO_USER_NAME
-                        password REPO_PASSWORD
-                    }
-                }
-            } else {
-                maven {
-                    url = findProperty('mavenRepo') ?: "${buildDir}/repo"
+            maven {
+                url "https://repo-vip.tivo.com:8443/artifactory/libs-release-local"
+                credentials {
+                    username REPO_USER_NAME
+                    password REPO_PASSWORD
                 }
             }
         }
@@ -56,7 +35,7 @@ afterEvaluate {
                     from components.release
                 }
                 artifact androidSourcesJar
-                groupId = releaseGroupId
+                groupId ='com.tivo.android.exoplayer'
                 artifactId = releaseArtifact
                 version releaseVersion
                 pom {
@@ -75,8 +54,8 @@ afterEvaluate {
                         }
                     }
                     scm {
-                        connection = 'scm:git:https://github.com/google/ExoPlayer.git'
-                        url = 'https://github.com/google/ExoPlayer'
+                        connection = 'scm:git:https://github.com/tivocorp/exoplayerprvt.git'
+                        url = 'https://github.com/tivocorp/exoplayerprvt.git'
                     }
                 }
             }

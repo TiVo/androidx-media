@@ -1,0 +1,11 @@
+def modulePrefix = ':'
+if (gradle.ext.has('exoplayerModulePrefix')) {
+    modulePrefix += gradle.ext.exoplayerModulePrefix
+}
+
+include modulePrefix + 'demo-tenfoot'
+project(modulePrefix + 'demo-tenfoot').projectDir = new File(rootDir, 'demos/tenfoot')
+include modulePrefix + 'library-tivo-ui'
+project(modulePrefix + 'library-tivo-ui').projectDir = new File(rootDir, 'library/tivo-ui')
+include modulePrefix + 'library-trickplay'
+project(modulePrefix + 'library-trickplay').projectDir = new File(rootDir, 'library/trickplay')
