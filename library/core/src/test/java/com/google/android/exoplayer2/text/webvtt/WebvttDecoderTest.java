@@ -203,7 +203,7 @@ public class WebvttDecoderTest {
     assertThat(firstCue.size).isEqualTo(0.35f);
 
     // Unspecified values should use WebVTT defaults
-    assertThat(firstCue.line).isEqualTo(-1f);
+    assertThat(firstCue.line).isEqualTo(-2f);
     assertThat(firstCue.lineType).isEqualTo(Cue.LINE_TYPE_NUMBER);
     assertThat(firstCue.verticalType).isEqualTo(Cue.TYPE_UNSET);
 
@@ -276,40 +276,40 @@ public class WebvttDecoderTest {
 
     Cue firstCue = Iterables.getOnlyElement(subtitle.getCues(subtitle.getEventTime(0)));
     assertThat(firstCue.text.toString()).isEqualTo("Displayed at the bottom for 3 seconds.");
-    assertThat(firstCue.line).isEqualTo(-1f);
+    assertThat(firstCue.line).isEqualTo(-2f);
     assertThat(firstCue.lineType).isEqualTo(Cue.LINE_TYPE_NUMBER);
 
     List<Cue> firstAndSecondCue = subtitle.getCues(subtitle.getEventTime(1));
     assertThat(firstAndSecondCue).hasSize(2);
     assertThat(firstAndSecondCue.get(0).text.toString())
         .isEqualTo("Displayed at the bottom for 3 seconds.");
-    assertThat(firstAndSecondCue.get(0).line).isEqualTo(-1f);
+    assertThat(firstAndSecondCue.get(0).line).isEqualTo(-2f);
     assertThat(firstAndSecondCue.get(0).lineType).isEqualTo(Cue.LINE_TYPE_NUMBER);
     assertThat(firstAndSecondCue.get(1).text.toString())
         .isEqualTo("Appears directly above for 1 second.");
-    assertThat(firstAndSecondCue.get(1).line).isEqualTo(-2f);
+    assertThat(firstAndSecondCue.get(1).line).isEqualTo(-3f);
     assertThat(firstAndSecondCue.get(1).lineType).isEqualTo(Cue.LINE_TYPE_NUMBER);
 
     Cue thirdCue = Iterables.getOnlyElement(subtitle.getCues(subtitle.getEventTime(4)));
     assertThat(thirdCue.text.toString()).isEqualTo("Displayed at the bottom for 2 seconds.");
-    assertThat(thirdCue.line).isEqualTo(-1f);
+    assertThat(thirdCue.line).isEqualTo(-2f);
     assertThat(thirdCue.lineType).isEqualTo(Cue.LINE_TYPE_NUMBER);
 
     List<Cue> thirdAndFourthCue = subtitle.getCues(subtitle.getEventTime(5));
     assertThat(thirdAndFourthCue).hasSize(2);
     assertThat(thirdAndFourthCue.get(0).text.toString())
         .isEqualTo("Displayed at the bottom for 2 seconds.");
-    assertThat(thirdAndFourthCue.get(0).line).isEqualTo(-1f);
+    assertThat(thirdAndFourthCue.get(0).line).isEqualTo(-2f);
     assertThat(thirdAndFourthCue.get(0).lineType).isEqualTo(Cue.LINE_TYPE_NUMBER);
     assertThat(thirdAndFourthCue.get(1).text.toString())
         .isEqualTo("Appears directly above the previous cue, then replaces it after 1 second.");
-    assertThat(thirdAndFourthCue.get(1).line).isEqualTo(-2f);
+    assertThat(thirdAndFourthCue.get(1).line).isEqualTo(-3f);
     assertThat(thirdAndFourthCue.get(1).lineType).isEqualTo(Cue.LINE_TYPE_NUMBER);
 
     Cue fourthCue = Iterables.getOnlyElement(subtitle.getCues(subtitle.getEventTime(6)));
     assertThat(fourthCue.text.toString())
         .isEqualTo("Appears directly above the previous cue, then replaces it after 1 second.");
-    assertThat(fourthCue.line).isEqualTo(-1f);
+    assertThat(fourthCue.line).isEqualTo(-2f);
     assertThat(fourthCue.lineType).isEqualTo(Cue.LINE_TYPE_NUMBER);
   }
 
