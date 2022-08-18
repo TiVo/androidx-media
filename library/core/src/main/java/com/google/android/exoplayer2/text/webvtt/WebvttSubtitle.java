@@ -85,7 +85,9 @@ import java.util.List;
     Collections.sort(cuesWithUnsetLine, (c1, c2) -> Long.compare(c1.startTimeUs, c2.startTimeUs));
     for (int i = 0; i < cuesWithUnsetLine.size(); i++) {
       Cue cue = cuesWithUnsetLine.get(i).cue;
-      currentCues.add(cue.buildUpon().setLine((float) (-1 - i), Cue.LINE_TYPE_NUMBER).build());
+      // Line indices from the top of the window start from 0, but we want a blank row to act as
+      // the safe area. As a result no adjustment is necessary
+      currentCues.add(cue.buildUpon().setLine((float) (-2 - i), Cue.LINE_TYPE_NUMBER).build());
     }
     return currentCues;
   }
