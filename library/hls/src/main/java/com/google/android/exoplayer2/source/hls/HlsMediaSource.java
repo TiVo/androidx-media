@@ -103,7 +103,6 @@ public final class HlsMediaSource extends BaseMediaSource
     @Nullable private DrmSessionManager drmSessionManager;
     private LoadErrorHandlingPolicy loadErrorHandlingPolicy;
     private boolean allowChunklessPreparation;
-    private long defaultLiveOffsetUs = C.TIME_UNSET;
     @MetadataType private int metadataType;
     private boolean useSessionKeys;
     private List<StreamKey> streamKeys;
@@ -265,12 +264,13 @@ public final class HlsMediaSource extends BaseMediaSource
      *     <li>Hard-coded default (3 segments back from the duration of the live window)</li>
      * </ol>
      *
-     *
+     * Deprecated - will use the new Live Streaming API: https://exoplayer.dev/live-streaming.html
+     *   the setLiveTargetOffsetMs() should be near equiv. to this call
      * @param offsetUs - offset in microseconds
      * @return This factory, to allow chaining
      */
+    @Deprecated
     public Factory setDefaultLiveOffset(long offsetUs) {
-      this.defaultLiveOffsetUs = offsetUs;
       return this;
     }
 
@@ -409,7 +409,6 @@ public final class HlsMediaSource extends BaseMediaSource
           playlistTrackerFactory.createTracker(
               hlsDataSourceFactory, loadErrorHandlingPolicy, playlistParserFactory),
           allowChunklessPreparation,
-          defaultLiveOffsetUs,
           metadataType,
           useSessionKeys);
     }
@@ -428,7 +427,6 @@ public final class HlsMediaSource extends BaseMediaSource
   private final DrmSessionManager drmSessionManager;
   private final LoadErrorHandlingPolicy loadErrorHandlingPolicy;
   private final boolean allowChunklessPreparation;
-  private final long defaultLiveOffsetUs;
   private final @MetadataType int metadataType;
   private final boolean useSessionKeys;
   private final HlsPlaylistTracker playlistTracker;
@@ -444,7 +442,6 @@ public final class HlsMediaSource extends BaseMediaSource
       LoadErrorHandlingPolicy loadErrorHandlingPolicy,
       HlsPlaylistTracker playlistTracker,
       boolean allowChunklessPreparation,
-      long defaultLiveOffsetUs,
       @MetadataType int metadataType,
       boolean useSessionKeys) {
     this.playbackProperties = checkNotNull(mediaItem.playbackProperties);
@@ -456,7 +453,6 @@ public final class HlsMediaSource extends BaseMediaSource
     this.loadErrorHandlingPolicy = loadErrorHandlingPolicy;
     this.playlistTracker = playlistTracker;
     this.allowChunklessPreparation = allowChunklessPreparation;
-    this.defaultLiveOffsetUs = defaultLiveOffsetUs;
     this.metadataType = metadataType;
     this.useSessionKeys = useSessionKeys;
   }
@@ -545,25 +541,17 @@ public final class HlsMediaSource extends BaseMediaSource
           playlist.hasEndTag ? offsetFromInitialStartTimeUs + playlist.durationUs : C.TIME_UNSET;
       List<HlsMediaPlaylist.Segment> segments = playlist.segments;
       if (windowDefaultStartPositionUs == C.TIME_UNSET) {
-        if (defaultLiveOffsetUs == C.TIME_UNSET) {
-          windowDefaultStartPositionUs = 0;
-          if (!segments.isEmpty()) {
+        windowDefaultStartPositionUs = 0;
+        if (!segments.isEmpty()) {
           int defaultStartSegmentIndex = max(0, segments.size() - 3);
-            // We attempt to set the default start position to be at least twice the target duration
-            // behind the live edge.
-            long minStartPositionUs = playlist.durationUs - playlist.targetDurationUs * 2;
-            while (defaultStartSegmentIndex > 0
-                    && segments.get(defaultStartSegmentIndex).relativeStartTimeUs > minStartPositionUs) {
-              defaultStartSegmentIndex--;
-            }
-            windowDefaultStartPositionUs = segments.get(defaultStartSegmentIndex).relativeStartTimeUs;
+          // We attempt to set the default start position to be at least twice the target duration
+          // behind the live edge.
+          long minStartPositionUs = playlist.durationUs - playlist.targetDurationUs * 2;
+          while (defaultStartSegmentIndex > 0
+              && segments.get(defaultStartSegmentIndex).relativeStartTimeUs > minStartPositionUs) {
+            defaultStartSegmentIndex--;
           }
-
-        } else {
-          windowDefaultStartPositionUs =
-                  defaultLiveOffsetUs > 0 ? defaultLiveOffsetUs : playlist.durationUs + defaultLiveOffsetUs;
-          windowDefaultStartPositionUs =
-                  Util.constrainValue(windowDefaultStartPositionUs, 0, playlist.durationUs - playlist.targetDurationUs);
+          windowDefaultStartPositionUs = segments.get(defaultStartSegmentIndex).relativeStartTimeUs;
         }
       }
       timeline =
