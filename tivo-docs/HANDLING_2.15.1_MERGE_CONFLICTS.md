@@ -290,6 +290,20 @@ This is the oldest set of changes to the Google ExoPlayer code we have, there ar
 
 Some of the changes since 2.13.3 have been shared in pull requests
 
+### Merge Conflicts
+
+#### Resolve With Fix-ups
+
+- **HlsChunkSource** &mdash; Our changes with conflicts resolved as follows:
+  - VCAS changes - our key changes in `getNextChunk()` conflict, take ours and change `segment` to `segmentBaseHolder.segmentBase` This is because of their changes to support HLS-LL
+  - Our `getAdjustedSeekPositionUs()` in same spot as `getChunkPublicationState()`, take ours then append theirs
+
+
+* **HlsMediaChunk** &mdash; Our change [Allows discard of overlapping iFrame only chunks](https://github.com/tivocorp/exoplayerprvt/commit/b7850d322a) conflicts, the `shouldSpliceIn` and logic around it is moved.  Best to take their version of lines ??? and cherry pick later version from our pull request, 10484
+* **HlsMediaSource** &mdash; our changes to `onPrimaryPlaylistRefreshed()`
+* **HlsPlaylistParser** &mdash; our change to add `parseTimeSecondsToUs()`
+* **HlsSampleStreamWrapper** &mdash; our change to add `getBufferedPositionUs()`, check for `hasSamples()`
+
 ### Our Changes
 
 #### In Open Pull request
