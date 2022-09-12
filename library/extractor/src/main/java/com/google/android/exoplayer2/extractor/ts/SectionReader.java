@@ -133,9 +133,4 @@ public final class SectionReader implements TsPayloadReader {
     }
   }
 
-  @Override
-  public void endOfStream() {
-    // NOP, sections all fit in single TS packet.
-  }
-
 }
