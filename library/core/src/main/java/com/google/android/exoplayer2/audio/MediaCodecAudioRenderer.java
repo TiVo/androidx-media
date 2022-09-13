@@ -109,6 +109,9 @@ public class MediaCodecAudioRenderer extends MediaCodecRenderer implements Media
 
   @Nullable private WakeupListener wakeupListener;
 
+  private long lastOutputTimeUs;
+  private boolean tunneling = false;
+
   /**
    * @param context A context.
    * @param mediaCodecSelector A decoder selector.
@@ -241,6 +244,7 @@ public class MediaCodecAudioRenderer extends MediaCodecRenderer implements Media
         /* assumedMinimumCodecOperatingRate= */ 44100);
     this.context = context.getApplicationContext();
     this.audioSink = audioSink;
+    lastOutputTimeUs = C.TIME_UNSET;
     eventDispatcher = new EventDispatcher(eventHandler, eventListener);
     audioSink.setListener(new AudioSinkListener());
   }
@@ -497,8 +501,10 @@ public class MediaCodecAudioRenderer extends MediaCodecRenderer implements Media
     eventDispatcher.enabled(decoderCounters);
     if (getConfiguration().tunneling) {
       audioSink.enableTunnelingV21();
+      tunneling = true;
     } else {
       audioSink.disableTunneling();
+      tunneling = false;
     }
   }
 
@@ -514,6 +520,28 @@ public class MediaCodecAudioRenderer extends MediaCodecRenderer implements Media
     currentPositionUs = positionUs;
     allowFirstBufferPositionDiscontinuity = true;
     allowPositionDiscontinuity = true;
+  }
+
+  /**
+   * Override, to handle tunneling.  In the tunneled case we must assume there is
+   * output ready to render whenever we have queued any sample buffers to the codec that
+   * it has not reported as rendered.
+   *
+   * @return
+   */
+  @Override
+  protected boolean hasOutputReady() {
+      boolean fifoReady = true;
+      if (tunneling && lastOutputTimeUs != C.TIME_UNSET) {
+          long fifoLengthUs = getLargestQueuedPresentationTimeUs() - lastOutputTimeUs;
+          // make sure there is some amount of audio available in decoder FIFO,
+          // otherwise decoder may start stalling
+          if (fifoLengthUs <= 0)
+          {
+              fifoReady = false;
+          }
+      }
+      return tunneling && fifoReady || super.hasOutputReady();
   }
 
   @Override
@@ -532,6 +560,7 @@ public class MediaCodecAudioRenderer extends MediaCodecRenderer implements Media
   @Override
   protected void onDisabled() {
     audioSinkNeedsReset = true;
+    lastOutputTimeUs = C.TIME_UNSET;
     try {
       audioSink.flush();
     } finally {
@@ -562,7 +591,8 @@ public class MediaCodecAudioRenderer extends MediaCodecRenderer implements Media
 
   @Override
   public boolean isReady() {
-    return audioSink.hasPendingData() || super.isReady();
+    return tunneling? super.isReady() :
+        audioSink.hasPendingData() || super.isReady();
   }
 
   @Override
@@ -585,6 +615,13 @@ public class MediaCodecAudioRenderer extends MediaCodecRenderer implements Media
 
   @Override
   protected void onQueueInputBuffer(DecoderInputBuffer buffer) {
+    
+    if (Util.SDK_INT < 23 && tunneling) {
+        // In tunneled mode before API 23 we don't have a way to know when the buffer is output, so
+        // treat it as if it were output immediately.
+        lastOutputTimeUs = buffer.timeUs;
+    }
+
     if (allowFirstBufferPositionDiscontinuity && !buffer.isDecodeOnly()) {
       // TODO: Remove this hack once we have a proper fix for [Internal: b/71876314].
       // Allow the position to jump if the first presentable input buffer has a timestamp that
@@ -649,6 +686,7 @@ public class MediaCodecAudioRenderer extends MediaCodecRenderer implements Media
       if (codec != null) {
         codec.releaseOutputBuffer(bufferIndex, false);
       }
+      lastOutputTimeUs = getLargestQueuedPresentationTimeUs();
       decoderCounters.renderedOutputBufferCount += sampleCount;
       return true;
     }
