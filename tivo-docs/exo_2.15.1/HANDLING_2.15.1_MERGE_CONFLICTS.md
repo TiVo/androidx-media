@@ -1,25 +1,44 @@
 # Handling 2.15.1 Merge Conflicts
 
-When merging  Google's `r2.15.1` release tag  to our `release` branch there are conflicts, these fall in a few categories:
+## Overview
 
-1. Re-resolve of conflicts for change we have made to `r2.12.3`, `r2.11.6` that have not been integrated to Google's code
-2. Changes since our last merge (merge of Google's `r2.12.3`) that are not merged into Google's code
-3. Cherry-picks from Google's code post `r2.15.1`
-4. Changes we have authored, that Google has merged into their release post `r2.15.1`
+This document describes how we will perform the merge of Google's 2.15.1 release with our local `release` branch.
 
-This document lists each of our changes from category 1 and 2, by module, and the steps to incorporate them.  
+### Background
 
-The category 3 and 4 changes are pre-resolved by applying them to a local branch from Google's `r2.15.1` tag.  The branches involved are:
+When merging  Google's `r2.15.1` release tag  to our `release` branch there are possible conflicts from two broad categories:
 
-1. `t-google-release-v2-r2.15.1` &mdash; Checkout of Google's tree at `r2.15.1`, then create a local branch.  This is our upstream  reference branch
-2. `t-google-release-v2-r2.15.1-with-cherry-picks` &mdash; branch from `t-google-release-v2-r2.15.1` but with cherry-picks from Google's `release-v2` branch that are post `r2.15.1` and part of our current `release` branch.
-3. `t-merge-google-release-r2.15.1`  &mdash; This is our merge target, what will eventually be a non-conflicted pull request to merge back to our `release`.  Will keep this branch re-based to release (note, this may require locking down the `release` branch a bit to insure a clean pull request)
+1. Changes not shared with Google (these should be very few)
+2. Shared but not included in `r2.15.1`
+
+For case 1 changes, the action is always to take theirs and "patch in" our change.  Case 2 changes are mostly (if no conflicts in the cherry-pick) included in the *merge source branch*.
+
+In other words, all deltas in our code from Google's code fall into one of these states:
+
+1. already included in 2.15.1
+2. in `release-v2` post 2.15.1
+3. in `dev-v2` no release target
+4. in open pull request
+5. not shared
+
+This document lists the changes by module in the *Our Changes* sections,  case 5 in the *Not Shared* sections, and cases 2, 3 and 4 in the *Cherry-Picked From Future* sections.
+
+We manage the execution of the merge with this set of branches:
+
+1. **Merge Reference** (`t-google-release-v2-r2.15.1`)  &mdash; Checkout of Google's tree at `r2.15.1`, then create a local branch.  This is our upstream  reference branch, it is the base for the *Merge Source* branch
+2. **Merge Source**  (`t-google-release-v2-r2.15.1-with-cherry-picks`) &mdash;  branch from the *Merge Source*  then cherry-picks from Google's code base and our open pull requests.  Note the cherry-picked changes are essentially ''future" versions of shared changes in our `release` branch. 
+3. **Merge Target**  (`t-merge-google-release-r2.15.1`)  &mdash; This is based from our `release` and the target of the merge .  Will keep this branch re-based to release (note, this may require locking down the `release` branch a bit to insure a clean pull request)
+
+### Mechanics
+
+The overall goal is to reduce the initial set of conflicts and the resolution complexity of the conflicts that remain (that is they should most all be take theirs)
 
 So, the basic workflow is to:
 
 1. checkout latest `t-merge-google-release-r2.15.1` 
 2. do the merge and run the resolve script
-3. work on conflicts, write up resulting resolution
+3. work on conflicts, write up resulting resolution background in here.
+4. add the resolution to `initial-merge-script.sh`
 
 These commands perform steps 1 and 2
 
@@ -33,17 +52,12 @@ To restore your workspace, simply abort the merge,  `git merge --abort`
 
 Our goal is to eliminate as many conflicts as possible, this can be done by:
 
-1. Reverting / modifying changes in `t-merge-google-release-r2.15.1`
-2. Adding cherry-picks to the `t-google-release-v2-r2.15.1-with-cherry-picks` branch.  
+1. Reverting our conflicted changes in *Merge Target* branch
+2. Adding cherry-picks to the *Merge Source* branch.  
 
-Of course do not change the `t-google-release-v2-r2.15.1-with-cherry-picks` with any commit that is not from Google's upstream git, doing so simply creates future conflicts.   Any changes to these two branches must build and pass all unit tests.
+Of course do not change the *Merge Source* with any commit that is not from Google's upstream git or an open pull request (as this simply creates possible future conflicts).   Any changes to these two branches **must build and pass all unit tests**.
 
-Once we are done, this should be a largely clean merge into our `release` (the `t-merge-google-release-r2.15.1` branch), any remaining conflicts are the result of changes:
-
-1. Shared with a pull request but Google has not merged into any Google branch
-2. Changes we cannot share (the VCAS support for example)
-
-
+Once we are done, the draft pull request with the *Merge Target* branch should be an unconflicted merge into our `release`, we will likely do this as a merge commit to keep the history meaningful
 
 ## Top Level Project 
 
@@ -109,7 +123,7 @@ This was from `2.15.1` so it auto merged in `Util.java`
 
 * [81430f31db](https://github.com/tivocorp/exoplayerprvt/commit/81430f31db) Thu Jun 30 16:15:02 2022 -0700 olly Remove max API level for reading TV resolution from system properties
 
-#### Other
+#### Not Shared
 
 These changes will need a test case to verify, the code auto-merged
 
@@ -130,7 +144,7 @@ Here is the list of conflicted files where we simply take the upstream version, 
 - **BaseRenderer**  &mdash; formatting change were we reverted out making method protected
 
 - **ExoPlayer**, **ExoPlayerImpl**, **SimpleExoPlayer** and **ExoPlayerImplInternal** &mdash; the experimental stuck buffering code was removed (a good thing, this was causing issues with seek in paused mode (SCRUB)), this conflicted with our cherry pick of the release timeout API (which is now included.)
-- **ExoPlayerFactory.java**  &mdash; This was deleted (after being deprecated), replaced with `SimpleExoPlayer.Builder()` which we are using everywhere now.
+- **ExoPlayerFactory**  &mdash; This was deleted (after being deprecated), replaced with `SimpleExoPlayer.Builder()` which we are using everywhere now.
 - **UnrecognizedInputFormatException** &mdash; The conflicted constructor is no longer used.  The original change, [Improved exception handling](https://github.com/tivocorp/exoplayerprvt/commit/c6fb6c5e7f) is no longer valid, worthy of a larger project to share with Google to improve diagnosing `ParserException`
 
 #### Resolve With Fix-ups
@@ -181,23 +195,13 @@ library/core/src/main/java/com/google/android/exoplayer2/analytics/PlaybackSessi
 
 #### In Open Pull request
 
-1. **Custom Logger** [2a9ef44fa1](https://github.com/tivocorp/exoplayerprvt/commit/2a9ef44fa1) Thu Apr 21 10:49:51 2022 -0700 Shashikant Enabls using a custom logger instead of android.util.Log
-2. **Buffered Tunneling Fix** &mdash;[31fb98bd50](https://github.com/tivocorp/exoplayerprvt/commit/31fb98bd50) Tue Mar 15 15:43:25 2022 -0700 Spencer Alves Fix for WSIPCL-12725, regression for buffering state in tunneling mode
-
-##### Buffered Tunneling Fix
-
-One method we were calling, `MediaCodecRenderer.getLargestQueuedPresentationTimeUs()` was removed by Google in this 2.13.0 commit, [Move last-buffer timestamp fix to better location](https://github.com/google/ExoPlayer/commit/1fb675e8769357ec161bcf268d5981ef1e108e25).  The auto-merge removes this method from our `MediaCodecRenderer` so our change to `MediaCodecVideoRenderer` no longer compiles.  Fix is to put it back in `MediaCodecRenderer`
-
-```java
-  /** Returns the largest queued input presentation time, in microseconds. */
-  protected final long getLargestQueuedPresentationTimeUs() {
-    return largestQueuedPresentationTimeUs;
-  }
-
-```
-
-This code obviously needs to be retested, perhaps we can get a pull request for the fix that  Google will merge.
-
+1. **Route the logs to custom logger** [#10185](https://github.com/google/ExoPlayer/pull/10185) &mdash; The commit below is in ExoPlayer `2.18` but using our change for now avoids conflicts.
+   *  77a3b16d6b 2022-07-13 | [Merge pull request #10185 from TiVo:p-custom-logger](https://github.com/google/ExoPlayer/commit/77a3b16d6b) [Rohit Singh]
+2. **Stuck buffering while tunneling** [#6407](https://github.com/google/ExoPlayer/pull/6407) &mdash; This change was superseded by a later fix, [31fb98bd50](https://github.com/tivocorp/exoplayerprvt/commit/31fb98bd50) so the pull request needs to be updated.  The fix is simple enough it does not conflict (for now).
+3. **Tunneling mode Audio stall detection logic** [#10613](https://github.com/google/ExoPlayer/pull/10613) &mdash; The cherry-picked of this into the *Merge Source* branch adds a method (`MediaCodecRenderer.getLargestQueuedPresentationTimeUs()` ) needed by the "Stuck buffering..." change.
+4. **TrackSelection does not jump to live with HlsMediaPeriod** [#9386](https://github.com/google/ExoPlayer/pull/9386/files)
+   * 9f9621d99a 2021-09-08 | [Tests trackselection does not seek to default period start](https://github.com/TiVo/ExoPlayer/commit//9f9621d99a) (p-fix-exo-issue-9347) [Steve Mayhew]
+   * 2f8779baff 2021-09-02 | [TrackSelection does not jump to live with HlsMediaPeriod](https://github.com/TiVo/ExoPlayer/commit//2f8779baff) [Steve Mayhew]
 #### Cherry-picked From Future
 
 These are conflicted and will need to be re-cherry-picked (if required): 
@@ -264,9 +268,13 @@ library/extractor/src/main/java/com/google/android/exoplayer2/extractor/ts/H264R
 
 ### Our Changes
 
+These changes have all been resolved to the merge source (`t-google-release-v2-r2.15.1-with-cherry-picks`) and merge target (`t-merge-google-release-v2-r2.15.1`) branches.  The only exception is pull request *Commits IDR NALU on end of stream [#10514](https://github.com/google/ExoPlayer/pull/10514)* it has been reverted from the merge target and will be cherry-picked after the inital merge checkin (it causes many conflicts)
+
 #### In Open Pull request
 
-There is a Jira story to add a test for the first commit (filler data), the other commit has test case already.  Both will be submitted to Google.
+1. **Commits IDR NALU on end of stream** [#10514](https://github.com/google/ExoPlayer/pull/10514)
+
+The commits are listed below, there is a Jira story to add a test for the first commit (filler data), the other commit has test case already.
 
 1. 2022-04-05 [Add handling for iframe transport segments with filler data. (mbolaris, 059e639524)](https://github.com/tivocorp/exoplayerprvt/commit/059e639524).  This change auto merges ok, but it will not work without the next change
 
@@ -280,59 +288,151 @@ Our cherry-pick was revert, becauses of conflict as we had to modify the origina
 
 ## Module `library-hls`
 
-This is the oldest set of changes to the Google ExoPlayer code we have, there are several changes (e.g. VCAS support, TiVoCrypt) that we will never be able to share with Google.  These merge conflicts will simply need to be re-addressed. 
+This is the oldest set of changes to the Google ExoPlayer code we have, there are several changes (e.g. VCAS support, TiVoCrypt, Dual Mode) that we will never be able to share with Google.  These merge conflicts will simply need to be re-addressed. 
 
 Some of the changes since 2.13.3 have been shared in pull requests
 
 ### Merge Conflicts
 
-#### Resolve With Fix-ups
+#### Take Theirs
 
-* **HlsPlaylistParser**, **HlsPlaylistParserTest** &mdash; our change to add `parseTimeSecondsToUs()`
+- **HlsPlaylistParser** &mdash; the cherry-picked changes from 2.17.0 (EXTINF rounding issue) were added to the `t-google-release-v2-r2.15.1-with-cherry-picks` so we can "take theirs"
 
-- **HlsChunkSource** &mdash; Our changes with conflicts resolved as follows:
-  - VCAS changes - our key changes in `getNextChunk()` conflict, take ours and change `segment` to `segmentBaseHolder.segmentBase` This is because of their changes to support HLS-LL
-  - Our `getAdjustedSeekPositionUs()` in same spot as `getChunkPublicationState()`, take theirs then append ours
+- **HlsMediaPlaylistParserTest** &mdash; Moving test cases with this commit [Fixes conflict in HlsMediaPlaylistParserTest](https://github.com/tivocorp/exoplayerprvt/commit/9bdcdeca41), allows cleaning getting the balance of the changes from `t-google-release-v2-r2.15.1-with-cherry-picks`
+
+- **HlsChunkSourceTest** &mdash; Take theirs (*Merge Source* branch), has cherry-pick from open pull request, note broken diff are result of no common merge base.  This class was added to test the `SeekParameters.NEAREST_*` implementation, first pull request was *Implements SeekParameters.*_SYNC variants for HLS* [#9536](https://github.com/google/ExoPlayer/pull/9536). The changes merged into release-v2 are: 
+
+  - 3dee8e4993 2021-12-14 | [Merge pull request #9767 from TiVo:p-nearest-sync-track-index-bug](https://github.com/google/ExoPlayer/commit/3dee8e4993) [Ian Baker]
+  -  7ac24528bc 2021-12-07 | [Uses correct index for playlist URL](https://github.com/google/ExoPlayer/commit/7ac24528bc) (p-nearest-sync-track-index-bug) [Steve Mayhew]  
+  -  4a69e1660f 2021-11-26 | [Merge pull request #9536 from TiVo:p-fix-issue-2882](https://github.com/google/ExoPlayer/commit/4a69e1660f) [kim-vde]
+
+  This change is pending in a pull request based to `dev-v2`:
+
+  * f6488d3ea8 2022-07-28 | [Seek nearest SYNC does not adjust stale playlists](https://github.com/TiVo/ExoPlayer/commit//f6488d3ea8) (p-stale-playlist-seek-adjust) [Steve Mayhew]
 
 
-1. **HlsMediaChunk** &mdash; Our pull forwards conflict: 
+#### Take Theirs and Patch
 
-   1. Take theirs &mdash; Our change [Allows discard of overlapping iFrame only chunks](https://github.com/tivocorp/exoplayerprvt/commit/b7850d322a) conflicts, the `shouldSpliceIn` and logic around it is moved.  Best to take their version of line 158 (ignore our change with `ROLE_FLAG_TRICK_PLAY`) and cherry pick later version from our pull request, 10484.  
-   2. Take ours &mdash; `loadMedia()` change is in 2.17.0, from pull request [Timestamp init wait occurs after dataSource.open()](https://github.com/google/ExoPlayer/pull/9777).
-   3. Append our add of `hasSamples()` after the two publish methods they added in the same place.
+- **HlsMediaChunk** &mdash; our not shared changes update `buildDataSource()` to add the `keyUri` parameter to determine we need `HlsDecryptingDataSource`.  Since are other **shared** changes are mixed into this:
 
-2. **HlsMediaSource** &mdash; our changes to `onPrimaryPlaylistRefreshed()`
-3. **HlsPlaylistParser**, **HlsPlaylistParserTest** &mdash; our pull forwards and added code conflicts:
+  1. b7850d322a 2022-06-30 | [Allows discard of overlapping iFrame only chunks](https://github.com/tivocorp/exoplayerprvt/commit/b7850d322a) [Steve Mayhew]
+  2. 1746aa8bf6 2021-12-10 | [Timestamp init wait occurs after dataSource.open()](https://github.com/tivocorp/exoplayerprvt/commit/1746aa8bf6) [Steve Mayhew]
+  3. 436ae8e3f8 2021-06-15 | [HLS: Fix issue where new init segment would not be loaded](https://github.com/tivocorp/exoplayerprvt/commit/436ae8e3f8) [olly]
+  4. a601378039 2021-06-10 | [no infinite stall if GAP > maxBufferMs](https://github.com/tivocorp/exoplayerprvt/commit/a601378039) [Steve Mayhew]
 
-   1. For the EXTINF duration (`parseTimeSecondsToUs()` added), use Android Studio "magic merge" on `TAG_START` parsing
-   2. Append ours for `parseTimeSecondsToUs()` method add, put `parseDoubleAttr()` back (even though unused)
+  The first change is nullified by changes in the *Merge Reference* :
 
-4. **HlsSampleStreamWrapper** &mdash; our change to add `getBufferedPositionUs()`, check for `hasSamples()`
+  * 08259f8987 2021-05-20 | [Don't allow spliced-in preload chunks.](https://github.com/google/ExoPlayer/commit/08259f8987) [tonihei]
+
+  But picked up again with cherry-picks to the *Merge Source* :
+
+  * 4b11d01470 2022-07-15 | [Add test cases for `shouldSpliceIn(...)` method](https://github.com/tivocorp/exoplayerprvt/commit/4b11d01470) [Steve Mayhew]
+  * 3b84c09aa5 2022-06-30 | [Allows discard of overlapping iFrame only chunks](https://github.com/tivocorp/exoplayerprvt/commit/3b84c09aa5) [Steve Mayhew]
+
+  We simply take theirs (*Merge Source*) and patch in the `keyUri` changes.
+
+- **HlsSampleStreamWrapper** &mdash; all of our changes are shared or from cherry-picks from Google except this one:
+  * 3ab1b037b9 2022-01-26 | [Issues forced seek if no render in 8 * target FPS](https://github.com/tivocorp/exoplayerprvt/commit/3ab1b037b9) [Steve Mayhew]
+    * change to `onLoadError()` to not retry load if loadable is from a trick-play track
+    * uncomment the timestamp checks (https://github.com/google/ExoPlayer/issues/7030.) code and log the issue as warning]
+
+- **HlsChunkSource** &mdash; Handled by taking theirs then a small patch to add the VCAS related code.  Our changes with conflicts are:
+  - VCAS changes - our key changes in `getNextChunk()` conflict, this is because of their changes to support HLS-LL
+
+  - Our `getAdjustedSeekPositionUs()` is the same as `t-google-release-v2-r2.15.1-with-cherry-picks` which has the cherry-pick, it is just in  same spot as `getChunkPublicationState()`, with the updates to the merge source branch the method body for `getAdjustedSeekPositionUs()` is identical in the conflict.
+
+
+- **HlsMediaPlaylist** &mdash; Our changes are all covered by unit tests in TiVo library-trickplay.  They add support for Dual Mode and playlist validation conflict with Google's adding  support for HLS-LL.  The merge involves adding these methods and editing the resulting code as the constructor aguments for `HlsMediaPlaylist` and `HlsMediaPlaylist.Segment` have both changed.  This is done and included as a patch. Our added methods include:
+  1. Added two method to clone `HlsMediaPlaylist.Segment`, `copyWithDuration()` and `copyWithUpdates()`
+  1. Method to clone the `HlsMediaPlaylist` itself with a new segment list, `copyWithUpdates()`
+  1. Added the method `HlsMediaPlaylist.isUpdateValid()` to check for invalid playlist updated (Vecima work around)
+
+  The relevant commits  to check are:
+  
+  * dba164829f 2022-05-27 | [Validates HLS media playlist updates](https://github.com/tivocorp/exoplayerprvt/commit/dba164829f) [Steve Mayhew]
+  * e71e21b39a 2022-04-04 | [Supports dual-mode playlist updates](https://github.com/tivocorp/exoplayerprvt/commit/e71e21b39a) [Steve Mayhew]
+  * d68d503b70 2022-04-04 | [Playlist `baseUri` matches curated uri](https://github.com/tivocorp/exoplayerprvt/commit/d68d503b70) [Steve Mayhew] 
+  * 00476f43ca 2022-04-04 | [Validates playlist times to MS only](https://github.com/tivocorp/exoplayerprvt/commit/00476f43ca) [Steve Mayhew]
+  * cd73550814 2022-03-31 | [Update with review changes.](https://github.com/tivocorp/exoplayerprvt/commit/cd73550814) [Steve Mayhew]
+  * ea83607178 2022-03-31 | [Removes work-around for Vecima PDT issue](https://github.com/tivocorp/exoplayerprvt/commit/ea83607178) [Steve Mayhew]
+  * 8e227a1eab 2021-05-26 | [Merge branch 'google-2.12.3' into t-merge-google-2.12.3-to-release](https://github.com/tivocorp/exoplayerprvt/commit/8e227a1eab) [Steve Mayhew]
+  * 7649db00e2 2021-04-01 | [Dual Mode VTP Phase 0 (#130)](https://github.com/tivocorp/exoplayerprvt/commit/7649db00e2) [Steve Mayhew]
 
 ### Our Changes
 
+The first two section of changes have all been resolved to the merge source (`t-google-release-v2-r2.15.1-with-cherry-picks`) and merge target (`t-merge-google-release-v2-r2.15.1`) branches.   The exceptions in *Other Changes* section are chagnes not shared with Google that must be patched in after the merge.
+
 #### In Open Pull request
 
-These changes to nearest SYNC are in pull request [10484](https://github.com/google/ExoPlayer/pull/10484), they are also covered by unit tests.
+These changes are in open pull requests to Google that include files in `library-hls` 
 
-* [18f824064b](https://github.com/tivocorp/exoplayerprvt/commit/18f824064b) Mon Aug 1 19:33:31 2022 -0700 Steve Mayhew Seek nearest SYNC does not adjust stale playlists
-* [b7850d322a](https://github.com/tivocorp/exoplayerprvt/commit/b7850d322a) Wed Jul 6 11:30:47 2022 -0700 Steve Mayhew Allows discard of overlapping iFrame only chunks
+1. Allows discard of overlapping iFrame only chunks [#10407](https://github.com/google/ExoPlayer/pull/10407)
+   - d79a4504bb 2022-07-15 | [Add test cases for `shouldSpliceIn(...)` method](https://github.com/TiVo/ExoPlayer/commit//d79a4504bb) (p-allow-iframe-queuesize-pruning) [Steve Mayhew]
+   - 3db86e6e73 2022-06-30 | [Allows discard of overlapping iFrame only chunks](https://github.com/TiVo/ExoPlayer/commit//3db86e6e73) [Steve Mayhew]
+2. Seek nearest SYNC does not adjust stale playlists [#10484](https://github.com/google/ExoPlayer/pull/10484)
+   - f6488d3ea8 2022-07-28 | [Seek nearest SYNC does not adjust stale playlists](https://github.com/TiVo/ExoPlayer/commit//f6488d3ea8) (p-stale-playlist-seek-adjust) [Steve Mayhew]
+3. HLS: Allows playback through gap > maxBufferMs [https://github.com/google/ExoPlayer/pull/9050](https://github.com/google/ExoPlayer/pull/9050)
+   * 09fcab0e89 2021-06-11 | [Allows playback through gap > maxBufferMs](https://github.com/TiVo/ExoPlayer/commit//09fcab0e89) (p-fix-over60s-gap-stall) [Steve Mayhew]
 
 #### Changes cherry-picked from future
 
-Our changes that are merged into Google's `release-v2`  released after r2.15.1.  
+Google's commits of our changes that were merged into Google's `release-v2`  released after r2.15.1.  
 
 ##### r2.17.0
 
-* [Timestamp init wait occurs after dataSource.open() (Steve Mayhew, 6d8588fcea)](https://github.com/google/ExoPlayer/commit/6d8588fcea)
+- 6d8588fcea 2021-12-10 | [Timestamp init wait occurs after dataSource.open()](https://github.com/google/ExoPlayer/commit/6d8588fcea) [Steve Mayhew]
+- 7ac24528bc 2021-12-07 | [Uses correct index for playlist URL](https://github.com/google/ExoPlayer/commit/7ac24528bc) (p-nearest-sync-track-index-bug) [Steve Mayhew]
+- 701f343ee5 2021-10-18 | [Fixes issues with EXTINF duration conversion to microseconds](https://github.com/google/ExoPlayer/commit/701f343ee5) [Steve Mayhew]
+- d3bba3b0e6 2021-09-10 | [Implements SeekParameters.*_SYNC variants for HLS](https://github.com/google/ExoPlayer/commit/d3bba3b0e6) [Steve Mayhew]
+- 5689e093da 2021-08-04 | [Set HlsSampleStreamWrapper.trackType for audio-only playlists](https://github.com/google/ExoPlayer/commit/5689e093da) [christosts]
+- 4b1609d569 2021-08-04 | [Set HlsSampleStreamWrapper.trackType for audio-only playlists](https://github.com/google/ExoPlayer/commit/4b1609d569) [christosts]
+- a035c2e20a 2019-12-17 | [Reformat some javadoc on Cue](https://github.com/google/ExoPlayer/commit/a035c2e20a) [ibaker]
 
-* [Uses correct index for playlist URL (Steve Mayhew, 7ac24528bc)](https://github.com/google/ExoPlayer/commit/7ac24528bc)
-
-* [Fixes issues with EXTINF duration conversion to microseconds (Steve Mayhew, 701f343ee5)](https://github.com/google/ExoPlayer/commit/701f343ee5)
-
-* [Implements SeekParameters.*_SYNC variants for HLS (Steve Mayhew, d3bba3b0e6)](https://github.com/google/ExoPlayer/commit/d3bba3b0e6)
 
 
+#### All Changes Since 2.11.6 Merge
+
+* 18f824064b 2022-07-28 | [Seek nearest SYNC does not adjust stale playlists](https://github.com/tivocorp/exoplayerprvt/commit/18f824064b) [Steve Mayhew]
+* b7850d322a 2022-06-30 | [Allows discard of overlapping iFrame only chunks](https://github.com/tivocorp/exoplayerprvt/commit/b7850d322a) [Steve Mayhew]
+* dba164829f 2022-05-27 | [Validates HLS media playlist updates](https://github.com/tivocorp/exoplayerprvt/commit/dba164829f) [Steve Mayhew]
+* e5b5ed8817 2021-06-17 | [Forward FRAME-RATE from the master playlist to renditions](https://github.com/tivocorp/exoplayerprvt/commit/e5b5ed8817) [christosts]
+* b8ae541396 2022-04-06 | [Updated back to Google cache time](https://github.com/tivocorp/exoplayerprvt/commit/b8ae541396) [Steve Mayhew]
+* e71e21b39a 2022-04-04 | [Supports dual-mode playlist updates](https://github.com/tivocorp/exoplayerprvt/commit/e71e21b39a) [Steve Mayhew]
+* d68d503b70 2022-04-04 | [Playlist `baseUri` matches curated uri](https://github.com/tivocorp/exoplayerprvt/commit/d68d503b70) [Steve Mayhew]
+* 00476f43ca 2022-04-04 | [Validates playlist times to MS only](https://github.com/tivocorp/exoplayerprvt/commit/00476f43ca) [Steve Mayhew]
+* cd73550814 2022-03-31 | [Update with review changes.](https://github.com/tivocorp/exoplayerprvt/commit/cd73550814) [Steve Mayhew]
+* ea83607178 2022-03-31 | [Removes work-around for Vecima PDT issue](https://github.com/tivocorp/exoplayerprvt/commit/ea83607178) [Steve Mayhew]
+* ff7088ccc3 2022-03-18 | [WSIPCL-12356: Almost all channels some time the trick play FF restarts from the beginning](https://github.com/tivocorp/exoplayerprvt/commit/ff7088ccc3) [mdobrzyn71]
+* 3ab1b037b9 2022-01-26 | [Issues forced seek if no render in 8 * target FPS](https://github.com/tivocorp/exoplayerprvt/commit/3ab1b037b9) [Steve Mayhew]
+* 1746aa8bf6 2021-12-10 | [Timestamp init wait occurs after dataSource.open()](https://github.com/tivocorp/exoplayerprvt/commit/1746aa8bf6) [Steve Mayhew]
+* 5c6165251f 2021-12-07 | [Uses correct index for playlist URL](https://github.com/tivocorp/exoplayerprvt/commit/5c6165251f) [Steve Mayhew]
+* c8e164c998 2021-10-19 | [Uses parseTimeSecondsToUs for EXT-X-START](https://github.com/tivocorp/exoplayerprvt/commit/c8e164c998) [Steve Mayhew]
+* a4ca1102a5 2021-10-18 | [Fixes issues with EXTINF duration conversion to microseconds](https://github.com/tivocorp/exoplayerprvt/commit/a4ca1102a5) [Steve Mayhew]
+* d480c1d7d1 2021-10-15 | [Uses MediaPeriod relative positionUs](https://github.com/tivocorp/exoplayerprvt/commit/d480c1d7d1) [Steve Mayhew]
+* 0075060ee7 2021-09-28 | [Removes failed "pseudo GAP tag" support](https://github.com/tivocorp/exoplayerprvt/commit/0075060ee7) [Steve Mayhew]
+* 319887bdd7 2021-09-20 | [Fixes WSIPCL-11330 - FFWD stuck at SOCU start](https://github.com/tivocorp/exoplayerprvt/commit/319887bdd7) [Steve Mayhew]
+* 8e93c4463b 2021-09-10 | [Implements SeekParameters.*_SYNC variants for HLS](https://github.com/tivocorp/exoplayerprvt/commit/8e93c4463b) [Steve Mayhew]
+* 2ee3c702c6 2021-08-04 | [Set HlsSampleStreamWrapper.trackType for audio-only playlists](https://github.com/tivocorp/exoplayerprvt/commit/2ee3c702c6) [christosts]
+* 436ae8e3f8 2021-06-15 | [HLS: Fix issue where new init segment would not be loaded](https://github.com/tivocorp/exoplayerprvt/commit/436ae8e3f8) [olly]
+*   7d885f7a2c 2021-06-30 | [Merge branch 'release' into t-merge-google-2.12.3-to-release](https://github.com/tivocorp/exoplayerprvt/commit/7d885f7a2c) [Steve Mayhew]
+|\  
+| * 1b144af7c4 2021-06-14 | [Allow multiple PDT to update the playlist startTimeUs](https://github.com/tivocorp/exoplayerprvt/commit/1b144af7c4) [Steve Mayhew]
+| * 1df6198360 2021-06-22 | [T merge google commit 2536222fbd (#153)](https://github.com/tivocorp/exoplayerprvt/commit/1df6198360) [ipichkov]
+| * a601378039 2021-06-10 | [no infinite stall if GAP > maxBufferMs](https://github.com/tivocorp/exoplayerprvt/commit/a601378039) [Steve Mayhew]
+* | 8e227a1eab 2021-05-26 | [Merge branch 'google-2.12.3' into t-merge-google-2.12.3-to-release](https://github.com/tivocorp/exoplayerprvt/commit/8e227a1eab) [Steve Mayhew]
+|/  
+* 66bd5ec8b8 2021-04-14 | [Fix issue with VOD iframe only with no EXT-X-MAP (#134)](https://github.com/tivocorp/exoplayerprvt/commit/66bd5ec8b8) [Steve Mayhew]
+* 7649db00e2 2021-04-01 | [Dual Mode VTP Phase 0 (#130)](https://github.com/tivocorp/exoplayerprvt/commit/7649db00e2) [Steve Mayhew]
+* 5d7fa23401 2021-03-24 | [Fix issues with Metronet out of sync discontinuity sequence updates. (#129)](https://github.com/tivocorp/exoplayerprvt/commit/5d7fa23401) [Steve Mayhew]
+* 6c60787e2b 2021-01-21 | [implement setting default HLS live-offset](https://github.com/tivocorp/exoplayerprvt/commit/6c60787e2b) [Steve Mayhew]
+* 9a3d9f1006 2021-01-14 | [The playlist does not provide any closed caption information. We preemptively declare a closed caption track on channel 0.](https://github.com/tivocorp/exoplayerprvt/commit/9a3d9f1006) [sneelavara]
+* 2c8277eda1 2020-10-22 | [Map HLS sample formats to the correct codec string](https://github.com/tivocorp/exoplayerprvt/commit/2c8277eda1) [aquilescanta]
+* d7a5f59ca4 2020-10-22 | [Allow multiple codecs with same type in DefaultHlsExtractorFactory](https://github.com/tivocorp/exoplayerprvt/commit/d7a5f59ca4) [aquilescanta]
+* 90bdab778d 2020-07-30 | [Remove Bad PlayList StartTime Exception](https://github.com/tivocorp/exoplayerprvt/commit/90bdab778d) [jparekh-tivo]
+* a1177d48eb 2020-07-27 | [Merge fix for PARTDEFECT-3462](https://github.com/tivocorp/exoplayerprvt/commit/a1177d48eb) [jparekh-tivo]
+* 3697c5cce8 2020-06-08 | [Add a test for 33-bit HLS WebVTT wraparound](https://github.com/tivocorp/exoplayerprvt/commit/3697c5cce8) [ibaker]
+* 6cfb62fe1e 2020-06-05 | [Respect 33-bit wraparound when calculating WebVTT timestamps in HLS](https://github.com/tivocorp/exoplayerprvt/commit/6cfb62fe1e) [ibaker]
+* 61ea81fb1e 2020-06-26 | [Use AVERAGE_BANDWIDTH where it is avialable over BANDWIDTH](https://github.com/tivocorp/exoplayerprvt/commit/61ea81fb1e) [Steve Mayhew]
 
 #### Other Changes
 
@@ -405,3 +505,15 @@ Once you have done a merge, use this comand to show any files that are conflicte
 git diff --name-only --diff-filter=U --relative
 ````
 
+If there are local changes of ours that cannot (or simply have not yet) been shared with a pull request, generate a "take theirs" in the merge script and a patch.   To create the patch:
+
+1. resolve the conflict manually
+
+2. build and run test cases
+
+3. create the patch with a command like:
+   ````
+   git diff --no-ext-diff t-google-release-v2-r2.15.1-with-cherry-picks --  library/hls/src/main/java/com/google/android/exoplayer2/source/hls/HlsSampleStreamWrapper.java > tivo-docs/exo_2.15.1/HlsSampleStreamWrapper.patch
+   ````
+
+   

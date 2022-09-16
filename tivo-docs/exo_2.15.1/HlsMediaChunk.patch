@@ -1,0 +1,51 @@
+diff --git a/library/hls/src/main/java/com/google/android/exoplayer2/source/hls/HlsMediaChunk.java b/library/hls/src/main/java/com/google/android/exoplayer2/source/hls/HlsMediaChunk.java
+index 02dfa078ab..6aa81917c9 100644
+--- a/library/hls/src/main/java/com/google/android/exoplayer2/source/hls/HlsMediaChunk.java
++++ b/library/hls/src/main/java/com/google/android/exoplayer2/source/hls/HlsMediaChunk.java
+@@ -90,6 +90,7 @@ import org.checkerframework.checker.nullness.qual.RequiresNonNull;
+       boolean isMasterTimestampSource,
+       TimestampAdjusterProvider timestampAdjusterProvider,
+       @Nullable HlsMediaChunk previousChunk,
++      @Nullable Uri keyUri,
+       @Nullable byte[] mediaSegmentKey,
+       @Nullable byte[] initSegmentKey,
+       boolean shouldSpliceIn) {
+@@ -102,13 +103,13 @@ import org.checkerframework.checker.nullness.qual.RequiresNonNull;
+             .setLength(mediaSegment.byteRangeLength)
+             .setFlags(segmentBaseHolder.isPreload ? FLAG_MIGHT_NOT_USE_FULL_NETWORK_SPEED : 0)
+             .build();
+-    boolean mediaSegmentEncrypted = mediaSegmentKey != null;
++    boolean mediaSegmentEncrypted = mediaSegmentKey != null || keyUri != null;
+     @Nullable
+     byte[] mediaSegmentIv =
+         mediaSegmentEncrypted
+             ? getEncryptionIvArray(Assertions.checkNotNull(mediaSegment.encryptionIV))
+             : null;
+-    DataSource mediaDataSource = buildDataSource(dataSource, mediaSegmentKey, mediaSegmentIv);
++    DataSource mediaDataSource = buildDataSource(dataSource, mediaSegmentKey, mediaSegmentIv, keyUri);
+ 
+     // Init segment.
+     HlsMediaPlaylist.Segment initSegment = mediaSegment.initializationSegment;
+@@ -125,7 +126,7 @@ import org.checkerframework.checker.nullness.qual.RequiresNonNull;
+       Uri initSegmentUri = UriUtil.resolveToUri(mediaPlaylist.baseUri, initSegment.url);
+       initDataSpec =
+           new DataSpec(initSegmentUri, initSegment.byteRangeOffset, initSegment.byteRangeLength);
+-      initDataSource = buildDataSource(dataSource, initSegmentKey, initSegmentIv);
++      initDataSource = buildDataSource(dataSource, initSegmentKey, initSegmentIv, keyUri);
+     }
+ 
+     long segmentStartTimeInPeriodUs = startOfPlaylistInPeriodUs + mediaSegment.relativeStartTimeUs;
+@@ -624,8 +625,11 @@ import org.checkerframework.checker.nullness.qual.RequiresNonNull;
+   private static DataSource buildDataSource(
+       DataSource dataSource,
+       @Nullable byte[] fullSegmentEncryptionKey,
+-      @Nullable byte[] encryptionIv) {
+-    if (fullSegmentEncryptionKey != null) {
++      @Nullable byte[] encryptionIv, @Nullable Uri keyUri) {
++    if ((dataSource instanceof HlsDecryptingDataSource) && (keyUri != null)) {
++      return ((HlsDecryptingDataSource) dataSource).getDecryptingDataSource(keyUri,
++          encryptionIv);
++    } else if (fullSegmentEncryptionKey != null) {
+       Assertions.checkNotNull(encryptionIv);
+       return new Aes128DataSource(dataSource, fullSegmentEncryptionKey, encryptionIv);
+     }

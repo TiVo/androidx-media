@@ -67,6 +67,10 @@ git add --ignore-errors -A -f -- library/core/src/main/java/com/google/android/e
 git checkout --theirs -- library/core/src/test/java/com/google/android/exoplayer2/analytics/PlaybackStatsListenerTest.java
 git add --ignore-errors -A -f -- library/core/src/test/java/com/google/android/exoplayer2/analytics/PlaybackStatsListenerTest.java
 #
+# "theirs" is our shared pull request for tunneling fixes
+git checkout --theirs -- library/core/src/main/java/com/google/android/exoplayer2/mediacodec/MediaCodecRenderer.java
+git add --ignore-errors -A -f -- library/core/src/main/java/com/google/android/exoplayer2/mediacodec/MediaCodecRenderer.java
+#
 # take theirs, need patch or cherry-pick with our service block fixes
 git checkout --theirs -- library/core/src/main/java/com/google/android/exoplayer2/text/cea/Cea708Decoder.java
 git add --ignore-errors -A -f -- library/core/src/main/java/com/google/android/exoplayer2/text/cea/Cea708Decoder.java
@@ -97,28 +101,11 @@ patch library/common/src/main/java/com/google/android/exoplayer2/audio/AacUtil.j
    }
 EOF
 git add --ignore-errors -A -f -- library/common/src/main/java/com/google/android/exoplayer2/audio/AacUtil.java
-#
-# Changes for the tunneling issue auto merge, but need to add back a methdo that Google removed
-patch library/core/src/main/java/com/google/android/exoplayer2/mediacodec/MediaCodecRenderer.java -p0 -<<'EOF2'
-diff --git a/library/core/src/main/java/com/google/android/exoplayer2/mediacodec/MediaCodecRenderer.java b/library/core/src/main/java/com/google/android/exoplayer2/mediacodec/MediaCodecRenderer.java
-index 54e3e20d76..25d1cb453b 100644
---- a/library/core/src/main/java/com/google/android/exoplayer2/mediacodec/MediaCodecRenderer.java
-+++ b/library/core/src/main/java/com/google/android/exoplayer2/mediacodec/MediaCodecRenderer.java
-@@ -2052,6 +2052,11 @@ public abstract class MediaCodecRenderer extends BaseRenderer {
-     pendingOutputEndOfStream = true;
-   }
- 
-+  /** Returns the largest queued input presentation time, in microseconds. */
-+  protected final long getLargestQueuedPresentationTimeUs() {
-+    return largestQueuedPresentationTimeUs;
-+  }
-+
-   /**
-    * Returns the offset that should be subtracted from {@code bufferPresentationTimeUs} in {@link
-    * #processOutputBuffer(long, long, MediaCodecAdapter, ByteBuffer, int, int, int, long, boolean,
 
-EOF2
-git add --ignore-errors -A -f -- library/core/src/main/java/com/google/android/exoplayer2/mediacodec/MediaCodecRenderer.java 
+#
+#
+git checkout --theirs -- library/core/src/test/java/com/google/android/exoplayer2/ExoPlayerTest.java
+git add --ignore-errors -A -f -- library/core/src/test/java/com/google/android/exoplayer2/ExoPlayerTest.java
 
 #
 # Add our fix to AudioCapabilitiesReceiver manually
@@ -129,3 +116,43 @@ git add --ignore-errors -A -f -- library/core/src/main/java/com/google/android/e
 #
 # These require a manual merge, the auto 
 #git add --ignore-errors -A -f -- library/core/src/main/java/com/google/android/exoplayer2/trackselection/DefaultTrackSelector.java
+
+
+######################
+# library-hls -- much of this requires manual mergess then generate a patch file for our un-shared changes
+######################
+#e
+# take upstream (theirs) versions, unconditionally
+git checkout --theirs -- library/hls/src/test/java/com/google/android/exoplayer2/source/hls/playlist/HlsMediaPlaylistParserTest.java
+git add --ignore-errors -A -f -- library/hls/src/test/java/com/google/android/exoplayer2/source/hls/playlist/HlsMediaPlaylistParserTest.java
+git checkout --theirs -- library/hls/src/main/java/com/google/android/exoplayer2/source/hls/playlist/HlsPlaylistParser.java
+git add --ignore-errors -A -f -- library/hls/src/main/java/com/google/android/exoplayer2/source/hls/playlist/HlsPlaylistParser.java
+
+#
+# take theirs (merge source), our changes are correctly cherry-picked in
+git checkout --theirs -- library/hls/src/test/java/com/google/android/exoplayer2/source/hls/HlsChunkSourceTest.java
+git add --ignore-errors -A -f -- library/hls/src/test/java/com/google/android/exoplayer2/source/hls/HlsChunkSourceTest.java
+
+#
+# take theirs, log timestamp error and ignore load error for VTP segments patched in
+git checkout --theirs -- library/hls/src/main/java/com/google/android/exoplayer2/source/hls/HlsSampleStreamWrapper.java 
+git add --ignore-errors -A -f -- library/hls/src/main/java/com/google/android/exoplayer2/source/hls/HlsSampleStreamWrapper.java 
+patch -p0 library/hls/src/main/java/com/google/android/exoplayer2/source/hls/HlsSampleStreamWrapper.java ${SCRIPTPATH}/HlsSampleStreamWrapper.patch
+
+#
+# Take theirs, fix up the VCAS chagnges with a patch
+git checkout --theirs -- library/hls/src/main/java/com/google/android/exoplayer2/source/hls/HlsChunkSource.java
+git add --ignore-errors -A -f -- library/hls/src/main/java/com/google/android/exoplayer2/source/hls/HlsChunkSource.java
+patch -p0 library/hls/src/main/java/com/google/android/exoplayer2/source/hls/HlsChunkSource.java ${SCRIPTPATH}/HlsChunkSource.patch
+git checkout --theirs -- library/hls/src/main/java/com/google/android/exoplayer2/source/hls/HlsMediaChunk.java
+git add --ignore-errors -A -f -- library/hls/src/main/java/com/google/android/exoplayer2/source/hls/HlsMediaChunk.java
+patch -p0 library/hls/src/main/java/com/google/android/exoplayer2/source/hls/HlsMediaChunk.java ${SCRIPTPATH}/HlsMediaChunk.patch
+
+#
+# Take theiss, patch in the Dual Mode changes and isUpdateValid() not shared with Google
+git checkout --theirs -- library/hls/src/main/java/com/google/android/exoplayer2/source/hls/playlist/HlsMediaPlaylist.java
+git add --ignore-errors -A -f -- library/hls/src/main/java/com/google/android/exoplayer2/source/hls/playlist/HlsMediaPlaylist.java
+patch -p0 library/hls/src/main/java/com/google/android/exoplayer2/source/hls/playlist/HlsMediaPlaylist.java ${SCRIPTPATH}/HlsMediaPlaylist.patch
+
+
+
