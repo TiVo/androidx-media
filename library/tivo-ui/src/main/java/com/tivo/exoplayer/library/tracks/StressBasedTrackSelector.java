@@ -89,7 +89,10 @@ public class StressBasedTrackSelector extends DefaultTrackSelector {
    * @param currentStressLevel the current stress level
    */
   public void setCurrentStressLevel(@PlayerStressLevel int currentStressLevel) {
-    this.currentStressLevel = currentStressLevel;
+    if (this.currentStressLevel != currentStressLevel) {
+      this.currentStressLevel = currentStressLevel;
+      invalidate();
+    }
   }
 
   @Override
