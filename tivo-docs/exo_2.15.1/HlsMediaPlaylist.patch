@@ -171,7 +171,7 @@ index c0f867dc76..afb805e185 100644
 +        targetDurationUs,
 +        partTargetDurationUs,
 +        hasIndependentSegments,
-+        /* hasEndTag= */ true,
++        hasEndTag,
 +        updatedHasProgramDateTime,
 +        protectionSchemes,
 +        updateSegments,

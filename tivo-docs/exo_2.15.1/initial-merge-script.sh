@@ -62,10 +62,16 @@ git add --ignore-errors -A -f -- library/core/src/main/java/com/google/android/e
 # again use theirs, our changes for session management need to be re-implemented (and shared)
 git checkout --theirs -- library/core/src/main/java/com/google/android/exoplayer2/analytics/DefaultPlaybackSessionManager.java
 git add --ignore-errors -A -f -- library/core/src/main/java/com/google/android/exoplayer2/analytics/DefaultPlaybackSessionManager.java
-git checkout --theirs -- library/core/src/main/java/com/google/android/exoplayer2/analytics/PlaybackStatsListener.java
-git add --ignore-errors -A -f -- library/core/src/main/java/com/google/android/exoplayer2/analytics/PlaybackStatsListener.java
 git checkout --theirs -- library/core/src/test/java/com/google/android/exoplayer2/analytics/PlaybackStatsListenerTest.java
 git add --ignore-errors -A -f -- library/core/src/test/java/com/google/android/exoplayer2/analytics/PlaybackStatsListenerTest.java
+
+#
+# Added API for non-default PlaybackSessionManager, this needs a pull requst. An RFE bug is alread submitted
+#
+git checkout --theirs -- library/core/src/main/java/com/google/android/exoplayer2/analytics/PlaybackStatsListener.java
+patch -p0 library/core/src/main/java/com/google/android/exoplayer2/analytics/PlaybackStatsListener.java ${SCRIPTPATH}/PlaybackStatsListener.patch
+git add --ignore-errors -A -f -- library/core/src/main/java/com/google/android/exoplayer2/analytics/PlaybackStatsListener.java
+
 #
 # "theirs" is our shared pull request for tunneling fixes
 git checkout --theirs -- library/core/src/main/java/com/google/android/exoplayer2/mediacodec/MediaCodecRenderer.java
@@ -114,6 +120,12 @@ patch -p0 library/core/src/main/java/com/google/android/exoplayer2/audio/AudioCa
 git add --ignore-errors -A -f -- library/core/src/main/java/com/google/android/exoplayer2/audio/AudioCapabilitiesReceiver.java
 
 #
+# Our unshared changes to track selection (tunneling, trickplay tracks include)
+git checkout --theirs -- library/core/src/main/java/com/google/android/exoplayer2/trackselection/DefaultTrackSelector.java
+patch -p0 library/core/src/main/java/com/google/android/exoplayer2/trackselection/DefaultTrackSelector.java ${SCRIPTPATH}/DefaultTrackSelector.patch
+git add --ignore-errors -A -f -- library/core/src/main/java/com/google/android/exoplayer2/trackselection/DefaultTrackSelector.java
+
+#
 # These require a manual merge, the auto 
 #git add --ignore-errors -A -f -- library/core/src/main/java/com/google/android/exoplayer2/trackselection/DefaultTrackSelector.java
 
@@ -136,23 +148,42 @@ git add --ignore-errors -A -f -- library/hls/src/test/java/com/google/android/ex
 #
 # take theirs, log timestamp error and ignore load error for VTP segments patched in
 git checkout --theirs -- library/hls/src/main/java/com/google/android/exoplayer2/source/hls/HlsSampleStreamWrapper.java 
-git add --ignore-errors -A -f -- library/hls/src/main/java/com/google/android/exoplayer2/source/hls/HlsSampleStreamWrapper.java 
 patch -p0 library/hls/src/main/java/com/google/android/exoplayer2/source/hls/HlsSampleStreamWrapper.java ${SCRIPTPATH}/HlsSampleStreamWrapper.patch
+git add --ignore-errors -A -f -- library/hls/src/main/java/com/google/android/exoplayer2/source/hls/HlsSampleStreamWrapper.java 
 
 #
 # Take theirs, fix up the VCAS chagnges with a patch
 git checkout --theirs -- library/hls/src/main/java/com/google/android/exoplayer2/source/hls/HlsChunkSource.java
-git add --ignore-errors -A -f -- library/hls/src/main/java/com/google/android/exoplayer2/source/hls/HlsChunkSource.java
 patch -p0 library/hls/src/main/java/com/google/android/exoplayer2/source/hls/HlsChunkSource.java ${SCRIPTPATH}/HlsChunkSource.patch
+git add --ignore-errors -A -f -- library/hls/src/main/java/com/google/android/exoplayer2/source/hls/HlsChunkSource.java
+
 git checkout --theirs -- library/hls/src/main/java/com/google/android/exoplayer2/source/hls/HlsMediaChunk.java
-git add --ignore-errors -A -f -- library/hls/src/main/java/com/google/android/exoplayer2/source/hls/HlsMediaChunk.java
 patch -p0 library/hls/src/main/java/com/google/android/exoplayer2/source/hls/HlsMediaChunk.java ${SCRIPTPATH}/HlsMediaChunk.patch
+git add --ignore-errors -A -f -- library/hls/src/main/java/com/google/android/exoplayer2/source/hls/HlsMediaChunk.java
+
+# also test case (added as cherry-pick from pull request) needs keyUri parameter, it is not conflicted but will not build
+#
+patch library/hls/src/test/java/com/google/android/exoplayer2/source/hls/HlsMediaChunkTest.java -p0 -<<'EOF2'
+diff --git a/library/hls/src/test/java/com/google/android/exoplayer2/source/hls/HlsMediaChunkTest.java b/library/hls/src/test/java/com/google/android/exoplayer2/source/hls/HlsMediaChunkTest.java
+index b96f4fece9..455de96036 100644
+--- a/library/hls/src/test/java/com/google/android/exoplayer2/source/hls/HlsMediaChunkTest.java
++++ b/library/hls/src/test/java/com/google/android/exoplayer2/source/hls/HlsMediaChunkTest.java
+@@ -251,6 +251,7 @@ public class HlsMediaChunkTest {
+           null,
+           null,
+           null,
++          null,
+           shouldSpliceIn);
+   }
+ }
+EOF2
+git add -- library/hls/src/test/java/com/google/android/exoplayer2/source/hls/HlsMediaChunkTest.java
 
 #
 # Take theiss, patch in the Dual Mode changes and isUpdateValid() not shared with Google
 git checkout --theirs -- library/hls/src/main/java/com/google/android/exoplayer2/source/hls/playlist/HlsMediaPlaylist.java
-git add --ignore-errors -A -f -- library/hls/src/main/java/com/google/android/exoplayer2/source/hls/playlist/HlsMediaPlaylist.java
 patch -p0 library/hls/src/main/java/com/google/android/exoplayer2/source/hls/playlist/HlsMediaPlaylist.java ${SCRIPTPATH}/HlsMediaPlaylist.patch
+git add --ignore-errors -A -f -- library/hls/src/main/java/com/google/android/exoplayer2/source/hls/playlist/HlsMediaPlaylist.java
 
 
 

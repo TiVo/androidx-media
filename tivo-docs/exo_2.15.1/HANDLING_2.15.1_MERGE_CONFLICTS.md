@@ -25,9 +25,9 @@ This document lists the changes by module in the *Our Changes* sections,  case 5
 
 We manage the execution of the merge with this set of branches:
 
-1. **Merge Reference** (`t-google-release-v2-r2.15.1`)  &mdash; Checkout of Google's tree at `r2.15.1`, then create a local branch.  This is our upstream  reference branch, it is the base for the *Merge Source* branch
-2. **Merge Source**  (`t-google-release-v2-r2.15.1-with-cherry-picks`) &mdash;  branch from the *Merge Source*  then cherry-picks from Google's code base and our open pull requests.  Note the cherry-picked changes are essentially ''future" versions of shared changes in our `release` branch. 
-3. **Merge Target**  (`t-merge-google-release-r2.15.1`)  &mdash; This is based from our `release` and the target of the merge .  Will keep this branch re-based to release (note, this may require locking down the `release` branch a bit to insure a clean pull request)
+1. **Merge Reference** (`google-release-v2-r2.15.1`)  &mdash; Checkout of Google's tree at `r2.15.1`, then create a local branch.  This is our upstream  reference branch, it is the base for the *Merge Source* branch
+2. **Merge Source**  (`google-release-v2-r2.15.1-with-cherry-picks`) &mdash;  branch from the *Merge Source*  then cherry-picks from Google's code base and our open pull requests.  Note the cherry-picked changes are essentially ''future" versions of shared changes in our `release` branch. 
+3. **Merge Target**  (`merge-google-release-r2.15.1`)  &mdash; This is based from our `release` and the target of the merge .  Will keep this branch re-based to release (note, this may require locking down the `release` branch a bit to insure a clean pull request)
 
 ### Mechanics
 
@@ -35,7 +35,7 @@ The overall goal is to reduce the initial set of conflicts and the resolution co
 
 So, the basic workflow is to:
 
-1. checkout latest `t-merge-google-release-r2.15.1` 
+1. checkout latest `merge-google-release-r2.15.1` 
 2. do the merge and run the resolve script
 3. work on conflicts, write up resulting resolution background in here.
 4. add the resolution to `initial-merge-script.sh`
@@ -43,8 +43,8 @@ So, the basic workflow is to:
 These commands perform steps 1 and 2
 
 ```shell
-git checkout t-merge-google-release-r2.15.1
-git merge t-google-release-v2-r2.15.1-with-cherry-picks
+git checkout merge-google-release-r2.15.1
+git merge google-release-v2-r2.15.1-with-cherry-picks
 ./tivo-docs/exo_2.15.1/initial-merge-script.sh
 ```
 
@@ -156,6 +156,7 @@ Here is the list of conflicted files where we simply take the upstream version, 
 - **audio.AudioCapabilitiesReceiver**   &mdash; formatting change broke our added `MediaRouter.Callback` bluetooth speaker support that Google did not take, the merge script has a patch file that is the result from taking these steps:
   1. Take all non-conflicting
   2. add our `MediaRouter.Callback` at the end
+- **analytics.PlaybackStatsListener** &mdash; Take theirs and patch in our constructor to add the custom session manager and end all session method.
 
 
 #### Requires Research
@@ -168,7 +169,7 @@ Most likely action is to take theirs, however for these cases a cherry-pick is s
 - **Cea708Decoder**, **CeaDecoder**  &mdash; These conflicts arise from the service block work.  Short-term, the conflicted file needs resolve, long-term we need our fixes in Google'c code base.
 - **analytics.DefaultPlaybackSessionManager** &mdash; Evaluate Player.stop() behavior, the comment in the TODO on the conflicted line talks about the changes.  See if we can "take theirs" and still get our test cases to pass.
 - **analytics.PlaybackStatsListener[Test]** &mdash; Our change was to add a factory method for `DefaultSessionManager` and not create new sessions on stop ([PlaybackStatsListener will not create sessions for Player.stop()](https://github.com/tivocorp/exoplayerprvt/commit/5391296e74)).  Actions should be:
-  - Figure out if we can do without our changes or submit pull requests for them
+  - Submit pull request for non-default SessionManger.
   - Test cases we have should merge and still pass
 
 
@@ -268,7 +269,7 @@ library/extractor/src/main/java/com/google/android/exoplayer2/extractor/ts/H264R
 
 ### Our Changes
 
-These changes have all been resolved to the merge source (`t-google-release-v2-r2.15.1-with-cherry-picks`) and merge target (`t-merge-google-release-v2-r2.15.1`) branches.  The only exception is pull request *Commits IDR NALU on end of stream [#10514](https://github.com/google/ExoPlayer/pull/10514)* it has been reverted from the merge target and will be cherry-picked after the inital merge checkin (it causes many conflicts)
+These changes have all been resolved to the merge source (`google-release-v2-r2.15.1-with-cherry-picks`) and merge target (`t-merge-google-release-v2-r2.15.1`) branches.  The only exception is pull request *Commits IDR NALU on end of stream [#10514](https://github.com/google/ExoPlayer/pull/10514)* it has been reverted from the merge target and will be cherry-picked after the inital merge checkin (it causes many conflicts)
 
 #### In Open Pull request
 
@@ -292,13 +293,17 @@ This is the oldest set of changes to the Google ExoPlayer code we have, there ar
 
 Some of the changes since 2.13.3 have been shared in pull requests
 
+### Unconflicted Needs Patch
+
+- **HlsMediaChunk** &mdash; needs patch for added constructor argument produced by the merge combined with the cherry-pick of the open pull request *Allows discard of overlapping iFrame only chunks* [#10407](https://github.com/google/ExoPlayer/pull/10407)
+
 ### Merge Conflicts
 
 #### Take Theirs
 
-- **HlsPlaylistParser** &mdash; the cherry-picked changes from 2.17.0 (EXTINF rounding issue) were added to the `t-google-release-v2-r2.15.1-with-cherry-picks` so we can "take theirs"
+- **HlsPlaylistParser** &mdash; the cherry-picked changes from 2.17.0 (EXTINF rounding issue) were added to the `google-release-v2-r2.15.1-with-cherry-picks` so we can "take theirs"
 
-- **HlsMediaPlaylistParserTest** &mdash; Moving test cases with this commit [Fixes conflict in HlsMediaPlaylistParserTest](https://github.com/tivocorp/exoplayerprvt/commit/9bdcdeca41), allows cleaning getting the balance of the changes from `t-google-release-v2-r2.15.1-with-cherry-picks`
+- **HlsMediaPlaylistParserTest** &mdash; Moving test cases with this commit [Fixes conflict in HlsMediaPlaylistParserTest](https://github.com/tivocorp/exoplayerprvt/commit/9bdcdeca41), allows cleaning getting the balance of the changes from `google-release-v2-r2.15.1-with-cherry-picks`
 
 - **HlsChunkSourceTest** &mdash; Take theirs (*Merge Source* branch), has cherry-pick from open pull request, note broken diff are result of no common merge base.  This class was added to test the `SeekParameters.NEAREST_*` implementation, first pull request was *Implements SeekParameters.*_SYNC variants for HLS* [#9536](https://github.com/google/ExoPlayer/pull/9536). The changes merged into release-v2 are: 
 
@@ -332,14 +337,15 @@ Some of the changes since 2.13.3 have been shared in pull requests
   We simply take theirs (*Merge Source*) and patch in the `keyUri` changes.
 
 - **HlsSampleStreamWrapper** &mdash; all of our changes are shared or from cherry-picks from Google except this one:
-  * 3ab1b037b9 2022-01-26 | [Issues forced seek if no render in 8 * target FPS](https://github.com/tivocorp/exoplayerprvt/commit/3ab1b037b9) [Steve Mayhew]
+
+- * 3ab1b037b9 2022-01-26 | [Issues forced seek if no render in 8 * target FPS](https://github.com/tivocorp/exoplayerprvt/commit/3ab1b037b9) [Steve Mayhew]
     * change to `onLoadError()` to not retry load if loadable is from a trick-play track
     * uncomment the timestamp checks (https://github.com/google/ExoPlayer/issues/7030.) code and log the issue as warning]
 
 - **HlsChunkSource** &mdash; Handled by taking theirs then a small patch to add the VCAS related code.  Our changes with conflicts are:
   - VCAS changes - our key changes in `getNextChunk()` conflict, this is because of their changes to support HLS-LL
 
-  - Our `getAdjustedSeekPositionUs()` is the same as `t-google-release-v2-r2.15.1-with-cherry-picks` which has the cherry-pick, it is just in  same spot as `getChunkPublicationState()`, with the updates to the merge source branch the method body for `getAdjustedSeekPositionUs()` is identical in the conflict.
+  - Our `getAdjustedSeekPositionUs()` is the same as `google-release-v2-r2.15.1-with-cherry-picks` which has the cherry-pick, it is just in  same spot as `getChunkPublicationState()`, with the updates to the merge source branch the method body for `getAdjustedSeekPositionUs()` is identical in the conflict.
 
 
 - **HlsMediaPlaylist** &mdash; Our changes are all covered by unit tests in TiVo library-trickplay.  They add support for Dual Mode and playlist validation conflict with Google's adding  support for HLS-LL.  The merge involves adding these methods and editing the resulting code as the constructor aguments for `HlsMediaPlaylist` and `HlsMediaPlaylist.Segment` have both changed.  This is done and included as a patch. Our added methods include:
@@ -360,7 +366,7 @@ Some of the changes since 2.13.3 have been shared in pull requests
 
 ### Our Changes
 
-The first two section of changes have all been resolved to the merge source (`t-google-release-v2-r2.15.1-with-cherry-picks`) and merge target (`t-merge-google-release-v2-r2.15.1`) branches.   The exceptions in *Other Changes* section are chagnes not shared with Google that must be patched in after the merge.
+The first two section of changes have all been resolved to the merge source (`t-google-release-v2-r2.15.1-with-cherry-picks`) and merge target (`merge-google-release-v2-r2.15.1`) branches.   The exceptions in *Other Changes* section are chagnes not shared with Google that must be patched in after the merge.
 
 #### In Open Pull request
 
@@ -481,13 +487,13 @@ Simply run this file after the initial merge, and perform the manual resolves de
 To see changes to a file in our local `release` branch that are not in Google's release r2.15.1 use:
 
 ````
-git log --pretty=format:"%h %ad | %s%d [%an]" --date=short release ^t-google-release-v2-r2.15.1 -- library/core/src/main/java/com/google/android/exoplayer2/ExoPlayerImplInternal.java
+git log --pretty=format:"%h %ad | %s%d [%an]" --date=short release ^google-release-v2-r2.15.1 -- library/core/src/main/java/com/google/android/exoplayer2/ExoPlayerImplInternal.java
 ````
 
 Note, if the change was "cherry-picked" into our branch from a Google commit the hash will be different, but the commit should be the same (unless their was a resolve on the cherry-pick).  To check this use grep, example:
 
 ````
-git log --pretty=oneline  release ^t-google-release-v2-r2.15.1 -- library/core/src/main/java/com/google/android/exoplayer2/ExoPlayerImplInternal.java
+git log --pretty=oneline  release ^google-release-v2-r2.15.1 -- library/core/src/main/java/com/google/android/exoplayer2/ExoPlayerImplInternal.java
 ec8245400f9fbe8d52b1e37b207bdde61ffcb0f8 Require playback to be stuck for a minimum period before failing
 4ff8ed604a00ff2f043a095b29aa2631947812ec Enable release timeout by default and make config non-experimental.
 ````
@@ -495,7 +501,7 @@ ec8245400f9fbe8d52b1e37b207bdde61ffcb0f8 Require playback to be stuck for a mini
 Then grep for the commit message:
 
 ````
- git log --pretty=format:"%H %ad %s%d [%an]" --date=short t-google-release-v2-r2.15.1 | grep "Enable release timeout"
+ git log --pretty=format:"%H %ad %s%d [%an]" --date=short google-release-v2-r2.15.1 | grep "Enable release timeout"
 008c80812b06384b416649196c7601543832cc13 2020-10-06 Enable release timeout by default and make config non-experimental. [tonihei]
 ````
 
@@ -513,7 +519,7 @@ If there are local changes of ours that cannot (or simply have not yet) been sha
 
 3. create the patch with a command like:
    ````
-   git diff --no-ext-diff t-google-release-v2-r2.15.1-with-cherry-picks --  library/hls/src/main/java/com/google/android/exoplayer2/source/hls/HlsSampleStreamWrapper.java > tivo-docs/exo_2.15.1/HlsSampleStreamWrapper.patch
+   git diff --no-ext-diff google-release-v2-r2.15.1-with-cherry-picks --  library/hls/src/main/java/com/google/android/exoplayer2/source/hls/HlsSampleStreamWrapper.java > tivo-docs/exo_2.15.1/HlsSampleStreamWrapper.patch
    ````
 
    
