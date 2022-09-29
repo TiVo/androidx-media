@@ -14,6 +14,7 @@ import com.google.android.exoplayer2.upstream.BandwidthMeter;
 import com.google.android.exoplayer2.util.Clock;
 import com.google.android.exoplayer2.util.MimeTypes;
 
+import com.google.common.collect.ImmutableList;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
@@ -70,22 +71,25 @@ public class IFrameAwareAdaptiveTrackSelection extends AdaptiveTrackSelection {
     }
 
     @Override
-    protected AdaptiveTrackSelection createAdaptiveTrackSelection(TrackGroup group, BandwidthMeter bandwidthMeter, int[] tracks, int totalFixedTrackBandwidth) {
+    protected AdaptiveTrackSelection createAdaptiveTrackSelection(TrackGroup group, int[] tracks,
+        int type, BandwidthMeter bandwidthMeter,
+        ImmutableList<AdaptationCheckpoint> adaptationCheckpoints) {
       if (shouldFilterTracks(group, tracks)) {
         tracks = filterTracks(group, tracks);
       }
       return new IFrameAwareAdaptiveTrackSelection(
-              group,
-              tracks,
-              bandwidthMeter,
-              0,    // Don't reserve any bandwidth for other than ExoPlayer
-              minDurationForQualityIncreaseMs,
-              maxDurationForQualityDecreaseMs,
-              minDurationToRetainAfterDiscardMs,
-              bandwidthFraction,
-              bufferedFractionToLiveEdgeForQualityIncrease,
-              clock,
-              trickPlayControl);
+          group,
+          tracks,
+          type,
+          bandwidthMeter,
+          minDurationForQualityIncreaseMs,
+          maxDurationForQualityDecreaseMs,
+          minDurationToRetainAfterDiscardMs,
+          bandwidthFraction,
+          bufferedFractionToLiveEdgeForQualityIncrease,
+          adaptationCheckpoints,
+          clock,
+          trickPlayControl);
     }
 
     /**
@@ -161,21 +165,23 @@ public class IFrameAwareAdaptiveTrackSelection extends AdaptiveTrackSelection {
   private @Nullable final TrickPlayControlInternal control;
   private @Nullable TrickPlayControl.TrickMode lastEvaluateTrickMode;
 
-  public IFrameAwareAdaptiveTrackSelection(
-          TrackGroup group, int[] tracks,
-          BandwidthMeter bandwidthMeter,
-          long reservedBandwidth,
-          long minDurationForQualityIncreaseMs,
-          long maxDurationForQualityDecreaseMs,
-          long minDurationToRetainAfterDiscardMs,
-          float bandwidthFraction,
-          float bufferedFractionToLiveEdgeForQualityIncrease,
-          Clock clock,
-          @Nullable TrickPlayControlInternal control) {
-    super(group, tracks, bandwidthMeter, reservedBandwidth, minDurationForQualityIncreaseMs, maxDurationForQualityDecreaseMs,
-            minDurationToRetainAfterDiscardMs, bandwidthFraction, bufferedFractionToLiveEdgeForQualityIncrease,
-            clock);
-    this.control = control;
+  protected IFrameAwareAdaptiveTrackSelection(
+      TrackGroup group,
+      int[] tracks,
+      int type,
+      BandwidthMeter bandwidthMeter,
+      long minDurationForQualityIncreaseMs,
+      long maxDurationForQualityDecreaseMs,
+      long minDurationToRetainAfterDiscardMs,
+      float bandwidthFraction,
+      float bufferedFractionToLiveEdgeForQualityIncrease,
+      List<AdaptationCheckpoint> adaptationCheckpoints,
+      Clock clock,
+      TrickPlayControlInternal control) {
+    super(group, tracks, type, bandwidthMeter, minDurationForQualityIncreaseMs,
+        maxDurationForQualityDecreaseMs, minDurationToRetainAfterDiscardMs, bandwidthFraction,
+        bufferedFractionToLiveEdgeForQualityIncrease, adaptationCheckpoints, clock);
+        this.control = control;
   }
 
   @Override
@@ -207,15 +213,15 @@ public class IFrameAwareAdaptiveTrackSelection extends AdaptiveTrackSelection {
   }
 
   @Override
-  protected boolean canSelectFormat(Format format, int trackBitrate, float playbackSpeed, long effectiveBitrate) {
+  protected boolean canSelectFormat(Format format, int trackBitrate, long effectiveBitrate) {
     boolean canSelect = false;
     if (control == null) {
-      canSelect = super.canSelectFormat(format, trackBitrate, playbackSpeed, effectiveBitrate);
+      canSelect = super.canSelectFormat(format, trackBitrate, effectiveBitrate);
     } else {
       TrickPlayControl.TrickPlayDirection mode = control.getCurrentTrickDirection();
       switch (mode) {
         case NONE:
-          canSelect = ! Factory.isIframeOnly(format) && super.canSelectFormat(format, trackBitrate, playbackSpeed, effectiveBitrate);
+          canSelect = ! Factory.isIframeOnly(format) && super.canSelectFormat(format, trackBitrate, effectiveBitrate);
           break;
 
         case REVERSE:

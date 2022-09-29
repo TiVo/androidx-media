@@ -1,6 +1,8 @@
 package com.google.android.exoplayer2.trickplay.hls;
 
+import androidx.annotation.Nullable;
 import com.google.android.exoplayer2.source.hls.playlist.HlsMasterPlaylist;
+import com.google.android.exoplayer2.source.hls.playlist.HlsMediaPlaylist;
 import com.google.android.exoplayer2.source.hls.playlist.HlsPlaylist;
 import com.google.android.exoplayer2.source.hls.playlist.HlsPlaylistParserFactory;
 import com.google.android.exoplayer2.upstream.ParsingLoadable;
@@ -45,8 +47,10 @@ public class DualModeHlsPlaylistParserFactory implements HlsPlaylistParserFactor
     }
 
     @Override
-    public ParsingLoadable.Parser<HlsPlaylist> createPlaylistParser(HlsMasterPlaylist masterPlaylist) {
-        return new FrameCuratorPlaylistParser(delegatePlaylistParserFactory, masterPlaylist);
+    public ParsingLoadable.Parser<HlsPlaylist> createPlaylistParser(
+        HlsMasterPlaylist masterPlaylist,
+        @Nullable HlsMediaPlaylist previousMediaPlaylist) {
+        return new FrameCuratorPlaylistParser(delegatePlaylistParserFactory, masterPlaylist, previousMediaPlaylist);
     }
 
 }

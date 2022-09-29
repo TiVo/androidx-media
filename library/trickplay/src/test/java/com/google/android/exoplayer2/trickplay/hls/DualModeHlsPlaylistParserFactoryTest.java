@@ -58,7 +58,7 @@ public class DualModeHlsPlaylistParserFactoryTest {
     @Test
     public void testCreateMediaParser() throws IOException {
         InputStream mediaPlaylistSource = TestUtil.getInputStream(ApplicationProvider.getApplicationContext(), "testplaylist.m3u8");
-        ParsingLoadable.Parser<HlsPlaylist> mediaParser = parserFactory.createPlaylistParser(masterPlaylist);
+        ParsingLoadable.Parser<HlsPlaylist> mediaParser = parserFactory.createPlaylistParser(masterPlaylist, null);
         Uri variantCloneUri = Uri.EMPTY.buildUpon()
                 .fragment("1")
                 .build();

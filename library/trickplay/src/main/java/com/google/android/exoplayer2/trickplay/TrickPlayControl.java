@@ -4,7 +4,6 @@ import android.content.Context;
 
 import com.google.android.exoplayer2.DefaultRenderersFactory;
 import com.google.android.exoplayer2.ExoPlayer;
-import com.google.android.exoplayer2.ExoPlayerFactory;
 import com.google.android.exoplayer2.LoadControl;
 import com.google.android.exoplayer2.Player;
 import com.google.android.exoplayer2.RenderersFactory;
@@ -29,7 +28,7 @@ public interface TrickPlayControl {
      * this allows control of frame-rate during trick playback.
      *
      * @param context - android content context
-     * @return RenderersFactory you can pass to {@link ExoPlayerFactory#newSimpleInstance(Context, RenderersFactory, TrackSelector)}
+     * @return RenderersFactory you can pass to {@link SimpleExoPlayer.Builder(Context, RenderersFactory, TrackSelector)}
      */
     DefaultRenderersFactory createRenderersFactory(Context context);
 

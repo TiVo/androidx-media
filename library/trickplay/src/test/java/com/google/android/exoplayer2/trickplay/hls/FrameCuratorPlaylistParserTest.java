@@ -148,7 +148,7 @@ public class FrameCuratorPlaylistParserTest {
             // The DefaultHlsPlaylistTracker creates the playlist parser once on load/parse complete for the master
             // playlist, so this is used to save playlist state across loads.
             //
-            ParsingLoadable.Parser<HlsPlaylist> playlistParser = parserFactory.createPlaylistParser(master);
+            ParsingLoadable.Parser<HlsPlaylist> playlistParser = parserFactory.createPlaylistParser(master, null);
 
             // Load and parse first playlist.
             InputStream testPlaylistStream = TestUtil.getInputStream(ApplicationProvider.getApplicationContext(), previousSource);

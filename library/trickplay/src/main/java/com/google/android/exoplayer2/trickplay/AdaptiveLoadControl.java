@@ -4,6 +4,7 @@ import com.google.android.exoplayer2.C;
 import com.google.android.exoplayer2.LoadControl;
 import com.google.android.exoplayer2.Renderer;
 import com.google.android.exoplayer2.source.TrackGroupArray;
+import com.google.android.exoplayer2.trackselection.ExoTrackSelection;
 import com.google.android.exoplayer2.trackselection.TrackSelectionArray;
 import com.google.android.exoplayer2.upstream.Allocator;
 import com.google.android.exoplayer2.util.Util;
@@ -27,8 +28,7 @@ public class AdaptiveLoadControl implements LoadControl, TrickPlayEventListener 
   }
 
   @Override
-  public void onTracksSelected(Renderer[] renderers, TrackGroupArray trackGroups,
-      TrackSelectionArray trackSelections) {
+  public void onTracksSelected(Renderer[] renderers, TrackGroupArray trackGroups, ExoTrackSelection[] trackSelections) {
     delegate.onTracksSelected(renderers, trackGroups, trackSelections);
   }
 
@@ -101,8 +101,10 @@ public class AdaptiveLoadControl implements LoadControl, TrickPlayEventListener 
   }
 
   @Override
-  public boolean shouldStartPlayback(long bufferedDurationUs, float playbackSpeed, boolean rebuffering) {
-    boolean defaultShouldStart = delegate.shouldStartPlayback(bufferedDurationUs, 1.0f, rebuffering);
+  public boolean shouldStartPlayback(long bufferedDurationUs, float playbackSpeed,
+      boolean rebuffering, long targetLiveOffsetUs) {
+    boolean defaultShouldStart =
+        delegate.shouldStartPlayback(bufferedDurationUs, playbackSpeed, rebuffering, targetLiveOffsetUs);
 
     if (trickPlayController.getCurrentTrickDirection() == TrickPlayControl.TrickPlayDirection.SCRUB) {
 //      Log.d(TAG, "shouldStartPlayback() - speed: " + playbackSpeed + " buffered: " + bufferedDurationUs + " rebuffer: " + rebuffering + " super:shouldStartPlayback(): " + defaultShouldStart);

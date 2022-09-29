@@ -26,7 +26,8 @@ public class HlsPlaylistUtils {
         null,
         byteRangeOffset,
         byteRangeLength,
-        false);
+        false,
+        Collections.emptyList());
   }
 
   static HlsMediaPlaylist createMockPlaylist(List<HlsMediaPlaylist.Segment> mockSegments, Uri baseUri) {
@@ -35,17 +36,22 @@ public class HlsPlaylistUtils {
         baseUri.toString(),
         Collections.emptyList(),
         0,
+        true,
         1_000_000,
         false,
         0,
         123,
         8,
         6,
-        true,
+        6,
         false,
         true,
+        false,
         null,
-        mockSegments
+        mockSegments,
+        Collections.emptyList(),
+        new HlsMediaPlaylist.ServerControl(0, true, 0, 0, true),
+        Collections.emptyMap()
     );
   }
 }

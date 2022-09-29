@@ -14,6 +14,7 @@ import com.google.android.exoplayer2.ExoPlaybackException;
 import com.google.android.exoplayer2.Format;
 import com.google.android.exoplayer2.Renderer;
 import com.google.android.exoplayer2.decoder.DecoderInputBuffer;
+import com.google.android.exoplayer2.mediacodec.MediaCodecAdapter;
 import com.google.android.exoplayer2.mediacodec.MediaCodecInfo;
 import com.google.android.exoplayer2.mediacodec.MediaCodecRenderer;
 import com.google.android.exoplayer2.mediacodec.MediaCodecSelector;
@@ -30,18 +31,11 @@ class TrickPlayRendererFactory extends DefaultRenderersFactory {
   protected static final int MAX_DROPPED_VIDEO_FRAME_COUNT_TO_NOTIFY = 10;
 
   private final TrickPlayControlInternal trickPlayController;
-  private @MediaCodecRenderer.MediaCodecOperationMode int videoMediaCodecOperationMode;
 
   TrickPlayRendererFactory(Context context, TrickPlayControlInternal controller) {
     super(context);
     trickPlayController = controller;
     setAllowedVideoJoiningTimeMs(0);
-  }
-
-  @Override
-  public DefaultRenderersFactory experimentalSetVideoMediaCodecOperationMode(@MediaCodecRenderer.MediaCodecOperationMode int mode) {
-    videoMediaCodecOperationMode = mode;
-    return super.experimentalSetVideoMediaCodecOperationMode(mode);
   }
 
   @Override
@@ -63,8 +57,6 @@ class TrickPlayRendererFactory extends DefaultRenderersFactory {
             enableDecoderFallback,
             eventHandler,
             eventListener, MAX_DROPPED_VIDEO_FRAME_COUNT_TO_NOTIFY);
-    Log.d(TAG, "Using videoMediaCodecOperationMode=" + videoMediaCodecOperationMode);
-    videoRenderer.experimentalSetMediaCodecOperationMode(videoMediaCodecOperationMode);
     out.add(videoRenderer);
   }
 
@@ -122,7 +114,7 @@ class TrickPlayRendererFactory extends DefaultRenderersFactory {
     }
 
     private boolean codecRequiresTunnelingTrickModeVsync() {
-      @Nullable MediaCodec codec = getCodec();
+      @Nullable MediaCodecAdapter codec = getCodec();
       @Nullable MediaCodecInfo codecInfo = getCodecInfo();
       return (codecInfo!=null && codec!=null &&
               codecInfo.name.contains("tunnel") &&
@@ -148,7 +140,7 @@ class TrickPlayRendererFactory extends DefaultRenderersFactory {
           codecParameters.putInt("vendor.brcm.tunnel-trickmode-decode-rate", BCM_DECODE_FULL_SPEED);
           codecParameters.putInt("vendor.brcm.tunnel-trickmode-decode-mode", BCM_DECODE_IDR);
         }
-        @Nullable MediaCodec codec = getCodec();
+        @Nullable MediaCodecAdapter codec = getCodec();
         if (codec!=null) {
           codec.setParameters(codecParameters);
         }
@@ -217,7 +209,10 @@ class TrickPlayRendererFactory extends DefaultRenderersFactory {
     }
 
     @Override
-    protected boolean processOutputBuffer(long positionUs, long elapsedRealtimeUs, @Nullable MediaCodec codec, @Nullable ByteBuffer buffer, int bufferIndex, int bufferFlags, int sampleCount, long bufferPresentationTimeUs, boolean isDecodeOnlyBuffer, boolean isLastBuffer, Format format) throws ExoPlaybackException {
+    protected boolean processOutputBuffer(long positionUs, long elapsedRealtimeUs,
+        @Nullable MediaCodecAdapter codec, @Nullable ByteBuffer buffer, int bufferIndex,
+        int bufferFlags, int sampleCount, long bufferPresentationTimeUs, boolean isDecodeOnlyBuffer,
+        boolean isLastBuffer, Format format) throws ExoPlaybackException {
       switch (trickPlay.getCurrentTrickDirection()) {
         case FORWARD:
         case NONE:
@@ -234,8 +229,8 @@ class TrickPlayRendererFactory extends DefaultRenderersFactory {
 
     @Override
     @RequiresApi(21)
-    protected void renderOutputBufferV21(MediaCodec codec, int index, long presentationTimeUs,
-        long releaseTimeNs) {
+    protected void renderOutputBufferV21(MediaCodecAdapter codec, int index,
+        long presentationTimeUs, long releaseTimeNs) {
       super.renderOutputBufferV21(codec, index, presentationTimeUs, releaseTimeNs);
       long timeSinceLastRender =  lastRenderTimeUs == C.TIME_UNSET ? C.TIME_UNSET : (System.nanoTime() / 1000) - lastRenderTimeUs;
       lastRenderTimeUs = System.nanoTime() / 1000;

@@ -2,6 +2,7 @@ package com.google.android.exoplayer2.trickplay.hls;
 
 import android.net.Uri;
 import android.util.Pair;
+import androidx.annotation.Nullable;
 import androidx.annotation.VisibleForTesting;
 
 import java.io.IOException;
@@ -26,8 +27,10 @@ public class FrameCuratorPlaylistParser implements ParsingLoadable.Parser<HlsPla
     private final Map<Uri, HlsMediaPlaylist> previousPlaylists;
     private final Map<Uri, HlsMediaPlaylist> previousSourcePlaylist;
 
-    public FrameCuratorPlaylistParser(HlsPlaylistParserFactory hlsPlaylistParserFactory, HlsMasterPlaylist masterPlaylist) {
-        parserDelegate = hlsPlaylistParserFactory.createPlaylistParser(masterPlaylist);
+    public FrameCuratorPlaylistParser(HlsPlaylistParserFactory hlsPlaylistParserFactory,
+        HlsMasterPlaylist masterPlaylist,
+        @Nullable HlsMediaPlaylist previousMediaPlaylist) {
+        parserDelegate = hlsPlaylistParserFactory.createPlaylistParser(masterPlaylist, previousMediaPlaylist);
         previousPlaylists = new HashMap<>();
         previousSourcePlaylist = new HashMap<>();
     }

@@ -2,12 +2,12 @@ package com.google.android.exoplayer2.trackselection;
 
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 
+import com.google.android.exoplayer2.Timeline;
+import com.google.android.exoplayer2.source.MediaSource;
 import com.google.android.exoplayer2.source.chunk.MediaChunk;
-import com.google.android.exoplayer2.testutil.AutoAdvancingFakeClock;
 import com.google.android.exoplayer2.testutil.FakeClock;
 import com.google.android.exoplayer2.testutil.FakeMediaChunk;
 import com.google.android.exoplayer2.util.Clock;
-import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -53,7 +53,7 @@ public class IFrameAwareAdaptiveTrackSelectionTest {
     private TrickPlayControlInternal mockTrickPlayControl;
 
 
-    private TrackSelection.Definition[] definitions;
+    private ExoTrackSelection.Definition[] definitions;
     private TrackGroup noIFrameFormatsGroup;
     private IFrameAwareAdaptiveTrackSelection.Factory factory;
     private int maxIframeBitrate;
@@ -104,8 +104,8 @@ public class IFrameAwareAdaptiveTrackSelectionTest {
 
         TrackGroup trackGroup = new TrackGroup(formats.toArray(new Format[] {}));
 
-        definitions = new TrackSelection.Definition[]{
-                new TrackSelection.Definition(trackGroup, selectedTracks)
+        definitions = new ExoTrackSelection.Definition[]{
+                new ExoTrackSelection.Definition(trackGroup, selectedTracks)
         };
 
         noIFrameFormatsGroup = new TrackGroup(format1, format2, format3);
@@ -131,7 +131,8 @@ public class IFrameAwareAdaptiveTrackSelectionTest {
     }
 
     private AdaptiveTrackSelection createTrackSelection() {
-        TrackSelection selections[] = factory.createTrackSelections(definitions, mockBandwidthMeter);
+        ExoTrackSelection selections[] = factory.createTrackSelections(definitions, mockBandwidthMeter,
+            new MediaSource.MediaPeriodId(new Object()), Timeline.EMPTY);
         assertThat(selections.length).isEqualTo(1);
         assertThat(selections[0]).isInstanceOf(AdaptiveTrackSelection.class);
         AdaptiveTrackSelection adaptiveTrackSelection = (AdaptiveTrackSelection) selections[0];
@@ -291,7 +292,8 @@ public class IFrameAwareAdaptiveTrackSelectionTest {
 
     @Test
     public void test_closestTargetFrameRateMatch() {
-        TrackSelection selections[] = factory.createTrackSelections(definitions, mockBandwidthMeter);
+        ExoTrackSelection selections[] = factory.createTrackSelections(definitions, mockBandwidthMeter,
+            new MediaSource.MediaPeriodId(new Object()), Timeline.EMPTY);
         assertThat(selections.length).isEqualTo(1);
         assertThat(selections[0]).isInstanceOf(AdaptiveTrackSelection.class);
         IFrameAwareAdaptiveTrackSelection adaptiveTrackSelection = (IFrameAwareAdaptiveTrackSelection) selections[0];
@@ -324,8 +326,9 @@ public class IFrameAwareAdaptiveTrackSelectionTest {
         when(mockTrickPlayControl.getCurrentTrickDirection()).thenReturn(TrickPlayControl.TrickPlayDirection.NONE);
         when(mockTrickPlayControl.getCurrentTrickMode()).thenReturn(TrickPlayControl.TrickMode.NORMAL);
 
-        TrackSelection selections[] = factory.createTrackSelections(definitions, mockBandwidthMeter);
-        TrackSelection trackSelection = selections[0];
+        ExoTrackSelection selections[] = factory.createTrackSelections(definitions, mockBandwidthMeter,
+            new MediaSource.MediaPeriodId(new Object()), Timeline.EMPTY);
+        ExoTrackSelection trackSelection = selections[0];
 
         MediaChunk[] chunks = new MediaChunk[] {
             new FakeMediaChunk(videoFormat(0, "1", 1080, 1920, 0, 60.0f), 0, 6_000_000),
@@ -359,8 +362,9 @@ public class IFrameAwareAdaptiveTrackSelectionTest {
         when(mockTrickPlayControl.getFrameRateForFormat(isA(Format.class))).then((InvocationOnMock invocation) -> ((Format) invocation.getArgument(0)).frameRate);
 
 
-        TrackSelection selections[] = factory.createTrackSelections(definitions, mockBandwidthMeter);
-        TrackSelection trackSelection = selections[0];
+        ExoTrackSelection selections[] = factory.createTrackSelections(definitions, mockBandwidthMeter,
+            new MediaSource.MediaPeriodId(new Object()), Timeline.EMPTY);
+        ExoTrackSelection trackSelection = selections[0];
 
         // Make the initial selection
         trackSelection.updateSelectedTrack(0, 50_000_000, 100_000_000,

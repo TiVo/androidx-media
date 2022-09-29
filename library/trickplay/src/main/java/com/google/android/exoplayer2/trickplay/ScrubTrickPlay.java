@@ -175,26 +175,32 @@ public class ScrubTrickPlay implements TrickPlayEventListener, Player.EventListe
 
   // Player.EventListener
 
+
   @Override
-  public void onPositionDiscontinuity(@Player.DiscontinuityReason int reason) {
-    long positionMs = player.getContentPosition();
+  public void onPositionDiscontinuity(Player.PositionInfo oldPosition,
+      Player.PositionInfo newPosition,  @Player.DiscontinuityReason int reason) {
+    long positionMs = oldPosition.positionMs;
     Log.d(TAG, "onPositionDiscontinuity() - reason: " + reason + " position: " + positionMs
         + " lastPosition: " + lastPosition + " delta: " + (positionMs - lastPosition) + " renderPending: " + renderPending);
-    switch (reason) {
 
-      case Player.DISCONTINUITY_REASON_AD_INSERTION:
-        lastPosition = C.POSITION_UNSET;
-        break;
-      case Player.DISCONTINUITY_REASON_INTERNAL:
-        lastPosition = C.POSITION_UNSET;
-        break;
-      case Player.DISCONTINUITY_REASON_PERIOD_TRANSITION:
-        lastPosition = C.POSITION_UNSET;
-        break;
+    switch (reason) {
 
       case Player.DISCONTINUITY_REASON_SEEK:
       case Player.DISCONTINUITY_REASON_SEEK_ADJUSTMENT:
         lastPosition = positionMs;
+        break;
+
+      case Player.DISCONTINUITY_REASON_AUTO_TRANSITION:
+        lastPosition = C.POSITION_UNSET;
+        break;
+      case Player.DISCONTINUITY_REASON_REMOVE:
+        lastPosition = C.POSITION_UNSET;
+        break;
+      case Player.DISCONTINUITY_REASON_SKIP:
+        lastPosition = C.POSITION_UNSET;
+        break;
+      case Player.DISCONTINUITY_REASON_INTERNAL:
+        lastPosition = C.POSITION_UNSET;
         break;
     }
   }

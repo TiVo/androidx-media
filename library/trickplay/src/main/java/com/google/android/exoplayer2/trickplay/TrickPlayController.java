@@ -1032,7 +1032,7 @@ class TrickPlayController implements TrickPlayControlInternal {
         // forward trick play in the last segment fixes this issue. The segment
         // length is assumed to be 6 seconds.
         DefaultTrackSelector.Parameters trackSelectorParameters = trackSelector.getParameters();
-        if (trackSelectorParameters.tunnelingAudioSessionId != C.AUDIO_SESSION_ID_UNSET) {
+        if (trackSelectorParameters.tunnelingEnabled) {
             lastSeekablePosition = (lastSeekablePosition > 6000)?lastSeekablePosition - 6000:lastSeekablePosition;
         }
 

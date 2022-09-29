@@ -5,6 +5,7 @@ import com.google.android.exoplayer2.SimpleExoPlayer;
 import com.google.android.exoplayer2.source.MediaSource;
 import com.google.android.exoplayer2.trackselection.AdaptiveTrackSelection;
 import com.google.android.exoplayer2.trackselection.DefaultTrackSelector;
+import com.google.android.exoplayer2.trackselection.ExoTrackSelection;
 import com.google.android.exoplayer2.trackselection.IFrameAwareAdaptiveTrackSelection;
 import com.google.android.exoplayer2.trackselection.TrackSelection;
 import com.google.android.exoplayer2.util.Clock;
@@ -65,9 +66,9 @@ public class TrickPlayControlFactory {
      * Get the TrackSelection.Factory that Trick-play will use.  This allows wiring to the
      * {@link DefaultTrackSelector} that you would pass in to {@link #createTrickPlayControl(DefaultTrackSelector)}
      *
-     * @return The {@link TrackSelection.Factory} instance that the {@link TrickPlayControl} is using
+     * @return The {@link ExoTrackSelection.Factory} instance that the {@link TrickPlayControl} is using
      */
-    public TrackSelection.Factory getTrackSelectionFactory() {
+    public ExoTrackSelection.Factory getTrackSelectionFactory() {
         return trackSelectionFactory;
     }
 }
