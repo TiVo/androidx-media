@@ -55,6 +55,7 @@ public class OutputProtectionMonitor extends Handler {
     private boolean isSecure = true;
     // assume HDCP is below 2.2 until discovered otherwise
     private boolean isHdcpLevelV2_2 = false;
+    private int hdcpLevelOfConnectedTV = MediaDrm.HDCP_NO_DIGITAL_OUTPUT;
     private boolean isRefreshStateRequested = false;
     private @HdcpLevel int requiredHdcpLevel;
     HandlerThread drmHandlerThread;
@@ -185,6 +186,16 @@ public class OutputProtectionMonitor extends Handler {
     }
 
     /**
+     * @return one of {@link #HDCP_LEVEL_UNKNOWN}, {@link #HDCP_NONE}, {@link
+     * #HDCP_V1}, {@link #HDCP_V2}, {@link #HDCP_V2_1}, {@link #HDCP_V2_2} or
+     * {@link #HDCP_NO_DIGITAL_OUTPUT}.
+     */
+    public int getHdcpLevelOfConnectedTv()
+    {
+        return hdcpLevelOfConnectedTV;
+    }
+
+    /**
      * Returns HDCP level required for the output to be secure.
      * @return
      */
@@ -202,6 +213,7 @@ public class OutputProtectionMonitor extends Handler {
                 boolean isHdcpSecure = (Boolean) msg.obj;
                 boolean hdcpLevelChanged = isLevelAtLeastHdcp2_2(msg.arg1);
                 boolean newIsSecure = evaluateSecureStatus(isHdcpSecure);
+                hdcpLevelOfConnectedTV = msg.arg1;
                 if (isSecure != newIsSecure)
                 {
                     isSecure = newIsSecure;
