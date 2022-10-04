@@ -48,7 +48,7 @@ To share code back with Google, use the workflow in [Making Public Changes](#mak
 * _TiVo Proprietary Changes_ &mdash; TiVo's own proprietary libraries and extensions.  These include:
 
 	* `library-trickplay` &mdash; provides full screen trickplay with iFrame playlist
-	* `library-ui` &mdash; the ExoPlayer ui components library
+	* `library-tivo-ui` &mdash; TiVo's glue interfaces to ExoPlayer, used by the demo-tenfoot and mobile
 	* `demo-tenfoot` &mdash; our own private demo app
 	* others TBS - please add here if you make a new one
 
@@ -93,9 +93,7 @@ The Gradle publish tasks publish the ExoPlayer libraries as Android libraries (a
 
 The libraries are described in the [README.md](https://github.com/tivocorp/exoplayerprvt/blob/release/README.md).  The TiVo internal library, [library-tivo-ui](https://github.com/tivocorp/exoplayerprvt/tree/release/library/tivo-ui) has an example of how to use ExoPlayer in TiVo and the libraries to include in your project, as well as TiVO specific libraries.
 
-Code is built by Jenkins, [https://builds.tivo.com/view/Android/job/b-exoplayerprvt-release/](https://builds.tivo.com/view/Android/job/b-exoplayerprvt-release/)
-
-TBS - versioning and publishing apk for demo-tenfoot?
+Code is built by Jenkins, on the [Jenkins ExoPlayer Build](https://jenkins-mobile.engr.tivoservice.net/job/exoplayerprvt/) server, all pull requests are built.  The tenfoot demo is published with the rest of the build artifiacts to [Artifactory demo-tenfoot](https://repo-vip.tivo.com:8443/artifactory/webapp/#/artifacts/browse/tree/General/libs-release-local/com/tivo/android/exoplayer/demo-tenfoot)
 
 ### Version Numbering Scheme ###
 
@@ -182,7 +180,7 @@ When you are in doubt, please check with Steve Mayhew.
 
 Note Google's development is always based from their [dev-v2](https://github.com/google/ExoPlayer/tree/dev-v2) branch and our development is based from our [release](https://github.com/tivocorp/exoplayerprvt/tree/release) branch.  Thus sharing requires two parallel tracking branches.
 
-For bug fixes, assuming you have searched [Google's Open Issues](https://github.com/google/ExoPlayer/issues) and not found the issue, start with creating public example media that demonstrates the problem then enter a bug for the issue, follow Google's template, [bug.md](https://github.com/google/ExoPlayer/tree/release-v2/.github/ISSUE_TEMPLATE/bug.md).
+For bug fixes, assuming you have searched [Google's Open Issues](https://github.com/google/ExoPlayer/issues) and not found the issue, start with creating public example media that demonstrates the problem then enter a bug for the issue, follow Google's template, [bug.yml](https://github.com/google/ExoPlayer/tree/release-v2/.github/ISSUE_TEMPLATE/bug.yml).
 
 From here the steps are the same for both bugs and public features (assuming your remote names are setup as documented in [Initial Setup](#initial-setup))
 
