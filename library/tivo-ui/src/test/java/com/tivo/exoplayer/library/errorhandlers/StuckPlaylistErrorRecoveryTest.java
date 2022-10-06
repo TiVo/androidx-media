@@ -3,6 +3,7 @@ package com.tivo.exoplayer.library.errorhandlers;
 import android.net.Uri;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 
+import com.google.android.exoplayer2.PlaybackException;
 import java.util.List;
 
 import org.junit.Before;
@@ -59,8 +60,8 @@ public class StuckPlaylistErrorRecoveryTest {
 
         Uri url = Uri.parse("http://example.com/");
         ExoPlaybackException error =
-               ExoPlaybackException.createForSource(new HlsPlaylistTracker.PlaylistStuckException(url));
-
+            ExoPlaybackException.createForSource(new HlsPlaylistTracker.PlaylistStuckException(url),
+                PlaybackException.ERROR_CODE_IO_UNSPECIFIED);
         boolean value = testee.recoverFrom(error);
 
         // Mock setup
@@ -81,7 +82,8 @@ public class StuckPlaylistErrorRecoveryTest {
         Player.EventListener listener = listeners.get(0);
         Uri url = Uri.parse("http://example.com/");
         ExoPlaybackException error =
-                ExoPlaybackException.createForSource(new HlsPlaylistTracker.PlaylistStuckException(url));
+                ExoPlaybackException.createForSource(new HlsPlaylistTracker.PlaylistStuckException(url),
+                    PlaybackException.ERROR_CODE_IO_UNSPECIFIED);
 
 
         // Setup the initial timeline for starting playback
@@ -93,7 +95,7 @@ public class StuckPlaylistErrorRecoveryTest {
         listener.onTimelineChanged(mockTimeline, 0);
 
         boolean value = testee.recoverFrom(error);
-
+        assertThat(value).isTrue();
         verify(mockPlayerErrorRecoverable).retryPlayback();
         assertThat(value).isTrue();
         assertThat(testee.currentErrorBeingHandled()).isEqualTo(error);

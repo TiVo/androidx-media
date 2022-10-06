@@ -11,6 +11,7 @@ import com.google.android.exoplayer2.RendererCapabilities.AdaptiveSupport;
 import com.google.android.exoplayer2.RendererCapabilities.Capabilities;
 import com.google.android.exoplayer2.source.TrackGroupArray;
 import com.google.android.exoplayer2.trackselection.DefaultTrackSelector;
+import com.google.android.exoplayer2.trackselection.ExoTrackSelection;
 import com.google.android.exoplayer2.trackselection.TrackSelection;
 import com.google.common.primitives.Ints;
 
@@ -61,16 +62,16 @@ public class StressBasedTrackSelector extends DefaultTrackSelector {
   }
 
   /**
-   * @see DefaultTrackSelector#DefaultTrackSelector(Context, TrackSelection.Factory)
+   * @see DefaultTrackSelector#DefaultTrackSelector(Context, ExoTrackSelection.Factory)
    */
-  public StressBasedTrackSelector(Context context, TrackSelection.Factory trackSelectionFactory) {
+  public StressBasedTrackSelector(Context context, ExoTrackSelection.Factory trackSelectionFactory) {
     super(context, trackSelectionFactory);
   }
 
   /**
-   * @see DefaultTrackSelector#DefaultTrackSelector(Parameters, TrackSelection.Factory)
+   * @see DefaultTrackSelector#DefaultTrackSelector(Parameters, ExoTrackSelection.Factory)
    */
-  public StressBasedTrackSelector(Parameters parameters, TrackSelection.Factory trackSelectionFactory) {
+  public StressBasedTrackSelector(Parameters parameters, ExoTrackSelection.Factory trackSelectionFactory) {
     super(parameters, trackSelectionFactory);
   }
 
@@ -97,7 +98,7 @@ public class StressBasedTrackSelector extends DefaultTrackSelector {
 
   @Override
   @Nullable
-  protected TrackSelection.Definition selectVideoTrack(
+  protected ExoTrackSelection.Definition selectVideoTrack(
           TrackGroupArray groups,
           @Capabilities int[][] formatSupport,
           @AdaptiveSupport int mixedMimeTypeAdaptationSupports,
@@ -105,7 +106,7 @@ public class StressBasedTrackSelector extends DefaultTrackSelector {
           boolean enableAdaptiveTrackSelection)
           throws ExoPlaybackException {
 
-    TrackSelection.Definition definition = super.selectVideoTrack(
+    ExoTrackSelection.Definition definition = super.selectVideoTrack(
             groups,
             formatSupport,
             mixedMimeTypeAdaptationSupports,
@@ -156,8 +157,8 @@ public class StressBasedTrackSelector extends DefaultTrackSelector {
       return definition;
     }
 
-    return new TrackSelection.Definition(
-            definition.group, Ints.toArray(filteredTracks), definition.reason, definition.data);
+    return new ExoTrackSelection.Definition(
+            definition.group, Ints.toArray(filteredTracks));
   }
 
 }

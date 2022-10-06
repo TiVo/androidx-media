@@ -2,7 +2,7 @@ package com.tivo.exoplayer.library.errorhandlers;
 
 import androidx.annotation.Nullable;
 
-import com.google.android.exoplayer2.ExoPlaybackException;
+import com.google.android.exoplayer2.PlaybackException;
 import com.google.android.exoplayer2.Player;
 import com.google.android.exoplayer2.SimpleExoPlayer;
 import com.google.android.exoplayer2.Timeline;
@@ -14,7 +14,7 @@ public class BehindLiveWindowExceptionRecovery implements PlaybackExceptionRecov
 
     private final PlayerErrorRecoverable playerErrorRecoverable;
 
-    @Nullable public ExoPlaybackException currentError;
+    @Nullable private PlaybackException currentError;
     @Nullable private TrickPlayControl.TrickMode lastTrickPlayMode;
 
     public BehindLiveWindowExceptionRecovery(PlayerErrorRecoverable playerErrorRecoverable) {
@@ -55,7 +55,7 @@ public class BehindLiveWindowExceptionRecovery implements PlaybackExceptionRecov
 
     // Implement PlaybackExceptionRecovery
     @Override
-    public boolean recoverFrom(ExoPlaybackException e) {
+    public boolean recoverFrom(PlaybackException e) {
         boolean canRecover = PlaybackExceptionRecovery.isBehindLiveWindow(e);
 
         if (canRecover) {
@@ -107,7 +107,7 @@ public class BehindLiveWindowExceptionRecovery implements PlaybackExceptionRecov
     }
 
     @Override
-    public @Nullable ExoPlaybackException currentErrorBeingHandled() {
+    public @Nullable PlaybackException currentErrorBeingHandled() {
         return currentError;
     }
 

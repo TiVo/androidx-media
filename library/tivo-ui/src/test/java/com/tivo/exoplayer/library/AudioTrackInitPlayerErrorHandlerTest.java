@@ -2,6 +2,7 @@ package com.tivo.exoplayer.library;
 
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 
+import com.google.android.exoplayer2.PlaybackException;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -80,7 +81,6 @@ public class AudioTrackInitPlayerErrorHandlerTest {
     }
 
     private ExoPlaybackException createAudioTrackError() {
-        AudioSink.InitializationException cause = new AudioSink.InitializationException(0, 32, 6, 0);
         Format format = Format.createAudioSampleFormat(
                 null,
                 "audio/ac3",
@@ -94,7 +94,10 @@ public class AudioTrackInitPlayerErrorHandlerTest {
                 0,
                 null
         );
-        ExoPlaybackException error = ExoPlaybackException.createForRenderer(cause, "", 0, format, 0);
+        AudioSink.InitializationException cause = new AudioSink.InitializationException(0, 32, 6, 0, format, true, null);
+        ExoPlaybackException error =
+            ExoPlaybackException.createForRenderer(cause, "", 0,
+                format, 0, false, PlaybackException.ERROR_CODE_AUDIO_TRACK_INIT_FAILED);
         return error;
     }
 }

@@ -1,19 +1,21 @@
 package com.tivo.exoplayer.library.errorhandlers;
 
+import static com.google.android.exoplayer2.PlaybackException.ERROR_CODE_IO_UNSPECIFIED;
+
 import androidx.annotation.Nullable;
 
 import com.google.android.exoplayer2.ExoPlaybackException;
+import com.google.android.exoplayer2.PlaybackException;
 import com.google.android.exoplayer2.Player;
-import com.google.android.exoplayer2.source.BehindLiveWindowException;
 import com.google.android.exoplayer2.source.hls.playlist.HlsPlaylistTracker;
 import com.tivo.exoplayer.library.SimpleExoPlayerFactory;
 
 /**
  * ExoPlayer library errorhandler package contains a number of error handler classes implementing
  * this interface that can retry and possibly recover from various player errors reported
- * via {@link Player.EventListener#onPlayerError(ExoPlaybackException)}.
+ * via {@link Player.Listener#onPlayerError(PlaybackException)}.
  *
- * The general flow is the client's onPlayerError() handler calls {@link #recoverFrom(ExoPlaybackException)}
+ * The general flow is the client's onPlayerError() handler calls {@link #recoverFrom(PlaybackException)}
  * and the error handler returns true if it can handle the error then it initiates recovery.
  *
  * The client (for {@link SimpleExoPlayerFactory} this is the {@link DefaultExoPlayerErrorHandler}) calls
@@ -31,8 +33,8 @@ public interface PlaybackExceptionRecovery {
      * @param e the Exception to check
      * @return true if it is SOURCE error BehindLiveWindowException
      */
-    static boolean isBehindLiveWindow(ExoPlaybackException e) {
-        return isSourceErrorOfType(e, BehindLiveWindowException.class);
+    static boolean isBehindLiveWindow(PlaybackException e) {
+        return e.errorCode == PlaybackException.ERROR_CODE_BEHIND_LIVE_WINDOW;
     }
 
     /**
@@ -41,15 +43,21 @@ public interface PlaybackExceptionRecovery {
      * @param e the Exception to check
      * @return true if it is SOURCE error HlsPlaylistTracker.PlaylistStuckException
      */
-    static boolean isPlaylistStuck(ExoPlaybackException e) {
-        return isSourceErrorOfType(e, HlsPlaylistTracker.PlaylistStuckException.class);
-    }
+    static boolean isPlaylistStuck(PlaybackException e) {
+        return e.errorCode == ERROR_CODE_IO_UNSPECIFIED
+            && isSourceErrorOfType(e, HlsPlaylistTracker.PlaylistStuckException.class);
 
-    static boolean isSourceErrorOfType(ExoPlaybackException e, Class type) {
-        if (e.type != ExoPlaybackException.TYPE_SOURCE) {
+        }
+
+    static boolean isSourceErrorOfType(PlaybackException e, Class type) {
+        if (! (e instanceof ExoPlaybackException)) {
             return false;
         }
-        Throwable cause = e.getSourceException();
+        ExoPlaybackException playbackException = (ExoPlaybackException) e;
+        if (playbackException.type != ExoPlaybackException.TYPE_SOURCE) {
+            return false;
+        }
+        Throwable cause = playbackException.getSourceException();
         while (cause != null) {
             if (cause.getClass().isAssignableFrom(type)) {
                 return true;
@@ -68,10 +76,10 @@ public interface PlaybackExceptionRecovery {
      * and the first one returning true stops the rest of the handlers on the list from being
      * called and becomes the designated handler for this error occurrence
      *
-     * @param e the {@link ExoPlaybackException} signaled
+     * @param e the {@link PlaybackException} signaled
      * @return true to stop the recovery chain (assumes this handler recovered or has begun recovery for the error)
      */
-    boolean recoverFrom(ExoPlaybackException e);
+    boolean recoverFrom(PlaybackException e);
 
     /**
      * Called from {@link Player.EventListener} methods for playback state transition while this
@@ -90,7 +98,7 @@ public interface PlaybackExceptionRecovery {
     default void abortRecovery() {}
 
     /**
-     * If this handler has returned true for {@link #recoverFrom(ExoPlaybackException)} and the
+     * If this handler has returned true for {@link #recoverFrom(PlaybackException)} and the
      * handler is still attempting recovery, that is either:
      * <ol>
      *     <li>{@link #checkRecoveryCompleted()} is still returning false</li>
@@ -109,7 +117,7 @@ public interface PlaybackExceptionRecovery {
      * @return the current error, if recovery is in progress or failed.
      */
     @Nullable
-    ExoPlaybackException currentErrorBeingHandled();
+    PlaybackException currentErrorBeingHandled();
 
     /**
      * The handler has given up on recovery

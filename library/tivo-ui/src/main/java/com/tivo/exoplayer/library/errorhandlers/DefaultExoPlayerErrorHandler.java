@@ -5,13 +5,13 @@ import androidx.annotation.Nullable;
 
 import com.google.android.exoplayer2.C;
 import com.google.android.exoplayer2.ExoPlaybackException;
+import com.google.android.exoplayer2.PlaybackException;
 import com.google.android.exoplayer2.Player;
 import com.google.android.exoplayer2.RendererCapabilities;
 import com.google.android.exoplayer2.source.TrackGroup;
 import com.google.android.exoplayer2.source.TrackGroupArray;
 import com.google.android.exoplayer2.trackselection.DefaultTrackSelector;
 import com.google.android.exoplayer2.trackselection.MappingTrackSelector;
-import com.google.android.exoplayer2.trackselection.TrackSelection;
 import com.google.android.exoplayer2.trackselection.TrackSelectionArray;
 import com.google.android.exoplayer2.util.Log;
 
@@ -19,16 +19,16 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * ExoPlayer reports errors via the {@link Player.EventListener#onPlayerError(ExoPlaybackException)}
+ * ExoPlayer reports errors via the {@link Player.Listener#onPlayerError(PlaybackException)}
  * method.  The errors reported to this method may be recovered, the player is transitions to the
  * {@link Player#STATE_IDLE} and playback stops.
  *
  * This handler listens to the @link Player.EventListener} and calls handlers that implement
  * {@link PlaybackExceptionRecovery}, in the order added until the list is exhausted or one of
- * the handlers returns true from {@link PlaybackExceptionRecovery#recoverFrom(ExoPlaybackException)}
+ * the handlers returns true from {@link PlaybackExceptionRecovery#recoverFrom(PlaybackException)}
  *
  */
-public class DefaultExoPlayerErrorHandler implements Player.EventListener {
+public class DefaultExoPlayerErrorHandler implements Player.Listener {
 
   private static final String TAG = "ExoPlayerErrorHandler";
   private final List<PlaybackExceptionRecovery> handlers;
@@ -75,7 +75,7 @@ public class DefaultExoPlayerErrorHandler implements Player.EventListener {
 
   @Override
   @CallSuper
-  public void onPlayerError(ExoPlaybackException error) {
+  public void onPlayerError(PlaybackException error) {
     Log.w(TAG, "onPlayerError: error: " + error);
     PlaybackExceptionRecovery activeHandler = null;
 
@@ -85,8 +85,7 @@ public class DefaultExoPlayerErrorHandler implements Player.EventListener {
     //  and commit: https://github.com/google/ExoPlayer/commit/008c80812b06384b416649196c7601543832cc13
     // Since our 2.12 release this error is possible.
     //
-    if (error.type == ExoPlaybackException.TYPE_TIMEOUT
-        && error.timeoutOperation == ExoPlaybackException.TIMEOUT_OPERATION_RELEASE) {
+    if (error.errorCode == PlaybackException.ERROR_CODE_TIMEOUT) {
      Log.e(TAG, "release timeout error, bypass error recovery as not possible.", error);
     } else {
       for (PlaybackExceptionRecovery handler : handlers) {
@@ -173,15 +172,17 @@ public class DefaultExoPlayerErrorHandler implements Player.EventListener {
               mappedTrackInfo.getRendererName(rendererIndex),
               rendererIndex,
               unsupportedTracks.isEmpty() ? null : unsupportedTracks.get(0).format,  /* format */
-              unsupportedTracks.isEmpty() ? RendererCapabilities.FORMAT_HANDLED : unsupportedTracks.get(0).formatSupport
-              );
+              unsupportedTracks.isEmpty() ? RendererCapabilities.FORMAT_HANDLED : unsupportedTracks.get(0).formatSupport,
+              false,
+              PlaybackException.ERROR_CODE_DECODING_FORMAT_UNSUPPORTED
+          );
       playerErrorHandlerListener.playerErrorProcessed(error, PlayerErrorHandlerListener.HandlingStatus.WARNING);
     }
   }
 
   private void reportErrorStatus(PlaybackExceptionRecovery handler) {
-    PlayerErrorHandlerListener.HandlingStatus status = PlayerErrorHandlerListener.HandlingStatus.FAILED;
-    ExoPlaybackException error = null;
+    PlayerErrorHandlerListener.HandlingStatus status = null;
+    PlaybackException error = null;
 
     if (handler.isRecoveryFailed()) {
       status = PlayerErrorHandlerListener.HandlingStatus.FAILED;
@@ -193,12 +194,10 @@ public class DefaultExoPlayerErrorHandler implements Player.EventListener {
         status = PlayerErrorHandlerListener.HandlingStatus.IN_PROGRESS;
       }
     }
-    if (status != null) {
-      playerErrorProcessed(error, status);
-    }
+    playerErrorProcessed(error, status);
   }
 
-  private void playerErrorProcessed(ExoPlaybackException error, PlayerErrorHandlerListener.HandlingStatus status) {
+  private void playerErrorProcessed(PlaybackException error, PlayerErrorHandlerListener.HandlingStatus status) {
     Log.d(TAG, "playerError was processed, status: " + status);
     if (playerErrorHandlerListener != null) {
       playerErrorHandlerListener.playerErrorProcessed(error, status);

@@ -15,6 +15,7 @@ import com.google.android.exoplayer2.ExoPlayerLibraryInfo;
 import com.google.android.exoplayer2.Format;
 import com.google.android.exoplayer2.LoadControl;
 import com.google.android.exoplayer2.MediaItem;
+import com.google.android.exoplayer2.PlaybackException;
 import com.google.android.exoplayer2.Player;
 import com.google.android.exoplayer2.RendererCapabilities;
 import com.google.android.exoplayer2.RenderersFactory;
@@ -25,6 +26,7 @@ import com.google.android.exoplayer2.source.TrackGroup;
 import com.google.android.exoplayer2.source.TrackGroupArray;
 import com.google.android.exoplayer2.source.UnrecognizedInputFormatException;
 import com.google.android.exoplayer2.trackselection.DefaultTrackSelector;
+import com.google.android.exoplayer2.trackselection.ExoTrackSelection;
 import com.google.android.exoplayer2.trackselection.MappingTrackSelector;
 import com.google.android.exoplayer2.trackselection.TrackSelection;
 import com.google.android.exoplayer2.trackselection.TrackSelectionArray;
@@ -142,9 +144,9 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
   /** can be set from the Factory method */
   private String userAgentPrefix;
 
-  /** If the factory has set a value for mediaCodedOpertionMode */
+  /** If the factory has set a value for mediaCodecAsyncMode */
   private boolean nonDefaultMediaCodecOperationMode;
-  private @MediaCodecRenderer.MediaCodecOperationMode int mediaCodecOperationMode;
+  private boolean mediaCodecAsyncMode;
 
   /**
    * Simple callback to produce an AnalyticsListener for logging purposes.
@@ -180,7 +182,7 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
     private EventListenerFactory factory;
     private SourceFactoriesCreated factoriesCreatedCallback;
     private String userAgentPrefix;
-    private @MediaCodecRenderer.MediaCodecOperationMode int mediaCodecOperationMode;
+    private boolean mediaCodecAsyncMode;
     private boolean nonDefaultMediaCodecOperationMode = false;
 
     public Builder(Context context) {
@@ -190,7 +192,7 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
 
     /**
      * Set a playback error handler listener.  This callback is used with error recovery
-     * from {@link Player.EventListener#onPlayerError(ExoPlaybackException)} calls
+     * from {@link Player.Listener#onPlayerError(PlaybackException)} )} calls
      * this allows the client visibility into the error handling performed by
      * the {@link DefaultExoPlayerErrorHandler} which can recover from some {@link ExoPlaybackException}'s
      *
@@ -243,14 +245,14 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
     }
 
     /**
-     * Set the {@link MediaCodecRenderer.MediaCodecOperationMode} to use for audio and video
+     * Set to use asyncrhrounus mode for audio and video
      * MediaCodec renderers.
      *
-     * @param mode mode to set, default is OPERATION_MODE_SYNCHRONOUS (TODO this will change for 1.16 update)
+     * @param asyncMode true for async mode...  TODO specify what this means at the MediaCodec level
      * @return this builder for chaining
      */
-    public Builder setMediaCodecOperationMode(@MediaCodecRenderer.MediaCodecOperationMode int mode) {
-      mediaCodecOperationMode = mode;
+    public Builder setMediaCodecOperationMode(boolean asyncMode) {
+      mediaCodecAsyncMode = asyncMode;
       nonDefaultMediaCodecOperationMode = true;
       return this;
     }
@@ -262,7 +264,7 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
       simpleExoPlayerFactory.factoriesCreatedCallback = this.factoriesCreatedCallback;
       simpleExoPlayerFactory.userAgentPrefix = userAgentPrefix;
       simpleExoPlayerFactory.nonDefaultMediaCodecOperationMode = nonDefaultMediaCodecOperationMode;
-      simpleExoPlayerFactory.mediaCodecOperationMode = mediaCodecOperationMode;
+      simpleExoPlayerFactory.mediaCodecAsyncMode = mediaCodecAsyncMode;
       return simpleExoPlayerFactory;
     }
   }
@@ -459,13 +461,13 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
     }
 
     trickPlayControlFactory = new TrickPlayControlFactory();
-    TrackSelection.Factory trackSelectionFactory = trickPlayControlFactory.getTrackSelectionFactory();
+    ExoTrackSelection.Factory trackSelectionFactory = trickPlayControlFactory.getTrackSelectionFactory();
     trackSelector = createTrackSelector(defaultTunneling, context, trackSelectionFactory);
     trickPlayControl = trickPlayControlFactory.createTrickPlayControl(trackSelector);
     DefaultRenderersFactory renderersFactory = trickPlayControl.createRenderersFactory(context);
 
     if (nonDefaultMediaCodecOperationMode) {
-      renderersFactory.experimentalSetMediaCodecOperationMode(mediaCodecOperationMode);
+      // TODO - how to set this in the renderer
     }
 
     LoadControl loadControl = trickPlayControl.createLoadControl(controlBuilder.createDefaultLoadControl());
@@ -598,11 +600,8 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
   @RequiresApi(api = Build.VERSION_CODES.LOLLIPOP)
   @Override
   public void setTunnelingMode(boolean enableTunneling) {
-    int tunnelingSessionId = enableTunneling
-            ? C.generateAudioSessionIdV21(context) : C.AUDIO_SESSION_ID_UNSET;
-
     DefaultTrackSelector.ParametersBuilder builder = currentParameters.buildUpon();
-    builder.setTunnelingAudioSessionId(tunnelingSessionId);
+    builder.setTunnelingEnabled(enableTunneling);
 
     commitTrackSelectionParameters(builder);
   }
@@ -611,7 +610,7 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
   @Override
   public boolean isTunnelingMode() {
     return player != null && player.getPlaybackState() != Player.STATE_ENDED
-        && currentParameters.tunnelingAudioSessionId != C.AUDIO_SESSION_ID_UNSET;
+        && currentParameters.tunnelingEnabled;
   }
 
   /**
@@ -755,11 +754,11 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
         TrackSelection groupSelection = getTrackSelectionForGroup(group);
         for (int trackIndex = 0; trackIndex < group.length; trackIndex++) {
           Format format = group.getFormat(trackIndex);
-          if (matching.apply(format)) {
-            boolean isSelected = groupSelection != null
-                    && groupSelection.getSelectedFormat().equals(format);
-            availableTracks.add(new TrackInfo(format, isSelected));
-          }
+//          if (matching.apply(format)) {
+//            boolean isSelected = groupSelection != null
+//                    && groupSelection.getSelectedFormat().equals(format);
+//            availableTracks.add(new TrackInfo(format, isSelected));
+//          }
         }
       }
     }
@@ -1025,23 +1024,16 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
     }
   }
 
-  private DefaultTrackSelector createTrackSelector(boolean enableTunneling, Context context, TrackSelection.Factory trackSelectionFactory) {
+  private DefaultTrackSelector createTrackSelector(boolean enableTunneling, Context context, ExoTrackSelection.Factory trackSelectionFactory) {
     // Get a builder with current parameters then set/clear tunnling based on the intent
     //
-    int tunnelingSessionId = C.AUDIO_SESSION_ID_UNSET;
-
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-      tunnelingSessionId = enableTunneling
-              ? C.generateAudioSessionIdV21(context) : C.AUDIO_SESSION_ID_UNSET;
-    }
-
     boolean usingSavedParameters =
         ! currentParameters.equals(new DefaultTrackSelector.ParametersBuilder(context).build());
 
     DefaultTrackSelector trackSelector = new DefaultTrackSelector(context, trackSelectionFactory);
     DefaultTrackSelector.ParametersBuilder builder = currentParameters.buildUpon();
 
-    builder.setTunnelingAudioSessionId(tunnelingSessionId);
+    builder.setTunnelingEnabled(enableTunneling);
 
     // Selection overrides can't persist across player rebuild, they are track index based
     //

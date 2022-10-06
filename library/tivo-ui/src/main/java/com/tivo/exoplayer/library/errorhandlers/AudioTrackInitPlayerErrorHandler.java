@@ -1,16 +1,18 @@
 package com.tivo.exoplayer.library.errorhandlers;
 
+import static com.google.android.exoplayer2.PlaybackException.ERROR_CODE_AUDIO_TRACK_INIT_FAILED;
+import static com.google.android.exoplayer2.PlaybackException.ERROR_CODE_AUDIO_TRACK_WRITE_FAILED;
+
 import androidx.annotation.Nullable;
 import androidx.annotation.VisibleForTesting;
 
 import com.google.android.exoplayer2.ExoPlaybackException;
+import com.google.android.exoplayer2.PlaybackException;
 import com.google.android.exoplayer2.SimpleExoPlayer;
 import com.google.android.exoplayer2.audio.AudioSink;
 import com.google.android.exoplayer2.util.Log;
 import com.google.android.exoplayer2.util.Util;
 import com.tivo.exoplayer.library.SimpleExoPlayerFactory;
-import com.tivo.exoplayer.library.errorhandlers.PlayerErrorRecoverable;
-import com.tivo.exoplayer.library.errorhandlers.PlaybackExceptionRecovery;
 
 public class AudioTrackInitPlayerErrorHandler implements PlaybackExceptionRecovery {
   private static final String TAG = "AudioTrackInitPlayerErrorHandler";
@@ -23,7 +25,7 @@ public class AudioTrackInitPlayerErrorHandler implements PlaybackExceptionRecove
    */
   @VisibleForTesting
   int errorRetryCount;
-  private @Nullable ExoPlaybackException currentError;
+  private @Nullable PlaybackException currentError;
 
   public AudioTrackInitPlayerErrorHandler(PlayerErrorRecoverable playerErrorRecoverable) {
     this.playerErrorRecoverable = playerErrorRecoverable;
@@ -31,7 +33,7 @@ public class AudioTrackInitPlayerErrorHandler implements PlaybackExceptionRecove
 
   @Nullable
   @Override
-  public ExoPlaybackException currentErrorBeingHandled() {
+  public PlaybackException currentErrorBeingHandled() {
     return currentError;
   }
 
@@ -58,16 +60,18 @@ public class AudioTrackInitPlayerErrorHandler implements PlaybackExceptionRecove
   }
 
   @Override
-  public boolean recoverFrom(ExoPlaybackException e) {
+  public boolean recoverFrom(PlaybackException error) {
     boolean handled = false;
 
-    if (e.type == ExoPlaybackException.TYPE_RENDERER) {
-      Exception renderException = e.getRendererException();
+    if (error instanceof ExoPlaybackException
+        && (error.errorCode == ERROR_CODE_AUDIO_TRACK_INIT_FAILED || error.errorCode == ERROR_CODE_AUDIO_TRACK_WRITE_FAILED) ) {
+      ExoPlaybackException exoPlaybackException = (ExoPlaybackException) error;
+      Exception renderException = exoPlaybackException.getRendererException();
       if (renderException instanceof AudioSink.InitializationException) {
         AudioSink.InitializationException initException = (AudioSink.InitializationException) renderException;
 
-        if (initException.audioTrackState == 0 && e.rendererFormat != null && Util
-            .areEqual(e.rendererFormat.sampleMimeType, "audio/ac3")) {
+        if (initException.audioTrackState == 0 && exoPlaybackException.rendererFormat != null && Util
+            .areEqual(exoPlaybackException.rendererFormat.sampleMimeType, "audio/ac3")) {
           if (++errorRetryCount > MAX_ERROR_RETRIES) {
             Log.w(SimpleExoPlayerFactory.TAG,
                 "Retry count exceeded, failing for AudioSink.InitializationException for AC3 audio.",
@@ -81,7 +85,7 @@ public class AudioTrackInitPlayerErrorHandler implements PlaybackExceptionRecove
             }
             playerErrorRecoverable.retryPlayback();
             handled = true;
-            currentError = e;
+            currentError = error;
           }
         }
       }

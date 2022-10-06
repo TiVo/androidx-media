@@ -40,6 +40,7 @@ public class StressBasedTrackSelectorTest {
                   .setSampleMimeType(MimeTypes.VIDEO_H264)
                   .setWidth(1024)
                   .setHeight(768)
+                  .setAverageBitrate(10)
                   .build();
 
   private static final RendererCapabilities VIDEO_CAPABILITIES = new FakeRendererCapabilities(C.TRACK_TYPE_VIDEO);
@@ -78,20 +79,20 @@ public class StressBasedTrackSelectorTest {
 
     Format.Builder formatBuilder = VIDEO_FORMAT.buildUpon();
     TrackGroupArray trackGroups = new TrackGroupArray(new TrackGroup(
-            formatBuilder.setId("0").setWidth(1920).setHeight(1080).setFrameRate(30).build(),
-            formatBuilder.setId("1").setWidth(1920).setHeight(1080).setFrameRate(60).build(),
-            formatBuilder.setId("2").setWidth(2160).setHeight(1440).setFrameRate(24).build(),
-            formatBuilder.setId("3").setWidth(2160).setHeight(1440).setFrameRate(30).build(),
-            formatBuilder.setId("4").setWidth(2160).setHeight(1440).setFrameRate(60).build(),
-            formatBuilder.setId("5").setWidth(3840).setHeight(2160).setFrameRate(24).build(),
-            formatBuilder.setId("6").setWidth(3840).setHeight(2160).setFrameRate(30).build(),
-            formatBuilder.setId("7").setWidth(3840).setHeight(2160).setFrameRate(60).build()));
+            formatBuilder.setId("0").setWidth(1920).setHeight(1080).setFrameRate(30).setPeakBitrate(10).build(),
+            formatBuilder.setId("1").setWidth(1920).setHeight(1080).setFrameRate(60).setPeakBitrate(10).build(),
+            formatBuilder.setId("2").setWidth(2160).setHeight(1440).setFrameRate(24).setPeakBitrate(10).build(),
+            formatBuilder.setId("3").setWidth(2160).setHeight(1440).setFrameRate(30).setPeakBitrate(10).build(),
+            formatBuilder.setId("4").setWidth(2160).setHeight(1440).setFrameRate(60).setPeakBitrate(10).build(),
+            formatBuilder.setId("5").setWidth(3840).setHeight(2160).setFrameRate(24).setPeakBitrate(10).build(),
+            formatBuilder.setId("6").setWidth(3840).setHeight(2160).setFrameRate(30).setPeakBitrate(10).build(),
+            formatBuilder.setId("7").setWidth(3840).setHeight(2160).setFrameRate(60).setPeakBitrate(10).build()));
 
     TrackSelectorResult result = trackSelector.selectTracks(
             new RendererCapabilities[]{VIDEO_CAPABILITIES}, trackGroups, periodId, TIMELINE);
 
     assertThat(result.length).isEqualTo(1);
-    assertAdaptiveSelection(result.selections.get(0), trackGroups.get(0), 0, 1, 2, 3, 4, 5, 6, 7);
+    assertAdaptiveSelection(result.selections[0], trackGroups.get(0), 0, 1, 2, 3, 4, 5, 6, 7);
   }
 
   @Test
@@ -100,20 +101,20 @@ public class StressBasedTrackSelectorTest {
 
     Format.Builder formatBuilder = VIDEO_FORMAT.buildUpon();
     TrackGroupArray trackGroups = new TrackGroupArray(new TrackGroup(
-            formatBuilder.setId("0").setWidth(1920).setHeight(1080).setFrameRate(30).build(),
-            formatBuilder.setId("1").setWidth(1920).setHeight(1080).setFrameRate(60).build(),
-            formatBuilder.setId("2").setWidth(2160).setHeight(1440).setFrameRate(24).build(),
-            formatBuilder.setId("3").setWidth(2160).setHeight(1440).setFrameRate(30).build(),
-            formatBuilder.setId("4").setWidth(2160).setHeight(1440).setFrameRate(60).build(),
-            formatBuilder.setId("5").setWidth(3840).setHeight(2160).setFrameRate(24).build(),
-            formatBuilder.setId("6").setWidth(3840).setHeight(2160).setFrameRate(30).build(),
+            formatBuilder.setId("0").setWidth(1920).setHeight(1080).setFrameRate(30).setPeakBitrate(10).build(),
+            formatBuilder.setId("1").setWidth(1920).setHeight(1080).setFrameRate(60).setPeakBitrate(10).build(),
+            formatBuilder.setId("2").setWidth(2160).setHeight(1440).setFrameRate(24).setPeakBitrate(10).build(),
+            formatBuilder.setId("3").setWidth(2160).setHeight(1440).setFrameRate(30).setPeakBitrate(10).build(),
+            formatBuilder.setId("4").setWidth(2160).setHeight(1440).setFrameRate(60).setPeakBitrate(10).build(),
+            formatBuilder.setId("5").setWidth(3840).setHeight(2160).setFrameRate(24).setPeakBitrate(10).build(),
+            formatBuilder.setId("6").setWidth(3840).setHeight(2160).setFrameRate(30).setPeakBitrate(10).build(),
             formatBuilder.setId("7").setWidth(3840).setHeight(2160).setFrameRate(60).build()));
 
     TrackSelectorResult result = trackSelector.selectTracks(
             new RendererCapabilities[]{VIDEO_CAPABILITIES}, trackGroups, periodId, TIMELINE);
 
     assertThat(result.length).isEqualTo(1);
-    assertAdaptiveSelection(result.selections.get(0), trackGroups.get(0), 0, 1, 2, 3, 4, 5, 6);
+    assertAdaptiveSelection(result.selections[0], trackGroups.get(0), 0, 1, 2, 3, 4, 5, 6);
   }
 
   @Test
@@ -135,7 +136,7 @@ public class StressBasedTrackSelectorTest {
             new RendererCapabilities[]{VIDEO_CAPABILITIES}, trackGroups, periodId, TIMELINE);
 
     assertThat(result.length).isEqualTo(1);
-    assertAdaptiveSelection(result.selections.get(0), trackGroups.get(0), 0, 1, 2, 3, 5, 6);
+    assertAdaptiveSelection(result.selections[0], trackGroups.get(0), 0, 1, 2, 3, 5, 6);
   }
 
   @Test
@@ -157,7 +158,7 @@ public class StressBasedTrackSelectorTest {
             new RendererCapabilities[]{VIDEO_CAPABILITIES}, trackGroups, periodId, TIMELINE);
 
     assertThat(result.length).isEqualTo(1);
-    assertAdaptiveSelection(result.selections.get(0), trackGroups.get(0), 0, 2, 3, 5, 6);
+    assertAdaptiveSelection(result.selections[0], trackGroups.get(0), 0, 2, 3, 5, 6);
   }
 
   @Test
@@ -174,7 +175,7 @@ public class StressBasedTrackSelectorTest {
             new RendererCapabilities[]{VIDEO_CAPABILITIES}, trackGroups, periodId, TIMELINE);
 
     assertThat(result.length).isEqualTo(1);
-    assertAdaptiveSelection(result.selections.get(0), trackGroups.get(0), 0, 1, 2);
+    assertAdaptiveSelection(result.selections[0], trackGroups.get(0), 0, 1, 2);
   }
 
   private static void assertAdaptiveSelection(

@@ -16,6 +16,7 @@ import android.view.WindowManager;
 import androidx.annotation.Nullable;
 
 import com.google.android.exoplayer2.ExoPlaybackException;
+import com.google.android.exoplayer2.PlaybackException;
 import com.google.android.exoplayer2.SimpleExoPlayer;
 import com.google.android.exoplayer2.audio.AudioSink;
 
@@ -35,7 +36,7 @@ public class HdmiPlayerErrorHandler implements PlaybackExceptionRecovery {
   // by temporarily disabling tunneling
   //
   private boolean tunnelingDisabledForRecovery;
-  private @Nullable ExoPlaybackException currentError;
+  private @Nullable PlaybackException currentError;
 
   // Current HDMI state
   private enum HdmiState {UNKNOWN, UNPLUGGED, PLUGGED};
@@ -97,10 +98,10 @@ public class HdmiPlayerErrorHandler implements PlaybackExceptionRecovery {
   }
 
   @Override
-  public boolean recoverFrom(ExoPlaybackException e) {
+  public boolean recoverFrom(PlaybackException e) {
     boolean handled = false;
-    if (e.type == ExoPlaybackException.TYPE_RENDERER) {
-      Exception renderException = e.getRendererException();
+    if ((e instanceof ExoPlaybackException) && ((ExoPlaybackException) e).type == ExoPlaybackException.TYPE_RENDERER) {
+      Exception renderException = ((ExoPlaybackException) e).getRendererException();
       if (renderException instanceof AudioSink.WriteException) {
 
         // In tunneling mode, if the HDMI disconnects the AudioTrack fails.  Recover by
@@ -128,7 +129,7 @@ public class HdmiPlayerErrorHandler implements PlaybackExceptionRecovery {
 
   @Nullable
   @Override
-  public ExoPlaybackException currentErrorBeingHandled() {
+  public PlaybackException currentErrorBeingHandled() {
     return currentError;
   }
 

@@ -1,10 +1,9 @@
 package com.tivo.exoplayer.library.errorhandlers;// Copyright 2010 TiVo Inc.  All rights reserved.
 
 import com.google.android.exoplayer2.ExoPlaybackException;
+import com.google.android.exoplayer2.PlaybackException;
 import com.google.android.exoplayer2.Player;
 import com.tivo.exoplayer.library.SimpleExoPlayerFactory;
-import com.tivo.exoplayer.library.errorhandlers.DefaultExoPlayerErrorHandler;
-import com.tivo.exoplayer.library.errorhandlers.PlaybackExceptionRecovery;
 
 /**
  * Implement this interface to monitor playback errors processed by the {@link DefaultExoPlayerErrorHandler}
@@ -33,7 +32,7 @@ public interface PlayerErrorHandlerListener {
   }
   /**
    * The {@link DefaultExoPlayerErrorHandler} handles playback errors reported via the
-   * {@link com.google.android.exoplayer2.Player.EventListener#onPlayerError(ExoPlaybackException)} by calling
+   * {@link com.google.android.exoplayer2.Player.Listener#onPlayerError(PlaybackException)} by calling
    * {@link PlaybackExceptionRecovery} implementations in turn until one
    * accepts the challenge to recover the error, if none do this method is called with status FAILED
    *
@@ -46,7 +45,7 @@ public interface PlayerErrorHandlerListener {
    *   be called repeatedly until the error is either recovered or recovery fails.</li>
    *   <li>SUCCESS &mdash; report that the error has been fully recovered from</li>
    *   <li>FAILED &mdash; report that the error recovery failed or was not possible. Playback has stopped at
-   *   this point, same as reported directly via {@link Player.EventListener#onPlayerError(ExoPlaybackException)}</li>
+   *   this point, same as reported directly via {@link Player.Listener#onPlayerError(PlaybackException)}</li>
    *   <li>WARNING &mdash; reported for issues that degrade playback but the player is not stopped.  Callee
    *   can choose to abort playback (with {@link Player#stop()}) and report the error</li>
    * </ul>
@@ -54,5 +53,5 @@ public interface PlayerErrorHandlerListener {
    * @param error the actual reported {@link ExoPlaybackException}
    * @param status, {@link HandlingStatus} for the error
    */
-  void playerErrorProcessed(ExoPlaybackException error, HandlingStatus status);
+  void playerErrorProcessed(PlaybackException error, HandlingStatus status);
 }

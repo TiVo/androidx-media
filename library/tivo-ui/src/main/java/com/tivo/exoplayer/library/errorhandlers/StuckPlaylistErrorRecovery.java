@@ -1,5 +1,6 @@
 package com.tivo.exoplayer.library.errorhandlers;
 
+import com.google.android.exoplayer2.PlaybackException;
 import java.util.Locale;
 
 import org.checkerframework.checker.nullness.qual.Nullable;
@@ -19,7 +20,7 @@ public class StuckPlaylistErrorRecovery implements PlaybackExceptionRecovery, Pl
     private final PlayerErrorRecoverable errorRecoverable;
 
     private int errorCount;
-    private @Nullable ExoPlaybackException currentError;
+    private @Nullable PlaybackException currentError;
     private long lastWindowStartMs = C.TIME_UNSET;
     private long lastDurationUs = C.TIME_UNSET;
     private String lastMediaId = "";
@@ -39,13 +40,12 @@ public class StuckPlaylistErrorRecovery implements PlaybackExceptionRecovery, Pl
      * On the first error we set play when ready to false, this prevents playing the same content over and over until we
      * are sure (at the first timeline changed) that recover has found new content.
      *
-     * @param exception the {@link ExoPlaybackException} signaled
+     * @param exception the {@link PlaybackException} signaled
      * @return true if recovery is being attempted
      */
     @Override
-    public boolean recoverFrom(ExoPlaybackException exception) {
-        boolean canRecover = exception.type == ExoPlaybackException.TYPE_SOURCE
-                && exception.getSourceException() instanceof HlsPlaylistTracker.PlaylistStuckException
+    public boolean recoverFrom(PlaybackException exception) {
+        boolean canRecover = PlaybackExceptionRecovery.isPlaylistStuck(exception)
                 && this.errorCount++ < ERROR_MAX;
         Log.w(TAG, "recoverFrom() - error count " + this.errorCount + " lastPositionMs: " + lastWindowStartMs);
 
@@ -95,7 +95,7 @@ public class StuckPlaylistErrorRecovery implements PlaybackExceptionRecovery, Pl
     }
 
     @Override
-    public @Nullable ExoPlaybackException currentErrorBeingHandled() {
+    public @Nullable PlaybackException currentErrorBeingHandled() {
         return currentError;
     }
 

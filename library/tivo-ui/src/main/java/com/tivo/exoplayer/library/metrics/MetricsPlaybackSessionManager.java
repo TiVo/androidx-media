@@ -133,6 +133,12 @@ public class MetricsPlaybackSessionManager implements PlaybackSessionManager {
         delegate.updateSessionsWithDiscontinuity(eventTime, reason);
     }
 
+    @Nullable
+    @Override
+    public String getActiveSessionId() {
+        return delegate.getActiveSessionId();
+    }
+
     @Override
     public void finishAllSessions(AnalyticsListener.EventTime eventTime) {
         delegate.finishAllSessions(eventTime);
