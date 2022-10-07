@@ -25,6 +25,7 @@ import com.google.android.exoplayer2.DefaultLoadControl;
 import com.google.android.exoplayer2.ExoPlaybackException;
 import com.google.android.exoplayer2.Format;
 import com.google.android.exoplayer2.MediaItem;
+import com.google.android.exoplayer2.PlaybackException;
 import com.google.android.exoplayer2.Player;
 import com.google.android.exoplayer2.RendererCapabilities;
 import com.google.android.exoplayer2.SeekParameters;
@@ -186,22 +187,23 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
                   break;
 
                 case WARNING:
-                  if (error.type == ExoPlaybackException.TYPE_RENDERER) {
-                    @RendererCapabilities.FormatSupport int formatSupport = error.rendererFormatSupport;
-                    String reason = "format: " + Format.toLogString(error.rendererFormat) + ", ";
+                  if (error.errorCode == PlaybackException.ERROR_CODE_DECODING_FORMAT_UNSUPPORTED) {
+                    ExoPlaybackException exoPlaybackException = (ExoPlaybackException) error;
+                    @C.FormatSupport int formatSupport = exoPlaybackException.rendererFormatSupport;
+                    String reason = "format: " + Format.toLogString(exoPlaybackException.rendererFormat) + ", ";
                     switch (formatSupport) {
-                      case RendererCapabilities.FORMAT_EXCEEDS_CAPABILITIES:
+                      case C.FORMAT_EXCEEDS_CAPABILITIES:
                         reason = "Exceeds Capabilities";
                         break;
-                      case RendererCapabilities.FORMAT_HANDLED:
+                      case C.FORMAT_HANDLED:
                         break;
-                      case RendererCapabilities.FORMAT_UNSUPPORTED_DRM:
+                      case C.FORMAT_UNSUPPORTED_DRM:
                         reason = "Unsupported DRM";
                         break;
-                      case RendererCapabilities.FORMAT_UNSUPPORTED_SUBTYPE:
+                      case C.FORMAT_UNSUPPORTED_SUBTYPE:
                         reason = "Unsupported Subtype";
                         break;
-                      case RendererCapabilities.FORMAT_UNSUPPORTED_TYPE:
+                      case C.FORMAT_UNSUPPORTED_TYPE:
                         reason = "Unsupported Type";
                         break;
                     }
@@ -252,7 +254,7 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
 
     boolean enableAsyncRenderer = getIntent().getBooleanExtra(ENABLE_ASYNC_RENDER, false);
     if (enableAsyncRenderer) {
-      builder.setMediaCodecOperationMode(MediaCodecRenderer.OPERATION_MODE_ASYNCHRONOUS_DEDICATED_THREAD_ASYNCHRONOUS_QUEUEING);
+      builder.setMediaCodecOperationMode(enableAsyncRenderer);
     }
 
     exoPlayerFactory = builder.build();

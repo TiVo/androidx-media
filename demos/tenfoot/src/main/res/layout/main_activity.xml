@@ -134,7 +134,7 @@
         android:layout_marginStart="16dp"
         android:layout_marginLeft="16dp"
         android:layout_marginTop="18dp"
-        android:background="@color/exo_gray_ripple"
+        android:background="@color/exo_edit_mode_background_color"
         android:text="Load file:"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintStart_toStartOf="parent"
