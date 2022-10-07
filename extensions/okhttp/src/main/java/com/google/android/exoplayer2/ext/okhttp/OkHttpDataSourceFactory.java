@@ -15,19 +15,15 @@
  */
 package com.google.android.exoplayer2.ext.okhttp;
 
-import static com.google.android.exoplayer2.ExoPlayerLibraryInfo.DEFAULT_USER_AGENT;
-
 import androidx.annotation.Nullable;
 import com.google.android.exoplayer2.upstream.HttpDataSource;
 import com.google.android.exoplayer2.upstream.HttpDataSource.BaseFactory;
-import com.google.android.exoplayer2.upstream.HttpDataSource.Factory;
 import com.google.android.exoplayer2.upstream.TransferListener;
 import okhttp3.CacheControl;
 import okhttp3.Call;
 
-/**
- * A {@link Factory} that produces {@link OkHttpDataSource}.
- */
+/** @deprecated Use {@link OkHttpDataSource.Factory} instead. */
+@Deprecated
 public final class OkHttpDataSourceFactory extends BaseFactory {
 
   private final Call.Factory callFactory;
@@ -42,7 +38,7 @@ public final class OkHttpDataSourceFactory extends BaseFactory {
    *     by the sources created by the factory.
    */
   public OkHttpDataSourceFactory(Call.Factory callFactory) {
-    this(callFactory, DEFAULT_USER_AGENT, /* listener= */ null, /* cacheControl= */ null);
+    this(callFactory, /* userAgent= */ null, /* listener= */ null, /* cacheControl= */ null);
   }
 
   /**
@@ -102,15 +98,13 @@ public final class OkHttpDataSourceFactory extends BaseFactory {
     this.cacheControl = cacheControl;
   }
 
+  // Calls deprecated constructor.
+  @SuppressWarnings("deprecation")
   @Override
   protected OkHttpDataSource createDataSourceInternal(
       HttpDataSource.RequestProperties defaultRequestProperties) {
     OkHttpDataSource dataSource =
-        new OkHttpDataSource(
-            callFactory,
-            userAgent,
-            cacheControl,
-            defaultRequestProperties);
+        new OkHttpDataSource(callFactory, userAgent, cacheControl, defaultRequestProperties);
     if (listener != null) {
       dataSource.addTransferListener(listener);
     }

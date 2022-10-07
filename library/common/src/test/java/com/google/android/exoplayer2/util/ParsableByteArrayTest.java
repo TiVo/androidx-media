@@ -20,6 +20,7 @@ import static java.nio.charset.Charset.forName;
 import static org.junit.Assert.fail;
 
 import androidx.test.ext.junit.runners.AndroidJUnit4;
+import com.google.common.primitives.Bytes;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import org.junit.Test;
@@ -39,6 +40,36 @@ public final class ParsableByteArrayTest {
   }
 
   @Test
+  public void ensureCapacity_doesntReallocateNeedlesslyAndPreservesPositionAndLimit() {
+    ParsableByteArray array = getTestDataArray();
+    byte[] dataBefore = array.getData();
+    byte[] copyOfDataBefore = dataBefore.clone();
+
+    array.setPosition(3);
+    array.setLimit(4);
+    array.ensureCapacity(array.capacity() - 1);
+
+    assertThat(array.getData()).isSameInstanceAs(dataBefore);
+    assertThat(array.getData()).isEqualTo(copyOfDataBefore);
+    assertThat(array.getPosition()).isEqualTo(3);
+    assertThat(array.limit()).isEqualTo(4);
+  }
+
+  @Test
+  public void ensureCapacity_preservesDataPositionAndLimitWhenReallocating() {
+    ParsableByteArray array = getTestDataArray();
+    byte[] copyOfDataBefore = array.getData().clone();
+
+    array.setPosition(3);
+    array.setLimit(4);
+    array.ensureCapacity(array.capacity() + 1);
+
+    assertThat(array.getData()).isEqualTo(Bytes.concat(copyOfDataBefore, new byte[] {0}));
+    assertThat(array.getPosition()).isEqualTo(3);
+    assertThat(array.limit()).isEqualTo(4);
+  }
+
+  @Test
   public void readShort() {
     testReadShort((short) -1);
     testReadShort((short) 0);
@@ -48,8 +79,8 @@ public final class ParsableByteArrayTest {
   }
 
   private static void testReadShort(short testValue) {
-    ParsableByteArray testArray = new ParsableByteArray(
-        ByteBuffer.allocate(4).putShort(testValue).array());
+    ParsableByteArray testArray =
+        new ParsableByteArray(ByteBuffer.allocate(4).putShort(testValue).array());
     int readValue = testArray.readShort();
 
     // Assert that the value we read was the value we wrote.
@@ -74,8 +105,8 @@ public final class ParsableByteArrayTest {
   }
 
   private static void testReadInt(int testValue) {
-    ParsableByteArray testArray = new ParsableByteArray(
-        ByteBuffer.allocate(4).putInt(testValue).array());
+    ParsableByteArray testArray =
+        new ParsableByteArray(ByteBuffer.allocate(4).putInt(testValue).array());
     int readValue = testArray.readInt();
 
     // Assert that the value we read was the value we wrote.
@@ -100,8 +131,9 @@ public final class ParsableByteArrayTest {
   }
 
   private static void testReadUnsignedInt(long testValue) {
-    ParsableByteArray testArray = new ParsableByteArray(
-        Arrays.copyOfRange(ByteBuffer.allocate(8).putLong(testValue).array(), 4, 8));
+    ParsableByteArray testArray =
+        new ParsableByteArray(
+            Arrays.copyOfRange(ByteBuffer.allocate(8).putLong(testValue).array(), 4, 8));
     long readValue = testArray.readUnsignedInt();
 
     // Assert that the value we read was the value we wrote.
@@ -136,8 +168,8 @@ public final class ParsableByteArrayTest {
   }
 
   private static void testReadUnsignedIntToInt(int testValue) {
-    ParsableByteArray testArray = new ParsableByteArray(
-        ByteBuffer.allocate(4).putInt(testValue).array());
+    ParsableByteArray testArray =
+        new ParsableByteArray(ByteBuffer.allocate(4).putInt(testValue).array());
     int readValue = testArray.readUnsignedIntToInt();
 
     // Assert that the value we read was the value we wrote.
@@ -172,8 +204,8 @@ public final class ParsableByteArrayTest {
   }
 
   private static void testReadUnsignedLongToLong(long testValue) {
-    ParsableByteArray testArray = new ParsableByteArray(
-        ByteBuffer.allocate(8).putLong(testValue).array());
+    ParsableByteArray testArray =
+        new ParsableByteArray(ByteBuffer.allocate(8).putLong(testValue).array());
     long readValue = testArray.readUnsignedLongToLong();
 
     // Assert that the value we read was the value we wrote.
@@ -198,8 +230,8 @@ public final class ParsableByteArrayTest {
   }
 
   private static void testReadLong(long testValue) {
-    ParsableByteArray testArray = new ParsableByteArray(
-        ByteBuffer.allocate(8).putLong(testValue).array());
+    ParsableByteArray testArray =
+        new ParsableByteArray(ByteBuffer.allocate(8).putLong(testValue).array());
     long readValue = testArray.readLong();
 
     // Assert that the value we read was the value we wrote.
@@ -296,28 +328,22 @@ public final class ParsableByteArrayTest {
 
   @Test
   public void readLittleEndianLong() {
-    ParsableByteArray byteArray = new ParsableByteArray(new byte[] {
-        0x01, 0x00, 0x00, 0x00,
-        0x00, 0x00, 0x00, (byte) 0xFF
-    });
+    ParsableByteArray byteArray =
+        new ParsableByteArray(new byte[] {0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, (byte) 0xFF});
     assertThat(byteArray.readLittleEndianLong()).isEqualTo(0xFF00000000000001L);
     assertThat(byteArray.getPosition()).isEqualTo(8);
   }
 
   @Test
   public void readLittleEndianUnsignedInt() {
-    ParsableByteArray byteArray = new ParsableByteArray(new byte[] {
-        0x10, 0x00, 0x00, (byte) 0xFF
-    });
+    ParsableByteArray byteArray = new ParsableByteArray(new byte[] {0x10, 0x00, 0x00, (byte) 0xFF});
     assertThat(byteArray.readLittleEndianUnsignedInt()).isEqualTo(0xFF000010L);
     assertThat(byteArray.getPosition()).isEqualTo(4);
   }
 
   @Test
   public void readLittleEndianInt() {
-    ParsableByteArray byteArray = new ParsableByteArray(new byte[] {
-        0x01, 0x00, 0x00, (byte) 0xFF
-    });
+    ParsableByteArray byteArray = new ParsableByteArray(new byte[] {0x01, 0x00, 0x00, (byte) 0xFF});
     assertThat(byteArray.readLittleEndianInt()).isEqualTo(0xFF000001);
     assertThat(byteArray.getPosition()).isEqualTo(4);
   }
@@ -348,9 +374,8 @@ public final class ParsableByteArrayTest {
 
   @Test
   public void readLittleEndianUnsignedShort() {
-    ParsableByteArray byteArray = new ParsableByteArray(new byte[] {
-        0x01, (byte) 0xFF, 0x02, (byte) 0xFF
-    });
+    ParsableByteArray byteArray =
+        new ParsableByteArray(new byte[] {0x01, (byte) 0xFF, 0x02, (byte) 0xFF});
     assertThat(byteArray.readLittleEndianUnsignedShort()).isEqualTo(0xFF01);
     assertThat(byteArray.getPosition()).isEqualTo(2);
     assertThat(byteArray.readLittleEndianUnsignedShort()).isEqualTo(0xFF02);
@@ -359,9 +384,8 @@ public final class ParsableByteArrayTest {
 
   @Test
   public void readLittleEndianShort() {
-    ParsableByteArray byteArray = new ParsableByteArray(new byte[] {
-        0x01, (byte) 0xFF, 0x02, (byte) 0xFF
-    });
+    ParsableByteArray byteArray =
+        new ParsableByteArray(new byte[] {0x01, (byte) 0xFF, 0x02, (byte) 0xFF});
     assertThat(byteArray.readLittleEndianShort()).isEqualTo((short) 0xFF01);
     assertThat(byteArray.getPosition()).isEqualTo(2);
     assertThat(byteArray.readLittleEndianShort()).isEqualTo((short) 0xFF02);
@@ -371,13 +395,29 @@ public final class ParsableByteArrayTest {
   @Test
   public void readString() {
     byte[] data = {
-        (byte) 0xC3, (byte) 0xA4, (byte) 0x20,
-        (byte) 0xC3, (byte) 0xB6, (byte) 0x20,
-        (byte) 0xC2, (byte) 0xAE, (byte) 0x20,
-        (byte) 0xCF, (byte) 0x80, (byte) 0x20,
-        (byte) 0xE2, (byte) 0x88, (byte) 0x9A, (byte) 0x20,
-        (byte) 0xC2, (byte) 0xB1, (byte) 0x20,
-        (byte) 0xE8, (byte) 0xB0, (byte) 0xA2, (byte) 0x20,
+      (byte) 0xC3,
+      (byte) 0xA4,
+      (byte) 0x20,
+      (byte) 0xC3,
+      (byte) 0xB6,
+      (byte) 0x20,
+      (byte) 0xC2,
+      (byte) 0xAE,
+      (byte) 0x20,
+      (byte) 0xCF,
+      (byte) 0x80,
+      (byte) 0x20,
+      (byte) 0xE2,
+      (byte) 0x88,
+      (byte) 0x9A,
+      (byte) 0x20,
+      (byte) 0xC2,
+      (byte) 0xB1,
+      (byte) 0x20,
+      (byte) 0xE8,
+      (byte) 0xB0,
+      (byte) 0xA2,
+      (byte) 0x20,
     };
     ParsableByteArray byteArray = new ParsableByteArray(data);
     assertThat(byteArray.readString(data.length)).isEqualTo("ä ö ® π √ ± 谢 ");
@@ -394,9 +434,7 @@ public final class ParsableByteArrayTest {
 
   @Test
   public void readStringOutOfBoundsDoesNotMovePosition() {
-    byte[] data = {
-        (byte) 0xC3, (byte) 0xA4, (byte) 0x20
-    };
+    byte[] data = {(byte) 0xC3, (byte) 0xA4, (byte) 0x20};
     ParsableByteArray byteArray = new ParsableByteArray(data);
     try {
       byteArray.readString(data.length + 1);
@@ -415,9 +453,7 @@ public final class ParsableByteArrayTest {
 
   @Test
   public void readNullTerminatedStringWithLengths() {
-    byte[] bytes = new byte[] {
-        'f', 'o', 'o', 0, 'b', 'a', 'r', 0
-    };
+    byte[] bytes = new byte[] {'f', 'o', 'o', 0, 'b', 'a', 'r', 0};
     // Test with lengths that match NUL byte positions.
     ParsableByteArray parser = new ParsableByteArray(bytes);
     assertThat(parser.readNullTerminatedString(4)).isEqualTo("foo");
@@ -450,9 +486,7 @@ public final class ParsableByteArrayTest {
 
   @Test
   public void readNullTerminatedString() {
-    byte[] bytes = new byte[] {
-        'f', 'o', 'o', 0, 'b', 'a', 'r', 0
-    };
+    byte[] bytes = new byte[] {'f', 'o', 'o', 0, 'b', 'a', 'r', 0};
     // Test normal case.
     ParsableByteArray parser = new ParsableByteArray(bytes);
     assertThat(parser.readNullTerminatedString()).isEqualTo("foo");
@@ -474,9 +508,7 @@ public final class ParsableByteArrayTest {
 
   @Test
   public void readNullTerminatedStringWithoutEndingNull() {
-    byte[] bytes = new byte[] {
-        'f', 'o', 'o', 0, 'b', 'a', 'r'
-    };
+    byte[] bytes = new byte[] {'f', 'o', 'o', 0, 'b', 'a', 'r'};
     ParsableByteArray parser = new ParsableByteArray(bytes);
     assertThat(parser.readNullTerminatedString()).isEqualTo("foo");
     assertThat(parser.readNullTerminatedString()).isEqualTo("bar");
@@ -484,10 +516,40 @@ public final class ParsableByteArrayTest {
   }
 
   @Test
+  public void readDelimiterTerminatedString() {
+    byte[] bytes = new byte[] {'f', 'o', 'o', '*', 'b', 'a', 'r', '*'};
+    // Test normal case.
+    ParsableByteArray parser = new ParsableByteArray(bytes);
+    assertThat(parser.readDelimiterTerminatedString('*')).isEqualTo("foo");
+    assertThat(parser.getPosition()).isEqualTo(4);
+    assertThat(parser.readDelimiterTerminatedString('*')).isEqualTo("bar");
+    assertThat(parser.getPosition()).isEqualTo(8);
+    assertThat(parser.readDelimiterTerminatedString('*')).isNull();
+
+    // Test with limit at delimiter.
+    parser = new ParsableByteArray(bytes, 4);
+    assertThat(parser.readDelimiterTerminatedString('*')).isEqualTo("foo");
+    assertThat(parser.getPosition()).isEqualTo(4);
+    assertThat(parser.readDelimiterTerminatedString('*')).isNull();
+    // Test with limit before delimiter.
+    parser = new ParsableByteArray(bytes, 3);
+    assertThat(parser.readDelimiterTerminatedString('*')).isEqualTo("foo");
+    assertThat(parser.getPosition()).isEqualTo(3);
+    assertThat(parser.readDelimiterTerminatedString('*')).isNull();
+  }
+
+  @Test
+  public void readDelimiterTerminatedStringWithoutEndingDelimiter() {
+    byte[] bytes = new byte[] {'f', 'o', 'o', '*', 'b', 'a', 'r'};
+    ParsableByteArray parser = new ParsableByteArray(bytes);
+    assertThat(parser.readDelimiterTerminatedString('*')).isEqualTo("foo");
+    assertThat(parser.readDelimiterTerminatedString('*')).isEqualTo("bar");
+    assertThat(parser.readDelimiterTerminatedString('*')).isNull();
+  }
+
+  @Test
   public void readSingleLineWithoutEndingTrail() {
-    byte[] bytes = new byte[] {
-      'f', 'o', 'o'
-    };
+    byte[] bytes = new byte[] {'f', 'o', 'o'};
     ParsableByteArray parser = new ParsableByteArray(bytes);
     assertThat(parser.readLine()).isEqualTo("foo");
     assertThat(parser.readLine()).isNull();
@@ -495,9 +557,7 @@ public final class ParsableByteArrayTest {
 
   @Test
   public void readSingleLineWithEndingLf() {
-    byte[] bytes = new byte[] {
-      'f', 'o', 'o', '\n'
-    };
+    byte[] bytes = new byte[] {'f', 'o', 'o', '\n'};
     ParsableByteArray parser = new ParsableByteArray(bytes);
     assertThat(parser.readLine()).isEqualTo("foo");
     assertThat(parser.readLine()).isNull();
@@ -505,9 +565,7 @@ public final class ParsableByteArrayTest {
 
   @Test
   public void readTwoLinesWithCrFollowedByLf() {
-    byte[] bytes = new byte[] {
-      'f', 'o', 'o', '\r', '\n', 'b', 'a', 'r'
-    };
+    byte[] bytes = new byte[] {'f', 'o', 'o', '\r', '\n', 'b', 'a', 'r'};
     ParsableByteArray parser = new ParsableByteArray(bytes);
     assertThat(parser.readLine()).isEqualTo("foo");
     assertThat(parser.readLine()).isEqualTo("bar");
@@ -516,9 +574,7 @@ public final class ParsableByteArrayTest {
 
   @Test
   public void readThreeLinesWithEmptyLine() {
-    byte[] bytes = new byte[] {
-      'f', 'o', 'o', '\r', '\n', '\r', 'b', 'a', 'r'
-    };
+    byte[] bytes = new byte[] {'f', 'o', 'o', '\r', '\n', '\r', 'b', 'a', 'r'};
     ParsableByteArray parser = new ParsableByteArray(bytes);
     assertThat(parser.readLine()).isEqualTo("foo");
     assertThat(parser.readLine()).isEqualTo("");
@@ -528,9 +584,7 @@ public final class ParsableByteArrayTest {
 
   @Test
   public void readFourLinesWithLfFollowedByCr() {
-    byte[] bytes = new byte[] {
-      'f', 'o', 'o', '\n', '\r', '\r', 'b', 'a', 'r', '\r', '\n'
-    };
+    byte[] bytes = new byte[] {'f', 'o', 'o', '\n', '\r', '\r', 'b', 'a', 'r', '\r', '\n'};
     ParsableByteArray parser = new ParsableByteArray(bytes);
     assertThat(parser.readLine()).isEqualTo("foo");
     assertThat(parser.readLine()).isEqualTo("");
@@ -538,5 +592,4 @@ public final class ParsableByteArrayTest {
     assertThat(parser.readLine()).isEqualTo("bar");
     assertThat(parser.readLine()).isNull();
   }
-
 }

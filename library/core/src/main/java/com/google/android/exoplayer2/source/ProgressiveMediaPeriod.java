@@ -22,6 +22,7 @@ import android.net.Uri;
 import android.os.Handler;
 import androidx.annotation.Nullable;
 import com.google.android.exoplayer2.C;
+import com.google.android.exoplayer2.C.DataType;
 import com.google.android.exoplayer2.Format;
 import com.google.android.exoplayer2.FormatHolder;
 import com.google.android.exoplayer2.ParserException;
@@ -31,7 +32,6 @@ import com.google.android.exoplayer2.drm.DrmSessionEventListener;
 import com.google.android.exoplayer2.drm.DrmSessionManager;
 import com.google.android.exoplayer2.extractor.Extractor;
 import com.google.android.exoplayer2.extractor.ExtractorOutput;
-import com.google.android.exoplayer2.extractor.ExtractorsFactory;
 import com.google.android.exoplayer2.extractor.PositionHolder;
 import com.google.android.exoplayer2.extractor.SeekMap;
 import com.google.android.exoplayer2.extractor.SeekMap.SeekPoints;
@@ -40,7 +40,8 @@ import com.google.android.exoplayer2.extractor.TrackOutput;
 import com.google.android.exoplayer2.metadata.Metadata;
 import com.google.android.exoplayer2.metadata.icy.IcyHeaders;
 import com.google.android.exoplayer2.source.SampleQueue.UpstreamFormatChangedListener;
-import com.google.android.exoplayer2.trackselection.TrackSelection;
+import com.google.android.exoplayer2.source.SampleStream.ReadFlags;
+import com.google.android.exoplayer2.trackselection.ExoTrackSelection;
 import com.google.android.exoplayer2.upstream.Allocator;
 import com.google.android.exoplayer2.upstream.DataSource;
 import com.google.android.exoplayer2.upstream.DataSpec;
@@ -73,9 +74,7 @@ import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
         Loader.ReleaseCallback,
         UpstreamFormatChangedListener {
 
-  /**
-   * Listener for information about the period.
-   */
+  /** Listener for information about the period. */
   interface Listener {
 
     /**
@@ -129,7 +128,7 @@ import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
   private @MonotonicNonNull SeekMap seekMap;
   private long durationUs;
   private boolean isLive;
-  private int dataType;
+  @DataType private int dataType;
 
   private boolean seenFirstTrackSelection;
   private boolean notifyDiscontinuity;
@@ -147,7 +146,8 @@ import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
   /**
    * @param uri The {@link Uri} of the media stream.
    * @param dataSource The data source to read the media.
-   * @param extractorsFactory The {@link ExtractorsFactory} to use to read the data source.
+   * @param progressiveMediaExtractor The {@link ProgressiveMediaExtractor} to use to read the data
+   *     source.
    * @param drmSessionManager A {@link DrmSessionManager} to allow DRM interactions.
    * @param drmEventDispatcher A dispatcher to notify of {@link DrmSessionEventListener} events.
    * @param loadErrorHandlingPolicy The {@link LoadErrorHandlingPolicy}.
@@ -161,14 +161,11 @@ import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
    *     invocation of {@link Callback#onContinueLoadingRequested(SequenceableLoader)}.
    */
   // maybeFinishPrepare is not posted to the handler until initialization completes.
-  @SuppressWarnings({
-    "nullness:argument.type.incompatible",
-    "nullness:methodref.receiver.bound.invalid"
-  })
+  @SuppressWarnings({"nullness:argument", "nullness:methodref.receiver.bound"})
   public ProgressiveMediaPeriod(
       Uri uri,
       DataSource dataSource,
-      ExtractorsFactory extractorsFactory,
+      ProgressiveMediaExtractor progressiveMediaExtractor,
       DrmSessionManager drmSessionManager,
       DrmSessionEventListener.EventDispatcher drmEventDispatcher,
       LoadErrorHandlingPolicy loadErrorHandlingPolicy,
@@ -187,9 +184,7 @@ import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
     this.allocator = allocator;
     this.customCacheKey = customCacheKey;
     this.continueLoadingCheckIntervalBytes = continueLoadingCheckIntervalBytes;
-    loader = new Loader("Loader:ProgressiveMediaPeriod");
-    ProgressiveMediaExtractor progressiveMediaExtractor =
-        new BundledExtractorsAdapter(extractorsFactory);
+    loader = new Loader("ProgressiveMediaPeriod");
     this.progressiveMediaExtractor = progressiveMediaExtractor;
     loadCondition = new ConditionVariable();
     maybeFinishPrepareRunnable = this::maybeFinishPrepare;
@@ -242,7 +237,8 @@ import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
   public void maybeThrowPrepareError() throws IOException {
     maybeThrowError();
     if (loadingFinished && !prepared) {
-      throw new ParserException("Loading finished before preparation is complete.");
+      throw ParserException.createForMalformedContainer(
+          "Loading finished before preparation is complete.", /* cause= */ null);
     }
   }
 
@@ -254,7 +250,7 @@ import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
 
   @Override
   public long selectTracks(
-      @NullableType TrackSelection[] selections,
+      @NullableType ExoTrackSelection[] selections,
       boolean[] mayRetainStreamFlags,
       @NullableType SampleStream[] streams,
       boolean[] streamResetFlags,
@@ -279,7 +275,7 @@ import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
     // Select new tracks.
     for (int i = 0; i < selections.length; i++) {
       if (streams[i] == null && selections[i] != null) {
-        TrackSelection selection = selections[i];
+        ExoTrackSelection selection = selections[i];
         Assertions.checkState(selection.length() == 1);
         Assertions.checkState(selection.getIndexInTrackGroup(0) == 0);
         int track = tracks.indexOf(selection.getTrackGroup());
@@ -405,7 +401,8 @@ import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
     if (largestQueuedTimestampUs == Long.MAX_VALUE) {
       largestQueuedTimestampUs = getLargestQueuedTimestampUs();
     }
-    return largestQueuedTimestampUs == Long.MIN_VALUE ? lastSeekPositionUs
+    return largestQueuedTimestampUs == Long.MIN_VALUE
+        ? lastSeekPositionUs
         : largestQueuedTimestampUs;
   }
 
@@ -480,13 +477,13 @@ import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
       int sampleQueueIndex,
       FormatHolder formatHolder,
       DecoderInputBuffer buffer,
-      boolean formatRequired) {
+      @ReadFlags int readFlags) {
     if (suppressRead()) {
       return C.RESULT_NOTHING_READ;
     }
     maybeNotifyDownstreamFormat(sampleQueueIndex);
     int result =
-        sampleQueues[sampleQueueIndex].read(formatHolder, buffer, formatRequired, loadingFinished);
+        sampleQueues[sampleQueueIndex].read(formatHolder, buffer, readFlags, loadingFinished);
     if (result == C.RESULT_NOTHING_READ) {
       maybeStartDeferredRetry(sampleQueueIndex);
     }
@@ -553,8 +550,10 @@ import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
     if (durationUs == C.TIME_UNSET && seekMap != null) {
       boolean isSeekable = seekMap.isSeekable();
       long largestQueuedTimestampUs = getLargestQueuedTimestampUs();
-      durationUs = largestQueuedTimestampUs == Long.MIN_VALUE ? 0
-          : largestQueuedTimestampUs + DEFAULT_LAST_SAMPLE_DURATION_US;
+      durationUs =
+          largestQueuedTimestampUs == Long.MIN_VALUE
+              ? 0
+              : largestQueuedTimestampUs + DEFAULT_LAST_SAMPLE_DURATION_US;
       listener.onSourceInfoRefreshed(durationUs, isSeekable, isLive);
     }
     StatsDataSource dataSource = loadable.dataSource;
@@ -717,7 +716,7 @@ import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
       }
     }
     SampleQueue trackOutput =
-        new SampleQueue(
+        SampleQueue.createWithDrm(
             allocator,
             /* playbackLooper= */ handler.getLooper(),
             drmSessionManager,
@@ -845,8 +844,7 @@ import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
    *     retry.
    */
   private boolean configureRetry(ExtractingLoadable loadable, int currentExtractedSampleCount) {
-    if (length != C.LENGTH_UNSET
-        || (seekMap != null && seekMap.getDurationUs() != C.TIME_UNSET)) {
+    if (length != C.LENGTH_UNSET || (seekMap != null && seekMap.getDurationUs() != C.TIME_UNSET)) {
       // We're playing an on-demand stream. Resume the current loadable, which will
       // request data starting from the point it left off.
       extractedSamplesCountAtStartOfLoad = currentExtractedSampleCount;
@@ -949,16 +947,15 @@ import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
     }
 
     @Override
-    public int readData(FormatHolder formatHolder, DecoderInputBuffer buffer,
-        boolean formatRequired) {
-      return ProgressiveMediaPeriod.this.readData(track, formatHolder, buffer, formatRequired);
+    public int readData(
+        FormatHolder formatHolder, DecoderInputBuffer buffer, @ReadFlags int readFlags) {
+      return ProgressiveMediaPeriod.this.readData(track, formatHolder, buffer, readFlags);
     }
 
     @Override
     public int skipData(long positionUs) {
       return ProgressiveMediaPeriod.this.skipData(track, positionUs);
     }
-
   }
 
   /** Loads the media stream and extracts sample data from it. */
@@ -981,7 +978,7 @@ import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
     @Nullable private TrackOutput icyTrackOutput;
     private boolean seenIcyMetadata;
 
-    @SuppressWarnings("method.invocation.invalid")
+    @SuppressWarnings("nullness:method.invocation")
     public ExtractingLoadable(
         Uri uri,
         DataSource dataSource,

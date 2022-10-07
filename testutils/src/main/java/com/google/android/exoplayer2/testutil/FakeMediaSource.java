@@ -15,6 +15,7 @@
  */
 package com.google.android.exoplayer2.testutil;
 
+import static com.google.android.exoplayer2.util.Assertions.checkState;
 import static com.google.android.exoplayer2.util.Util.castNonNull;
 import static com.google.common.truth.Truth.assertThat;
 
@@ -82,15 +83,21 @@ public class FakeMediaSource extends BaseMediaSource {
 
   private final TrackGroupArray trackGroupArray;
   @Nullable private final FakeMediaPeriod.TrackDataFactory trackDataFactory;
-  private final ArrayList<FakeMediaPeriod> activeMediaPeriods;
+  private final ArrayList<MediaPeriod> activeMediaPeriods;
   private final ArrayList<MediaPeriodId> createdMediaPeriods;
   private final DrmSessionManager drmSessionManager;
 
+  private boolean preparationAllowed;
   private @MonotonicNonNull Timeline timeline;
   private boolean preparedSource;
   private boolean releasedSource;
   @Nullable private Handler sourceInfoRefreshHandler;
   @Nullable private TransferListener transferListener;
+
+  /** Creates a {@link FakeMediaSource} with a default {@link FakeTimeline}. */
+  public FakeMediaSource() {
+    this(new FakeTimeline());
+  }
 
   /**
    * Creates a {@link FakeMediaSource}. This media source creates {@link FakeMediaPeriod}s with a
@@ -99,7 +106,7 @@ public class FakeMediaSource extends BaseMediaSource {
    * can be manually set later using {@link #setNewSourceInfo(Timeline)}.
    */
   public FakeMediaSource(@Nullable Timeline timeline, Format... formats) {
-    this(timeline, DrmSessionManager.DUMMY, formats);
+    this(timeline, DrmSessionManager.DRM_UNSUPPORTED, formats);
   }
 
   /**
@@ -149,25 +156,27 @@ public class FakeMediaSource extends BaseMediaSource {
     this.createdMediaPeriods = new ArrayList<>();
     this.drmSessionManager = drmSessionManager;
     this.trackDataFactory = trackDataFactory;
+    preparationAllowed = true;
+  }
+
+  /**
+   * Sets whether the next call to {@link #prepareSource} is allowed to finish. If not allowed, a
+   * later call to this method with {@code allowPreparation} set to true will finish the
+   * preparation.
+   *
+   * @param allowPreparation Whether preparation is allowed to finish.
+   */
+  public synchronized void setAllowPreparation(boolean allowPreparation) {
+    preparationAllowed = allowPreparation;
+    if (allowPreparation && sourceInfoRefreshHandler != null) {
+      sourceInfoRefreshHandler.post(
+          () -> finishSourcePreparation(/* sendManifestLoadEvents= */ true));
+    }
   }
 
   @Nullable
   protected Timeline getTimeline() {
     return timeline;
-  }
-
-  /**
-   * @deprecated Use {@link #getMediaItem()} and {@link MediaItem.PlaybackProperties#tag} instead.
-   */
-  @SuppressWarnings("deprecation")
-  @Deprecated
-  @Override
-  @Nullable
-  public Object getTag() {
-    if (timeline == null || timeline.isEmpty()) {
-      return null;
-    }
-    return timeline.getWindow(0, new Timeline.Window()).tag;
   }
 
   @Override
@@ -181,14 +190,14 @@ public class FakeMediaSource extends BaseMediaSource {
   @Override
   @Nullable
   public Timeline getInitialTimeline() {
-    return timeline == null || timeline == Timeline.EMPTY || timeline.getWindowCount() == 1
+    return timeline == null || timeline.isEmpty() || timeline.getWindowCount() == 1
         ? null
         : new InitialTimeline(timeline);
   }
 
   @Override
   public boolean isSingleWindow() {
-    return timeline == null || timeline == Timeline.EMPTY || timeline.getWindowCount() == 1;
+    return timeline == null || timeline.isEmpty() || timeline.getWindowCount() == 1;
   }
 
   @Override
@@ -199,7 +208,7 @@ public class FakeMediaSource extends BaseMediaSource {
     preparedSource = true;
     releasedSource = false;
     sourceInfoRefreshHandler = Util.createHandlerForCurrentLooper();
-    if (timeline != null) {
+    if (preparationAllowed && timeline != null) {
       finishSourcePreparation(/* sendManifestLoadEvents= */ true);
     }
   }
@@ -220,8 +229,8 @@ public class FakeMediaSource extends BaseMediaSource {
         createEventDispatcher(period.windowIndex, id, period.getPositionInWindowMs());
     DrmSessionEventListener.EventDispatcher drmEventDispatcher =
         createDrmEventDispatcher(period.windowIndex, id);
-    FakeMediaPeriod mediaPeriod =
-        createFakeMediaPeriod(
+    MediaPeriod mediaPeriod =
+        createMediaPeriod(
             id,
             trackGroupArray,
             allocator,
@@ -238,9 +247,8 @@ public class FakeMediaSource extends BaseMediaSource {
   public void releasePeriod(MediaPeriod mediaPeriod) {
     assertThat(preparedSource).isTrue();
     assertThat(releasedSource).isFalse();
-    FakeMediaPeriod fakeMediaPeriod = (FakeMediaPeriod) mediaPeriod;
-    assertThat(activeMediaPeriods.remove(fakeMediaPeriod)).isTrue();
-    fakeMediaPeriod.release();
+    assertThat(activeMediaPeriods.remove(mediaPeriod)).isTrue();
+    releaseMediaPeriod(mediaPeriod);
   }
 
   @Override
@@ -269,11 +277,14 @@ public class FakeMediaSource extends BaseMediaSource {
    * Sets a new timeline. If the source is already prepared, this triggers a source info refresh
    * message being sent to the listener.
    *
+   * <p>Must only be called if preparation is {@link #setAllowPreparation(boolean) allowed}.
+   *
    * @param newTimeline The new {@link Timeline}.
    * @param sendManifestLoadEvents Whether to treat this as a manifest refresh and send manifest
    *     load events to listeners.
    */
   public synchronized void setNewSourceInfo(Timeline newTimeline, boolean sendManifestLoadEvents) {
+    checkState(preparationAllowed);
     if (sourceInfoRefreshHandler != null) {
       sourceInfoRefreshHandler.post(
           () -> {
@@ -292,16 +303,12 @@ public class FakeMediaSource extends BaseMediaSource {
     return preparedSource;
   }
 
-  /**
-   * Assert that the source and all periods have been released.
-   */
+  /** Assert that the source and all periods have been released. */
   public void assertReleased() {
     assertThat(releasedSource || !preparedSource).isTrue();
   }
 
-  /**
-   * Assert that a media period for the given id has been created.
-   */
+  /** Assert that a media period for the given id has been created. */
   public void assertMediaPeriodCreated(MediaPeriodId mediaPeriodId) {
     assertThat(createdMediaPeriods).contains(mediaPeriodId);
   }
@@ -312,7 +319,7 @@ public class FakeMediaSource extends BaseMediaSource {
   }
 
   /**
-   * Creates a {@link FakeMediaPeriod} for this media source.
+   * Creates a {@link MediaPeriod} for this media source.
    *
    * @param id The identifier of the period.
    * @param trackGroupArray The {@link TrackGroupArray} supported by the media period.
@@ -326,7 +333,7 @@ public class FakeMediaSource extends BaseMediaSource {
    * @return A new {@link FakeMediaPeriod}.
    */
   @RequiresNonNull("this.timeline")
-  protected FakeMediaPeriod createFakeMediaPeriod(
+  protected MediaPeriod createMediaPeriod(
       MediaPeriodId id,
       TrackGroupArray trackGroupArray,
       Allocator allocator,
@@ -339,6 +346,7 @@ public class FakeMediaSource extends BaseMediaSource {
     long defaultFirstSampleTimeUs = positionInWindowUs >= 0 || id.isAd() ? 0 : -positionInWindowUs;
     return new FakeMediaPeriod(
         trackGroupArray,
+        allocator,
         trackDataFactory != null
             ? trackDataFactory
             : TrackDataFactory.singleSampleWithTimeUs(defaultFirstSampleTimeUs),
@@ -346,6 +354,15 @@ public class FakeMediaSource extends BaseMediaSource {
         drmSessionManager,
         drmEventDispatcher,
         /* deferOnPrepared= */ false);
+  }
+
+  /**
+   * Releases a media period created by {@link #createMediaPeriod(MediaPeriodId, TrackGroupArray,
+   * Allocator, MediaSourceEventListener.EventDispatcher, DrmSessionManager,
+   * DrmSessionEventListener.EventDispatcher, TransferListener)}.
+   */
+  protected void releaseMediaPeriod(MediaPeriod mediaPeriod) {
+    ((FakeMediaPeriod) mediaPeriod).release();
   }
 
   private void finishSourcePreparation(boolean sendManifestLoadEvents) {

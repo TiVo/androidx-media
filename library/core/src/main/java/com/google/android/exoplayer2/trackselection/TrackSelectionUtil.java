@@ -15,10 +15,13 @@
  */
 package com.google.android.exoplayer2.trackselection;
 
+import android.os.SystemClock;
 import androidx.annotation.Nullable;
 import com.google.android.exoplayer2.source.TrackGroupArray;
 import com.google.android.exoplayer2.trackselection.DefaultTrackSelector.SelectionOverride;
-import com.google.android.exoplayer2.trackselection.TrackSelection.Definition;
+import com.google.android.exoplayer2.trackselection.ExoTrackSelection.Definition;
+import com.google.android.exoplayer2.upstream.LoadErrorHandlingPolicy;
+import com.google.android.exoplayer2.util.MimeTypes;
 import org.checkerframework.checker.nullness.compatqual.NullableType;
 
 /** Track selection related utility methods. */
@@ -35,7 +38,7 @@ public final class TrackSelectionUtil {
      * @param trackSelectionDefinition A {@link Definition} for the track selection.
      * @return The created track selection.
      */
-    TrackSelection createAdaptiveTrackSelection(Definition trackSelectionDefinition);
+    ExoTrackSelection createAdaptiveTrackSelection(Definition trackSelectionDefinition);
   }
 
   /**
@@ -48,10 +51,10 @@ public final class TrackSelectionUtil {
    * @return The array of created track selection. For null entries in {@code definitions} returns
    *     null values.
    */
-  public static @NullableType TrackSelection[] createTrackSelectionsForDefinitions(
+  public static @NullableType ExoTrackSelection[] createTrackSelectionsForDefinitions(
       @NullableType Definition[] definitions,
       AdaptiveTrackSelectionFactory adaptiveTrackSelectionFactory) {
-    TrackSelection[] selections = new TrackSelection[definitions.length];
+    ExoTrackSelection[] selections = new ExoTrackSelection[definitions.length];
     boolean createdAdaptiveTrackSelection = false;
     for (int i = 0; i < definitions.length; i++) {
       Definition definition = definitions[i];
@@ -64,7 +67,7 @@ public final class TrackSelectionUtil {
       } else {
         selections[i] =
             new FixedTrackSelection(
-                definition.group, definition.tracks[0], definition.reason, definition.data);
+                definition.group, definition.tracks[0], /* type= */ definition.type);
       }
     }
     return selections;
@@ -96,5 +99,46 @@ public final class TrackSelectionUtil {
       builder.setSelectionOverride(rendererIndex, trackGroupArray, override);
     }
     return builder.build();
+  }
+
+  /** Returns if a {@link TrackSelectionArray} has at least one track of the given type. */
+  public static boolean hasTrackOfType(TrackSelectionArray trackSelections, int trackType) {
+    for (int i = 0; i < trackSelections.length; i++) {
+      @Nullable TrackSelection trackSelection = trackSelections.get(i);
+      if (trackSelection == null) {
+        continue;
+      }
+      for (int j = 0; j < trackSelection.length(); j++) {
+        if (MimeTypes.getTrackType(trackSelection.getFormat(j).sampleMimeType) == trackType) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  /**
+   * Returns the {@link LoadErrorHandlingPolicy.FallbackOptions} with the tracks of the given {@link
+   * ExoTrackSelection} and with a single location option indicating that there are no alternative
+   * locations available.
+   *
+   * @param trackSelection The track selection to get the number of total and excluded tracks.
+   * @return The {@link LoadErrorHandlingPolicy.FallbackOptions} for the given track selection.
+   */
+  public static LoadErrorHandlingPolicy.FallbackOptions createFallbackOptions(
+      ExoTrackSelection trackSelection) {
+    long nowMs = SystemClock.elapsedRealtime();
+    int numberOfTracks = trackSelection.length();
+    int numberOfExcludedTracks = 0;
+    for (int i = 0; i < numberOfTracks; i++) {
+      if (trackSelection.isBlacklisted(i, nowMs)) {
+        numberOfExcludedTracks++;
+      }
+    }
+    return new LoadErrorHandlingPolicy.FallbackOptions(
+        /* numberOfLocations= */ 1,
+        /* numberOfExcludedLocations= */ 0,
+        numberOfTracks,
+        numberOfExcludedTracks);
   }
 }

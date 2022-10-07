@@ -64,13 +64,11 @@ public class HlsChunkSourceTest {
           .build();
 
   @Mock private HlsPlaylistTracker mockPlaylistTracker;
-  @Mock private HlsDataSourceFactory mockDataSourceFactory;
   private HlsChunkSource testChunkSource;
 
   @Before
   public void setup() throws IOException {
     mockPlaylistTracker = Mockito.mock(HlsPlaylistTracker.class);
-    mockDataSourceFactory = Mockito.mock(HlsDataSourceFactory.class);
 
     InputStream inputStream =
         TestUtil.getInputStream(
@@ -86,7 +84,7 @@ public class HlsChunkSourceTest {
             mockPlaylistTracker,
             new Uri[] {IFRAME_URI, PLAYLIST_URI},
             new Format[] {IFRAME_FORMAT, ExoPlayerTestRunner.VIDEO_FORMAT},
-            mockDataSourceFactory,
+            new DefaultHlsDataSourceFactory(new FakeDataSource.Factory()),
             /* mediaTransferListener= */ null,
             new TimestampAdjusterProvider(),
             /* muxedCaptionFormats= */ null);

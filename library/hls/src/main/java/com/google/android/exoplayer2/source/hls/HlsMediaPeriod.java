@@ -39,7 +39,7 @@ import com.google.android.exoplayer2.source.hls.playlist.HlsMasterPlaylist;
 import com.google.android.exoplayer2.source.hls.playlist.HlsMasterPlaylist.Rendition;
 import com.google.android.exoplayer2.source.hls.playlist.HlsMasterPlaylist.Variant;
 import com.google.android.exoplayer2.source.hls.playlist.HlsPlaylistTracker;
-import com.google.android.exoplayer2.trackselection.TrackSelection;
+import com.google.android.exoplayer2.trackselection.ExoTrackSelection;
 import com.google.android.exoplayer2.upstream.Allocator;
 import com.google.android.exoplayer2.upstream.DataSource;
 import com.google.android.exoplayer2.upstream.LoadErrorHandlingPolicy;
@@ -59,11 +59,11 @@ import java.util.Map;
 import org.checkerframework.checker.nullness.compatqual.NullableType;
 import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
 
-/**
- * A {@link MediaPeriod} that loads an HLS stream.
- */
-public final class HlsMediaPeriod implements MediaPeriod, HlsSampleStreamWrapper.Callback,
-    HlsPlaylistTracker.PlaylistEventListener {
+/** A {@link MediaPeriod} that loads an HLS stream. */
+public final class HlsMediaPeriod
+    implements MediaPeriod,
+        HlsSampleStreamWrapper.Callback,
+        HlsPlaylistTracker.PlaylistEventListener {
 
   private final HlsExtractorFactory extractorFactory;
   private final HlsPlaylistTracker playlistTracker;
@@ -178,7 +178,7 @@ public final class HlsMediaPeriod implements MediaPeriod, HlsSampleStreamWrapper
   // null URLs, this method must be updated to calculate stream keys that are compatible with those
   // that may already be persisted for offline.
   @Override
-  public List<StreamKey> getStreamKeys(List<TrackSelection> trackSelections) {
+  public List<StreamKey> getStreamKeys(List<ExoTrackSelection> trackSelections) {
     // See HlsMasterPlaylist.copy for interpretation of StreamKeys.
     HlsMasterPlaylist masterPlaylist = Assertions.checkNotNull(playlistTracker.getMasterPlaylist());
     boolean hasVariants = !masterPlaylist.variants.isEmpty();
@@ -203,7 +203,7 @@ public final class HlsMediaPeriod implements MediaPeriod, HlsSampleStreamWrapper
     List<StreamKey> streamKeys = new ArrayList<>();
     boolean needsPrimaryTrackGroupSelection = false;
     boolean hasPrimaryTrackGroupSelection = false;
-    for (TrackSelection trackSelection : trackSelections) {
+    for (ExoTrackSelection trackSelection : trackSelections) {
       TrackGroup trackSelectionGroup = trackSelection.getTrackGroup();
       int mainWrapperTrackGroupIndex = mainWrapperTrackGroups.indexOf(trackSelectionGroup);
       if (mainWrapperTrackGroupIndex != C.INDEX_UNSET) {
@@ -259,7 +259,7 @@ public final class HlsMediaPeriod implements MediaPeriod, HlsSampleStreamWrapper
 
   @Override
   public long selectTracks(
-      @NullableType TrackSelection[] selections,
+      @NullableType ExoTrackSelection[] selections,
       boolean[] mayRetainStreamFlags,
       @NullableType SampleStream[] streams,
       boolean[] streamResetFlags,
@@ -268,8 +268,8 @@ public final class HlsMediaPeriod implements MediaPeriod, HlsSampleStreamWrapper
     int[] streamChildIndices = new int[selections.length];
     int[] selectionChildIndices = new int[selections.length];
     for (int i = 0; i < selections.length; i++) {
-      streamChildIndices[i] = streams[i] == null ? C.INDEX_UNSET
-          : streamWrapperIndices.get(streams[i]);
+      streamChildIndices[i] =
+          streams[i] == null ? C.INDEX_UNSET : streamWrapperIndices.get(streams[i]);
       selectionChildIndices[i] = C.INDEX_UNSET;
       if (selections[i] != null) {
         TrackGroup trackGroup = selections[i].getTrackGroup();
@@ -287,7 +287,7 @@ public final class HlsMediaPeriod implements MediaPeriod, HlsSampleStreamWrapper
     // Select tracks for each child, copying the resulting streams back into a new streams array.
     SampleStream[] newStreams = new SampleStream[selections.length];
     @NullableType SampleStream[] childStreams = new SampleStream[selections.length];
-    @NullableType TrackSelection[] childSelections = new TrackSelection[selections.length];
+    @NullableType ExoTrackSelection[] childSelections = new ExoTrackSelection[selections.length];
     int newEnabledSampleStreamWrapperCount = 0;
     HlsSampleStreamWrapper[] newEnabledSampleStreamWrappers =
         new HlsSampleStreamWrapper[sampleStreamWrappers.length];
@@ -297,8 +297,14 @@ public final class HlsMediaPeriod implements MediaPeriod, HlsSampleStreamWrapper
         childSelections[j] = selectionChildIndices[j] == i ? selections[j] : null;
       }
       HlsSampleStreamWrapper sampleStreamWrapper = sampleStreamWrappers[i];
-      boolean wasReset = sampleStreamWrapper.selectTracks(childSelections, mayRetainStreamFlags,
-          childStreams, streamResetFlags, positionUs, forceReset);
+      boolean wasReset =
+          sampleStreamWrapper.selectTracks(
+              childSelections,
+              mayRetainStreamFlags,
+              childStreams,
+              streamResetFlags,
+              positionUs,
+              forceReset);
       boolean wrapperEnabled = false;
       for (int j = 0; j < selections.length; j++) {
         SampleStream childStream = childStreams[j];
@@ -320,7 +326,8 @@ public final class HlsMediaPeriod implements MediaPeriod, HlsSampleStreamWrapper
           // that the first wrapper will correspond to a variant, or else an audio rendition, or
           // else a text rendition, in that order.
           sampleStreamWrapper.setIsTimestampMaster(true);
-          if (wasReset || enabledSampleStreamWrappers.length == 0
+          if (wasReset
+              || enabledSampleStreamWrappers.length == 0
               || sampleStreamWrapper != enabledSampleStreamWrappers[0]) {
             // The wrapper responsible for initializing the timestamp adjusters was reset or
             // changed. We need to reset the timestamp adjuster provider and all other wrappers.
@@ -458,14 +465,18 @@ public final class HlsMediaPeriod implements MediaPeriod, HlsSampleStreamWrapper
 
   @Override
   public void onPlaylistChanged() {
+    for (HlsSampleStreamWrapper streamWrapper : sampleStreamWrappers) {
+      streamWrapper.onPlaylistUpdated();
+    }
     callback.onContinueLoadingRequested(this);
   }
 
   @Override
-  public boolean onPlaylistError(Uri url, long exclusionDurationMs) {
+  public boolean onPlaylistError(
+      Uri url, LoadErrorHandlingPolicy.LoadErrorInfo loadErrorInfo, boolean forceRetry) {
     boolean exclusionSucceeded = true;
     for (HlsSampleStreamWrapper streamWrapper : sampleStreamWrappers) {
-      exclusionSucceeded &= streamWrapper.onPlaylistError(url, exclusionDurationMs);
+      exclusionSucceeded &= streamWrapper.onPlaylistError(url, loadErrorInfo, forceRetry);
     }
     callback.onContinueLoadingRequested(this);
     return exclusionSucceeded;
@@ -874,5 +885,4 @@ public final class HlsMediaPeriod implements MediaPeriod, HlsSampleStreamWrapper
         .setLanguage(language)
         .build();
   }
-
 }

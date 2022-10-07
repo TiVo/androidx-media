@@ -35,6 +35,7 @@ import java.io.IOException;
 import java.util.Random;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.robolectric.annotation.internal.DoNotInstrument;
 
 /**
  * Tests for {@link AmrExtractor} that test specific behaviours and don't need to be parameterized.
@@ -43,6 +44,7 @@ import org.junit.runner.RunWith;
  * AmrExtractorParameterizedTest}.
  */
 @RunWith(AndroidJUnit4.class)
+@DoNotInstrument
 public final class AmrExtractorNonParameterizedTest {
 
   private static final Random RANDOM = new Random(1234);
@@ -176,14 +178,14 @@ public final class AmrExtractorNonParameterizedTest {
   }
 
   private byte[] newWideBandAmrFrameWithType(int frameType) {
-    byte frameHeader = (byte) ((frameType << 3) & (0b01111100));
+    byte frameHeader = (byte) ((frameType << 3) & 0b01111100);
     int frameContentInBytes = frameSizeBytesByTypeWb(frameType) - 1;
 
     return joinData(new byte[] {frameHeader}, randomBytesArrayWithLength(frameContentInBytes));
   }
 
   private byte[] newNarrowBandAmrFrameWithType(int frameType) {
-    byte frameHeader = (byte) ((frameType << 3) & (0b01111100));
+    byte frameHeader = (byte) ((frameType << 3) & 0b01111100);
     int frameContentInBytes = frameSizeBytesByTypeNb(frameType) - 1;
 
     return joinData(new byte[] {frameHeader}, randomBytesArrayWithLength(frameContentInBytes));

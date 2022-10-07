@@ -16,18 +16,21 @@
 package com.google.android.exoplayer2.demo;
 
 import android.content.Context;
+import android.os.Build;
 import com.google.android.exoplayer2.DefaultRenderersFactory;
+import com.google.android.exoplayer2.ExoPlayerLibraryInfo;
 import com.google.android.exoplayer2.RenderersFactory;
 import com.google.android.exoplayer2.database.DatabaseProvider;
 import com.google.android.exoplayer2.database.ExoDatabaseProvider;
-import com.google.android.exoplayer2.ext.cronet.CronetDataSourceFactory;
-import com.google.android.exoplayer2.ext.cronet.CronetEngineWrapper;
+import com.google.android.exoplayer2.ext.cronet.CronetDataSource;
+import com.google.android.exoplayer2.ext.cronet.CronetUtil;
 import com.google.android.exoplayer2.offline.ActionFileUpgradeUtil;
 import com.google.android.exoplayer2.offline.DefaultDownloadIndex;
 import com.google.android.exoplayer2.offline.DownloadManager;
 import com.google.android.exoplayer2.ui.DownloadNotificationHelper;
 import com.google.android.exoplayer2.upstream.DataSource;
 import com.google.android.exoplayer2.upstream.DefaultDataSourceFactory;
+import com.google.android.exoplayer2.upstream.DefaultHttpDataSource;
 import com.google.android.exoplayer2.upstream.HttpDataSource;
 import com.google.android.exoplayer2.upstream.cache.Cache;
 import com.google.android.exoplayer2.upstream.cache.CacheDataSource;
@@ -36,14 +39,35 @@ import com.google.android.exoplayer2.upstream.cache.SimpleCache;
 import com.google.android.exoplayer2.util.Log;
 import java.io.File;
 import java.io.IOException;
+import java.net.CookieHandler;
+import java.net.CookieManager;
+import java.net.CookiePolicy;
 import java.util.concurrent.Executors;
 import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
+import org.checkerframework.checker.nullness.qual.Nullable;
+import org.chromium.net.CronetEngine;
 
 /** Utility methods for the demo app. */
 public final class DemoUtil {
 
   public static final String DOWNLOAD_NOTIFICATION_CHANNEL_ID = "download_channel";
 
+  /**
+   * Whether the demo application uses Cronet for networking. Note that Cronet does not provide
+   * automatic support for cookies (https://github.com/google/ExoPlayer/issues/5975).
+   *
+   * <p>If set to false, the platform's default network stack is used with a {@link CookieManager}
+   * configured in {@link #getHttpDataSourceFactory}.
+   */
+  private static final boolean USE_CRONET_FOR_NETWORKING = true;
+
+  private static final String USER_AGENT =
+      "ExoPlayerDemo/"
+          + ExoPlayerLibraryInfo.VERSION
+          + " (Linux; Android "
+          + Build.VERSION.RELEASE
+          + ") "
+          + ExoPlayerLibraryInfo.VERSION_SLASHY;
   private static final String TAG = "DemoUtil";
   private static final String DOWNLOAD_ACTION_FILE = "actions";
   private static final String DOWNLOAD_TRACKER_ACTION_FILE = "tracked_actions";
@@ -78,10 +102,23 @@ public final class DemoUtil {
 
   public static synchronized HttpDataSource.Factory getHttpDataSourceFactory(Context context) {
     if (httpDataSourceFactory == null) {
-      context = context.getApplicationContext();
-      CronetEngineWrapper cronetEngineWrapper = new CronetEngineWrapper(context);
-      httpDataSourceFactory =
-          new CronetDataSourceFactory(cronetEngineWrapper, Executors.newSingleThreadExecutor());
+      if (USE_CRONET_FOR_NETWORKING) {
+        context = context.getApplicationContext();
+        @Nullable
+        CronetEngine cronetEngine =
+            CronetUtil.buildCronetEngine(context, USER_AGENT, /* preferGMSCoreCronet= */ false);
+        if (cronetEngine != null) {
+          httpDataSourceFactory =
+              new CronetDataSource.Factory(cronetEngine, Executors.newSingleThreadExecutor());
+        }
+      }
+      if (httpDataSourceFactory == null) {
+        // We don't want to use Cronet, or we failed to instantiate a CronetEngine.
+        CookieManager cookieManager = new CookieManager();
+        cookieManager.setCookiePolicy(CookiePolicy.ACCEPT_ORIGINAL_SERVER);
+        CookieHandler.setDefault(cookieManager);
+        httpDataSourceFactory = new DefaultHttpDataSource.Factory().setUserAgent(USER_AGENT);
+      }
     }
     return httpDataSourceFactory;
   }

@@ -15,6 +15,23 @@
  */
 package com.google.android.exoplayer2.ui;
 
+import static com.google.android.exoplayer2.Player.COMMAND_SEEK_BACK;
+import static com.google.android.exoplayer2.Player.COMMAND_SEEK_FORWARD;
+import static com.google.android.exoplayer2.Player.COMMAND_SEEK_IN_CURRENT_WINDOW;
+import static com.google.android.exoplayer2.Player.COMMAND_SEEK_TO_NEXT;
+import static com.google.android.exoplayer2.Player.COMMAND_SEEK_TO_PREVIOUS;
+import static com.google.android.exoplayer2.Player.EVENT_AVAILABLE_COMMANDS_CHANGED;
+import static com.google.android.exoplayer2.Player.EVENT_IS_PLAYING_CHANGED;
+import static com.google.android.exoplayer2.Player.EVENT_PLAYBACK_PARAMETERS_CHANGED;
+import static com.google.android.exoplayer2.Player.EVENT_PLAYBACK_STATE_CHANGED;
+import static com.google.android.exoplayer2.Player.EVENT_PLAY_WHEN_READY_CHANGED;
+import static com.google.android.exoplayer2.Player.EVENT_POSITION_DISCONTINUITY;
+import static com.google.android.exoplayer2.Player.EVENT_REPEAT_MODE_CHANGED;
+import static com.google.android.exoplayer2.Player.EVENT_SEEK_BACK_INCREMENT_CHANGED;
+import static com.google.android.exoplayer2.Player.EVENT_SEEK_FORWARD_INCREMENT_CHANGED;
+import static com.google.android.exoplayer2.Player.EVENT_SHUFFLE_MODE_ENABLED_CHANGED;
+import static com.google.android.exoplayer2.Player.EVENT_TIMELINE_CHANGED;
+import static com.google.android.exoplayer2.Player.EVENT_TRACKS_CHANGED;
 import static com.google.android.exoplayer2.util.Assertions.checkNotNull;
 
 import android.annotation.SuppressLint;
@@ -42,13 +59,14 @@ import androidx.recyclerview.widget.RecyclerView;
 import com.google.android.exoplayer2.C;
 import com.google.android.exoplayer2.ControlDispatcher;
 import com.google.android.exoplayer2.DefaultControlDispatcher;
+import com.google.android.exoplayer2.ExoPlayer;
 import com.google.android.exoplayer2.ExoPlayerLibraryInfo;
 import com.google.android.exoplayer2.Format;
-import com.google.android.exoplayer2.PlaybackParameters;
-import com.google.android.exoplayer2.PlaybackPreparer;
+import com.google.android.exoplayer2.ForwardingPlayer;
 import com.google.android.exoplayer2.Player;
+import com.google.android.exoplayer2.Player.Events;
 import com.google.android.exoplayer2.Player.State;
-import com.google.android.exoplayer2.RendererCapabilities;
+import com.google.android.exoplayer2.SimpleExoPlayer;
 import com.google.android.exoplayer2.Timeline;
 import com.google.android.exoplayer2.source.TrackGroup;
 import com.google.android.exoplayer2.source.TrackGroupArray;
@@ -58,6 +76,7 @@ import com.google.android.exoplayer2.trackselection.DefaultTrackSelector.Selecti
 import com.google.android.exoplayer2.trackselection.MappingTrackSelector.MappedTrackInfo;
 import com.google.android.exoplayer2.trackselection.TrackSelection;
 import com.google.android.exoplayer2.trackselection.TrackSelectionArray;
+import com.google.android.exoplayer2.trackselection.TrackSelector;
 import com.google.android.exoplayer2.util.Assertions;
 import com.google.android.exoplayer2.util.RepeatModeUtil;
 import com.google.android.exoplayer2.util.Util;
@@ -76,7 +95,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
  * methods), overriding drawables, overriding the view's layout file, or by specifying a custom view
  * layout file.
  *
- * <h3>Attributes</h3>
+ * <h2>Attributes</h2>
  *
  * The following attributes can be set on a StyledPlayerControlView when used in a layout XML file:
  *
@@ -108,17 +127,6 @@ import java.util.concurrent.CopyOnWriteArrayList;
  *         <li>Corresponding method: {@link #setShowNextButton(boolean)}
  *         <li>Default: true
  *       </ul>
- *   <li><b>{@code rewind_increment}</b> - The duration of the rewind applied when the user taps the
- *       rewind button, in milliseconds. Use zero to disable the rewind button.
- *       <ul>
- *         <li>Corresponding method: {@link #setControlDispatcher(ControlDispatcher)}
- *         <li>Default: {@link DefaultControlDispatcher#DEFAULT_REWIND_MS}
- *       </ul>
- *   <li><b>{@code fastforward_increment}</b> - Like {@code rewind_increment}, but for fast forward.
- *       <ul>
- *         <li>Corresponding method: {@link #setControlDispatcher(ControlDispatcher)}
- *         <li>Default: {@link DefaultControlDispatcher#DEFAULT_FAST_FORWARD_MS}
- *       </ul>
  *   <li><b>{@code repeat_toggle_modes}</b> - A flagged enumeration value specifying which repeat
  *       mode toggle options are enabled. Valid values are: {@code none}, {@code one}, {@code all},
  *       or {@code one|all}.
@@ -131,7 +139,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
  *         <li>Corresponding method: {@link #setShowShuffleButton(boolean)}
  *         <li>Default: false
  *       </ul>
- *   <li><b>{@code show_subtitle_button}</b> - Whether the shuffle button is shown.
+ *   <li><b>{@code show_subtitle_button}</b> - Whether the subtitle button is shown.
  *       <ul>
  *         <li>Corresponding method: {@link #setShowSubtitleButton(boolean)}
  *         <li>Default: false
@@ -159,7 +167,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
  *       unless the layout is overridden to specify a custom {@code exo_progress} (see below).
  * </ul>
  *
- * <h3>Overriding drawables</h3>
+ * <h2>Overriding drawables</h2>
  *
  * The drawables used by StyledPlayerControlView (with its default layout file) can be overridden by
  * drawables with the same names defined in your application. The drawables that can be overridden
@@ -184,7 +192,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
  *   <li><b>{@code exo_styled_controls_vr}</b> - The VR icon.
  * </ul>
  *
- * <h3>Overriding the layout file</h3>
+ * <h2>Overriding the layout file</h2>
  *
  * To customize the layout of StyledPlayerControlView throughout your app, or just for certain
  * configurations, you can define {@code exo_styled_player_control_view.xml} layout files in your
@@ -260,6 +268,10 @@ import java.util.concurrent.CopyOnWriteArrayList;
  *       <ul>
  *         <li>Type: {@link ImageView}
  *       </ul>
+ *   <li><b>{@code exo_minimal_fullscreen}</b> - The fullscreen button in minimal mode.
+ *       <ul>
+ *         <li>Type: {@link ImageView}
+ *       </ul>
  *   <li><b>{@code exo_position}</b> - Text view displaying the current playback position.
  *       <ul>
  *         <li>Type: {@link TextView}
@@ -285,7 +297,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
  * <p>All child views are optional and so can be omitted if not required, however where defined they
  * must be of the expected type.
  *
- * <h3 id="CustomLayout">Specifying a custom layout file</h3>
+ * <h2 id="CustomLayout">Specifying a custom layout file</h2>
  *
  * Defining your own {@code exo_styled_player_control_view.xml} is useful to customize the layout of
  * StyledPlayerControlView throughout your application. It's also possible to customize the layout
@@ -354,7 +366,6 @@ public class StyledPlayerControlView extends FrameLayout {
 
   private static final int SETTINGS_PLAYBACK_SPEED_POSITION = 0;
   private static final int SETTINGS_AUDIO_TRACK_SELECTION_POSITION = 1;
-  private static final int UNDEFINED_POSITION = -1;
 
   private final ComponentListener componentListener;
   private final CopyOnWriteArrayList<VisibilityListener> visibilityListeners;
@@ -401,7 +412,6 @@ public class StyledPlayerControlView extends FrameLayout {
   @Nullable private Player player;
   private ControlDispatcher controlDispatcher;
   @Nullable private ProgressUpdateListener progressUpdateListener;
-  @Nullable private PlaybackPreparer playbackPreparer;
 
   @Nullable private OnFullScreenModeChangedListener onFullScreenModeChangedListener;
   private boolean isFullScreen;
@@ -417,22 +427,14 @@ public class StyledPlayerControlView extends FrameLayout {
   private long[] extraAdGroupTimesMs;
   private boolean[] extraPlayedAdGroups;
   private long currentWindowOffset;
-  private long rewindMs;
-  private long fastForwardMs;
 
   private StyledPlayerControlViewLayoutManager controlViewLayoutManager;
   private Resources resources;
 
-  // Relating to Settings List View
-  private int selectedMainSettingsPosition;
   private RecyclerView settingsView;
   private SettingsAdapter settingsAdapter;
-  private SubSettingsAdapter subSettingsAdapter;
+  private PlaybackSpeedAdapter playbackSpeedAdapter;
   private PopupWindow settingsWindow;
-  private List<String> playbackSpeedTextList;
-  private List<Integer> playbackSpeedMultBy100List;
-  private int customPlaybackSpeedIndex;
-  private int selectedPlaybackSpeedIndex;
   private boolean needToHideBars;
   private int settingsWindowMargin;
 
@@ -442,10 +444,12 @@ public class StyledPlayerControlView extends FrameLayout {
   // TODO(insun): Add setTrackNameProvider to use customized track name provider.
   private TrackNameProvider trackNameProvider;
 
-  // Relating to Bottom Bar Right View
   @Nullable private ImageView subtitleButton;
   @Nullable private ImageView fullScreenButton;
+  @Nullable private ImageView minimalFullScreenButton;
   @Nullable private View settingsButton;
+  @Nullable private View playbackSpeedButton;
+  @Nullable private View audioTrackButton;
 
   public StyledPlayerControlView(Context context) {
     this(context, /* attrs= */ null);
@@ -460,10 +464,10 @@ public class StyledPlayerControlView extends FrameLayout {
   }
 
   @SuppressWarnings({
-    "nullness:argument.type.incompatible",
-    "nullness:assignment.type.incompatible",
-    "nullness:method.invocation.invalid",
-    "nullness:methodref.receiver.bound.invalid"
+    "nullness:argument",
+    "nullness:assignment",
+    "nullness:method.invocation",
+    "nullness:methodref.receiver.bound"
   })
   public StyledPlayerControlView(
       Context context,
@@ -472,8 +476,6 @@ public class StyledPlayerControlView extends FrameLayout {
       @Nullable AttributeSet playbackAttrs) {
     super(context, attrs, defStyleAttr);
     int controllerLayoutId = R.layout.exo_styled_player_control_view;
-    rewindMs = DefaultControlDispatcher.DEFAULT_REWIND_MS;
-    fastForwardMs = DefaultControlDispatcher.DEFAULT_FAST_FORWARD_MS;
     showTimeoutMs = DEFAULT_SHOW_TIMEOUT_MS;
     repeatToggleModes = DEFAULT_REPEAT_TOGGLE_MODES;
     timeBarMinUpdateIntervalMs = DEFAULT_TIME_BAR_MIN_UPDATE_INTERVAL_MS;
@@ -490,12 +492,12 @@ public class StyledPlayerControlView extends FrameLayout {
       TypedArray a =
           context
               .getTheme()
-              .obtainStyledAttributes(playbackAttrs, R.styleable.StyledPlayerControlView, 0, 0);
+              .obtainStyledAttributes(
+                  playbackAttrs,
+                  R.styleable.StyledPlayerControlView,
+                  defStyleAttr,
+                  /* defStyleRes= */ 0);
       try {
-        rewindMs = a.getInt(R.styleable.StyledPlayerControlView_rewind_increment, (int) rewindMs);
-        fastForwardMs =
-            a.getInt(
-                R.styleable.StyledPlayerControlView_fastforward_increment, (int) fastForwardMs);
         controllerLayoutId =
             a.getResourceId(
                 R.styleable.StyledPlayerControlView_controller_layout_id, controllerLayoutId);
@@ -543,26 +545,35 @@ public class StyledPlayerControlView extends FrameLayout {
     playedAdGroups = new boolean[0];
     extraAdGroupTimesMs = new long[0];
     extraPlayedAdGroups = new boolean[0];
-    controlDispatcher = new DefaultControlDispatcher(fastForwardMs, rewindMs);
+    controlDispatcher = new DefaultControlDispatcher();
     updateProgressAction = this::updateProgress;
 
-    // Relating to Bottom Bar Left View
     durationView = findViewById(R.id.exo_duration);
     positionView = findViewById(R.id.exo_position);
 
-    // Relating to Bottom Bar Right View
     subtitleButton = findViewById(R.id.exo_subtitle);
     if (subtitleButton != null) {
       subtitleButton.setOnClickListener(componentListener);
     }
+
     fullScreenButton = findViewById(R.id.exo_fullscreen);
-    if (fullScreenButton != null) {
-      fullScreenButton.setVisibility(GONE);
-      fullScreenButton.setOnClickListener(this::onFullScreenButtonClicked);
-    }
+    initializeFullScreenButton(fullScreenButton, this::onFullScreenButtonClicked);
+    minimalFullScreenButton = findViewById(R.id.exo_minimal_fullscreen);
+    initializeFullScreenButton(minimalFullScreenButton, this::onFullScreenButtonClicked);
+
     settingsButton = findViewById(R.id.exo_settings);
     if (settingsButton != null) {
       settingsButton.setOnClickListener(componentListener);
+    }
+
+    playbackSpeedButton = findViewById(R.id.exo_playback_speed);
+    if (playbackSpeedButton != null) {
+      playbackSpeedButton.setOnClickListener(componentListener);
+    }
+
+    audioTrackButton = findViewById(R.id.exo_audio_track);
+    if (audioTrackButton != null) {
+      audioTrackButton.setOnClickListener(componentListener);
     }
 
     TimeBar customTimeBar = findViewById(R.id.exo_progress);
@@ -570,8 +581,8 @@ public class StyledPlayerControlView extends FrameLayout {
     if (customTimeBar != null) {
       timeBar = customTimeBar;
     } else if (timeBarPlaceholder != null) {
-      // Propagate attrs as timebarAttrs so that DefaultTimeBar's custom attributes are transferred,
-      // but standard attributes (e.g. background) are not.
+      // Propagate playbackAttrs as timebarAttrs so that DefaultTimeBar's custom attributes are
+      // transferred, but standard attributes (e.g. background) are not.
       DefaultTimeBar defaultTimeBar =
           new DefaultTimeBar(context, null, 0, playbackAttrs, R.style.ExoStyledControls_TimeBar);
       defaultTimeBar.setId(R.id.exo_progress);
@@ -642,7 +653,6 @@ public class StyledPlayerControlView extends FrameLayout {
     controlViewLayoutManager = new StyledPlayerControlViewLayoutManager(this);
     controlViewLayoutManager.setAnimationEnabled(animationEnabled);
 
-    // Related to Settings List View
     String[] settingTexts = new String[2];
     Drawable[] settingIcons = new Drawable[2];
     settingTexts[SETTINGS_PLAYBACK_SPEED_POSITION] =
@@ -654,23 +664,11 @@ public class StyledPlayerControlView extends FrameLayout {
     settingIcons[SETTINGS_AUDIO_TRACK_SELECTION_POSITION] =
         resources.getDrawable(R.drawable.exo_styled_controls_audiotrack);
     settingsAdapter = new SettingsAdapter(settingTexts, settingIcons);
-
-    playbackSpeedTextList =
-        new ArrayList<>(Arrays.asList(resources.getStringArray(R.array.exo_playback_speeds)));
-    playbackSpeedMultBy100List = new ArrayList<>();
-    int[] speeds = resources.getIntArray(R.array.exo_speed_multiplied_by_100);
-    for (int speed : speeds) {
-      playbackSpeedMultBy100List.add(speed);
-    }
-    selectedPlaybackSpeedIndex = playbackSpeedMultBy100List.indexOf(100);
-    customPlaybackSpeedIndex = UNDEFINED_POSITION;
     settingsWindowMargin = resources.getDimensionPixelSize(R.dimen.exo_settings_offset);
-
-    subSettingsAdapter = new SubSettingsAdapter();
-    subSettingsAdapter.setCheckPosition(UNDEFINED_POSITION);
     settingsView =
         (RecyclerView)
-            LayoutInflater.from(context).inflate(R.layout.exo_styled_settings_list, null);
+            LayoutInflater.from(context)
+                .inflate(R.layout.exo_styled_settings_list, /* root= */ null);
     settingsView.setAdapter(settingsAdapter);
     settingsView.setLayoutManager(new LinearLayoutManager(getContext()));
     settingsWindow =
@@ -692,6 +690,10 @@ public class StyledPlayerControlView extends FrameLayout {
         resources.getString(R.string.exo_controls_cc_disabled_description);
     textTrackSelectionAdapter = new TextTrackSelectionAdapter();
     audioTrackSelectionAdapter = new AudioTrackSelectionAdapter();
+    playbackSpeedAdapter =
+        new PlaybackSpeedAdapter(
+            resources.getStringArray(R.array.exo_playback_speeds),
+            resources.getIntArray(R.array.exo_speed_multiplied_by_100));
 
     fullScreenExitDrawable = resources.getDrawable(R.drawable.exo_styled_controls_fullscreen_exit);
     fullScreenEnterDrawable =
@@ -730,12 +732,6 @@ public class StyledPlayerControlView extends FrameLayout {
     addOnLayoutChangeListener(this::onLayoutChange);
   }
 
-  @SuppressWarnings("ResourceType")
-  private static @RepeatModeUtil.RepeatToggleModes int getRepeatToggleModes(
-      TypedArray a, @RepeatModeUtil.RepeatToggleModes int repeatToggleModes) {
-    return a.getInt(R.styleable.StyledPlayerControlView_repeat_toggle_modes, repeatToggleModes);
-  }
-
   /**
    * Returns the {@link Player} currently being controlled by this view, or null if no player is
    * set.
@@ -766,13 +762,18 @@ public class StyledPlayerControlView extends FrameLayout {
     if (player != null) {
       player.addListener(componentListener);
     }
-    if (player != null && player.getTrackSelector() instanceof DefaultTrackSelector) {
-      this.trackSelector = (DefaultTrackSelector) player.getTrackSelector();
+    if (player instanceof ForwardingPlayer) {
+      player = ((ForwardingPlayer) player).getWrappedPlayer();
+    }
+    if (player instanceof ExoPlayer) {
+      TrackSelector trackSelector = ((ExoPlayer) player).getTrackSelector();
+      if (trackSelector instanceof DefaultTrackSelector) {
+        this.trackSelector = (DefaultTrackSelector) trackSelector;
+      }
     } else {
       this.trackSelector = null;
     }
     updateAll();
-    updateSettingsPlaybackSpeedLists();
   }
 
   /**
@@ -841,24 +842,11 @@ public class StyledPlayerControlView extends FrameLayout {
   }
 
   /**
-   * @deprecated Use {@link #setControlDispatcher(ControlDispatcher)} instead. The view calls {@link
-   *     ControlDispatcher#dispatchPrepare(Player)} instead of {@link
-   *     PlaybackPreparer#preparePlayback()}. The {@link DefaultControlDispatcher} that the view
-   *     uses by default, calls {@link Player#prepare()}. If you wish to customize this behaviour,
-   *     you can provide a custom implementation of {@link
-   *     ControlDispatcher#dispatchPrepare(Player)}.
+   * @deprecated Use a {@link ForwardingPlayer} and pass it to {@link #setPlayer(Player)} instead.
+   *     You can also customize some operations when configuring the player (for example by using
+   *     {@link SimpleExoPlayer.Builder#setSeekBackIncrementMs(long)}).
    */
-  @SuppressWarnings("deprecation")
   @Deprecated
-  public void setPlaybackPreparer(@Nullable PlaybackPreparer playbackPreparer) {
-    this.playbackPreparer = playbackPreparer;
-  }
-
-  /**
-   * Sets the {@link ControlDispatcher}.
-   *
-   * @param controlDispatcher The {@link ControlDispatcher}.
-   */
   public void setControlDispatcher(ControlDispatcher controlDispatcher) {
     if (this.controlDispatcher != controlDispatcher) {
       this.controlDispatcher = controlDispatcher;
@@ -1059,16 +1047,9 @@ public class StyledPlayerControlView extends FrameLayout {
    */
   public void setOnFullScreenModeChangedListener(
       @Nullable OnFullScreenModeChangedListener listener) {
-    if (fullScreenButton == null) {
-      return;
-    }
-
     onFullScreenModeChangedListener = listener;
-    if (onFullScreenModeChangedListener == null) {
-      fullScreenButton.setVisibility(GONE);
-    } else {
-      fullScreenButton.setVisibility(VISIBLE);
-    }
+    updateFullScreenButtonVisibility(fullScreenButton, listener != null);
+    updateFullScreenButtonVisibility(minimalFullScreenButton, listener != null);
   }
 
   /**
@@ -1111,6 +1092,7 @@ public class StyledPlayerControlView extends FrameLayout {
     updateRepeatModeButton();
     updateShuffleButton();
     updateTrackLists();
+    updatePlaybackSpeedList();
     updateTimeline();
   }
 
@@ -1145,16 +1127,14 @@ public class StyledPlayerControlView extends FrameLayout {
     boolean enableFastForward = false;
     boolean enableNext = false;
     if (player != null) {
-      Timeline timeline = player.getCurrentTimeline();
-      if (!timeline.isEmpty() && !player.isPlayingAd()) {
-        timeline.getWindow(player.getCurrentWindowIndex(), window);
-        boolean isSeekable = window.isSeekable;
-        enableSeeking = isSeekable;
-        enablePrevious = isSeekable || !window.isDynamic || player.hasPrevious();
-        enableRewind = isSeekable && controlDispatcher.isRewindEnabled();
-        enableFastForward = isSeekable && controlDispatcher.isFastForwardEnabled();
-        enableNext = window.isDynamic || player.hasNext();
-      }
+      enableSeeking = player.isCommandAvailable(COMMAND_SEEK_IN_CURRENT_WINDOW);
+      enablePrevious = player.isCommandAvailable(COMMAND_SEEK_TO_PREVIOUS);
+      enableRewind =
+          player.isCommandAvailable(COMMAND_SEEK_BACK) && controlDispatcher.isRewindEnabled();
+      enableFastForward =
+          player.isCommandAvailable(COMMAND_SEEK_FORWARD)
+              && controlDispatcher.isFastForwardEnabled();
+      enableNext = player.isCommandAvailable(COMMAND_SEEK_TO_NEXT);
     }
 
     if (enableRewind) {
@@ -1174,9 +1154,10 @@ public class StyledPlayerControlView extends FrameLayout {
   }
 
   private void updateRewindButton() {
-    if (controlDispatcher instanceof DefaultControlDispatcher) {
-      rewindMs = ((DefaultControlDispatcher) controlDispatcher).getRewindIncrementMs();
-    }
+    long rewindMs =
+        controlDispatcher instanceof DefaultControlDispatcher && player != null
+            ? ((DefaultControlDispatcher) controlDispatcher).getRewindIncrementMs(player)
+            : C.DEFAULT_SEEK_BACK_INCREMENT_MS;
     int rewindSec = (int) (rewindMs / 1_000);
     if (rewindButtonTextView != null) {
       rewindButtonTextView.setText(String.valueOf(rewindSec));
@@ -1189,9 +1170,10 @@ public class StyledPlayerControlView extends FrameLayout {
   }
 
   private void updateFastForwardButton() {
-    if (controlDispatcher instanceof DefaultControlDispatcher) {
-      fastForwardMs = ((DefaultControlDispatcher) controlDispatcher).getFastForwardIncrementMs();
-    }
+    long fastForwardMs =
+        controlDispatcher instanceof DefaultControlDispatcher && player != null
+            ? ((DefaultControlDispatcher) controlDispatcher).getFastForwardIncrementMs(player)
+            : C.DEFAULT_SEEK_FORWARD_INCREMENT_MS;
     int fastForwardSec = (int) (fastForwardMs / 1_000);
     if (fastForwardButtonTextView != null) {
       fastForwardButtonTextView.setText(String.valueOf(fastForwardSec));
@@ -1314,7 +1296,7 @@ public class StyledPlayerControlView extends FrameLayout {
       for (int trackIndex = 0; trackIndex < trackGroup.length; trackIndex++) {
         Format format = trackGroup.getFormat(trackIndex);
         if (mappedTrackInfo.getTrackSupport(rendererIndex, groupIndex, trackIndex)
-            == RendererCapabilities.FORMAT_HANDLED) {
+            == C.FORMAT_HANDLED) {
           boolean trackIsSelected =
               trackSelection != null && trackSelection.indexOf(format) != C.INDEX_UNSET;
           tracks.add(
@@ -1355,8 +1337,9 @@ public class StyledPlayerControlView extends FrameLayout {
         }
         for (int j = window.firstPeriodIndex; j <= window.lastPeriodIndex; j++) {
           timeline.getPeriod(j, period);
-          int periodAdGroupCount = period.getAdGroupCount();
-          for (int adGroupIndex = 0; adGroupIndex < periodAdGroupCount; adGroupIndex++) {
+          int removedGroups = period.getRemovedAdGroupCount();
+          int totalGroups = period.getAdGroupCount();
+          for (int adGroupIndex = removedGroups; adGroupIndex < totalGroups; adGroupIndex++) {
             long adGroupTimeInPeriodUs = period.getAdGroupTimeUs(adGroupIndex);
             if (adGroupTimeInPeriodUs == C.TIME_END_OF_SOURCE) {
               if (period.durationUs == C.TIME_UNSET) {
@@ -1446,31 +1429,13 @@ public class StyledPlayerControlView extends FrameLayout {
     }
   }
 
-  private void updateSettingsPlaybackSpeedLists() {
+  private void updatePlaybackSpeedList() {
     if (player == null) {
       return;
     }
-    float speed = player.getPlaybackParameters().speed;
-    int currentSpeedMultBy100 = Math.round(speed * 100);
-    int indexForCurrentSpeed = playbackSpeedMultBy100List.indexOf(currentSpeedMultBy100);
-    if (indexForCurrentSpeed == UNDEFINED_POSITION) {
-      if (customPlaybackSpeedIndex != UNDEFINED_POSITION) {
-        playbackSpeedMultBy100List.remove(customPlaybackSpeedIndex);
-        playbackSpeedTextList.remove(customPlaybackSpeedIndex);
-        customPlaybackSpeedIndex = UNDEFINED_POSITION;
-      }
-      indexForCurrentSpeed =
-          -Collections.binarySearch(playbackSpeedMultBy100List, currentSpeedMultBy100) - 1;
-      String customSpeedText =
-          resources.getString(R.string.exo_controls_custom_playback_speed, speed);
-      playbackSpeedMultBy100List.add(indexForCurrentSpeed, currentSpeedMultBy100);
-      playbackSpeedTextList.add(indexForCurrentSpeed, customSpeedText);
-      customPlaybackSpeedIndex = indexForCurrentSpeed;
-    }
-
-    selectedPlaybackSpeedIndex = indexForCurrentSpeed;
+    playbackSpeedAdapter.updateSelectedIndex(player.getPlaybackParameters().speed);
     settingsAdapter.setSubTextAtPosition(
-        SETTINGS_PLAYBACK_SPEED_POSITION, playbackSpeedTextList.get(indexForCurrentSpeed));
+        SETTINGS_PLAYBACK_SPEED_POSITION, playbackSpeedAdapter.getSelectedText());
   }
 
   private void updateSettingsWindowSize() {
@@ -1506,7 +1471,8 @@ public class StyledPlayerControlView extends FrameLayout {
     if (player == null) {
       return;
     }
-    player.setPlaybackParameters(new PlaybackParameters(speed));
+    controlDispatcher.dispatchSetPlaybackParameters(
+        player, player.getPlaybackParameters().withSpeed(speed));
   }
 
   /* package */ void requestPlayPauseFocus() {
@@ -1544,12 +1510,8 @@ public class StyledPlayerControlView extends FrameLayout {
     } else {
       windowIndex = player.getCurrentWindowIndex();
     }
-    boolean dispatched = seekTo(player, windowIndex, positionMs);
-    if (!dispatched) {
-      // The seek wasn't dispatched then the progress bar scrubber will be in the wrong position.
-      // Trigger a progress update to snap it back.
-      updateProgress();
-    }
+    seekTo(player, windowIndex, positionMs);
+    updateProgress();
   }
 
   private boolean seekTo(Player player, int windowIndex, long positionMs) {
@@ -1557,11 +1519,23 @@ public class StyledPlayerControlView extends FrameLayout {
   }
 
   private void onFullScreenButtonClicked(View v) {
-    if (onFullScreenModeChangedListener == null || fullScreenButton == null) {
+    if (onFullScreenModeChangedListener == null) {
       return;
     }
 
     isFullScreen = !isFullScreen;
+    updateFullScreenButtonForState(fullScreenButton, isFullScreen);
+    updateFullScreenButtonForState(minimalFullScreenButton, isFullScreen);
+    if (onFullScreenModeChangedListener != null) {
+      onFullScreenModeChangedListener.onFullScreenModeChanged(isFullScreen);
+    }
+  }
+
+  private void updateFullScreenButtonForState(
+      @Nullable ImageView fullScreenButton, boolean isFullScreen) {
+    if (fullScreenButton == null) {
+      return;
+    }
     if (isFullScreen) {
       fullScreenButton.setImageDrawable(fullScreenExitDrawable);
       fullScreenButton.setContentDescription(fullScreenExitContentDescription);
@@ -1569,56 +1543,15 @@ public class StyledPlayerControlView extends FrameLayout {
       fullScreenButton.setImageDrawable(fullScreenEnterDrawable);
       fullScreenButton.setContentDescription(fullScreenEnterContentDescription);
     }
-
-    if (onFullScreenModeChangedListener != null) {
-      onFullScreenModeChangedListener.onFullScreenModeChanged(isFullScreen);
-    }
   }
 
   private void onSettingViewClicked(int position) {
     if (position == SETTINGS_PLAYBACK_SPEED_POSITION) {
-      subSettingsAdapter.setTexts(playbackSpeedTextList);
-      subSettingsAdapter.setCheckPosition(selectedPlaybackSpeedIndex);
-      selectedMainSettingsPosition = SETTINGS_PLAYBACK_SPEED_POSITION;
-      displaySettingsWindow(subSettingsAdapter);
+      displaySettingsWindow(playbackSpeedAdapter);
     } else if (position == SETTINGS_AUDIO_TRACK_SELECTION_POSITION) {
-      selectedMainSettingsPosition = SETTINGS_AUDIO_TRACK_SELECTION_POSITION;
       displaySettingsWindow(audioTrackSelectionAdapter);
     } else {
       settingsWindow.dismiss();
-    }
-  }
-
-  private void onSubSettingViewClicked(int position) {
-    if (selectedMainSettingsPosition == SETTINGS_PLAYBACK_SPEED_POSITION) {
-      if (position != selectedPlaybackSpeedIndex) {
-        float speed = playbackSpeedMultBy100List.get(position) / 100.0f;
-        setPlaybackSpeed(speed);
-      }
-    }
-    settingsWindow.dismiss();
-  }
-
-  private void onLayoutChange(
-      View v,
-      int left,
-      int top,
-      int right,
-      int bottom,
-      int oldLeft,
-      int oldTop,
-      int oldRight,
-      int oldBottom) {
-    int width = right - left;
-    int height = bottom - top;
-    int oldWidth = oldRight - oldLeft;
-    int oldHeight = oldBottom - oldTop;
-
-    if ((width != oldWidth || height != oldHeight) && settingsWindow.isShowing()) {
-      updateSettingsWindowSize();
-      int xOffset = getWidth() - settingsWindow.getWidth() - settingsWindowMargin;
-      int yOffset = -settingsWindow.getHeight() - settingsWindowMargin;
-      settingsWindow.update(v, xOffset, yOffset, -1, -1);
     }
   }
 
@@ -1693,6 +1626,35 @@ public class StyledPlayerControlView extends FrameLayout {
     return true;
   }
 
+  @Override
+  protected void onLayout(boolean changed, int left, int top, int right, int bottom) {
+    super.onLayout(changed, left, top, right, bottom);
+    controlViewLayoutManager.onLayout(changed, left, top, right, bottom);
+  }
+
+  private void onLayoutChange(
+      View v,
+      int left,
+      int top,
+      int right,
+      int bottom,
+      int oldLeft,
+      int oldTop,
+      int oldRight,
+      int oldBottom) {
+    int width = right - left;
+    int height = bottom - top;
+    int oldWidth = oldRight - oldLeft;
+    int oldHeight = oldBottom - oldTop;
+
+    if ((width != oldWidth || height != oldHeight) && settingsWindow.isShowing()) {
+      updateSettingsWindowSize();
+      int xOffset = getWidth() - settingsWindow.getWidth() - settingsWindowMargin;
+      int yOffset = -settingsWindow.getHeight() - settingsWindowMargin;
+      settingsWindow.update(v, xOffset, yOffset, -1, -1);
+    }
+  }
+
   private boolean shouldShowPauseButton() {
     return player != null
         && player.getPlaybackState() != Player.STATE_ENDED
@@ -1713,11 +1675,7 @@ public class StyledPlayerControlView extends FrameLayout {
   private void dispatchPlay(Player player) {
     @State int state = player.getPlaybackState();
     if (state == Player.STATE_IDLE) {
-      if (playbackPreparer != null) {
-        playbackPreparer.preparePlayback();
-      } else {
-        controlDispatcher.dispatchPrepare(player);
-      }
+      controlDispatcher.dispatchPrepare(player);
     } else if (state == Player.STATE_ENDED) {
       seekTo(player, player.getCurrentWindowIndex(), C.TIME_UNSET);
     }
@@ -1760,11 +1718,73 @@ public class StyledPlayerControlView extends FrameLayout {
     return true;
   }
 
+  private static void initializeFullScreenButton(View fullScreenButton, OnClickListener listener) {
+    if (fullScreenButton == null) {
+      return;
+    }
+    fullScreenButton.setVisibility(GONE);
+    fullScreenButton.setOnClickListener(listener);
+  }
+
+  private static void updateFullScreenButtonVisibility(
+      @Nullable View fullScreenButton, boolean visible) {
+    if (fullScreenButton == null) {
+      return;
+    }
+    if (visible) {
+      fullScreenButton.setVisibility(VISIBLE);
+    } else {
+      fullScreenButton.setVisibility(GONE);
+    }
+  }
+
+  @SuppressWarnings("ResourceType")
+  private static @RepeatModeUtil.RepeatToggleModes int getRepeatToggleModes(
+      TypedArray a, @RepeatModeUtil.RepeatToggleModes int defaultValue) {
+    return a.getInt(R.styleable.StyledPlayerControlView_repeat_toggle_modes, defaultValue);
+  }
+
   private final class ComponentListener
-      implements Player.EventListener,
+      implements Player.Listener,
           TimeBar.OnScrubListener,
           OnClickListener,
           PopupWindow.OnDismissListener {
+
+    @Override
+    public void onEvents(Player player, Events events) {
+      if (events.containsAny(EVENT_PLAYBACK_STATE_CHANGED, EVENT_PLAY_WHEN_READY_CHANGED)) {
+        updatePlayPauseButton();
+      }
+      if (events.containsAny(
+          EVENT_PLAYBACK_STATE_CHANGED, EVENT_PLAY_WHEN_READY_CHANGED, EVENT_IS_PLAYING_CHANGED)) {
+        updateProgress();
+      }
+      if (events.contains(EVENT_REPEAT_MODE_CHANGED)) {
+        updateRepeatModeButton();
+      }
+      if (events.contains(EVENT_SHUFFLE_MODE_ENABLED_CHANGED)) {
+        updateShuffleButton();
+      }
+      if (events.containsAny(
+          EVENT_REPEAT_MODE_CHANGED,
+          EVENT_SHUFFLE_MODE_ENABLED_CHANGED,
+          EVENT_POSITION_DISCONTINUITY,
+          EVENT_TIMELINE_CHANGED,
+          EVENT_SEEK_BACK_INCREMENT_CHANGED,
+          EVENT_SEEK_FORWARD_INCREMENT_CHANGED,
+          EVENT_AVAILABLE_COMMANDS_CHANGED)) {
+        updateNavigation();
+      }
+      if (events.containsAny(EVENT_POSITION_DISCONTINUITY, EVENT_TIMELINE_CHANGED)) {
+        updateTimeline();
+      }
+      if (events.contains(EVENT_PLAYBACK_PARAMETERS_CHANGED)) {
+        updatePlaybackSpeedList();
+      }
+      if (events.contains(EVENT_TRACKS_CHANGED)) {
+        updateTrackLists();
+      }
+    }
 
     @Override
     public void onScrubStart(TimeBar timeBar, long position) {
@@ -1789,58 +1809,6 @@ public class StyledPlayerControlView extends FrameLayout {
         seekToTimeBarPosition(player, position);
       }
       controlViewLayoutManager.resetHideCallbacks();
-    }
-
-    @Override
-    public void onPlaybackStateChanged(@Player.State int playbackState) {
-      updatePlayPauseButton();
-      updateProgress();
-    }
-
-    @Override
-    public void onPlayWhenReadyChanged(
-        boolean playWhenReady, @Player.PlayWhenReadyChangeReason int state) {
-      updatePlayPauseButton();
-      updateProgress();
-    }
-
-    @Override
-    public void onIsPlayingChanged(boolean isPlaying) {
-      updateProgress();
-    }
-
-    @Override
-    public void onRepeatModeChanged(int repeatMode) {
-      updateRepeatModeButton();
-      updateNavigation();
-    }
-
-    @Override
-    public void onShuffleModeEnabledChanged(boolean shuffleModeEnabled) {
-      updateShuffleButton();
-      updateNavigation();
-    }
-
-    @Override
-    public void onPositionDiscontinuity(@Player.DiscontinuityReason int reason) {
-      updateNavigation();
-      updateTimeline();
-    }
-
-    @Override
-    public void onPlaybackParametersChanged(PlaybackParameters playbackParameters) {
-      updateSettingsPlaybackSpeedLists();
-    }
-
-    @Override
-    public void onTracksChanged(TrackGroupArray trackGroups, TrackSelectionArray trackSelections) {
-      updateTrackLists();
-    }
-
-    @Override
-    public void onTimelineChanged(Timeline timeline, @Player.TimelineChangeReason int reason) {
-      updateNavigation();
-      updateTimeline();
     }
 
     @Override
@@ -1877,6 +1845,12 @@ public class StyledPlayerControlView extends FrameLayout {
       } else if (settingsButton == view) {
         controlViewLayoutManager.removeHideCallbacks();
         displaySettingsWindow(settingsAdapter);
+      } else if (playbackSpeedButton == view) {
+        controlViewLayoutManager.removeHideCallbacks();
+        displaySettingsWindow(playbackSpeedAdapter);
+      } else if (audioTrackButton == view) {
+        controlViewLayoutManager.removeHideCallbacks();
+        displaySettingsWindow(audioTrackSelectionAdapter);
       } else if (subtitleButton == view) {
         controlViewLayoutManager.removeHideCallbacks();
         displaySettingsWindow(textTrackSelectionAdapter);
@@ -1885,6 +1859,7 @@ public class StyledPlayerControlView extends FrameLayout {
   }
 
   private class SettingsAdapter extends RecyclerView.Adapter<SettingViewHolder> {
+
     private final String[] mainTexts;
     private final String[] subTexts;
     private final Drawable[] iconIds;
@@ -1896,9 +1871,10 @@ public class StyledPlayerControlView extends FrameLayout {
     }
 
     @Override
-    public SettingViewHolder onCreateViewHolder(ViewGroup viewGroup, int viewType) {
+    public SettingViewHolder onCreateViewHolder(ViewGroup parent, int viewType) {
       View v =
-          LayoutInflater.from(getContext()).inflate(R.layout.exo_styled_settings_list_item, null);
+          LayoutInflater.from(getContext())
+              .inflate(R.layout.exo_styled_settings_list_item, parent, /* attachToRoot= */ false);
       return new SettingViewHolder(v);
     }
 
@@ -1935,12 +1911,17 @@ public class StyledPlayerControlView extends FrameLayout {
   }
 
   private final class SettingViewHolder extends RecyclerView.ViewHolder {
+
     private final TextView mainTextView;
     private final TextView subTextView;
     private final ImageView iconView;
 
     public SettingViewHolder(View itemView) {
       super(itemView);
+      if (Util.SDK_INT < 26) {
+        // Workaround for https://github.com/google/ExoPlayer/issues/9061.
+        itemView.setFocusable(true);
+      }
       mainTextView = itemView.findViewById(R.id.exo_main_text);
       subTextView = itemView.findViewById(R.id.exo_sub_text);
       iconView = itemView.findViewById(R.id.exo_icon);
@@ -1948,53 +1929,68 @@ public class StyledPlayerControlView extends FrameLayout {
     }
   }
 
-  private class SubSettingsAdapter extends RecyclerView.Adapter<SubSettingViewHolder> {
-    @Nullable private List<String> texts;
-    private int checkPosition;
+  private final class PlaybackSpeedAdapter extends RecyclerView.Adapter<SubSettingViewHolder> {
+
+    private final String[] playbackSpeedTexts;
+    private final int[] playbackSpeedsMultBy100;
+    private int selectedIndex;
+
+    public PlaybackSpeedAdapter(String[] playbackSpeedTexts, int[] playbackSpeedsMultBy100) {
+      this.playbackSpeedTexts = playbackSpeedTexts;
+      this.playbackSpeedsMultBy100 = playbackSpeedsMultBy100;
+    }
+
+    public void updateSelectedIndex(float playbackSpeed) {
+      int currentSpeedMultBy100 = Math.round(playbackSpeed * 100);
+      int closestMatchIndex = 0;
+      int closestMatchDifference = Integer.MAX_VALUE;
+      for (int i = 0; i < playbackSpeedsMultBy100.length; i++) {
+        int difference = Math.abs(currentSpeedMultBy100 - playbackSpeedsMultBy100[i]);
+        if (difference < closestMatchDifference) {
+          closestMatchIndex = i;
+          closestMatchDifference = difference;
+        }
+      }
+      selectedIndex = closestMatchIndex;
+    }
+
+    public String getSelectedText() {
+      return playbackSpeedTexts[selectedIndex];
+    }
 
     @Override
     public SubSettingViewHolder onCreateViewHolder(ViewGroup parent, int viewType) {
       View v =
           LayoutInflater.from(getContext())
-              .inflate(R.layout.exo_styled_sub_settings_list_item, null);
+              .inflate(
+                  R.layout.exo_styled_sub_settings_list_item, parent, /* attachToRoot= */ false);
       return new SubSettingViewHolder(v);
     }
 
     @Override
     public void onBindViewHolder(SubSettingViewHolder holder, int position) {
-      if (texts != null) {
-        holder.textView.setText(texts.get(position));
+      if (position < playbackSpeedTexts.length) {
+        holder.textView.setText(playbackSpeedTexts[position]);
       }
-      holder.checkView.setVisibility(position == checkPosition ? VISIBLE : INVISIBLE);
+      holder.checkView.setVisibility(position == selectedIndex ? VISIBLE : INVISIBLE);
+      holder.itemView.setOnClickListener(
+          v -> {
+            if (position != selectedIndex) {
+              float speed = playbackSpeedsMultBy100[position] / 100.0f;
+              setPlaybackSpeed(speed);
+            }
+            settingsWindow.dismiss();
+          });
     }
 
     @Override
     public int getItemCount() {
-      return texts != null ? texts.size() : 0;
-    }
-
-    public void setTexts(@Nullable List<String> texts) {
-      this.texts = texts;
-    }
-
-    public void setCheckPosition(int checkPosition) {
-      this.checkPosition = checkPosition;
-    }
-  }
-
-  private final class SubSettingViewHolder extends RecyclerView.ViewHolder {
-    private final TextView textView;
-    private final View checkView;
-
-    public SubSettingViewHolder(View itemView) {
-      super(itemView);
-      textView = itemView.findViewById(R.id.exo_text);
-      checkView = itemView.findViewById(R.id.exo_check);
-      itemView.setOnClickListener(v -> onSubSettingViewClicked(getAdapterPosition()));
+      return playbackSpeedTexts.length;
     }
   }
 
   private static final class TrackInfo {
+
     public final int rendererIndex;
     public final int groupIndex;
     public final int trackIndex;
@@ -2037,7 +2033,7 @@ public class StyledPlayerControlView extends FrameLayout {
     }
 
     @Override
-    public void onBindViewHolderAtZeroPosition(TrackSelectionViewHolder holder) {
+    public void onBindViewHolderAtZeroPosition(SubSettingViewHolder holder) {
       // CC options include "Off" at the first position, which disables text rendering.
       holder.textView.setText(R.string.exo_track_selection_none);
       boolean isTrackSelectionOff = true;
@@ -2066,7 +2062,7 @@ public class StyledPlayerControlView extends FrameLayout {
     }
 
     @Override
-    public void onBindViewHolder(TrackSelectionViewHolder holder, int position) {
+    public void onBindViewHolder(SubSettingViewHolder holder, int position) {
       super.onBindViewHolder(holder, position);
       if (position > 0) {
         TrackInfo track = tracks.get(position - 1);
@@ -2083,7 +2079,7 @@ public class StyledPlayerControlView extends FrameLayout {
   private final class AudioTrackSelectionAdapter extends TrackSelectionAdapter {
 
     @Override
-    public void onBindViewHolderAtZeroPosition(TrackSelectionViewHolder holder) {
+    public void onBindViewHolderAtZeroPosition(SubSettingViewHolder holder) {
       // Audio track selection option includes "Auto" at the top.
       holder.textView.setText(R.string.exo_track_selection_auto);
       // hasSelectionOverride is true means there is an explicit track selection, not "Auto".
@@ -2162,8 +2158,8 @@ public class StyledPlayerControlView extends FrameLayout {
     }
   }
 
-  private abstract class TrackSelectionAdapter
-      extends RecyclerView.Adapter<TrackSelectionViewHolder> {
+  private abstract class TrackSelectionAdapter extends RecyclerView.Adapter<SubSettingViewHolder> {
+
     protected List<Integer> rendererIndices;
     protected List<TrackInfo> tracks;
     protected @Nullable MappedTrackInfo mappedTrackInfo;
@@ -2178,19 +2174,20 @@ public class StyledPlayerControlView extends FrameLayout {
         List<Integer> rendererIndices, List<TrackInfo> trackInfos, MappedTrackInfo mappedTrackInfo);
 
     @Override
-    public TrackSelectionViewHolder onCreateViewHolder(ViewGroup parent, int viewType) {
+    public SubSettingViewHolder onCreateViewHolder(ViewGroup parent, int viewType) {
       View v =
           LayoutInflater.from(getContext())
-              .inflate(R.layout.exo_styled_sub_settings_list_item, null);
-      return new TrackSelectionViewHolder(v);
+              .inflate(
+                  R.layout.exo_styled_sub_settings_list_item, parent, /* attachToRoot= */ false);
+      return new SubSettingViewHolder(v);
     }
 
-    public abstract void onBindViewHolderAtZeroPosition(TrackSelectionViewHolder holder);
+    public abstract void onBindViewHolderAtZeroPosition(SubSettingViewHolder holder);
 
     public abstract void onTrackSelection(String subtext);
 
     @Override
-    public void onBindViewHolder(TrackSelectionViewHolder holder, int position) {
+    public void onBindViewHolder(SubSettingViewHolder holder, int position) {
       if (trackSelector == null || mappedTrackInfo == null) {
         return;
       }
@@ -2246,12 +2243,17 @@ public class StyledPlayerControlView extends FrameLayout {
     }
   }
 
-  private static class TrackSelectionViewHolder extends RecyclerView.ViewHolder {
+  private static class SubSettingViewHolder extends RecyclerView.ViewHolder {
+
     public final TextView textView;
     public final View checkView;
 
-    public TrackSelectionViewHolder(View itemView) {
+    public SubSettingViewHolder(View itemView) {
       super(itemView);
+      if (Util.SDK_INT < 26) {
+        // Workaround for https://github.com/google/ExoPlayer/issues/9061.
+        itemView.setFocusable(true);
+      }
       textView = itemView.findViewById(R.id.exo_text);
       checkView = itemView.findViewById(R.id.exo_check);
     }

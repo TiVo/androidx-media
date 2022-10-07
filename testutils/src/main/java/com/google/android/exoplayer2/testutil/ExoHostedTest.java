@@ -15,6 +15,7 @@
  */
 package com.google.android.exoplayer2.testutil;
 
+import static com.google.android.exoplayer2.util.Assertions.checkNotNull;
 import static com.google.common.truth.Truth.assertWithMessage;
 
 import android.os.ConditionVariable;
@@ -70,7 +71,6 @@ public abstract class ExoHostedTest implements AnalyticsListener, HostedTest {
   private @MonotonicNonNull DefaultTrackSelector trackSelector;
   private @MonotonicNonNull Surface surface;
   private @MonotonicNonNull ExoPlaybackException playerError;
-  private boolean playerWasPrepared;
 
   private long totalPlayingTimeMs;
   private long lastPlayingStartTimeMs;
@@ -84,19 +84,23 @@ public abstract class ExoHostedTest implements AnalyticsListener, HostedTest {
    *     the test will not assert an expected playing time.
    */
   public ExoHostedTest(String tag, boolean fullPlaybackNoSeeking) {
-    this(tag, fullPlaybackNoSeeking ? EXPECTED_PLAYING_TIME_MEDIA_DURATION_MS
-        : EXPECTED_PLAYING_TIME_UNSET, true);
+    this(
+        tag,
+        fullPlaybackNoSeeking
+            ? EXPECTED_PLAYING_TIME_MEDIA_DURATION_MS
+            : EXPECTED_PLAYING_TIME_UNSET,
+        true);
   }
 
   /**
    * @param tag A tag to use for logging.
    * @param expectedPlayingTimeMs The expected playing time. If set to a non-negative value, the
-   *     test will assert that the total time spent playing the media was within
-   *     {@link #MAX_PLAYING_TIME_DISCREPANCY_MS} of the specified value.
-   *     {@link #EXPECTED_PLAYING_TIME_MEDIA_DURATION_MS} should be passed to assert that the
-   *     expected playing time equals the duration of the media being played. Else
-   *     {@link #EXPECTED_PLAYING_TIME_UNSET} should be passed to indicate that the test should not
-   *     assert an expected playing time.
+   *     test will assert that the total time spent playing the media was within {@link
+   *     #MAX_PLAYING_TIME_DISCREPANCY_MS} of the specified value. {@link
+   *     #EXPECTED_PLAYING_TIME_MEDIA_DURATION_MS} should be passed to assert that the expected
+   *     playing time equals the duration of the media being played. Else {@link
+   *     #EXPECTED_PLAYING_TIME_UNSET} should be passed to indicate that the test should not assert
+   *     an expected playing time.
    * @param failOnPlayerError Whether a player error should be considered a test failure.
    */
   public ExoHostedTest(String tag, long expectedPlayingTimeMs, boolean failOnPlayerError) {
@@ -161,13 +165,15 @@ public abstract class ExoHostedTest implements AnalyticsListener, HostedTest {
     }
     logMetrics(audioDecoderCounters, videoDecoderCounters);
     if (expectedPlayingTimeMs != EXPECTED_PLAYING_TIME_UNSET) {
-      long playingTimeToAssertMs = expectedPlayingTimeMs == EXPECTED_PLAYING_TIME_MEDIA_DURATION_MS
-          ? sourceDurationMs : expectedPlayingTimeMs;
+      long playingTimeToAssertMs =
+          expectedPlayingTimeMs == EXPECTED_PLAYING_TIME_MEDIA_DURATION_MS
+              ? sourceDurationMs
+              : expectedPlayingTimeMs;
       // Assert that the playback spanned the correct duration of time.
       long minAllowedActualPlayingTimeMs = playingTimeToAssertMs - MAX_PLAYING_TIME_DISCREPANCY_MS;
       long maxAllowedActualPlayingTimeMs = playingTimeToAssertMs + MAX_PLAYING_TIME_DISCREPANCY_MS;
       assertWithMessage(
-              "Total playing time: " + totalPlayingTimeMs + ". Expected: " + playingTimeToAssertMs)
+              "Total playing time: %sms. Expected: %sms", totalPlayingTimeMs, playingTimeToAssertMs)
           .that(
               minAllowedActualPlayingTimeMs <= totalPlayingTimeMs
                   && totalPlayingTimeMs <= maxAllowedActualPlayingTimeMs)
@@ -180,28 +186,26 @@ public abstract class ExoHostedTest implements AnalyticsListener, HostedTest {
   // AnalyticsListener
 
   @Override
-  public final void onPlaybackStateChanged(EventTime eventTime, @Player.State int playbackState) {
-    playerWasPrepared |= playbackState != Player.STATE_IDLE;
-    if (playbackState == Player.STATE_ENDED
-        || (playbackState == Player.STATE_IDLE && playerWasPrepared)) {
-      stopTest();
+  public void onEvents(Player player, Events events) {
+    if (events.contains(EVENT_IS_PLAYING_CHANGED)) {
+      if (player.isPlaying()) {
+        lastPlayingStartTimeMs = SystemClock.elapsedRealtime();
+      } else {
+        totalPlayingTimeMs += SystemClock.elapsedRealtime() - lastPlayingStartTimeMs;
+      }
     }
-  }
-
-  @Override
-  public void onIsPlayingChanged(EventTime eventTime, boolean playing) {
-    if (playing) {
-      lastPlayingStartTimeMs = SystemClock.elapsedRealtime();
-    } else {
-      totalPlayingTimeMs += SystemClock.elapsedRealtime() - lastPlayingStartTimeMs;
+    if (events.contains(EVENT_PLAYER_ERROR)) {
+      // The exception is guaranteed to be an ExoPlaybackException because the underlying player is
+      // an ExoPlayer instance.
+      playerError = (ExoPlaybackException) checkNotNull(player.getPlayerError());
+      onPlayerErrorInternal(playerError);
     }
-  }
-
-  @Override
-  public final void onPlayerError(EventTime eventTime, ExoPlaybackException error) {
-    playerWasPrepared = true;
-    playerError = error;
-    onPlayerErrorInternal(error);
+    if (events.contains(EVENT_PLAYBACK_STATE_CHANGED)) {
+      @Player.State int playbackState = player.getPlaybackState();
+      if (playbackState == Player.STATE_ENDED || playbackState == Player.STATE_IDLE) {
+        stopTest();
+      }
+    }
   }
 
   @Override
@@ -231,7 +235,7 @@ public abstract class ExoHostedTest implements AnalyticsListener, HostedTest {
 
   protected DrmSessionManager buildDrmSessionManager() {
     // Do nothing. Interested subclasses may override.
-    return DrmSessionManager.getDummyDrmSessionManager();
+    return DrmSessionManager.DRM_UNSUPPORTED;
   }
 
   protected DefaultTrackSelector buildTrackSelector(HostActivity host) {
@@ -244,17 +248,13 @@ public abstract class ExoHostedTest implements AnalyticsListener, HostedTest {
     renderersFactory.setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_OFF);
     renderersFactory.setAllowedVideoJoiningTimeMs(/* allowedVideoJoiningTimeMs= */ 0);
     SimpleExoPlayer player =
-        new SimpleExoPlayer.Builder(host, renderersFactory)
-            .setTrackSelector(trackSelector)
-            .build();
+        new SimpleExoPlayer.Builder(host, renderersFactory).setTrackSelector(trackSelector).build();
     player.setVideoSurface(surface);
     return player;
   }
 
   protected abstract MediaSource buildSource(
-      HostActivity host,
-      DrmSessionManager drmSessionManager,
-      FrameLayout overlayFrameLayout);
+      HostActivity host, DrmSessionManager drmSessionManager, FrameLayout overlayFrameLayout);
 
   protected void onPlayerErrorInternal(ExoPlaybackException error) {
     // Do nothing. Interested subclasses may override.

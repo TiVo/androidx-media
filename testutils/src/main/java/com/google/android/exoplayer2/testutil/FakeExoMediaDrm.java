@@ -33,11 +33,13 @@ import com.google.android.exoplayer2.drm.MediaDrmCallback;
 import com.google.android.exoplayer2.drm.MediaDrmCallbackException;
 import com.google.android.exoplayer2.util.Assertions;
 import com.google.android.exoplayer2.util.Util;
+import com.google.common.base.Predicate;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.primitives.Bytes;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -60,8 +62,59 @@ import java.util.concurrent.atomic.AtomicInteger;
 @RequiresApi(29)
 public final class FakeExoMediaDrm implements ExoMediaDrm {
 
-  public static final ProvisionRequest DUMMY_PROVISION_REQUEST =
+  /** Builder for {@link FakeExoMediaDrm} instances. */
+  public static class Builder {
+    private int provisionsRequired;
+    private int maxConcurrentSessions;
+
+    /** Constructs an instance. */
+    public Builder() {
+      provisionsRequired = 0;
+      maxConcurrentSessions = Integer.MAX_VALUE;
+    }
+
+    /**
+     * Sets how many successful provisioning round trips are needed for the {@link FakeExoMediaDrm}
+     * to be provisioned.
+     *
+     * <p>An unprovisioned {@link FakeExoMediaDrm} will throw {@link NotProvisionedException} from
+     * methods that declare it until enough valid provisioning responses are passed to {@link
+     * FakeExoMediaDrm#provideProvisionResponse(byte[])}.
+     *
+     * <p>Defaults to 0 (i.e. device is already provisioned).
+     */
+    public Builder setProvisionsRequired(int provisionsRequired) {
+      this.provisionsRequired = provisionsRequired;
+      return this;
+    }
+
+    /**
+     * Sets the maximum number of concurrent sessions the {@link FakeExoMediaDrm} will support.
+     *
+     * <p>If this is exceeded then subsequent calls to {@link FakeExoMediaDrm#openSession()} will
+     * throw {@link ResourceBusyException}.
+     *
+     * <p>Defaults to {@link Integer#MAX_VALUE}.
+     */
+    public Builder setMaxConcurrentSessions(int maxConcurrentSessions) {
+      this.maxConcurrentSessions = maxConcurrentSessions;
+      return this;
+    }
+
+    /**
+     * Returns a {@link FakeExoMediaDrm} instance with an initial reference count of 1. The caller
+     * is responsible for calling {@link FakeExoMediaDrm#release()} when they no longer need the
+     * instance.
+     */
+    public FakeExoMediaDrm build() {
+      return new FakeExoMediaDrm(provisionsRequired, maxConcurrentSessions);
+    }
+  }
+
+  public static final ProvisionRequest FAKE_PROVISION_REQUEST =
       new ProvisionRequest(TestUtil.createByteArray(7, 8, 9), "bar.test");
+  public static final ImmutableList<Byte> VALID_PROVISION_RESPONSE =
+      TestUtil.createByteList(4, 5, 6);
 
   /** Key for use with the Map returned from {@link FakeExoMediaDrm#queryKeyStatus(byte[])}. */
   public static final String KEY_STATUS_KEY = "KEY_STATUS";
@@ -73,6 +126,7 @@ public final class FakeExoMediaDrm implements ExoMediaDrm {
   private static final ImmutableList<Byte> VALID_KEY_RESPONSE = TestUtil.createByteList(1, 2, 3);
   private static final ImmutableList<Byte> KEY_DENIED_RESPONSE = TestUtil.createByteList(9, 8, 7);
 
+  private final int provisionsRequired;
   private final int maxConcurrentSessions;
   private final Map<String, byte[]> byteProperties;
   private final Map<String, String> stringProperties;
@@ -80,23 +134,24 @@ public final class FakeExoMediaDrm implements ExoMediaDrm {
   private final Set<List<Byte>> sessionIdsWithValidKeys;
   private final AtomicInteger sessionIdGenerator;
 
+  private int provisionsReceived;
   private int referenceCount;
+  @Nullable private OnEventListener onEventListener;
 
-  /**
-   * Constructs an instance that returns random and unique {@code sessionIds} for subsequent calls
-   * to {@link #openSession()} with no limit on the number of concurrent open sessions.
-   */
+  /** @deprecated Use {@link Builder} instead. */
+  @Deprecated
   public FakeExoMediaDrm() {
     this(/* maxConcurrentSessions= */ Integer.MAX_VALUE);
   }
 
-  /**
-   * Constructs an instance that returns random and unique {@code sessionIds} for subsequent calls
-   * to {@link #openSession()} with a limit on the number of concurrent open sessions.
-   *
-   * @param maxConcurrentSessions The max number of sessions allowed to be open simultaneously.
-   */
+  /** @deprecated Use {@link Builder} instead. */
+  @Deprecated
   public FakeExoMediaDrm(int maxConcurrentSessions) {
+    this(/* provisionsRequired= */ 0, maxConcurrentSessions);
+  }
+
+  private FakeExoMediaDrm(int provisionsRequired, int maxConcurrentSessions) {
+    this.provisionsRequired = provisionsRequired;
     this.maxConcurrentSessions = maxConcurrentSessions;
     byteProperties = new HashMap<>();
     stringProperties = new HashMap<>();
@@ -107,11 +162,11 @@ public final class FakeExoMediaDrm implements ExoMediaDrm {
     referenceCount = 1;
   }
 
-  // ExoMediaCrypto implementation
+  // ExoMediaDrm implementation
 
   @Override
   public void setOnEventListener(@Nullable OnEventListener listener) {
-    // Do nothing.
+    this.onEventListener = listener;
   }
 
   @Override
@@ -127,6 +182,7 @@ public final class FakeExoMediaDrm implements ExoMediaDrm {
   @Override
   public byte[] openSession() throws MediaDrmException {
     Assertions.checkState(referenceCount > 0);
+    assertProvisioned();
     if (openSessionIds.size() >= maxConcurrentSessions) {
       throw new ResourceBusyException("Too many sessions open. max=" + maxConcurrentSessions);
     }
@@ -160,6 +216,7 @@ public final class FakeExoMediaDrm implements ExoMediaDrm {
       throw new UnsupportedOperationException("Offline key requests are not supported.");
     }
     Assertions.checkArgument(keyType == KEY_TYPE_STREAMING, "Unrecognised keyType: " + keyType);
+    assertProvisioned();
     Assertions.checkState(openSessionIds.contains(toByteList(scope)));
     Assertions.checkNotNull(schemeDatas);
     KeyRequestData requestData =
@@ -167,7 +224,12 @@ public final class FakeExoMediaDrm implements ExoMediaDrm {
             schemeDatas,
             keyType,
             optionalParameters != null ? optionalParameters : ImmutableMap.of());
-    return new KeyRequest(requestData.toByteArray(), /* licenseServerUrl= */ "");
+    @KeyRequest.RequestType
+    int requestType =
+        sessionIdsWithValidKeys.contains(toByteList(scope))
+            ? KeyRequest.REQUEST_TYPE_RENEWAL
+            : KeyRequest.REQUEST_TYPE_INITIAL;
+    return new KeyRequest(requestData.toByteArray(), /* licenseServerUrl= */ "", requestType);
   }
 
   @Nullable
@@ -175,6 +237,7 @@ public final class FakeExoMediaDrm implements ExoMediaDrm {
   public byte[] provideKeyResponse(byte[] scope, byte[] response)
       throws NotProvisionedException, DeniedByServerException {
     Assertions.checkState(referenceCount > 0);
+    assertProvisioned();
     List<Byte> responseAsList = Bytes.asList(response);
     if (responseAsList.equals(VALID_KEY_RESPONSE)) {
       sessionIdsWithValidKeys.add(Bytes.asList(scope));
@@ -187,12 +250,15 @@ public final class FakeExoMediaDrm implements ExoMediaDrm {
   @Override
   public ProvisionRequest getProvisionRequest() {
     Assertions.checkState(referenceCount > 0);
-    return DUMMY_PROVISION_REQUEST;
+    return FAKE_PROVISION_REQUEST;
   }
 
   @Override
   public void provideProvisionResponse(byte[] response) throws DeniedByServerException {
     Assertions.checkState(referenceCount > 0);
+    if (Bytes.asList(response).equals(VALID_PROVISION_RESPONSE)) {
+      provisionsReceived++;
+    }
   }
 
   @Override
@@ -274,6 +340,46 @@ public final class FakeExoMediaDrm implements ExoMediaDrm {
     return FakeExoMediaCrypto.class;
   }
 
+  // Methods to facilitate testing
+
+  public int getReferenceCount() {
+    return referenceCount;
+  }
+
+  /**
+   * Calls {@link OnEventListener#onEvent(ExoMediaDrm, byte[], int, int, byte[])} on the attached
+   * listener (if present) once for each open session ID which passes {@code sessionIdPredicate},
+   * passing the provided values for {@code event}, {@code extra} and {@code data}.
+   */
+  public void triggerEvent(
+      Predicate<byte[]> sessionIdPredicate, int event, int extra, @Nullable byte[] data) {
+    @Nullable OnEventListener onEventListener = this.onEventListener;
+    if (onEventListener == null) {
+      return;
+    }
+    for (List<Byte> sessionId : openSessionIds) {
+      byte[] sessionIdArray = Bytes.toArray(sessionId);
+      if (sessionIdPredicate.apply(sessionIdArray)) {
+        onEventListener.onEvent(this, sessionIdArray, event, extra, data);
+      }
+    }
+  }
+
+  /**
+   * Resets the provisioning state of this instance, so it requires {@link
+   * Builder#setProvisionsRequired(int) provisionsRequired} (possibly zero) provision operations
+   * before it's operational again.
+   */
+  public void resetProvisioning() {
+    provisionsReceived = 0;
+  }
+
+  private void assertProvisioned() throws NotProvisionedException {
+    if (provisionsReceived < provisionsRequired) {
+      throw new NotProvisionedException("Not provisioned.");
+    }
+  }
+
   private static ImmutableList<Byte> toByteList(byte[] byteArray) {
     return ImmutableList.copyOf(Bytes.asList(byteArray));
   }
@@ -308,7 +414,11 @@ public final class FakeExoMediaDrm implements ExoMediaDrm {
     @Override
     public byte[] executeProvisionRequest(UUID uuid, ProvisionRequest request)
         throws MediaDrmCallbackException {
-      return new byte[0];
+      if (Arrays.equals(request.getData(), FAKE_PROVISION_REQUEST.getData())) {
+        return Bytes.toArray(VALID_PROVISION_RESPONSE);
+      } else {
+        return Util.EMPTY_BYTE_ARRAY;
+      }
     }
 
     @Override

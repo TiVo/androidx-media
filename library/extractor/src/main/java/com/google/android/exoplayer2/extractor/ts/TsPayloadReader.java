@@ -29,20 +29,16 @@ import java.lang.annotation.RetentionPolicy;
 import java.util.Collections;
 import java.util.List;
 
-/**
- * Parses TS packet payload data.
- */
+/** Parses TS packet payload data. */
 public interface TsPayloadReader {
 
-  /**
-   * Factory of {@link TsPayloadReader} instances.
-   */
+  /** Factory of {@link TsPayloadReader} instances. */
   interface Factory {
 
     /**
      * Returns the initial mapping from PIDs to payload readers.
-     * <p>
-     * This method allows the injection of payload readers for reserved PIDs, excluding PID 0.
+     *
+     * <p>This method allows the injection of payload readers for reserved PIDs, excluding PID 0.
      *
      * @return A {@link SparseArray} that maps PIDs to payload readers.
      */
@@ -61,9 +57,7 @@ public interface TsPayloadReader {
     TsPayloadReader createPayloadReader(int streamType, EsInfo esInfo);
   }
 
-  /**
-   * Holds information associated with a PMT entry.
-   */
+  /** Holds information associated with a PMT entry. */
   final class EsInfo {
 
     public final int streamType;
@@ -91,7 +85,6 @@ public interface TsPayloadReader {
               : Collections.unmodifiableList(dvbSubtitleInfos);
       this.descriptorBytes = descriptorBytes;
     }
-
   }
 
   /**
@@ -113,12 +106,9 @@ public interface TsPayloadReader {
       this.type = type;
       this.initializationData = initializationData;
     }
-
   }
 
-  /**
-   * Generates track ids for initializing {@link TsPayloadReader}s' {@link TrackOutput}s.
-   */
+  /** Generates track ids for initializing {@link TsPayloadReader}s' {@link TrackOutput}s. */
   final class TrackIdGenerator {
 
     private static final int ID_UNSET = Integer.MIN_VALUE;
@@ -167,8 +157,7 @@ public interface TsPayloadReader {
      * called after the first {@link #generateNewId()} call.
      *
      * @return The last generated format id, with the format {@code "programNumber/trackId"}. If no
-     *     {@code programNumber} was provided, the {@code trackId} alone is used as
-     *     format id.
+     *     {@code programNumber} was provided, the {@code trackId} alone is used as format id.
      */
     public String getFormatId() {
       maybeThrowUninitializedError();
@@ -180,7 +169,6 @@ public interface TsPayloadReader {
         throw new IllegalStateException("generateNewId() must be called before retrieving ids.");
       }
     }
-
   }
 
   /**
@@ -214,7 +202,9 @@ public interface TsPayloadReader {
    * @param idGenerator A {@link PesReader.TrackIdGenerator} that generates unique track ids for the
    *     {@link TrackOutput}s.
    */
-  void init(TimestampAdjuster timestampAdjuster, ExtractorOutput extractorOutput,
+  void init(
+      TimestampAdjuster timestampAdjuster,
+      ExtractorOutput extractorOutput,
       TrackIdGenerator idGenerator);
 
   /**

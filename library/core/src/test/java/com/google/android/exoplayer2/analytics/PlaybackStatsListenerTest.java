@@ -15,298 +15,202 @@
  */
 package com.google.android.exoplayer2.analytics;
 
+import static com.google.android.exoplayer2.robolectric.TestPlayerRunHelper.runUntilPendingCommandsAreFullyHandled;
 import static com.google.common.truth.Truth.assertThat;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 
-import android.os.SystemClock;
 import androidx.annotation.Nullable;
+import androidx.test.core.app.ApplicationProvider;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
-
-import com.google.android.exoplayer2.Format;
+import com.google.android.exoplayer2.MediaItem;
 import com.google.android.exoplayer2.PlaybackParameters;
 import com.google.android.exoplayer2.Player;
-import com.google.android.exoplayer2.Timeline;
-import com.google.android.exoplayer2.source.MediaLoadData;
+import com.google.android.exoplayer2.SimpleExoPlayer;
+import com.google.android.exoplayer2.robolectric.TestPlayerRunHelper;
 import com.google.android.exoplayer2.source.MediaSource;
-import com.google.android.exoplayer2.testutil.ExoPlayerTestRunner;
+import com.google.android.exoplayer2.testutil.FakeMediaSource;
 import com.google.android.exoplayer2.testutil.FakeTimeline;
-import com.google.android.exoplayer2.util.MimeTypes;
-
+import com.google.android.exoplayer2.testutil.TestExoPlayerBuilder;
+import com.google.common.collect.ImmutableList;
+import java.util.stream.Collectors;
+import org.junit.After;
+import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.mockito.ArgumentCaptor;
+import org.robolectric.shadows.ShadowLooper;
 
 /** Unit test for {@link PlaybackStatsListener}. */
 @RunWith(AndroidJUnit4.class)
 public final class PlaybackStatsListenerTest {
 
-  private static final AnalyticsListener.EventTime EMPTY_TIMELINE_EVENT_TIME =
-          new AnalyticsListener.EventTime(
-                  /* realtimeMs= */ 500,
-                  Timeline.EMPTY,
-                  /* windowIndex= */ 0,
-                  /* mediaPeriodId= */ null,
-                  /* eventPlaybackPositionMs= */ 0,
-                  /* currentTimeline= */ Timeline.EMPTY,
-                  /* currentWindowIndex= */ 0,
-                  /* currentMediaPeriodId= */ null,
-                  /* currentPlaybackPositionMs= */ 0,
-                  /* totalBufferedDurationMs= */ 0);
-  private static final Timeline TEST_TIMELINE = new FakeTimeline(/* windowCount= */ 1);
-  private static final MediaSource.MediaPeriodId TEST_MEDIA_PERIOD_ID =
-          new MediaSource.MediaPeriodId(
-                  TEST_TIMELINE.getPeriod(/* periodIndex= */ 0, new Timeline.Period(), /* setIds= */ true)
-                          .uid,
-                  /* windowSequenceNumber= */ 42);
-  private static final AnalyticsListener.EventTime TEST_EVENT_TIME =
-          new AnalyticsListener.EventTime(
-                  /* realtimeMs= */ 500,
-                  TEST_TIMELINE,
-                  /* windowIndex= */ 0,
-                  TEST_MEDIA_PERIOD_ID,
-                  /* eventPlaybackPositionMs= */ 123,
-                  TEST_TIMELINE,
-                  /* currentWindowIndex= */ 0,
-                  TEST_MEDIA_PERIOD_ID,
-                  /* currentPlaybackPositionMs= */ 123,
-                  /* totalBufferedDurationMs= */ 456);
+  private SimpleExoPlayer player;
+
+  @Before
+  public void setUp() {
+    player = new TestExoPlayerBuilder(ApplicationProvider.getApplicationContext()).build();
+  }
+
+  @After
+  public void tearDown() {
+    player.release();
+  }
 
   @Test
-  public void events_duringInitialIdleState_dontCreateNewPlaybackStats() {
+  public void events_duringInitialIdleState_dontCreateNewPlaybackStats() throws Exception {
     PlaybackStatsListener playbackStatsListener =
-            new PlaybackStatsListener(/* keepHistory= */ true, /* callback= */ null);
+        new PlaybackStatsListener(/* keepHistory= */ true, /* callback= */ null);
+    player.addAnalyticsListener(playbackStatsListener);
 
-    playbackStatsListener.onPositionDiscontinuity(
-            EMPTY_TIMELINE_EVENT_TIME, Player.DISCONTINUITY_REASON_SEEK);
-    playbackStatsListener.onPlaybackParametersChanged(
-            EMPTY_TIMELINE_EVENT_TIME, new PlaybackParameters(/* speed= */ 2.0f));
-    playbackStatsListener.onPlayWhenReadyChanged(
-            EMPTY_TIMELINE_EVENT_TIME,
-            /* playWhenReady= */ true,
-            Player.PLAY_WHEN_READY_CHANGE_REASON_USER_REQUEST);
+    player.seekTo(/* positionMs= */ 1234);
+    runUntilPendingCommandsAreFullyHandled(player);
+    player.setPlaybackParameters(new PlaybackParameters(/* speed= */ 2f));
+    runUntilPendingCommandsAreFullyHandled(player);
+    player.play();
+    runUntilPendingCommandsAreFullyHandled(player);
 
     assertThat(playbackStatsListener.getPlaybackStats()).isNull();
   }
 
   @Test
-  public void stateChangeEvent_toNonIdle_createsInitialPlaybackStats() {
-    PlaybackStatsListener playbackStatsListener =
-            new PlaybackStatsListener(/* keepHistory= */ true, /* callback= */ null);
-
-    playbackStatsListener.onPlaybackStateChanged(EMPTY_TIMELINE_EVENT_TIME, Player.STATE_BUFFERING);
-
-    assertThat(playbackStatsListener.getPlaybackStats()).isNotNull();
-  }
-
-  @Test
-  public void timelineChangeEvent_toNonEmpty_createsInitialPlaybackStats() {
-    PlaybackStatsListener playbackStatsListener =
-            new PlaybackStatsListener(/* keepHistory= */ true, /* callback= */ null);
-
-    playbackStatsListener.onTimelineChanged(
-            TEST_EVENT_TIME, Player.TIMELINE_CHANGE_REASON_PLAYLIST_CHANGED);
-
-    assertThat(playbackStatsListener.getPlaybackStats()).isNotNull();
-  }
-
-  @Test
-  public void playback_withKeepHistory_updatesStats() {
-    PlaybackStatsListener playbackStatsListener =
-            new PlaybackStatsListener(/* keepHistory= */ true, /* callback= */ null);
-
-    playbackStatsListener.onPlaybackStateChanged(TEST_EVENT_TIME, Player.STATE_BUFFERING);
-    playbackStatsListener.onPlaybackStateChanged(TEST_EVENT_TIME, Player.STATE_READY);
-    playbackStatsListener.onPlaybackStateChanged(TEST_EVENT_TIME, Player.STATE_ENDED);
-
-    @Nullable PlaybackStats playbackStats = playbackStatsListener.getPlaybackStats();
-    assertThat(playbackStats).isNotNull();
-    assertThat(playbackStats.endedCount).isEqualTo(1);
-  }
-
-  @Test
-  public void playback_withoutKeepHistory_updatesStats() {
-    PlaybackStatsListener playbackStatsListener =
-            new PlaybackStatsListener(/* keepHistory= */ false, /* callback= */ null);
-
-    playbackStatsListener.onPlaybackStateChanged(TEST_EVENT_TIME, Player.STATE_BUFFERING);
-    playbackStatsListener.onPlaybackStateChanged(TEST_EVENT_TIME, Player.STATE_READY);
-    playbackStatsListener.onPlaybackStateChanged(TEST_EVENT_TIME, Player.STATE_ENDED);
-
-    @Nullable PlaybackStats playbackStats = playbackStatsListener.getPlaybackStats();
-    assertThat(playbackStats).isNotNull();
-    assertThat(playbackStats.endedCount).isEqualTo(1);
-  }
-
-  @Test
-  public void finishedSession_callsCallback() {
+  public void stateChangeEvent_toEndedWithEmptyTimeline_doesNotCreateInitialPlaybackStats()
+      throws Exception {
     PlaybackStatsListener.Callback callback = mock(PlaybackStatsListener.Callback.class);
     PlaybackStatsListener playbackStatsListener =
-            new PlaybackStatsListener(/* keepHistory= */ true, callback);
+        new PlaybackStatsListener(/* keepHistory= */ true, callback);
+    player.addAnalyticsListener(playbackStatsListener);
 
-    // Create session with an event and finish it by simulating removal from playlist.
-    playbackStatsListener.onPlaybackStateChanged(TEST_EVENT_TIME, Player.STATE_BUFFERING);
+    player.prepare();
+    runUntilPendingCommandsAreFullyHandled(player);
+
+    assertThat(playbackStatsListener.getPlaybackStats()).isNull();
+    verifyNoMoreInteractions(callback);
+  }
+
+  @Test
+  public void timelineChangeEvent_toNonEmpty_createsInitialPlaybackStats() throws Exception {
+    PlaybackStatsListener playbackStatsListener =
+        new PlaybackStatsListener(/* keepHistory= */ true, /* callback= */ null);
+    player.addAnalyticsListener(playbackStatsListener);
+
+    player.setMediaItem(MediaItem.fromUri("http://test.org"));
+    runUntilPendingCommandsAreFullyHandled(player);
+
+    assertThat(playbackStatsListener.getPlaybackStats()).isNotNull();
+  }
+
+  @Test
+  public void playback_withKeepHistory_updatesStats() throws Exception {
+    PlaybackStatsListener playbackStatsListener =
+        new PlaybackStatsListener(/* keepHistory= */ true, /* callback= */ null);
+    player.addAnalyticsListener(playbackStatsListener);
+
+    player.setMediaSource(new FakeMediaSource(new FakeTimeline(/* windowCount= */ 1)));
+    player.prepare();
+    player.play();
+    TestPlayerRunHelper.runUntilPlaybackState(player, Player.STATE_ENDED);
+    runUntilPendingCommandsAreFullyHandled(player);
+
+    @Nullable PlaybackStats playbackStats = playbackStatsListener.getPlaybackStats();
+    assertThat(playbackStats).isNotNull();
+    assertThat(playbackStats.endedCount).isEqualTo(1);
+  }
+
+  @Test
+  public void playback_withoutKeepHistory_updatesStats() throws Exception {
+    PlaybackStatsListener playbackStatsListener =
+        new PlaybackStatsListener(/* keepHistory= */ false, /* callback= */ null);
+    player.addAnalyticsListener(playbackStatsListener);
+
+    player.setMediaSource(new FakeMediaSource(new FakeTimeline(/* windowCount= */ 1)));
+    player.prepare();
+    player.play();
+    TestPlayerRunHelper.runUntilPlaybackState(player, Player.STATE_ENDED);
+    runUntilPendingCommandsAreFullyHandled(player);
+
+    @Nullable PlaybackStats playbackStats = playbackStatsListener.getPlaybackStats();
+    assertThat(playbackStats).isNotNull();
+    assertThat(playbackStats.endedCount).isEqualTo(1);
+  }
+
+  @Test
+  public void finishedSession_callsCallback() throws Exception {
+    PlaybackStatsListener.Callback callback = mock(PlaybackStatsListener.Callback.class);
+    PlaybackStatsListener playbackStatsListener =
+        new PlaybackStatsListener(/* keepHistory= */ true, callback);
+    player.addAnalyticsListener(playbackStatsListener);
+
+    // Create session with some events and finish it by removing it from the playlist.
+    player.setMediaSource(new FakeMediaSource(new FakeTimeline(/* windowCount= */ 1)));
+    player.prepare();
+    runUntilPendingCommandsAreFullyHandled(player);
     verify(callback, never()).onPlaybackStatsReady(any(), any());
-    playbackStatsListener.onTimelineChanged(
-            EMPTY_TIMELINE_EVENT_TIME, Player.TIMELINE_CHANGE_REASON_PLAYLIST_CHANGED);
-
-    verify(callback).onPlaybackStatsReady(eq(TEST_EVENT_TIME), any());
-  }
-
-  @Test
-  public void finishAllSessions_callsAllPendingCallbacks() {
-    AnalyticsListener.EventTime eventTimeWindow0 =
-            new AnalyticsListener.EventTime(
-                    /* realtimeMs= */ 0,
-                    Timeline.EMPTY,
-                    /* windowIndex= */ 0,
-                    /* mediaPeriodId= */ null,
-                    /* eventPlaybackPositionMs= */ 0,
-                    Timeline.EMPTY,
-                    /* currentWindowIndex= */ 0,
-                    /* currentMediaPeriodId= */ null,
-                    /* currentPlaybackPositionMs= */ 0,
-                    /* totalBufferedDurationMs= */ 0);
-    AnalyticsListener.EventTime eventTimeWindow1 =
-            new AnalyticsListener.EventTime(
-                    /* realtimeMs= */ 0,
-                    Timeline.EMPTY,
-                    /* windowIndex= */ 1,
-                    /* mediaPeriodId= */ null,
-                    /* eventPlaybackPositionMs= */ 0,
-                    Timeline.EMPTY,
-                    /* currentWindowIndex= */ 1,
-                    /* currentMediaPeriodId= */ null,
-                    /* currentPlaybackPositionMs= */ 0,
-                    /* totalBufferedDurationMs= */ 0);
-    PlaybackStatsListener.Callback callback = mock(PlaybackStatsListener.Callback.class);
-    PlaybackStatsListener playbackStatsListener =
-            new PlaybackStatsListener(/* keepHistory= */ true, callback);
-    playbackStatsListener.onPlaybackStateChanged(eventTimeWindow0, Player.STATE_BUFFERING);
-    playbackStatsListener.onPlaybackStateChanged(eventTimeWindow1, Player.STATE_BUFFERING);
-
-    playbackStatsListener.finishAllSessions();
-
-    verify(callback, times(2)).onPlaybackStatsReady(any(), any());
-    verify(callback).onPlaybackStatsReady(eq(eventTimeWindow0), any());
-    verify(callback).onPlaybackStatsReady(eq(eventTimeWindow1), any());
-  }
-
-  @Test
-  public void finishAllSessions_doesNotCallCallbackAgainWhenSessionWouldBeAutomaticallyFinished() {
-    PlaybackStatsListener.Callback callback = mock(PlaybackStatsListener.Callback.class);
-    PlaybackStatsListener playbackStatsListener =
-            new PlaybackStatsListener(/* keepHistory= */ true, callback);
-    playbackStatsListener.onPlaybackStateChanged(TEST_EVENT_TIME, Player.STATE_BUFFERING);
-    SystemClock.setCurrentTimeMillis(TEST_EVENT_TIME.realtimeMs + 100);
-
-    playbackStatsListener.finishAllSessions();
-    // Simulate removing the playback item to ensure the session would finish if it hadn't already.
-    playbackStatsListener.onTimelineChanged(
-            EMPTY_TIMELINE_EVENT_TIME, Player.TIMELINE_CHANGE_REASON_PLAYLIST_CHANGED);
+    player.clearMediaItems();
+    runUntilPendingCommandsAreFullyHandled(player);
 
     verify(callback).onPlaybackStatsReady(any(), any());
   }
 
   @Test
-  public void testGetMeanVideoBitrate() {
-    SystemClock.setCurrentTimeMillis(0);
+  public void playlistClear_callsAllPendingCallbacks() throws Exception {
     PlaybackStatsListener.Callback callback = mock(PlaybackStatsListener.Callback.class);
     PlaybackStatsListener playbackStatsListener =
-            new PlaybackStatsListener(true, new DefaultPlaybackSessionManager(), callback);
+        new PlaybackStatsListener(/* keepHistory= */ true, callback);
+    player.addAnalyticsListener(playbackStatsListener);
 
-    AnalyticsListener.EventTime eventTime = createEventTime(0);
-    playbackStatsListener.onPlaybackStateChanged(eventTime, Player.STATE_READY);
-    playbackStatsListener.onPlayWhenReadyChanged(eventTime, true, Player.PLAY_WHEN_READY_CHANGE_REASON_USER_REQUEST);
+    MediaSource mediaSource = new FakeMediaSource(new FakeTimeline(/* windowCount= */ 1));
+    player.setMediaSources(ImmutableList.of(mediaSource, mediaSource));
+    player.prepare();
+    TestPlayerRunHelper.runUntilPlaybackState(player, Player.STATE_READY);
+    // Play close to the end of the first item to ensure the second session is already created, but
+    // the first one isn't finished yet.
+    TestPlayerRunHelper.playUntilPosition(
+        player, /* windowIndex= */ 0, /* positionMs= */ player.getDuration());
+    runUntilPendingCommandsAreFullyHandled(player);
+    player.clearMediaItems();
+    ShadowLooper.idleMainLooper();
 
-    Format formats[] = {
-            ExoPlayerTestRunner.VIDEO_FORMAT.buildUpon().setPeakBitrate(10).setAverageBitrate(10).build(),
-            ExoPlayerTestRunner.VIDEO_FORMAT.buildUpon().setPeakBitrate(20).setAverageBitrate(20).build()
-    };
-    playbackStatsListener.onDownstreamFormatChanged(createEventTime(0), createMediaLoad(formats[0]));
-    SystemClock.setCurrentTimeMillis(250);
-    playbackStatsListener.onDownstreamFormatChanged(createEventTime(250), createMediaLoad(formats[1]));
-    SystemClock.setCurrentTimeMillis(500);
-
-    assertThat(playbackStatsListener.getPlaybackStats().getMeanVideoFormatBitrate()).isEqualTo(15);
-
+    ArgumentCaptor<AnalyticsListener.EventTime> eventTimeCaptor =
+        ArgumentCaptor.forClass(AnalyticsListener.EventTime.class);
+    verify(callback, times(2)).onPlaybackStatsReady(eventTimeCaptor.capture(), any());
+    assertThat(
+            eventTimeCaptor.getAllValues().stream()
+                .map(eventTime -> eventTime.windowIndex)
+                .collect(Collectors.toList()))
+        .containsExactly(0, 1);
   }
 
   @Test
-  public void testSessionNotCreatedOnStop() {
-    SystemClock.setCurrentTimeMillis(0);
+  public void playerRelease_callsAllPendingCallbacks() throws Exception {
     PlaybackStatsListener.Callback callback = mock(PlaybackStatsListener.Callback.class);
-    DefaultPlaybackSessionManager sessionManager = new DefaultPlaybackSessionManager();
     PlaybackStatsListener playbackStatsListener =
-            new PlaybackStatsListener(true, sessionManager, callback);
+        new PlaybackStatsListener(/* keepHistory= */ true, callback);
+    player.addAnalyticsListener(playbackStatsListener);
 
-    PlaybackSessionManager.Listener listenerMock = mock(PlaybackSessionManager.Listener.class);
-    sessionManager.setListener(listenerMock);
+    MediaSource mediaSource = new FakeMediaSource(new FakeTimeline(/* windowCount= */ 1));
+    player.setMediaSources(ImmutableList.of(mediaSource, mediaSource));
+    player.prepare();
+    TestPlayerRunHelper.runUntilPlaybackState(player, Player.STATE_READY);
+    // Play close to the end of the first item to ensure the second session is already created, but
+    // the first one isn't finished yet.
+    TestPlayerRunHelper.playUntilPosition(
+        player, /* windowIndex= */ 0, /* positionMs= */ player.getDuration());
+    runUntilPendingCommandsAreFullyHandled(player);
+    player.release();
+    ShadowLooper.idleMainLooper();
 
-    playbackStatsListener.onTimelineChanged(
-            TEST_EVENT_TIME, Player.TIMELINE_CHANGE_REASON_SOURCE_UPDATE);
-
-    SystemClock.setCurrentTimeMillis(TEST_EVENT_TIME.realtimeMs + 100);
-    AnalyticsListener.EventTime eventTime = createEventTime(TEST_EVENT_TIME.realtimeMs + 100);
-    playbackStatsListener.onPlaybackStateChanged(eventTime, Player.STATE_READY);
-    playbackStatsListener.onPlayWhenReadyChanged(eventTime, true, Player.PLAY_WHEN_READY_CHANGE_REASON_USER_REQUEST);
-
-    verify(listenerMock, times(1)).onSessionCreated(any(), any());
-
-    // Player.stop() sets the state to idle and clears the timeline to an EMPTY timeline, this should not create a session
-    playbackStatsListener.onPlaybackStateChanged(createEventTime(0), Player.STATE_IDLE);
-    playbackStatsListener.onTimelineChanged(EMPTY_TIMELINE_EVENT_TIME, Player.TIMELINE_CHANGE_REASON_PLAYLIST_CHANGED);
-    verify(listenerMock, times(1)).onSessionCreated(any(), any());
-  }
-
-
-  @Test
-  public void testSessionNotCreatedByDroppedFrame_afterStop() {
-    SystemClock.setCurrentTimeMillis(0);
-    PlaybackStatsListener.Callback callback = mock(PlaybackStatsListener.Callback.class);
-    DefaultPlaybackSessionManager sessionManager = new DefaultPlaybackSessionManager();
-    PlaybackStatsListener playbackStatsListener =
-            new PlaybackStatsListener(true, sessionManager, callback);
-
-    PlaybackSessionManager.Listener listenerMock = mock(PlaybackSessionManager.Listener.class);
-    sessionManager.setListener(listenerMock);
-
-    playbackStatsListener.onTimelineChanged(
-            TEST_EVENT_TIME, Player.TIMELINE_CHANGE_REASON_SOURCE_UPDATE);
-
-    SystemClock.setCurrentTimeMillis(TEST_EVENT_TIME.realtimeMs + 100);
-    AnalyticsListener.EventTime eventTime = createEventTime(TEST_EVENT_TIME.realtimeMs + 100);
-    playbackStatsListener.onPlaybackStateChanged(eventTime, Player.STATE_READY);
-    playbackStatsListener.onPlayWhenReadyChanged(eventTime, true, Player.PLAY_WHEN_READY_CHANGE_REASON_USER_REQUEST);
-    verify(listenerMock, times(1)).onSessionCreated(any(), any());
-
-    // Player.stop() sets the state to idle and clears the timeline to an EMPTY timeline, this should not create a session
-    playbackStatsListener.onPlaybackStateChanged(createEventTime(TEST_EVENT_TIME.realtimeMs + 100), Player.STATE_IDLE);
-    playbackStatsListener.onTimelineChanged(EMPTY_TIMELINE_EVENT_TIME, Player.TIMELINE_CHANGE_REASON_PLAYLIST_CHANGED);
-
-    playbackStatsListener.onDroppedVideoFrames(createEventTime(TEST_EVENT_TIME.realtimeMs + 100), 1, 20);
-    verify(listenerMock, times(1)).onSessionCreated(any(), any());
-  }
-
-  private static MediaLoadData createMediaLoad(Format format) {
-    int type = MimeTypes.getTrackType(format.sampleMimeType);
-    return new MediaLoadData(0, type, format, 0, null, 0, 0);
-  }
-
-  private static AnalyticsListener.EventTime createEventTime(long realtimeMs) {
-    return new AnalyticsListener.EventTime(
-            realtimeMs,
-            Timeline.EMPTY,
-            /* windowIndex= */ 0,
-            /* mediaPeriodId= */ null,
-            /* eventPlaybackPositionMs= */ 0,
-            Timeline.EMPTY,
-            /* currentWindowIndex= */ 0,
-            /* currentMediaPeriodId= */ null,
-            /* currentPlaybackPositionMs= */ 0,
-            /* totalBufferedDurationMs= */ 0);
+    ArgumentCaptor<AnalyticsListener.EventTime> eventTimeCaptor =
+        ArgumentCaptor.forClass(AnalyticsListener.EventTime.class);
+    verify(callback, times(2)).onPlaybackStatsReady(eventTimeCaptor.capture(), any());
+    assertThat(
+            eventTimeCaptor.getAllValues().stream()
+                .map(eventTime -> eventTime.windowIndex)
+                .collect(Collectors.toList()))
+        .containsExactly(0, 1);
   }
 }

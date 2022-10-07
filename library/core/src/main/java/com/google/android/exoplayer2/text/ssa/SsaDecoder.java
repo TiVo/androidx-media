@@ -18,7 +18,13 @@ package com.google.android.exoplayer2.text.ssa;
 import static com.google.android.exoplayer2.text.Cue.LINE_TYPE_FRACTION;
 import static com.google.android.exoplayer2.util.Util.castNonNull;
 
+import android.graphics.Typeface;
 import android.text.Layout;
+import android.text.SpannableString;
+import android.text.style.ForegroundColorSpan;
+import android.text.style.StrikethroughSpan;
+import android.text.style.StyleSpan;
+import android.text.style.UnderlineSpan;
 import androidx.annotation.Nullable;
 import com.google.android.exoplayer2.C;
 import com.google.android.exoplayer2.text.Cue;
@@ -28,6 +34,7 @@ import com.google.android.exoplayer2.util.Assertions;
 import com.google.android.exoplayer2.util.Log;
 import com.google.android.exoplayer2.util.ParsableByteArray;
 import com.google.android.exoplayer2.util.Util;
+import com.google.common.base.Ascii;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -150,7 +157,7 @@ public final class SsaDecoder extends SimpleSubtitleDecoder {
       if (infoNameAndValue.length != 2) {
         continue;
       }
-      switch (Util.toLowerInvariant(infoNameAndValue[0].trim())) {
+      switch (Ascii.toLowerCase(infoNameAndValue[0].trim())) {
         case "playresx":
           try {
             screenWidth = Float.parseFloat(infoNameAndValue[1].trim());
@@ -301,7 +308,55 @@ public final class SsaDecoder extends SimpleSubtitleDecoder {
       SsaStyle.Overrides styleOverrides,
       float screenWidth,
       float screenHeight) {
-    Cue.Builder cue = new Cue.Builder().setText(text);
+    SpannableString spannableText = new SpannableString(text);
+    Cue.Builder cue = new Cue.Builder().setText(spannableText);
+
+    if (style != null) {
+      if (style.primaryColor != null) {
+        spannableText.setSpan(
+            new ForegroundColorSpan(style.primaryColor),
+            /* start= */ 0,
+            /* end= */ spannableText.length(),
+            SpannableString.SPAN_EXCLUSIVE_EXCLUSIVE);
+      }
+      if (style.fontSize != Cue.DIMEN_UNSET && screenHeight != Cue.DIMEN_UNSET) {
+        cue.setTextSize(
+            style.fontSize / screenHeight, Cue.TEXT_SIZE_TYPE_FRACTIONAL_IGNORE_PADDING);
+      }
+      if (style.bold && style.italic) {
+        spannableText.setSpan(
+            new StyleSpan(Typeface.BOLD_ITALIC),
+            /* start= */ 0,
+            /* end= */ spannableText.length(),
+            SpannableString.SPAN_EXCLUSIVE_EXCLUSIVE);
+      } else if (style.bold) {
+        spannableText.setSpan(
+            new StyleSpan(Typeface.BOLD),
+            /* start= */ 0,
+            /* end= */ spannableText.length(),
+            SpannableString.SPAN_EXCLUSIVE_EXCLUSIVE);
+      } else if (style.italic) {
+        spannableText.setSpan(
+            new StyleSpan(Typeface.ITALIC),
+            /* start= */ 0,
+            /* end= */ spannableText.length(),
+            SpannableString.SPAN_EXCLUSIVE_EXCLUSIVE);
+      }
+      if (style.underline) {
+        spannableText.setSpan(
+            new UnderlineSpan(),
+            /* start= */ 0,
+            /* end= */ spannableText.length(),
+            SpannableString.SPAN_EXCLUSIVE_EXCLUSIVE);
+      }
+      if (style.strikeout) {
+        spannableText.setSpan(
+            new StrikethroughSpan(),
+            /* start= */ 0,
+            /* end= */ spannableText.length(),
+            SpannableString.SPAN_EXCLUSIVE_EXCLUSIVE);
+      }
+    }
 
     @SsaStyle.SsaAlignment int alignment;
     if (styleOverrides.alignment != SsaStyle.SSA_ALIGNMENT_UNKNOWN) {

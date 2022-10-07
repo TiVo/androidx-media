@@ -21,17 +21,15 @@ import com.google.android.exoplayer2.decoder.SimpleDecoder;
 import com.google.android.exoplayer2.util.Assertions;
 import java.nio.ByteBuffer;
 
-/**
- * Base class for subtitle parsers that use their own decode thread.
- */
-public abstract class SimpleSubtitleDecoder extends
-    SimpleDecoder<SubtitleInputBuffer, SubtitleOutputBuffer, SubtitleDecoderException> implements
-    SubtitleDecoder {
+/** Base class for subtitle parsers that use their own decode thread. */
+public abstract class SimpleSubtitleDecoder
+    extends SimpleDecoder<SubtitleInputBuffer, SubtitleOutputBuffer, SubtitleDecoderException>
+    implements SubtitleDecoder {
 
   private final String name;
 
   /** @param name The name of the decoder. */
-  @SuppressWarnings("nullness:method.invocation.invalid")
+  @SuppressWarnings("nullness:method.invocation")
   protected SimpleSubtitleDecoder(String name) {
     super(new SubtitleInputBuffer[2], new SubtitleOutputBuffer[2]);
     this.name = name;
@@ -44,7 +42,7 @@ public abstract class SimpleSubtitleDecoder extends
   }
 
   @Override
-  public void setPositionUs(long timeUs) {
+  public void setPositionUs(long positionUs) {
     // Do nothing
   }
 
@@ -91,5 +89,4 @@ public abstract class SimpleSubtitleDecoder extends
    */
   protected abstract Subtitle decode(byte[] data, int size, boolean reset)
       throws SubtitleDecoderException;
-
 }

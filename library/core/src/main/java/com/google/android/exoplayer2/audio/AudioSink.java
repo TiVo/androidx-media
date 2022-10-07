@@ -19,8 +19,11 @@ import android.media.AudioTrack;
 import androidx.annotation.IntDef;
 import androidx.annotation.Nullable;
 import com.google.android.exoplayer2.C;
+import com.google.android.exoplayer2.ExoPlaybackException;
 import com.google.android.exoplayer2.Format;
+import com.google.android.exoplayer2.PlaybackException;
 import com.google.android.exoplayer2.PlaybackParameters;
+import com.google.android.exoplayer2.Player;
 import java.lang.annotation.Documented;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
@@ -47,25 +50,16 @@ import java.nio.ByteBuffer;
  *
  * <p>The implementation may be backed by a platform {@link AudioTrack}. In this case, {@link
  * #setAudioSessionId(int)}, {@link #setAudioAttributes(AudioAttributes)}, {@link
- * #enableTunnelingV21(int)} and/or {@link #disableTunneling()} may be called before writing data to
- * the sink. These methods may also be called after writing data to the sink, in which case it will
- * be reinitialized as required. For implementations that are not based on platform {@link
+ * #enableTunnelingV21()} and {@link #disableTunneling()} may be called before writing data to the
+ * sink. These methods may also be called after writing data to the sink, in which case it will be
+ * reinitialized as required. For implementations that are not based on platform {@link
  * AudioTrack}s, calling methods relating to audio sessions, audio attributes, and tunneling may
  * have no effect.
  */
 public interface AudioSink {
 
-  /**
-   * Listener for audio sink events.
-   */
+  /** Listener for audio sink events. */
   interface Listener {
-
-    /**
-     * Called if the audio sink has started rendering audio to a new platform audio session.
-     *
-     * @param audioSessionId The newly generated audio session's identifier.
-     */
-    void onAudioSessionId(int audioSessionId);
 
     /**
      * Called when the audio sink handles a buffer whose timestamp is discontinuous with the last
@@ -113,75 +107,145 @@ public interface AudioSink {
      *     #onOffloadBufferEmptying()} will be called.
      */
     default void onOffloadBufferFull(long bufferEmptyingDeadlineMs) {}
+
+    /**
+     * Called when {@link AudioSink} has encountered an error.
+     *
+     * <p>If the sink writes to a platform {@link AudioTrack}, this will called for all {@link
+     * AudioTrack} errors.
+     *
+     * <p>This method being called does not indicate that playback has failed, or that it will fail.
+     * The player may be able to recover from the error (for example by recreating the AudioTrack,
+     * possibly with different settings) and continue. Hence applications should <em>not</em>
+     * implement this method to display a user visible error or initiate an application level retry
+     * ({@link Player.Listener#onPlayerError} is the appropriate place to implement such behavior).
+     * This method is called to provide the application with an opportunity to log the error if it
+     * wishes to do so.
+     *
+     * <p>Fatal errors that cannot be recovered will be reported wrapped in a {@link
+     * ExoPlaybackException} by {@link Player.Listener#onPlayerError(PlaybackException)}.
+     *
+     * @param audioSinkError The error that occurred. Typically an {@link InitializationException},
+     *     a {@link WriteException}, or an {@link UnexpectedDiscontinuityException}.
+     */
+    default void onAudioSinkError(Exception audioSinkError) {}
   }
 
-  /**
-   * Thrown when a failure occurs configuring the sink.
-   */
+  /** Thrown when a failure occurs configuring the sink. */
   final class ConfigurationException extends Exception {
 
-    /**
-     * Creates a new configuration exception with the specified {@code cause} and no message.
-     */
-    public ConfigurationException(Throwable cause) {
+    /** Input {@link Format} of the sink when the configuration failure occurs. */
+    public final Format format;
+
+    /** Creates a new configuration exception with the specified {@code cause} and no message. */
+    public ConfigurationException(Throwable cause, Format format) {
       super(cause);
+      this.format = format;
     }
 
-    /**
-     * Creates a new configuration exception with the specified {@code message} and no cause.
-     */
-    public ConfigurationException(String message) {
+    /** Creates a new configuration exception with the specified {@code message} and no cause. */
+    public ConfigurationException(String message, Format format) {
       super(message);
+      this.format = format;
     }
-
   }
 
-  /**
-   * Thrown when a failure occurs initializing the sink.
-   */
+  /** Thrown when a failure occurs initializing the sink. */
   final class InitializationException extends Exception {
 
-    /**
-     * The underlying {@link AudioTrack}'s state, if applicable.
-     */
+    /** The underlying {@link AudioTrack}'s state. */
     public final int audioTrackState;
+    /** If the exception can be recovered by recreating the sink. */
+    public final boolean isRecoverable;
+    /** The input {@link Format} of the sink when the error occurs. */
+    public final Format format;
 
     /**
-     * @param audioTrackState The underlying {@link AudioTrack}'s state, if applicable.
+     * Creates a new instance.
+     *
+     * @param audioTrackState The underlying {@link AudioTrack}'s state.
      * @param sampleRate The requested sample rate in Hz.
      * @param channelConfig The requested channel configuration.
      * @param bufferSize The requested buffer size in bytes.
+     * @param format The input format of the sink when the error occurs.
+     * @param isRecoverable Whether the exception can be recovered by recreating the sink.
+     * @param audioTrackException Exception thrown during the creation of the {@link AudioTrack}.
      */
-    public InitializationException(int audioTrackState, int sampleRate, int channelConfig,
-        int bufferSize) {
-      super("AudioTrack init failed: " + audioTrackState + ", Config(" + sampleRate + ", "
-          + channelConfig + ", " + bufferSize + ")");
+    public InitializationException(
+        int audioTrackState,
+        int sampleRate,
+        int channelConfig,
+        int bufferSize,
+        Format format,
+        boolean isRecoverable,
+        @Nullable Exception audioTrackException) {
+      super(
+          "AudioTrack init failed "
+              + audioTrackState
+              + " "
+              + ("Config(" + sampleRate + ", " + channelConfig + ", " + bufferSize + ")")
+              + (isRecoverable ? " (recoverable)" : ""),
+          audioTrackException);
       this.audioTrackState = audioTrackState;
+      this.isRecoverable = isRecoverable;
+      this.format = format;
     }
-
   }
 
-  /**
-   * Thrown when a failure occurs writing to the sink.
-   */
+  /** Thrown when a failure occurs writing to the sink. */
   final class WriteException extends Exception {
 
     /**
      * The error value returned from the sink implementation. If the sink writes to a platform
-     * {@link AudioTrack}, this will be the error value returned from
-     * {@link AudioTrack#write(byte[], int, int)} or {@link AudioTrack#write(ByteBuffer, int, int)}.
+     * {@link AudioTrack}, this will be the error value returned from {@link
+     * AudioTrack#write(byte[], int, int)} or {@link AudioTrack#write(ByteBuffer, int, int)}.
      * Otherwise, the meaning of the error code depends on the sink implementation.
      */
     public final int errorCode;
+    /** If the exception can be recovered by recreating the sink. */
+    public final boolean isRecoverable;
+    /** The input {@link Format} of the sink when the error occurs. */
+    public final Format format;
 
     /**
+     * Creates an instance.
+     *
      * @param errorCode The error value returned from the sink implementation.
+     * @param format The input format of the sink when the error occurs.
+     * @param isRecoverable Whether the exception can be recovered by recreating the sink.
      */
-    public WriteException(int errorCode) {
+    public WriteException(int errorCode, Format format, boolean isRecoverable) {
       super("AudioTrack write failed: " + errorCode);
+      this.isRecoverable = isRecoverable;
       this.errorCode = errorCode;
+      this.format = format;
     }
+  }
 
+  /** Thrown when the sink encounters an unexpected timestamp discontinuity. */
+  final class UnexpectedDiscontinuityException extends Exception {
+    /** The actual presentation time of a sample, in microseconds. */
+    public final long actualPresentationTimeUs;
+    /** The expected presentation time of a sample, in microseconds. */
+    public final long expectedPresentationTimeUs;
+
+    /**
+     * Creates an instance.
+     *
+     * @param actualPresentationTimeUs The actual presentation time of a sample, in microseconds.
+     * @param expectedPresentationTimeUs The expected presentation time of a sample, in
+     *     microseconds.
+     */
+    public UnexpectedDiscontinuityException(
+        long actualPresentationTimeUs, long expectedPresentationTimeUs) {
+      super(
+          "Unexpected audio track timestamp discontinuity: expected "
+              + expectedPresentationTimeUs
+              + ", got "
+              + actualPresentationTimeUs);
+      this.actualPresentationTimeUs = actualPresentationTimeUs;
+      this.expectedPresentationTimeUs = expectedPresentationTimeUs;
+    }
   }
 
   /**
@@ -259,9 +323,7 @@ public interface AudioSink {
   void configure(Format inputFormat, int specifiedBufferSize, @Nullable int[] outputChannels)
       throws ConfigurationException;
 
-  /**
-   * Starts or resumes consuming audio if initialized.
-   */
+  /** Starts or resumes consuming audio if initialized. */
   void play();
 
   /** Signals to the sink that the next buffer may be discontinuous with the previous buffer. */
@@ -302,9 +364,7 @@ public interface AudioSink {
    */
   boolean isEnded();
 
-  /**
-   * Returns whether the sink has data pending that has not been consumed yet.
-   */
+  /** Returns whether the sink has data pending that has not been consumed yet. */
   boolean hasPendingData();
 
   /**
@@ -327,8 +387,8 @@ public interface AudioSink {
   /**
    * Sets attributes for audio playback. If the attributes have changed and if the sink is not
    * configured for use with tunneling, then it is reset and the audio session id is cleared.
-   * <p>
-   * If the sink is configured for use with tunneling then the audio attributes are ignored. The
+   *
+   * <p>If the sink is configured for use with tunneling then the audio attributes are ignored. The
    * sink is not reset and the audio session id is not cleared. The passed attributes will be used
    * if the sink is later re-configured into non-tunneled mode.
    *
@@ -343,14 +403,13 @@ public interface AudioSink {
   void setAuxEffectInfo(AuxEffectInfo auxEffectInfo);
 
   /**
-   * Enables tunneling, if possible. The sink is reset if tunneling was previously disabled or if
-   * the audio session id has changed. Enabling tunneling is only possible if the sink is based on a
-   * platform {@link AudioTrack}, and requires platform API version 21 onwards.
+   * Enables tunneling, if possible. The sink is reset if tunneling was previously disabled.
+   * Enabling tunneling is only possible if the sink is based on a platform {@link AudioTrack}, and
+   * requires platform API version 21 onwards.
    *
-   * @param tunnelingAudioSessionId The audio session id to use.
    * @throws IllegalStateException Thrown if enabling tunneling on platform API version &lt; 21.
    */
-  void enableTunnelingV21(int tunnelingAudioSessionId);
+  void enableTunnelingV21();
 
   /**
    * Disables tunneling. If tunneling was previously enabled then the sink is reset and any audio
@@ -361,13 +420,11 @@ public interface AudioSink {
   /**
    * Sets the playback volume.
    *
-   * @param volume A volume in the range [0.0, 1.0].
+   * @param volume Linear output gain to apply to all channels. Should be in the range [0.0, 1.0].
    */
   void setVolume(float volume);
 
-  /**
-   * Pauses playback.
-   */
+  /** Pauses playback. */
   void pause();
 
   /**
@@ -389,6 +446,6 @@ public interface AudioSink {
    */
   void experimentalFlushWithoutAudioTrackRelease();
 
-  /** Resets the renderer, releasing any resources that it currently holds. */
+  /** Resets the sink, releasing any resources that it currently holds. */
   void reset();
 }

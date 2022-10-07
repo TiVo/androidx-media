@@ -21,10 +21,6 @@ import static java.lang.annotation.RetentionPolicy.SOURCE;
 import android.content.Context;
 import android.content.res.Resources;
 import android.graphics.Canvas;
-import android.text.SpannableString;
-import android.text.Spanned;
-import android.text.style.AbsoluteSizeSpan;
-import android.text.style.RelativeSizeSpan;
 import android.util.AttributeSet;
 import android.util.TypedValue;
 import android.view.View;
@@ -34,7 +30,6 @@ import android.widget.FrameLayout;
 import androidx.annotation.Dimension;
 import androidx.annotation.IntDef;
 import androidx.annotation.Nullable;
-import com.google.android.exoplayer2.text.CaptionStyleCompat;
 import com.google.android.exoplayer2.text.Cue;
 import com.google.android.exoplayer2.text.TextOutput;
 import com.google.android.exoplayer2.util.Util;
@@ -145,7 +140,7 @@ public final class SubtitleView extends FrameLayout implements TextOutput {
     applyEmbeddedStyles = true;
     applyEmbeddedFontSizes = true;
 
-    CanvasSubtitleOutput canvasSubtitleOutput = new CanvasSubtitleOutput(context, attrs);
+    CanvasSubtitleOutput canvasSubtitleOutput = new CanvasSubtitleOutput(context);
     output = canvasSubtitleOutput;
     innerSubtitleView = canvasSubtitleOutput;
     addView(innerSubtitleView);
@@ -236,8 +231,8 @@ public final class SubtitleView extends FrameLayout implements TextOutput {
   /**
    * Sets the text size to be a fraction of the view's remaining height after its top and bottom
    * padding have been subtracted.
-   * <p>
-   * Equivalent to {@code #setFractionalTextSize(fractionOfHeight, false)}.
+   *
+   * <p>Equivalent to {@code #setFractionalTextSize(fractionOfHeight, false)}.
    *
    * @param fractionOfHeight A fraction between 0 and 1.
    */
@@ -250,9 +245,9 @@ public final class SubtitleView extends FrameLayout implements TextOutput {
    *
    * @param fractionOfHeight A fraction between 0 and 1.
    * @param ignorePadding Set to true if {@code fractionOfHeight} should be interpreted as a
-   *     fraction of this view's height ignoring any top and bottom padding. Set to false if
-   *     {@code fractionOfHeight} should be interpreted as a fraction of this view's remaining
-   *     height after the top and bottom padding has been subtracted.
+   *     fraction of this view's height ignoring any top and bottom padding. Set to false if {@code
+   *     fractionOfHeight} should be interpreted as a fraction of this view's remaining height after
+   *     the top and bottom padding has been subtracted.
    */
   public void setFractionalTextSize(float fractionOfHeight, boolean ignorePadding) {
     setTextSize(
@@ -269,8 +264,8 @@ public final class SubtitleView extends FrameLayout implements TextOutput {
   }
 
   /**
-   * Sets whether styling embedded within the cues should be applied. Enabled by default.
-   * Overrides any setting made with {@link SubtitleView#setApplyEmbeddedFontSizes}.
+   * Sets whether styling embedded within the cues should be applied. Enabled by default. Overrides
+   * any setting made with {@link SubtitleView#setApplyEmbeddedFontSizes}.
    *
    * @param applyEmbeddedStyles Whether styling embedded within the cues should be applied.
    */
@@ -280,8 +275,8 @@ public final class SubtitleView extends FrameLayout implements TextOutput {
   }
 
   /**
-   * Sets whether font sizes embedded within the cues should be applied. Enabled by default.
-   * Only takes effect if {@link SubtitleView#setApplyEmbeddedStyles} is set to true.
+   * Sets whether font sizes embedded within the cues should be applied. Enabled by default. Only
+   * takes effect if {@link SubtitleView#setApplyEmbeddedStyles} is set to true.
    *
    * @param applyEmbeddedFontSizes Whether font sizes embedded within the cues should be applied.
    */
@@ -311,11 +306,11 @@ public final class SubtitleView extends FrameLayout implements TextOutput {
   }
 
   /**
-   * Sets the bottom padding fraction to apply when {@link Cue#line} is {@link Cue#DIMEN_UNSET},
-   * as a fraction of the view's remaining height after its top and bottom padding have been
+   * Sets the bottom padding fraction to apply when {@link Cue#line} is {@link Cue#DIMEN_UNSET}, as
+   * a fraction of the view's remaining height after its top and bottom padding have been
    * subtracted.
-   * <p>
-   * Note that this padding is applied in addition to any standard view padding.
+   *
+   * <p>Note that this padding is applied in addition to any standard view padding.
    *
    * @param bottomPaddingFraction The bottom padding fraction.
    */
@@ -381,37 +376,12 @@ public final class SubtitleView extends FrameLayout implements TextOutput {
   }
 
   private Cue removeEmbeddedStyling(Cue cue) {
-    @Nullable CharSequence cueText = cue.text;
+    Cue.Builder strippedCue = cue.buildUpon();
     if (!applyEmbeddedStyles) {
-      Cue.Builder strippedCue =
-          cue.buildUpon().setTextSize(Cue.DIMEN_UNSET, Cue.TYPE_UNSET).clearWindowColor();
-      if (cueText != null) {
-        // Remove all spans, regardless of type.
-        strippedCue.setText(cueText.toString());
-      }
-      return strippedCue.build();
+      SubtitleViewUtils.removeAllEmbeddedStyling(strippedCue);
     } else if (!applyEmbeddedFontSizes) {
-      if (cueText == null) {
-        return cue;
-      }
-      Cue.Builder strippedCue = cue.buildUpon().setTextSize(Cue.DIMEN_UNSET, Cue.TYPE_UNSET);
-      if (cueText instanceof Spanned) {
-        SpannableString spannable = SpannableString.valueOf(cueText);
-        AbsoluteSizeSpan[] absSpans =
-            spannable.getSpans(0, spannable.length(), AbsoluteSizeSpan.class);
-        for (AbsoluteSizeSpan absSpan : absSpans) {
-          spannable.removeSpan(absSpan);
-        }
-        RelativeSizeSpan[] relSpans =
-            spannable.getSpans(0, spannable.length(), RelativeSizeSpan.class);
-        for (RelativeSizeSpan relSpan : relSpans) {
-          spannable.removeSpan(relSpan);
-        }
-        strippedCue.setText(spannable);
-      }
-      return strippedCue.build();
+      SubtitleViewUtils.removeEmbeddedFontSizes(strippedCue);
     }
-    return cue;
+    return strippedCue.build();
   }
-
 }

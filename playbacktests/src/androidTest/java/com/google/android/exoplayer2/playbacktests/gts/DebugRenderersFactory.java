@@ -18,7 +18,6 @@ package com.google.android.exoplayer2.playbacktests.gts;
 import static java.lang.Math.max;
 
 import android.content.Context;
-import android.media.MediaCodec;
 import android.media.MediaCrypto;
 import android.media.MediaFormat;
 import android.os.Handler;
@@ -31,6 +30,7 @@ import com.google.android.exoplayer2.Format;
 import com.google.android.exoplayer2.FormatHolder;
 import com.google.android.exoplayer2.Renderer;
 import com.google.android.exoplayer2.decoder.DecoderInputBuffer;
+import com.google.android.exoplayer2.decoder.DecoderReuseEvaluation;
 import com.google.android.exoplayer2.mediacodec.MediaCodecAdapter;
 import com.google.android.exoplayer2.mediacodec.MediaCodecInfo;
 import com.google.android.exoplayer2.mediacodec.MediaCodecSelector;
@@ -131,32 +131,32 @@ import java.util.ArrayList;
     }
 
     @Override
-    protected void configureCodec(
-        MediaCodecInfo codecInfo,
-        MediaCodecAdapter codecAdapter,
-        Format format,
-        MediaCrypto crypto,
-        float operatingRate) {
-      // If the codec is being initialized whilst the renderer is started, default behavior is to
-      // render the first frame (i.e. the keyframe before the current position), then drop frames up
-      // to the current playback position. For test runs that place a maximum limit on the number of
-      // dropped frames allowed, this is not desired behavior. Hence we skip (rather than drop)
-      // frames up to the current playback position [Internal: b/66494991].
-      skipToPositionBeforeRenderingFirstFrame = getState() == Renderer.STATE_STARTED;
-      super.configureCodec(codecInfo, codecAdapter, format, crypto, operatingRate);
+    protected MediaCodecAdapter.Configuration getMediaCodecConfiguration(
+        MediaCodecInfo codecInfo, Format format, MediaCrypto crypto, float operatingRate) {
+      return super.getMediaCodecConfiguration(codecInfo, format, crypto, operatingRate);
     }
 
     @Override
     protected void resetCodecStateForFlush() {
       super.resetCodecStateForFlush();
       clearTimestamps();
-
-      if (inputFormatChangeTimesUs != null) {
-        inputFormatChangeTimesUs.clear();
-      }
-      inputFormatChanged = false;
+      // Check if there is a format change on the input side still pending propagation to the
+      // output.
+      inputFormatChanged = !inputFormatChangeTimesUs.isEmpty();
+      inputFormatChangeTimesUs.clear();
       outputMediaFormatChanged = false;
-      currentMediaFormat = null;
+    }
+
+    @Override
+    protected void onCodecInitialized(
+        String name, long initializedTimestampMs, long initializationDurationMs) {
+      // If the codec was initialized whilst the renderer is started, default behavior is to
+      // render the first frame (i.e. the keyframe before the current position), then drop frames up
+      // to the current playback position. For test runs that place a maximum limit on the number of
+      // dropped frames allowed, this is not desired behavior. Hence we skip (rather than drop)
+      // frames up to the current playback position [Internal: b/66494991].
+      skipToPositionBeforeRenderingFirstFrame = getState() == Renderer.STATE_STARTED;
+      super.onCodecInitialized(name, initializedTimestampMs, initializationDurationMs);
     }
 
     @Override
@@ -166,12 +166,15 @@ import java.util.ArrayList;
     }
 
     @Override
-    protected void onInputFormatChanged(FormatHolder formatHolder) throws ExoPlaybackException {
-      super.onInputFormatChanged(formatHolder);
+    @Nullable
+    protected DecoderReuseEvaluation onInputFormatChanged(FormatHolder formatHolder)
+        throws ExoPlaybackException {
+      @Nullable DecoderReuseEvaluation evaluation = super.onInputFormatChanged(formatHolder);
       // Ensure timestamps of buffers queued after this format change are never inserted into the
       // queue of expected output timestamps before those of buffers that have already been queued.
       minimumInsertIndex = startIndex + queueSize;
       inputFormatChanged = true;
+      return evaluation;
     }
 
     @Override
@@ -200,7 +203,7 @@ import java.util.ArrayList;
     protected boolean processOutputBuffer(
         long positionUs,
         long elapsedRealtimeUs,
-        @Nullable MediaCodec codec,
+        @Nullable MediaCodecAdapter codec,
         ByteBuffer buffer,
         int bufferIndex,
         int bufferFlags,
@@ -231,7 +234,7 @@ import java.util.ArrayList;
     }
 
     @Override
-    protected void renderOutputBuffer(MediaCodec codec, int index, long presentationTimeUs) {
+    protected void renderOutputBuffer(MediaCodecAdapter codec, int index, long presentationTimeUs) {
       skipToPositionBeforeRenderingFirstFrame = false;
       super.renderOutputBuffer(codec, index, presentationTimeUs);
     }
@@ -239,7 +242,7 @@ import java.util.ArrayList;
     @RequiresApi(21)
     @Override
     protected void renderOutputBufferV21(
-        MediaCodec codec, int index, long presentationTimeUs, long releaseTimeNs) {
+        MediaCodecAdapter codec, int index, long presentationTimeUs, long releaseTimeNs) {
       skipToPositionBeforeRenderingFirstFrame = false;
       super.renderOutputBufferV21(codec, index, presentationTimeUs, releaseTimeNs);
     }
@@ -250,9 +253,15 @@ import java.util.ArrayList;
       bufferCount++;
       long expectedTimestampUs = dequeueTimestamp();
       if (expectedTimestampUs != presentationTimeUs) {
-        throw new IllegalStateException("Expected to dequeue video buffer with presentation "
-            + "timestamp: " + expectedTimestampUs + ". Instead got: " + presentationTimeUs
-            + " (Processed buffers since last flush: " + bufferCount + ").");
+        throw new IllegalStateException(
+            "Expected to dequeue video buffer with presentation "
+                + "timestamp: "
+                + expectedTimestampUs
+                + ". Instead got: "
+                + presentationTimeUs
+                + " (Processed buffers since last flush: "
+                + bufferCount
+                + ").");
       }
 
       if (outputMediaFormatChanged) {
@@ -270,6 +279,12 @@ import java.util.ArrayList;
                   + " us).");
         }
       }
+    }
+
+    @Override
+    protected boolean codecNeedsSetOutputSurfaceWorkaround(String name) {
+      // Disable all workarounds for testing - devices that require the workaround should fail GTS.
+      return false;
     }
 
     private void clearTimestamps() {
@@ -306,7 +321,5 @@ import java.util.ArrayList;
       minimumInsertIndex = max(minimumInsertIndex, startIndex);
       return timestampsList[startIndex - 1];
     }
-
   }
-
 }

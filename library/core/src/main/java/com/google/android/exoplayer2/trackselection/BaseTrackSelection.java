@@ -28,27 +28,19 @@ import com.google.android.exoplayer2.util.Util;
 import java.util.Arrays;
 import java.util.List;
 
-/**
- * An abstract base class suitable for most {@link TrackSelection} implementations.
- */
-public abstract class BaseTrackSelection implements TrackSelection {
+/** An abstract base class suitable for most {@link ExoTrackSelection} implementations. */
+public abstract class BaseTrackSelection implements ExoTrackSelection {
 
-  /**
-   * The selected {@link TrackGroup}.
-   */
+  /** The selected {@link TrackGroup}. */
   protected final TrackGroup group;
-  /**
-   * The number of selected tracks within the {@link TrackGroup}. Always greater than zero.
-   */
+  /** The number of selected tracks within the {@link TrackGroup}. Always greater than zero. */
   protected final int length;
-  /**
-   * The indices of the selected tracks in {@link #group}, in order of decreasing bandwidth.
-   */
+  /** The indices of the selected tracks in {@link #group}, in order of decreasing bandwidth. */
   protected final int[] tracks;
 
-  /**
-   * The {@link Format}s of the selected tracks, in order of decreasing bandwidth.
-   */
+  /** The type of the selection. */
+  private final int type;
+  /** The {@link Format}s of the selected tracks, in order of decreasing bandwidth. */
   private final Format[] formats;
   /** Selected track exclusion timestamps, in order of decreasing bandwidth. */
   private final long[] excludeUntilTimes;
@@ -62,7 +54,18 @@ public abstract class BaseTrackSelection implements TrackSelection {
    *     null or empty. May be in any order.
    */
   public BaseTrackSelection(TrackGroup group, int... tracks) {
+    this(group, tracks, TrackSelection.TYPE_UNSET);
+  }
+
+  /**
+   * @param group The {@link TrackGroup}. Must not be null.
+   * @param tracks The indices of the selected tracks within the {@link TrackGroup}. Must not be
+   *     null or empty. May be in any order.
+   * @param type The type that will be returned from {@link TrackSelection#getType()}.
+   */
+  public BaseTrackSelection(TrackGroup group, int[] tracks, int type) {
     Assertions.checkState(tracks.length > 0);
+    this.type = type;
     this.group = Assertions.checkNotNull(group);
     this.length = tracks.length;
     // Set the formats, sorted in order of decreasing bandwidth.
@@ -80,14 +83,11 @@ public abstract class BaseTrackSelection implements TrackSelection {
     excludeUntilTimes = new long[length];
   }
 
-  @Override
-  public void enable() {
-    // Do nothing.
-  }
+  // TrackSelection implementation.
 
   @Override
-  public void disable() {
-    // Do nothing.
+  public final int getType() {
+    return type;
   }
 
   @Override
@@ -131,6 +131,8 @@ public abstract class BaseTrackSelection implements TrackSelection {
     return C.INDEX_UNSET;
   }
 
+  // ExoTrackSelection specific methods.
+
   @Override
   public final Format getSelectedFormat() {
     return formats[getSelectedIndex()];
@@ -139,6 +141,16 @@ public abstract class BaseTrackSelection implements TrackSelection {
   @Override
   public final int getSelectedIndexInTrackGroup() {
     return tracks[getSelectedIndex()];
+  }
+
+  @Override
+  public void enable() {
+    // Do nothing.
+  }
+
+  @Override
+  public void disable() {
+    // Do nothing.
   }
 
   @Override
@@ -152,7 +164,7 @@ public abstract class BaseTrackSelection implements TrackSelection {
   }
 
   @Override
-  public final boolean blacklist(int index, long exclusionDurationMs) {
+  public boolean blacklist(int index, long exclusionDurationMs) {
     long nowMs = SystemClock.elapsedRealtime();
     boolean canExclude = isBlacklisted(index, nowMs);
     for (int i = 0; i < length && !canExclude; i++) {
@@ -168,13 +180,8 @@ public abstract class BaseTrackSelection implements TrackSelection {
     return true;
   }
 
-  /**
-   * Returns whether the track at the specified index in the selection is excluded.
-   *
-   * @param index The index of the track in the selection.
-   * @param nowMs The current time in the timebase of {@link SystemClock#elapsedRealtime()}.
-   */
-  protected final boolean isBlacklisted(int index, long nowMs) {
+  @Override
+  public boolean isBlacklisted(int index, long nowMs) {
     return excludeUntilTimes[index] > nowMs;
   }
 

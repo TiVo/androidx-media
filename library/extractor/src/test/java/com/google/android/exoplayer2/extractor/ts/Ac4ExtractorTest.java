@@ -16,19 +16,21 @@
 package com.google.android.exoplayer2.extractor.ts;
 
 import com.google.android.exoplayer2.testutil.ExtractorAsserts;
-import java.util.List;
+import com.google.common.collect.ImmutableList;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.robolectric.ParameterizedRobolectricTestRunner;
 import org.robolectric.ParameterizedRobolectricTestRunner.Parameter;
 import org.robolectric.ParameterizedRobolectricTestRunner.Parameters;
+import org.robolectric.annotation.internal.DoNotInstrument;
 
 /** Unit test for {@link Ac4Extractor}. */
 @RunWith(ParameterizedRobolectricTestRunner.class)
+@DoNotInstrument
 public final class Ac4ExtractorTest {
 
   @Parameters(name = "{0}")
-  public static List<Object[]> params() {
+  public static ImmutableList<ExtractorAsserts.SimulationConfig> params() {
     return ExtractorAsserts.configs();
   }
 

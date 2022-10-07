@@ -26,7 +26,7 @@ import java.util.Set;
 /**
  * A cache that supports partial caching of resources.
  *
- * <h3>Terminology</h3>
+ * <h2>Terminology</h2>
  *
  * <ul>
  *   <li>A <em>resource</em> is a complete piece of logical data, for example a complete media file.
@@ -41,9 +41,7 @@ import java.util.Set;
  */
 public interface Cache {
 
-  /**
-   * Listener of {@link Cache} events.
-   */
+  /** Listener of {@link Cache} events. */
   interface Listener {
 
     /**
@@ -77,9 +75,7 @@ public interface Cache {
     void onSpanTouched(Cache cache, CacheSpan oldSpan, CacheSpan newSpan);
   }
 
-  /**
-   * Thrown when an error is encountered when writing data.
-   */
+  /** Thrown when an error is encountered when writing data. */
   class CacheException extends IOException {
 
     public CacheException(String message) {
@@ -152,9 +148,7 @@ public interface Cache {
   /** Returns the cache keys of all of the resources that are at least partially cached. */
   Set<String> getKeys();
 
-  /**
-   * Returns the total disk space in bytes used by the cache.
-   */
+  /** Returns the total disk space in bytes used by the cache. */
   long getCacheSpace();
 
   /**
@@ -178,10 +172,10 @@ public interface Cache {
    * @param key The cache key of the resource.
    * @param position The starting position in the resource from which data is required.
    * @param length The length of the data being requested, or {@link C#LENGTH_UNSET} if unbounded.
-   *     The length is ignored in the case of a cache hit. In the case of a cache miss, it defines
-   *     the maximum length of the hole {@link CacheSpan} that's returned. Cache implementations may
-   *     support parallel writes into non-overlapping holes, and so passing the actual required
-   *     length should be preferred to passing {@link C#LENGTH_UNSET} when possible.
+   *     The length is ignored if there is a cache entry that overlaps the position. Else, it
+   *     defines the maximum length of the hole {@link CacheSpan} that's returned. Cache
+   *     implementations may support parallel writes into non-overlapping holes, and so passing the
+   *     actual required length should be preferred to passing {@link C#LENGTH_UNSET} when possible.
    * @return The {@link CacheSpan}.
    * @throws InterruptedException If the thread was interrupted.
    * @throws CacheException If an error is encountered.
@@ -199,8 +193,8 @@ public interface Cache {
    * @param key The cache key of the resource.
    * @param position The starting position in the resource from which data is required.
    * @param length The length of the data being requested, or {@link C#LENGTH_UNSET} if unbounded.
-   *     The length is ignored in the case of a cache hit. In the case of a cache miss, it defines
-   *     the range of data locked by the returned {@link CacheSpan}.
+   *     The length is ignored if there is a cache entry that overlaps the position. Else, it
+   *     defines the range of data locked by the returned {@link CacheSpan}.
    * @return The {@link CacheSpan}. Or null if the cache entry is locked.
    * @throws CacheException If an error is encountered.
    */

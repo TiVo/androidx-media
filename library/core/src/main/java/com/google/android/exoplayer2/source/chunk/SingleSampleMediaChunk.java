@@ -26,9 +26,7 @@ import com.google.android.exoplayer2.upstream.DataSpec;
 import com.google.android.exoplayer2.util.Util;
 import java.io.IOException;
 
-/**
- * A {@link BaseMediaChunk} for chunks consisting of a single raw sample.
- */
+/** A {@link BaseMediaChunk} for chunks consisting of a single raw sample. */
 public final class SingleSampleMediaChunk extends BaseMediaChunk {
 
   private final int trackType;
@@ -75,7 +73,6 @@ public final class SingleSampleMediaChunk extends BaseMediaChunk {
     this.trackType = trackType;
     this.sampleFormat = sampleFormat;
   }
-
 
   @Override
   public boolean isLoadCompleted() {

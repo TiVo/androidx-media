@@ -21,11 +21,12 @@ import com.google.android.exoplayer2.C;
 import com.google.android.exoplayer2.ExoPlaybackException;
 import com.google.android.exoplayer2.Format;
 import com.google.android.exoplayer2.FormatHolder;
+import com.google.android.exoplayer2.PlaybackException;
 import com.google.android.exoplayer2.Renderer;
 import com.google.android.exoplayer2.RendererCapabilities;
 import com.google.android.exoplayer2.decoder.DecoderInputBuffer;
 import com.google.android.exoplayer2.drm.DrmSession;
-import com.google.android.exoplayer2.source.SampleStream;
+import com.google.android.exoplayer2.source.SampleStream.ReadDataResult;
 import com.google.android.exoplayer2.util.Assertions;
 import com.google.android.exoplayer2.util.MimeTypes;
 import com.google.android.exoplayer2.util.Util;
@@ -92,8 +93,7 @@ public class FakeRenderer extends BaseRenderer {
       if (!hasPendingBuffer) {
         FormatHolder formatHolder = getFormatHolder();
         buffer.clear();
-        @SampleStream.ReadDataResult
-        int result = readSource(formatHolder, buffer, /* formatRequired= */ false);
+        @ReadDataResult int result = readSource(formatHolder, buffer, /* readFlags= */ 0);
 
         if (result == C.RESULT_FORMAT_READ) {
           DrmSession.replaceSession(currentDrmSession, formatHolder.drmSession);
@@ -108,7 +108,9 @@ public class FakeRenderer extends BaseRenderer {
                 getName(),
                 getIndex(),
                 format,
-                FORMAT_UNSUPPORTED_TYPE);
+                C.FORMAT_UNSUPPORTED_TYPE,
+                /* isRecoverable= */ false,
+                PlaybackException.ERROR_CODE_DECODING_FORMAT_UNSUPPORTED);
           }
           formatsRead.add(format);
           onFormatChanged(format);
@@ -149,8 +151,8 @@ public class FakeRenderer extends BaseRenderer {
   public int supportsFormat(Format format) throws ExoPlaybackException {
     int trackType = MimeTypes.getTrackType(format.sampleMimeType);
     return trackType != C.TRACK_TYPE_UNKNOWN && trackType == getTrackType()
-        ? RendererCapabilities.create(FORMAT_HANDLED, ADAPTIVE_SEAMLESS, TUNNELING_NOT_SUPPORTED)
-        : RendererCapabilities.create(FORMAT_UNSUPPORTED_TYPE);
+        ? RendererCapabilities.create(C.FORMAT_HANDLED, ADAPTIVE_SEAMLESS, TUNNELING_NOT_SUPPORTED)
+        : RendererCapabilities.create(C.FORMAT_UNSUPPORTED_TYPE);
   }
 
   @Override

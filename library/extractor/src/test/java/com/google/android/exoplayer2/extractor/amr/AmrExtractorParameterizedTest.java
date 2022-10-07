@@ -16,12 +16,13 @@
 package com.google.android.exoplayer2.extractor.amr;
 
 import com.google.android.exoplayer2.testutil.ExtractorAsserts;
-import java.util.List;
+import com.google.common.collect.ImmutableList;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.robolectric.ParameterizedRobolectricTestRunner;
 import org.robolectric.ParameterizedRobolectricTestRunner.Parameter;
 import org.robolectric.ParameterizedRobolectricTestRunner.Parameters;
+import org.robolectric.annotation.internal.DoNotInstrument;
 
 /**
  * Unit tests for {@link AmrExtractor} that use parameterization to test a range of behaviours.
@@ -30,10 +31,11 @@ import org.robolectric.ParameterizedRobolectricTestRunner.Parameters;
  * AmrExtractorNonParameterizedTest}.
  */
 @RunWith(ParameterizedRobolectricTestRunner.class)
+@DoNotInstrument
 public final class AmrExtractorParameterizedTest {
 
   @Parameters(name = "{0}")
-  public static List<Object[]> params() {
+  public static ImmutableList<ExtractorAsserts.SimulationConfig> params() {
     return ExtractorAsserts.configs();
   }
 
@@ -70,7 +72,6 @@ public final class AmrExtractorParameterizedTest {
         "media/amr/sample_wb_cbr.amr",
         simulationConfig);
   }
-
 
   private static ExtractorAsserts.ExtractorFactory createAmrExtractorFactory(boolean withSeeking) {
     return () -> {

@@ -23,7 +23,6 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
-import android.content.pm.ResolveInfo;
 import android.content.res.AssetManager;
 import android.net.Uri;
 import android.os.AsyncTask;
@@ -252,7 +251,7 @@ public class SampleChooserActivity extends AppCompatActivity
     }
     MediaItem.PlaybackProperties playbackProperties =
         checkNotNull(playlistHolder.mediaItems.get(0).playbackProperties);
-    if (playbackProperties.adTagUri != null) {
+    if (playbackProperties.adsConfiguration != null) {
       return R.string.download_ads_unsupported;
     }
     String scheme = playbackProperties.uri.getScheme();
@@ -328,7 +327,8 @@ public class SampleChooserActivity extends AppCompatActivity
             reader.nextString(); // Ignore.
             break;
           default:
-            throw new ParserException("Unsupported name: " + name);
+            throw ParserException.createForMalformedManifest(
+                "Unsupported name: " + name, /* cause= */ null);
         }
       }
       reader.endObject();
@@ -416,7 +416,8 @@ public class SampleChooserActivity extends AppCompatActivity
             reader.endArray();
             break;
           default:
-            throw new ParserException("Unsupported attribute name: " + name);
+            throw ParserException.createForMalformedManifest(
+                "Unsupported attribute name: " + name, /* cause= */ null);
         }
       }
       reader.endObject();

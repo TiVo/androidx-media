@@ -21,14 +21,12 @@ import com.google.android.exoplayer2.Format;
 import com.google.android.exoplayer2.source.chunk.ChunkSource;
 import com.google.android.exoplayer2.source.dash.PlayerEmsgHandler.PlayerTrackEmsgHandler;
 import com.google.android.exoplayer2.source.dash.manifest.DashManifest;
-import com.google.android.exoplayer2.trackselection.TrackSelection;
+import com.google.android.exoplayer2.trackselection.ExoTrackSelection;
 import com.google.android.exoplayer2.upstream.LoaderErrorThrower;
 import com.google.android.exoplayer2.upstream.TransferListener;
 import java.util.List;
 
-/**
- * An {@link ChunkSource} for DASH streams.
- */
+/** A {@link ChunkSource} for DASH streams. */
 public interface DashChunkSource extends ChunkSource {
 
   /** Factory for {@link DashChunkSource}s. */
@@ -37,6 +35,7 @@ public interface DashChunkSource extends ChunkSource {
     /**
      * @param manifestLoaderErrorThrower Throws errors affecting loading of manifests.
      * @param manifest The initial manifest.
+     * @param baseUrlExclusionList The base URL exclusion list.
      * @param periodIndex The index of the corresponding period in the manifest.
      * @param adaptationSetIndices The indices of the corresponding adaptation sets in the period.
      * @param trackSelection The track selection.
@@ -53,9 +52,10 @@ public interface DashChunkSource extends ChunkSource {
     DashChunkSource createDashChunkSource(
         LoaderErrorThrower manifestLoaderErrorThrower,
         DashManifest manifest,
+        BaseUrlExclusionList baseUrlExclusionList,
         int periodIndex,
         int[] adaptationSetIndices,
-        TrackSelection trackSelection,
+        ExoTrackSelection trackSelection,
         int type,
         long elapsedRealtimeOffsetMs,
         boolean enableEventMessageTrack,
@@ -76,5 +76,5 @@ public interface DashChunkSource extends ChunkSource {
    *
    * @param trackSelection The new track selection instance. Must be equivalent to the previous one.
    */
-  void updateTrackSelection(TrackSelection trackSelection);
+  void updateTrackSelection(ExoTrackSelection trackSelection);
 }

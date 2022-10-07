@@ -17,6 +17,7 @@ package com.google.android.exoplayer2.source.hls;
 
 import static com.google.android.exoplayer2.util.Assertions.checkNotNull;
 
+import android.annotation.SuppressLint;
 import android.net.Uri;
 import android.text.TextUtils;
 import androidx.annotation.Nullable;
@@ -34,6 +35,7 @@ import com.google.android.exoplayer2.metadata.Metadata;
 import com.google.android.exoplayer2.util.FileTypes;
 import com.google.android.exoplayer2.util.MimeTypes;
 import com.google.android.exoplayer2.util.TimestampAdjuster;
+import com.google.common.primitives.Ints;
 import java.io.EOFException;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -41,9 +43,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-/**
- * Default {@link HlsExtractorFactory} implementation.
- */
+/** Default {@link HlsExtractorFactory} implementation. */
 public final class DefaultHlsExtractorFactory implements HlsExtractorFactory {
 
   // Extractors order is optimized according to
@@ -94,7 +94,7 @@ public final class DefaultHlsExtractorFactory implements HlsExtractorFactory {
       @Nullable List<Format> muxedCaptionFormats,
       TimestampAdjuster timestampAdjuster,
       Map<String, List<String>> responseHeaders,
-      ExtractorInput extractorInput)
+      ExtractorInput sniffingExtractorInput)
       throws IOException {
     @FileTypes.Type
     int formatInferredFileType = FileTypes.inferFileTypeFromMimeType(format.sampleMimeType);
@@ -106,25 +106,31 @@ public final class DefaultHlsExtractorFactory implements HlsExtractorFactory {
     // Defines the order in which to try the extractors.
     List<Integer> fileTypeOrder =
         new ArrayList<>(/* initialCapacity= */ DEFAULT_EXTRACTOR_ORDER.length);
-    addFileTypeIfNotPresent(formatInferredFileType, fileTypeOrder);
-    addFileTypeIfNotPresent(responseHeadersInferredFileType, fileTypeOrder);
-    addFileTypeIfNotPresent(uriInferredFileType, fileTypeOrder);
+    addFileTypeIfValidAndNotPresent(formatInferredFileType, fileTypeOrder);
+    addFileTypeIfValidAndNotPresent(responseHeadersInferredFileType, fileTypeOrder);
+    addFileTypeIfValidAndNotPresent(uriInferredFileType, fileTypeOrder);
     for (int fileType : DEFAULT_EXTRACTOR_ORDER) {
-      addFileTypeIfNotPresent(fileType, fileTypeOrder);
+      addFileTypeIfValidAndNotPresent(fileType, fileTypeOrder);
     }
 
     // Extractor to be used if the type is not recognized.
     @Nullable Extractor fallBackExtractor = null;
-    extractorInput.resetPeekPosition();
+    sniffingExtractorInput.resetPeekPosition();
     for (int i = 0; i < fileTypeOrder.size(); i++) {
       int fileType = fileTypeOrder.get(i);
       Extractor extractor =
           checkNotNull(
               createExtractorByFileType(fileType, format, muxedCaptionFormats, timestampAdjuster));
-      if (sniffQuietly(extractor, extractorInput)) {
+      if (sniffQuietly(extractor, sniffingExtractorInput)) {
         return new BundledHlsMediaChunkExtractor(extractor, format, timestampAdjuster);
       }
-      if (fileType == FileTypes.TS) {
+      if (fallBackExtractor == null
+          && (fileType == formatInferredFileType
+              || fileType == responseHeadersInferredFileType
+              || fileType == uriInferredFileType
+              || fileType == FileTypes.TS)) {
+        // If sniffing fails, fallback to the file types inferred from context. If all else fails,
+        // fallback to Transport Stream. See https://github.com/google/ExoPlayer/issues/8219.
         fallBackExtractor = extractor;
       }
     }
@@ -133,14 +139,15 @@ public final class DefaultHlsExtractorFactory implements HlsExtractorFactory {
         checkNotNull(fallBackExtractor), format, timestampAdjuster);
   }
 
-  private static void addFileTypeIfNotPresent(
+  private static void addFileTypeIfValidAndNotPresent(
       @FileTypes.Type int fileType, List<Integer> fileTypes) {
-    if (fileType == FileTypes.UNKNOWN || fileTypes.contains(fileType)) {
+    if (Ints.indexOf(DEFAULT_EXTRACTOR_ORDER, fileType) == -1 || fileTypes.contains(fileType)) {
       return;
     }
     fileTypes.add(fileType);
   }
 
+  @SuppressLint("SwitchIntDef") // HLS only supports a small subset of the defined file types.
   @Nullable
   private Extractor createExtractorByFileType(
       @FileTypes.Type int fileType,

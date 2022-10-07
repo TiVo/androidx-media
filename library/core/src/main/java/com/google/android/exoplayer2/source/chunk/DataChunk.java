@@ -17,6 +17,7 @@ package com.google.android.exoplayer2.source.chunk;
 
 import androidx.annotation.Nullable;
 import com.google.android.exoplayer2.C;
+import com.google.android.exoplayer2.C.DataType;
 import com.google.android.exoplayer2.Format;
 import com.google.android.exoplayer2.upstream.DataSource;
 import com.google.android.exoplayer2.upstream.DataSpec;
@@ -25,8 +26,8 @@ import java.io.IOException;
 import java.util.Arrays;
 
 /**
- * A base class for {@link Chunk} implementations where the data should be loaded into a
- * {@code byte[]} before being consumed.
+ * A base class for {@link Chunk} implementations where the data should be loaded into a {@code
+ * byte[]} before being consumed.
  */
 public abstract class DataChunk extends Chunk {
 
@@ -48,13 +49,20 @@ public abstract class DataChunk extends Chunk {
   public DataChunk(
       DataSource dataSource,
       DataSpec dataSpec,
-      int type,
+      @DataType int type,
       Format trackFormat,
       int trackSelectionReason,
       @Nullable Object trackSelectionData,
       @Nullable byte[] data) {
-    super(dataSource, dataSpec, type, trackFormat, trackSelectionReason, trackSelectionData,
-        C.TIME_UNSET, C.TIME_UNSET);
+    super(
+        dataSource,
+        dataSpec,
+        type,
+        trackFormat,
+        trackSelectionReason,
+        trackSelectionData,
+        C.TIME_UNSET,
+        C.TIME_UNSET);
     this.data = data == null ? Util.EMPTY_BYTE_ARRAY : data;
   }
 

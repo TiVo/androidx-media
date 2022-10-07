@@ -15,8 +15,11 @@
  */
 package com.google.android.exoplayer2.ext.vp9;
 
+import static androidx.annotation.VisibleForTesting.PACKAGE_PRIVATE;
+
 import android.view.Surface;
 import androidx.annotation.Nullable;
+import androidx.annotation.VisibleForTesting;
 import com.google.android.exoplayer2.C;
 import com.google.android.exoplayer2.decoder.CryptoInfo;
 import com.google.android.exoplayer2.decoder.DecoderInputBuffer;
@@ -30,7 +33,8 @@ import com.google.android.exoplayer2.video.VideoDecoderOutputBuffer;
 import java.nio.ByteBuffer;
 
 /** Vpx decoder. */
-/* package */ final class VpxDecoder
+@VisibleForTesting(otherwise = PACKAGE_PRIVATE)
+public final class VpxDecoder
     extends SimpleDecoder<VideoDecoderInputBuffer, VideoDecoderOutputBuffer, VpxDecoderException> {
 
   // These constants should match the codes returned from vpxDecode and vpxSecureDecode functions in
@@ -141,8 +145,8 @@ import java.nio.ByteBuffer;
     if (result != NO_ERROR) {
       if (result == DRM_ERROR) {
         String message = "Drm error: " + vpxGetErrorMessage(vpxDecContext);
-        DecryptionException cause = new DecryptionException(
-            vpxGetErrorCode(vpxDecContext), message);
+        DecryptionException cause =
+            new DecryptionException(vpxGetErrorCode(vpxDecContext), message);
         return new VpxDecoderException(message, cause);
       } else {
         return new VpxDecoderException("Decode error: " + vpxGetErrorMessage(vpxDecContext));
@@ -205,6 +209,7 @@ import java.nio.ByteBuffer;
       boolean disableLoopFilter, boolean enableRowMultiThreadMode, int threads);
 
   private native long vpxClose(long context);
+
   private native long vpxDecode(long context, ByteBuffer encoded, int length);
 
   private native long vpxSecureDecode(
@@ -235,6 +240,6 @@ import java.nio.ByteBuffer;
   private native int vpxReleaseFrame(long context, VideoDecoderOutputBuffer outputBuffer);
 
   private native int vpxGetErrorCode(long context);
-  private native String vpxGetErrorMessage(long context);
 
+  private native String vpxGetErrorMessage(long context);
 }

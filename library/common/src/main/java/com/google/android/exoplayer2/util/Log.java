@@ -22,6 +22,7 @@ import java.lang.annotation.Documented;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.net.UnknownHostException;
+import org.checkerframework.dataflow.qual.Pure;
 
 /** Wrapper around {@link android.util.Log} which allows to set the log level. */
 public final class Log {
@@ -55,13 +56,9 @@ public final class Log {
   private Log() {}
 
   /** Returns current {@link LogLevel} for ExoPlayer logcat logging. */
+  @Pure
   public static @LogLevel int getLogLevel() {
     return logLevel;
-  }
-
-  /** Returns whether stack traces of {@link Throwable}s will be logged to logcat. */
-  public boolean getLogStackTraces() {
-    return logStackTraces;
   }
 
   /**
@@ -94,6 +91,7 @@ public final class Log {
   }
 
   /** @see android.util.Log#d(String, String) */
+  @Pure
   public static void d(String tag, String message) {
     if (logLevel == LOG_LEVEL_ALL) {
       if (customLogger != null) {
@@ -104,11 +102,13 @@ public final class Log {
   }
 
   /** @see android.util.Log#d(String, String, Throwable) */
+  @Pure
   public static void d(String tag, String message, @Nullable Throwable throwable) {
     d(tag, appendThrowableString(message, throwable));
   }
 
   /** @see android.util.Log#i(String, String) */
+  @Pure
   public static void i(String tag, String message) {
     if (logLevel <= LOG_LEVEL_INFO) {
       if (customLogger != null) {
@@ -119,11 +119,13 @@ public final class Log {
   }
 
   /** @see android.util.Log#i(String, String, Throwable) */
+  @Pure
   public static void i(String tag, String message, @Nullable Throwable throwable) {
     i(tag, appendThrowableString(message, throwable));
   }
 
   /** @see android.util.Log#w(String, String) */
+  @Pure
   public static void w(String tag, String message) {
     if (logLevel <= LOG_LEVEL_WARNING) {
       if (customLogger != null) {
@@ -134,11 +136,13 @@ public final class Log {
   }
 
   /** @see android.util.Log#w(String, String, Throwable) */
+  @Pure
   public static void w(String tag, String message, @Nullable Throwable throwable) {
     w(tag, appendThrowableString(message, throwable));
   }
 
   /** @see android.util.Log#e(String, String) */
+  @Pure
   public static void e(String tag, String message) {
     if (logLevel <= LOG_LEVEL_ERROR) {
       if (customLogger != null) {
@@ -149,6 +153,7 @@ public final class Log {
   }
 
   /** @see android.util.Log#e(String, String, Throwable) */
+  @Pure
   public static void e(String tag, String message, @Nullable Throwable throwable) {
     e(tag, appendThrowableString(message, throwable));
   }
@@ -165,6 +170,7 @@ public final class Log {
    * @return The string representation of the {@link Throwable}.
    */
   @Nullable
+  @Pure
   public static String getThrowableString(@Nullable Throwable throwable) {
     if (throwable == null) {
       return null;
@@ -183,6 +189,7 @@ public final class Log {
     }
   }
 
+  @Pure
   private static String appendThrowableString(String message, @Nullable Throwable throwable) {
     @Nullable String throwableString = getThrowableString(throwable);
     if (!TextUtils.isEmpty(throwableString)) {
@@ -191,6 +198,7 @@ public final class Log {
     return message;
   }
 
+  @Pure
   private static boolean isCausedByUnknownHostException(@Nullable Throwable throwable) {
     while (throwable != null) {
       if (throwable instanceof UnknownHostException) {

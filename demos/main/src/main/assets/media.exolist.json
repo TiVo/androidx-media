@@ -213,6 +213,19 @@
     ]
   },
   {
+    "name": "DASH - Multiple base URLs",
+    "samples": [
+      {
+        "name": "DASH - Multiple base URLs",
+        "uri": "https://storage.googleapis.com/exoplayer-test-media-0/dash-multiple-base-urls/manifest.mpd"
+      },
+      {
+        "name": "DASH - Multiple base URLs (fail over)",
+        "uri": "https://storage.googleapis.com/exoplayer-test-media-0/dash-multiple-base-urls/manifest-failover.mpd"
+      }
+    ]
+  },
+  {
     "name": "HLS",
     "samples": [
       {
@@ -354,6 +367,23 @@
         "name": "VMAP midroll ad pod at 5 s with 10 skippable ads",
         "uri": "https://storage.googleapis.com/exoplayer-test-media-1/mp4/frame-counter-one-hour.mp4",
         "ad_tag_uri": "https://vastsynthesizer.appspot.com/midroll-10-skippable-ads"
+      },
+      {
+        "name": "Playlist with three ad tags",
+        "playlist": [
+          {
+            "uri": "https://storage.googleapis.com/exoplayer-test-media-1/mp4/android-screens-10s.mp4",
+            "ad_tag_uri": "https://pubads.g.doubleclick.net/gampad/ads?sz=640x480&iu=/124319096/external/single_ad_samples&ciu_szs=300x250&impl=s&gdfp_req=1&env=vp&output=vast&unviewed_position_start=1&cust_params=deployment%3Ddevsite%26sample_ct%3Dlinear&correlator="
+          },
+          {
+            "uri": "https://storage.googleapis.com/exoplayer-test-media-1/mp4/android-screens-25s.mp4",
+            "ad_tag_uri": "https://pubads.g.doubleclick.net/gampad/ads?sz=640x480&iu=/124319096/external/ad_rule_samples&ciu_szs=300x250&ad_rule=1&impl=s&gdfp_req=1&env=vp&output=vmap&unviewed_position_start=1&cust_params=deployment%3Ddevsite%26sample_ar%3Dpremidpost&cmsid=496&vid=short_onecue&correlator="
+          },
+          {
+            "uri": "https://storage.googleapis.com/exoplayer-test-media-1/mp4/frame-counter-one-hour.mp4",
+            "ad_tag_uri": "https://pubads.g.doubleclick.net/gampad/ads?sz=640x480&iu=/124319096/external/ad_rule_samples&ciu_szs=300x250&ad_rule=1&impl=s&gdfp_req=1&env=vp&output=vmap&unviewed_position_start=1&cust_params=deployment%3Ddevsite%26sample_ar%3Dpremidpostlongpod&cmsid=496&vid=short_tencue&correlator="
+          }
+        ]
       }
     ]
   },
@@ -469,6 +499,13 @@
         "subtitle_language": "ja"
       },
       {
+        "name": "TTML Netflix Japanese examples (IMSC1.1)",
+        "uri": "https://storage.googleapis.com/exoplayer-test-media-1/gen-3/screens/dash-vod-single-segment/video-avc-baseline-480.mp4",
+        "subtitle_uri": "https://storage.googleapis.com/exoplayer-test-media-1/ttml/netflix_japanese_ttml.xml",
+        "subtitle_mime_type": "application/ttml+xml",
+        "subtitle_language": "ja"
+      },
+      {
         "name": "WebVTT positioning",
         "uri": "https://html5demos.com/assets/dizzy.mp4",
         "subtitle_uri": "https://storage.googleapis.com/exoplayer-test-media-1/webvtt/numeric-lines.vtt",
@@ -486,6 +523,13 @@
         "name": "SubStation Alpha positioning",
         "uri": "https://storage.googleapis.com/exoplayer-test-media-1/gen-3/screens/dash-vod-single-segment/video-avc-baseline-480.mp4",
         "subtitle_uri": "https://storage.googleapis.com/exoplayer-test-media-1/ssa/test-subs-position.ass",
+        "subtitle_mime_type": "text/x-ssa",
+        "subtitle_language": "en"
+      },
+      {
+        "name": "SubStation Alpha styling",
+        "uri": "https://storage.googleapis.com/exoplayer-test-media-1/gen-3/screens/dash-vod-single-segment/video-avc-baseline-480.mp4",
+        "subtitle_uri": "https://storage.googleapis.com/exoplayer-test-media-1/ssa/test-subs-styling.ass",
         "subtitle_mime_type": "text/x-ssa",
         "subtitle_language": "en"
       },
@@ -541,10 +585,6 @@
       {
         "name": "Google Play (Flac)",
         "uri": "https://storage.googleapis.com/exoplayer-test-media-1/flac/play.flac"
-      },
-      {
-        "name": "Big Buck Bunny video (FLV)",
-        "uri": "https://vod.leasewebcdn.com/bbb.flv?ri=1024&rs=150&start=0"
       },
       {
         "name": "Big Buck Bunny 480p (MP4, AV1)",

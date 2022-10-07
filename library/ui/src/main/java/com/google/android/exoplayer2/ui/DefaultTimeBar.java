@@ -51,7 +51,7 @@ import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
  *
  * <p>A DefaultTimeBar can be customized by setting attributes, as outlined below.
  *
- * <h3>Attributes</h3>
+ * <h2>Attributes</h2>
  *
  * The following attributes can be set on a DefaultTimeBar when used in a layout XML file:
  *
@@ -152,14 +152,10 @@ public class DefaultTimeBar extends View implements TimeBar {
   /** Default color for played ad markers. */
   public static final int DEFAULT_PLAYED_AD_MARKER_COLOR = 0x33FFFF00;
 
-  // LINT.IfChange
   /** Vertical gravity for progress bar to be located at the center in the view. */
   public static final int BAR_GRAVITY_CENTER = 0;
   /** Vertical gravity for progress bar to be located at the bottom in the view. */
   public static final int BAR_GRAVITY_BOTTOM = 1;
-  /** Vertical gravity for progress bar to be located at the top in the view. */
-  public static final int BAR_GRAVITY_TOP = 2;
-  // LINT.ThenChange(../../../../../../../../../ui/src/main/res/values/attrs.xml)
 
   /** The threshold in dps above the bar at which touch events trigger fine scrub mode. */
   private static final int FINE_SCRUB_Y_THRESHOLD_DP = -50;
@@ -216,6 +212,7 @@ public class DefaultTimeBar extends View implements TimeBar {
 
   private ValueAnimator scrubberScalingAnimator;
   private float scrubberScale;
+  private boolean scrubberPaddingDisabled;
   private boolean scrubbing;
   private long scrubPosition;
   private long duration;
@@ -246,7 +243,7 @@ public class DefaultTimeBar extends View implements TimeBar {
   }
 
   // Suppress warnings due to usage of View methods in the constructor.
-  @SuppressWarnings("nullness:method.invocation.invalid")
+  @SuppressWarnings("nullness:method.invocation")
   public DefaultTimeBar(
       Context context,
       @Nullable AttributeSet attrs,
@@ -292,19 +289,24 @@ public class DefaultTimeBar extends View implements TimeBar {
           defaultTouchTargetHeight =
               Math.max(scrubberDrawable.getMinimumHeight(), defaultTouchTargetHeight);
         }
-        barHeight = a.getDimensionPixelSize(R.styleable.DefaultTimeBar_bar_height,
-            defaultBarHeight);
-        touchTargetHeight = a.getDimensionPixelSize(R.styleable.DefaultTimeBar_touch_target_height,
-            defaultTouchTargetHeight);
+        barHeight =
+            a.getDimensionPixelSize(R.styleable.DefaultTimeBar_bar_height, defaultBarHeight);
+        touchTargetHeight =
+            a.getDimensionPixelSize(
+                R.styleable.DefaultTimeBar_touch_target_height, defaultTouchTargetHeight);
         barGravity = a.getInt(R.styleable.DefaultTimeBar_bar_gravity, BAR_GRAVITY_CENTER);
-        adMarkerWidth = a.getDimensionPixelSize(R.styleable.DefaultTimeBar_ad_marker_width,
-            defaultAdMarkerWidth);
-        scrubberEnabledSize = a.getDimensionPixelSize(
-            R.styleable.DefaultTimeBar_scrubber_enabled_size, defaultScrubberEnabledSize);
-        scrubberDisabledSize = a.getDimensionPixelSize(
-            R.styleable.DefaultTimeBar_scrubber_disabled_size, defaultScrubberDisabledSize);
-        scrubberDraggedSize = a.getDimensionPixelSize(
-            R.styleable.DefaultTimeBar_scrubber_dragged_size, defaultScrubberDraggedSize);
+        adMarkerWidth =
+            a.getDimensionPixelSize(
+                R.styleable.DefaultTimeBar_ad_marker_width, defaultAdMarkerWidth);
+        scrubberEnabledSize =
+            a.getDimensionPixelSize(
+                R.styleable.DefaultTimeBar_scrubber_enabled_size, defaultScrubberEnabledSize);
+        scrubberDisabledSize =
+            a.getDimensionPixelSize(
+                R.styleable.DefaultTimeBar_scrubber_disabled_size, defaultScrubberDisabledSize);
+        scrubberDraggedSize =
+            a.getDimensionPixelSize(
+                R.styleable.DefaultTimeBar_scrubber_dragged_size, defaultScrubberDraggedSize);
         int playedColor = a.getInt(R.styleable.DefaultTimeBar_played_color, DEFAULT_PLAYED_COLOR);
         int scrubberColor =
             a.getInt(R.styleable.DefaultTimeBar_scrubber_color, DEFAULT_SCRUBBER_COLOR);
@@ -312,8 +314,8 @@ public class DefaultTimeBar extends View implements TimeBar {
             a.getInt(R.styleable.DefaultTimeBar_buffered_color, DEFAULT_BUFFERED_COLOR);
         int unplayedColor =
             a.getInt(R.styleable.DefaultTimeBar_unplayed_color, DEFAULT_UNPLAYED_COLOR);
-        int adMarkerColor = a.getInt(R.styleable.DefaultTimeBar_ad_marker_color,
-            DEFAULT_AD_MARKER_COLOR);
+        int adMarkerColor =
+            a.getInt(R.styleable.DefaultTimeBar_ad_marker_color, DEFAULT_AD_MARKER_COLOR);
         int playedAdMarkerColor =
             a.getInt(
                 R.styleable.DefaultTimeBar_played_ad_marker_color, DEFAULT_PLAYED_AD_MARKER_COLOR);
@@ -370,7 +372,12 @@ public class DefaultTimeBar extends View implements TimeBar {
 
   /** Shows the scrubber handle. */
   public void showScrubber() {
-    showScrubber(/* showAnimationDurationMs= */ 0);
+    if (scrubberScalingAnimator.isStarted()) {
+      scrubberScalingAnimator.cancel();
+    }
+    scrubberPaddingDisabled = false;
+    scrubberScale = 1;
+    invalidate(seekBounds);
   }
 
   /**
@@ -382,14 +389,20 @@ public class DefaultTimeBar extends View implements TimeBar {
     if (scrubberScalingAnimator.isStarted()) {
       scrubberScalingAnimator.cancel();
     }
+    scrubberPaddingDisabled = false;
     scrubberScalingAnimator.setFloatValues(scrubberScale, SHOWN_SCRUBBER_SCALE);
     scrubberScalingAnimator.setDuration(showAnimationDurationMs);
     scrubberScalingAnimator.start();
   }
 
   /** Hides the scrubber handle. */
-  public void hideScrubber() {
-    hideScrubber(/* hideAnimationDurationMs= */ 0);
+  public void hideScrubber(boolean disableScrubberPadding) {
+    if (scrubberScalingAnimator.isStarted()) {
+      scrubberScalingAnimator.cancel();
+    }
+    scrubberPaddingDisabled = disableScrubberPadding;
+    scrubberScale = 0;
+    invalidate(seekBounds);
   }
 
   /**
@@ -499,6 +512,9 @@ public class DefaultTimeBar extends View implements TimeBar {
 
   @Override
   public void setPosition(long position) {
+    if (this.position == position) {
+      return;
+    }
     this.position = position;
     setContentDescription(getProgressText());
     update();
@@ -506,12 +522,18 @@ public class DefaultTimeBar extends View implements TimeBar {
 
   @Override
   public void setBufferedPosition(long bufferedPosition) {
+    if (this.bufferedPosition == bufferedPosition) {
+      return;
+    }
     this.bufferedPosition = bufferedPosition;
     update();
   }
 
   @Override
   public void setDuration(long duration) {
+    if (this.duration == duration) {
+      return;
+    }
     this.duration = duration;
     if (scrubbing && duration == C.TIME_UNSET) {
       stopScrubbing(/* canceled= */ true);
@@ -528,10 +550,10 @@ public class DefaultTimeBar extends View implements TimeBar {
   }
 
   @Override
-  public void setAdGroupTimesMs(@Nullable long[] adGroupTimesMs, @Nullable boolean[] playedAdGroups,
-      int adGroupCount) {
-    Assertions.checkArgument(adGroupCount == 0
-        || (adGroupTimesMs != null && playedAdGroups != null));
+  public void setAdGroupTimesMs(
+      @Nullable long[] adGroupTimesMs, @Nullable boolean[] playedAdGroups, int adGroupCount) {
+    Assertions.checkArgument(
+        adGroupCount == 0 || (adGroupTimesMs != null && playedAdGroups != null));
     this.adGroupCount = adGroupCount;
     this.adGroupTimesMs = adGroupTimesMs;
     this.playedAdGroups = playedAdGroups;
@@ -658,8 +680,12 @@ public class DefaultTimeBar extends View implements TimeBar {
   protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
     int heightMode = MeasureSpec.getMode(heightMeasureSpec);
     int heightSize = MeasureSpec.getSize(heightMeasureSpec);
-    int height = heightMode == MeasureSpec.UNSPECIFIED ? touchTargetHeight
-        : heightMode == MeasureSpec.EXACTLY ? heightSize : Math.min(touchTargetHeight, heightSize);
+    int height =
+        heightMode == MeasureSpec.UNSPECIFIED
+            ? touchTargetHeight
+            : heightMode == MeasureSpec.EXACTLY
+                ? heightSize
+                : Math.min(touchTargetHeight, heightSize);
     setMeasuredDimension(MeasureSpec.getSize(widthMeasureSpec), height);
     updateDrawableState();
   }
@@ -668,20 +694,25 @@ public class DefaultTimeBar extends View implements TimeBar {
   protected void onLayout(boolean changed, int left, int top, int right, int bottom) {
     int width = right - left;
     int height = bottom - top;
-    int barY = (height - touchTargetHeight) / 2;
     int seekLeft = getPaddingLeft();
     int seekRight = width - getPaddingRight();
-    int progressY;
+    int seekBoundsY;
+    int progressBarY;
+    int scrubberPadding = scrubberPaddingDisabled ? 0 : this.scrubberPadding;
     if (barGravity == BAR_GRAVITY_BOTTOM) {
-      progressY = barY + touchTargetHeight - (getPaddingBottom() + scrubberPadding + barHeight / 2);
-    } else if (barGravity == BAR_GRAVITY_TOP) {
-      progressY = barY + getPaddingTop() + scrubberPadding - barHeight / 2;
+      seekBoundsY = height - getPaddingBottom() - touchTargetHeight;
+      progressBarY =
+          height - getPaddingBottom() - barHeight - Math.max(scrubberPadding - (barHeight / 2), 0);
     } else {
-      progressY = barY + (touchTargetHeight - barHeight) / 2;
+      seekBoundsY = (height - touchTargetHeight) / 2;
+      progressBarY = (height - barHeight) / 2;
     }
-    seekBounds.set(seekLeft, barY, seekRight, barY + touchTargetHeight);
-    progressBar.set(seekBounds.left + scrubberPadding, progressY,
-        seekBounds.right - scrubberPadding, progressY + barHeight);
+    seekBounds.set(seekLeft, seekBoundsY, seekRight, seekBoundsY + touchTargetHeight);
+    progressBar.set(
+        seekBounds.left + scrubberPadding,
+        progressBarY,
+        seekBounds.right - scrubberPadding,
+        progressBarY + barHeight);
     if (Util.SDK_INT >= 29) {
       setSystemGestureExclusionRectsV29(width, height);
     }
@@ -874,8 +905,9 @@ public class DefaultTimeBar extends View implements TimeBar {
       long adGroupTimeMs = Util.constrainValue(adGroupTimesMs[i], 0, duration);
       int markerPositionOffset =
           (int) (progressBar.width() * adGroupTimeMs / duration) - adMarkerOffset;
-      int markerLeft = progressBar.left + Math.min(progressBar.width() - adMarkerWidth,
-          Math.max(0, markerPositionOffset));
+      int markerLeft =
+          progressBar.left
+              + Math.min(progressBar.width() - adMarkerWidth, Math.max(0, markerPositionOffset));
       Paint paint = playedAdGroups[i] ? playedAdMarkerPaint : adMarkerPaint;
       canvas.drawRect(markerLeft, barTop, markerLeft + adMarkerWidth, barBottom, paint);
     }
@@ -888,8 +920,10 @@ public class DefaultTimeBar extends View implements TimeBar {
     int playheadX = Util.constrainValue(scrubberBar.right, scrubberBar.left, progressBar.right);
     int playheadY = scrubberBar.centerY();
     if (scrubberDrawable == null) {
-      int scrubberSize = (scrubbing || isFocused()) ? scrubberDraggedSize
-          : (isEnabled() ? scrubberEnabledSize : scrubberDisabledSize);
+      int scrubberSize =
+          (scrubbing || isFocused())
+              ? scrubberDraggedSize
+              : (isEnabled() ? scrubberEnabledSize : scrubberDisabledSize);
       int playheadRadius = (int) ((scrubberSize * scrubberScale) / 2);
       canvas.drawCircle(playheadX, playheadY, playheadRadius, scrubberPaint);
     } else {
@@ -905,7 +939,8 @@ public class DefaultTimeBar extends View implements TimeBar {
   }
 
   private void updateDrawableState() {
-    if (scrubberDrawable != null && scrubberDrawable.isStateful()
+    if (scrubberDrawable != null
+        && scrubberDrawable.isStateful()
         && scrubberDrawable.setState(getDrawableState())) {
       invalidate();
     }
@@ -929,7 +964,8 @@ public class DefaultTimeBar extends View implements TimeBar {
 
   private long getPositionIncrement() {
     return keyTimeIncrement == C.TIME_UNSET
-        ? (duration == C.TIME_UNSET ? 0 : (duration / keyCountIncrement)) : keyTimeIncrement;
+        ? (duration == C.TIME_UNSET ? 0 : (duration / keyCountIncrement))
+        : keyTimeIncrement;
   }
 
   private boolean setDrawableLayoutDirection(Drawable drawable) {

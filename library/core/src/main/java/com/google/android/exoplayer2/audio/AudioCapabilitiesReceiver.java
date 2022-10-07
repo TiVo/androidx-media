@@ -24,14 +24,11 @@ import android.database.ContentObserver;
 import android.media.AudioManager;
 import android.net.Uri;
 import android.os.Handler;
-import android.util.Log;
 
 import androidx.annotation.Nullable;
 import androidx.mediarouter.media.MediaControlIntent;
 import androidx.mediarouter.media.MediaRouteSelector;
 import androidx.mediarouter.media.MediaRouter;
-import androidx.mediarouter.media.MediaRouter.Callback;
-import androidx.mediarouter.media.MediaRouter.ProviderInfo;
 import androidx.mediarouter.media.MediaRouter.RouteInfo;
 import com.google.android.exoplayer2.util.Assertions;
 import com.google.android.exoplayer2.util.Util;
@@ -42,9 +39,7 @@ import com.google.android.exoplayer2.util.Util;
  */
 public final class AudioCapabilitiesReceiver {
 
-  /**
-   * Listener notified when audio capabilities change.
-   */
+  /** Listener notified when audio capabilities change. */
   public interface Listener {
 
     /**
@@ -53,7 +48,6 @@ public final class AudioCapabilitiesReceiver {
      * @param audioCapabilities The current audio capabilities for the device.
      */
     void onAudioCapabilitiesChanged(AudioCapabilities audioCapabilities);
-
   }
 
   private final Context context;
@@ -94,8 +88,8 @@ public final class AudioCapabilitiesReceiver {
 
   /**
    * Registers the receiver, meaning it will notify the listener when audio capability changes
-   * occur. The current audio capabilities will be returned. It is important to call
-   * {@link #unregister} when the receiver is no longer required.
+   * occur. The current audio capabilities will be returned. It is important to call {@link
+   * #unregister} when the receiver is no longer required.
    *
    * @return The current audio capabilities for the device.
    */

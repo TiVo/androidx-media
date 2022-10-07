@@ -39,6 +39,7 @@ import androidx.annotation.Nullable;
 import com.google.android.exoplayer2.text.Cue;
 import com.google.android.exoplayer2.text.span.HorizontalTextInVerticalContextSpan;
 import com.google.android.exoplayer2.text.span.RubySpan;
+import com.google.android.exoplayer2.text.span.TextAnnotation;
 import com.google.android.exoplayer2.util.Assertions;
 import com.google.android.exoplayer2.util.Log;
 import com.google.android.exoplayer2.util.ParsableByteArray;
@@ -110,8 +111,8 @@ public final class WebvttCueParser {
    */
   private static final int TEXT_ALIGNMENT_RIGHT = 5;
 
-  public static final Pattern CUE_HEADER_PATTERN = Pattern
-      .compile("^(\\S+)\\s+-->\\s+(\\S+)(.*)?$");
+  public static final Pattern CUE_HEADER_PATTERN =
+      Pattern.compile("^(\\S+)\\s+-->\\s+(\\S+)(.*)?$");
   private static final Pattern CUE_SETTING_PATTERN = Pattern.compile("(\\S+?):(\\S+)");
 
   private static final char CHAR_LESS_THAN = '<';
@@ -256,8 +257,8 @@ public final class WebvttCueParser {
           boolean isClosingTag = markup.charAt(ltPos + 1) == CHAR_SLASH;
           pos = findEndOfTag(markup, ltPos + 1);
           boolean isVoidTag = markup.charAt(pos - 2) == CHAR_SLASH;
-          String fullTagExpression = markup.substring(ltPos + (isClosingTag ? 2 : 1),
-              isVoidTag ? pos - 2 : pos - 1);
+          String fullTagExpression =
+              markup.substring(ltPos + (isClosingTag ? 2 : 1), isVoidTag ? pos - 2 : pos - 1);
           if (fullTagExpression.trim().isEmpty()) {
             continue;
           }
@@ -534,14 +535,12 @@ public final class WebvttCueParser {
     int start = startTag.position;
     int end = text.length();
 
-    switch(startTag.name) {
+    switch (startTag.name) {
       case TAG_BOLD:
-        text.setSpan(new StyleSpan(STYLE_BOLD), start, end,
-            Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+        text.setSpan(new StyleSpan(STYLE_BOLD), start, end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
         break;
       case TAG_ITALIC:
-        text.setSpan(new StyleSpan(STYLE_ITALIC), start, end,
-            Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+        text.setSpan(new StyleSpan(STYLE_ITALIC), start, end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
         break;
       case TAG_RUBY:
         applyRubySpans(text, cueId, startTag, nestedElements, styles);
@@ -572,7 +571,7 @@ public final class WebvttCueParser {
       StartTag startTag,
       List<Element> nestedElements,
       List<WebvttCssStyle> styles) {
-    @RubySpan.Position int rubyTagPosition = getRubyPosition(styles, cueId, startTag);
+    @TextAnnotation.Position int rubyTagPosition = getRubyPosition(styles, cueId, startTag);
     List<Element> sortedNestedElements = new ArrayList<>(nestedElements.size());
     sortedNestedElements.addAll(nestedElements);
     Collections.sort(sortedNestedElements, Element.BY_START_POSITION_ASC);
@@ -585,12 +584,12 @@ public final class WebvttCueParser {
       Element rubyTextElement = sortedNestedElements.get(i);
       // Use the <rt> element's ruby-position if set, otherwise the <ruby> element's and otherwise
       // default to OVER.
-      @RubySpan.Position
+      @TextAnnotation.Position
       int rubyPosition =
           firstKnownRubyPosition(
               getRubyPosition(styles, cueId, rubyTextElement.startTag),
               rubyTagPosition,
-              RubySpan.POSITION_OVER);
+              TextAnnotation.POSITION_BEFORE);
       // Move the rubyText from spannedText into the RubySpan.
       int adjustedRubyTextStart = rubyTextElement.startTag.position - deletedCharCount;
       int adjustedRubyTextEnd = rubyTextElement.endPosition - deletedCharCount;
@@ -607,31 +606,31 @@ public final class WebvttCueParser {
     }
   }
 
-  @RubySpan.Position
+  @TextAnnotation.Position
   private static int getRubyPosition(
       List<WebvttCssStyle> styles, @Nullable String cueId, StartTag startTag) {
     List<StyleMatch> styleMatches = getApplicableStyles(styles, cueId, startTag);
     for (int i = 0; i < styleMatches.size(); i++) {
       WebvttCssStyle style = styleMatches.get(i).style;
-      if (style.getRubyPosition() != RubySpan.POSITION_UNKNOWN) {
+      if (style.getRubyPosition() != TextAnnotation.POSITION_UNKNOWN) {
         return style.getRubyPosition();
       }
     }
-    return RubySpan.POSITION_UNKNOWN;
+    return TextAnnotation.POSITION_UNKNOWN;
   }
 
-  @RubySpan.Position
+  @TextAnnotation.Position
   private static int firstKnownRubyPosition(
-      @RubySpan.Position int position1,
-      @RubySpan.Position int position2,
-      @RubySpan.Position int position3) {
-    if (position1 != RubySpan.POSITION_UNKNOWN) {
+      @TextAnnotation.Position int position1,
+      @TextAnnotation.Position int position2,
+      @TextAnnotation.Position int position3) {
+    if (position1 != TextAnnotation.POSITION_UNKNOWN) {
       return position1;
     }
-    if (position2 != RubySpan.POSITION_UNKNOWN) {
+    if (position2 != TextAnnotation.POSITION_UNKNOWN) {
       return position2;
     }
-    if (position3 != RubySpan.POSITION_UNKNOWN) {
+    if (position3 != TextAnnotation.POSITION_UNKNOWN) {
       return position3;
     }
     throw new IllegalArgumentException();
@@ -657,8 +656,8 @@ public final class WebvttCueParser {
     }
   }
 
-  private static void applyStyleToText(SpannableStringBuilder spannedText, WebvttCssStyle style,
-      int start, int end) {
+  private static void applyStyleToText(
+      SpannableStringBuilder spannedText, WebvttCssStyle style, int start, int end) {
     if (style == null) {
       return;
     }
@@ -923,7 +922,6 @@ public final class WebvttCueParser {
     public int compareTo(StyleMatch another) {
       return Integer.compare(this.score, another.score);
     }
-
   }
 
   private static final class StartTag {
@@ -967,7 +965,6 @@ public final class WebvttCueParser {
           /* voice= */ "",
           /* classes= */ Collections.emptySet());
     }
-
   }
 
   /** Information about a complete element (i.e. start tag and end position). */

@@ -343,8 +343,7 @@ public final class DataSpec {
    *       header directly.
    *   <li>Other headers set at the {@link HttpDataSource} layer. I.e., headers set using {@link
    *       HttpDataSource#setRequestProperty(String, String)}, and using {@link
-   *       HttpDataSource.RequestProperties#set(String, String)} on the default properties obtained
-   *       from {@link HttpDataSource.Factory#getDefaultRequestProperties()}.
+   *       HttpDataSource.Factory#setDefaultRequestProperties(Map)}.
    * </ul>
    */
   public final Map<String, String> httpRequestHeaders;
@@ -361,9 +360,7 @@ public final class DataSpec {
   /** The position of the data when read from {@link #uri}. */
   public final long position;
 
-  /**
-   * The length of the data, or {@link C#LENGTH_UNSET}.
-   */
+  /** The length of the data, or {@link C#LENGTH_UNSET}. */
   public final long length;
 
   /**

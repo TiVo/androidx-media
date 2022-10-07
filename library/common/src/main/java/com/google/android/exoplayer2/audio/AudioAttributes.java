@@ -15,10 +15,16 @@
  */
 package com.google.android.exoplayer2.audio;
 
+import android.os.Bundle;
+import androidx.annotation.IntDef;
 import androidx.annotation.Nullable;
 import androidx.annotation.RequiresApi;
+import com.google.android.exoplayer2.Bundleable;
 import com.google.android.exoplayer2.C;
 import com.google.android.exoplayer2.util.Util;
+import java.lang.annotation.Documented;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
 
 /**
  * Attributes for audio playback, which configure the underlying platform {@link
@@ -31,13 +37,11 @@ import com.google.android.exoplayer2.util.Util;
  * <p>This class is based on {@link android.media.AudioAttributes}, but can be used on all supported
  * API versions.
  */
-public final class AudioAttributes {
+public final class AudioAttributes implements Bundleable {
 
   public static final AudioAttributes DEFAULT = new Builder().build();
 
-  /**
-   * Builder for {@link AudioAttributes}.
-   */
+  /** Builder for {@link AudioAttributes}. */
   public static final class Builder {
 
     private @C.AudioContentType int contentType;
@@ -58,25 +62,19 @@ public final class AudioAttributes {
       allowedCapturePolicy = C.ALLOW_CAPTURE_BY_ALL;
     }
 
-    /**
-     * @see android.media.AudioAttributes.Builder#setContentType(int)
-     */
+    /** @see android.media.AudioAttributes.Builder#setContentType(int) */
     public Builder setContentType(@C.AudioContentType int contentType) {
       this.contentType = contentType;
       return this;
     }
 
-    /**
-     * @see android.media.AudioAttributes.Builder#setFlags(int)
-     */
+    /** @see android.media.AudioAttributes.Builder#setFlags(int) */
     public Builder setFlags(@C.AudioFlags int flags) {
       this.flags = flags;
       return this;
     }
 
-    /**
-     * @see android.media.AudioAttributes.Builder#setUsage(int)
-     */
+    /** @see android.media.AudioAttributes.Builder#setUsage(int) */
     public Builder setUsage(@C.AudioUsage int usage) {
       this.usage = usage;
       return this;
@@ -92,7 +90,6 @@ public final class AudioAttributes {
     public AudioAttributes build() {
       return new AudioAttributes(contentType, flags, usage, allowedCapturePolicy);
     }
-
   }
 
   public final @C.AudioContentType int contentType;
@@ -159,4 +156,48 @@ public final class AudioAttributes {
     return result;
   }
 
+  // Bundleable implementation.
+
+  @Documented
+  @Retention(RetentionPolicy.SOURCE)
+  @IntDef({FIELD_CONTENT_TYPE, FIELD_FLAGS, FIELD_USAGE, FIELD_ALLOWED_CAPTURE_POLICY})
+  private @interface FieldNumber {}
+
+  private static final int FIELD_CONTENT_TYPE = 0;
+  private static final int FIELD_FLAGS = 1;
+  private static final int FIELD_USAGE = 2;
+  private static final int FIELD_ALLOWED_CAPTURE_POLICY = 3;
+
+  @Override
+  public Bundle toBundle() {
+    Bundle bundle = new Bundle();
+    bundle.putInt(keyForField(FIELD_CONTENT_TYPE), contentType);
+    bundle.putInt(keyForField(FIELD_FLAGS), flags);
+    bundle.putInt(keyForField(FIELD_USAGE), usage);
+    bundle.putInt(keyForField(FIELD_ALLOWED_CAPTURE_POLICY), allowedCapturePolicy);
+    return bundle;
+  }
+
+  /** Object that can restore {@link AudioAttributes} from a {@link Bundle}. */
+  public static final Creator<AudioAttributes> CREATOR =
+      bundle -> {
+        Builder builder = new Builder();
+        if (bundle.containsKey(keyForField(FIELD_CONTENT_TYPE))) {
+          builder.setContentType(bundle.getInt(keyForField(FIELD_CONTENT_TYPE)));
+        }
+        if (bundle.containsKey(keyForField(FIELD_FLAGS))) {
+          builder.setFlags(bundle.getInt(keyForField(FIELD_FLAGS)));
+        }
+        if (bundle.containsKey(keyForField(FIELD_USAGE))) {
+          builder.setUsage(bundle.getInt(keyForField(FIELD_USAGE)));
+        }
+        if (bundle.containsKey(keyForField(FIELD_ALLOWED_CAPTURE_POLICY))) {
+          builder.setAllowedCapturePolicy(bundle.getInt(keyForField(FIELD_ALLOWED_CAPTURE_POLICY)));
+        }
+        return builder.build();
+      };
+
+  private static String keyForField(@FieldNumber int field) {
+    return Integer.toString(field, Character.MAX_RADIX);
+  }
 }

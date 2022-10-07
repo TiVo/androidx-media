@@ -19,37 +19,77 @@ package com.google.android.exoplayer2.mediacodec;
 import android.media.MediaCodec;
 import android.media.MediaCrypto;
 import android.media.MediaFormat;
+import android.os.Bundle;
+import android.os.Handler;
 import android.view.Surface;
 import androidx.annotation.Nullable;
+import androidx.annotation.RequiresApi;
+import com.google.android.exoplayer2.C;
+import com.google.android.exoplayer2.Format;
 import com.google.android.exoplayer2.decoder.CryptoInfo;
-import com.google.android.exoplayer2.mediacodec.MediaCodecRenderer.MediaCodecOperationMode;
+import java.io.IOException;
+import java.nio.ByteBuffer;
 
 /**
  * Abstracts {@link MediaCodec} operations.
  *
  * <p>{@code MediaCodecAdapter} offers a common interface to interact with a {@link MediaCodec}
- * regardless of the {@link MediaCodecOperationMode} the {@link MediaCodec} is operating in.
+ * regardless of the mode the {@link MediaCodec} is operating in.
  */
 public interface MediaCodecAdapter {
+  /** Configuration parameters for a {@link MediaCodecAdapter}. */
+  final class Configuration {
+    /** Information about the {@link MediaCodec} being configured. */
+    public final MediaCodecInfo codecInfo;
+    /** The {@link MediaFormat} for which the codec is being configured. */
+    public final MediaFormat mediaFormat;
+    /** The {@link Format} for which the codec is being configured. */
+    public final Format format;
+    /** For video playbacks, the output where the object will render the decoded frames. */
+    @Nullable public final Surface surface;
+    /** For DRM protected playbacks, a {@link MediaCrypto} to use for decryption. */
+    @Nullable public final MediaCrypto crypto;
+    /**
+     * Specify CONFIGURE_FLAG_ENCODE to configure the component as an encoder.
+     *
+     * @see MediaCodec#configure
+     */
+    public final int flags;
+
+    public Configuration(
+        MediaCodecInfo codecInfo,
+        MediaFormat mediaFormat,
+        Format format,
+        @Nullable Surface surface,
+        @Nullable MediaCrypto crypto,
+        int flags) {
+      this.codecInfo = codecInfo;
+      this.mediaFormat = mediaFormat;
+      this.format = format;
+      this.surface = surface;
+      this.crypto = crypto;
+      this.flags = flags;
+    }
+  }
+
+  /** A factory for {@link MediaCodecAdapter} instances. */
+  interface Factory {
+
+    /** Default factory used in most cases. */
+    Factory DEFAULT = new SynchronousMediaCodecAdapter.Factory();
+
+    /** Creates a {@link MediaCodecAdapter} instance. */
+    MediaCodecAdapter createAdapter(Configuration configuration) throws IOException;
+  }
 
   /**
-   * Configures this adapter and the underlying {@link MediaCodec}. Needs to be called before {@link
-   * #start()}.
+   * Listener to be called when an output frame has rendered on the output surface.
    *
-   * @see MediaCodec#configure(MediaFormat, Surface, MediaCrypto, int)
+   * @see MediaCodec.OnFrameRenderedListener
    */
-  void configure(
-      @Nullable MediaFormat mediaFormat,
-      @Nullable Surface surface,
-      @Nullable MediaCrypto crypto,
-      int flags);
-
-  /**
-   * Starts this instance. Needs to be called after {@link #configure}.
-   *
-   * @see MediaCodec#start()
-   */
-  void start();
+  interface OnFrameRenderedListener {
+    void onFrameRendered(MediaCodecAdapter codec, long presentationTimeUs, long nanoTime);
+  }
 
   /**
    * Returns the next available input buffer index from the underlying {@link MediaCodec} or {@link
@@ -79,6 +119,22 @@ public interface MediaCodecAdapter {
   MediaFormat getOutputFormat();
 
   /**
+   * Returns a writable ByteBuffer object for a dequeued input buffer index.
+   *
+   * @see MediaCodec#getInputBuffer(int)
+   */
+  @Nullable
+  ByteBuffer getInputBuffer(int index);
+
+  /**
+   * Returns a read-only ByteBuffer for a dequeued output buffer index.
+   *
+   * @see MediaCodec#getOutputBuffer(int)
+   */
+  @Nullable
+  ByteBuffer getOutputBuffer(int index);
+
+  /**
    * Submit an input buffer for decoding.
    *
    * <p>The {@code index} must be an input buffer index that has been obtained from a previous call
@@ -102,18 +158,63 @@ public interface MediaCodecAdapter {
   void queueSecureInputBuffer(
       int index, int offset, CryptoInfo info, long presentationTimeUs, int flags);
 
-  /** Flushes both the adapter and the underlying {@link MediaCodec}. */
-  void flush();
+  /**
+   * Returns the buffer to the {@link MediaCodec}. If the {@link MediaCodec} was configured with an
+   * output surface, setting {@code render} to {@code true} will first send the buffer to the output
+   * surface. The surface will release the buffer back to the codec once it is no longer
+   * used/displayed.
+   *
+   * @see MediaCodec#releaseOutputBuffer(int, boolean)
+   */
+  void releaseOutputBuffer(int index, boolean render);
 
   /**
-   * Shuts down the adapter.
+   * Updates the output buffer's surface timestamp and sends it to the {@link MediaCodec} to render
+   * it on the output surface. If the {@link MediaCodec} is not configured with an output surface,
+   * this call will simply return the buffer to the {@link MediaCodec}.
    *
-   * <p>This method does not stop or release the underlying {@link MediaCodec}. It should be called
-   * before stopping or releasing the {@link MediaCodec} to avoid the possibility of the adapter
-   * interacting with a stopped or released {@link MediaCodec}.
+   * @see MediaCodec#releaseOutputBuffer(int, long)
    */
-  void shutdown();
+  @RequiresApi(21)
+  void releaseOutputBuffer(int index, long renderTimeStampNs);
 
-  /** Returns the {@link MediaCodec} instance of this adapter. */
-  MediaCodec getCodec();
+  /** Flushes the adapter and the underlying {@link MediaCodec}. */
+  void flush();
+
+  /** Releases the adapter and the underlying {@link MediaCodec}. */
+  void release();
+
+  /**
+   * Registers a callback to be invoked when an output frame is rendered on the output surface.
+   *
+   * @see MediaCodec#setOnFrameRenderedListener
+   */
+  @RequiresApi(23)
+  void setOnFrameRenderedListener(OnFrameRenderedListener listener, Handler handler);
+
+  /**
+   * Dynamically sets the output surface of a {@link MediaCodec}.
+   *
+   * @see MediaCodec#setOutputSurface(Surface)
+   */
+  @RequiresApi(23)
+  void setOutputSurface(Surface surface);
+
+  /**
+   * Communicate additional parameter changes to the {@link MediaCodec} instance.
+   *
+   * @see MediaCodec#setParameters(Bundle)
+   */
+  @RequiresApi(19)
+  void setParameters(Bundle params);
+
+  /**
+   * Specifies the scaling mode to use, if a surface was specified when the codec was created.
+   *
+   * @see MediaCodec#setVideoScalingMode(int)
+   */
+  void setVideoScalingMode(@C.VideoScalingMode int scalingMode);
+
+  /** Whether the adapter needs to be reconfigured before it is used. */
+  boolean needsReconfiguration();
 }

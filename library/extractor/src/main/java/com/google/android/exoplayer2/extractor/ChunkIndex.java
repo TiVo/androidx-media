@@ -18,34 +18,22 @@ package com.google.android.exoplayer2.extractor;
 import com.google.android.exoplayer2.util.Util;
 import java.util.Arrays;
 
-/**
- * Defines chunks of samples within a media stream.
- */
+/** Defines chunks of samples within a media stream. */
 public final class ChunkIndex implements SeekMap {
 
-  /**
-   * The number of chunks.
-   */
+  /** The number of chunks. */
   public final int length;
 
-  /**
-   * The chunk sizes, in bytes.
-   */
+  /** The chunk sizes, in bytes. */
   public final int[] sizes;
 
-  /**
-   * The chunk byte offsets.
-   */
+  /** The chunk byte offsets. */
   public final long[] offsets;
 
-  /**
-   * The chunk durations, in microseconds.
-   */
+  /** The chunk durations, in microseconds. */
   public final long[] durationsUs;
 
-  /**
-   * The start time of each chunk, in microseconds.
-   */
+  /** The start time of each chunk, in microseconds. */
   public final long[] timesUs;
 
   private final long durationUs;

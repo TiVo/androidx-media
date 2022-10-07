@@ -15,6 +15,7 @@
  */
 package com.google.android.exoplayer2.source;
 
+import static com.google.android.exoplayer2.source.SampleStream.FLAG_REQUIRE_FORMAT;
 import static com.google.android.exoplayer2.testutil.FakeSampleStream.FakeSampleStreamItem.END_OF_STREAM_ITEM;
 import static com.google.android.exoplayer2.testutil.FakeSampleStream.FakeSampleStreamItem.oneByteSample;
 import static com.google.common.truth.Truth.assertThat;
@@ -29,8 +30,9 @@ import com.google.android.exoplayer2.drm.DrmSessionManager;
 import com.google.android.exoplayer2.source.MediaSource.MediaPeriodId;
 import com.google.android.exoplayer2.source.MediaSourceEventListener.EventDispatcher;
 import com.google.android.exoplayer2.testutil.FakeMediaPeriod;
+import com.google.android.exoplayer2.trackselection.ExoTrackSelection;
 import com.google.android.exoplayer2.trackselection.FixedTrackSelection;
-import com.google.android.exoplayer2.trackselection.TrackSelection;
+import com.google.android.exoplayer2.upstream.DefaultAllocator;
 import com.google.common.collect.ImmutableList;
 import java.util.concurrent.CountDownLatch;
 import org.checkerframework.checker.nullness.compatqual.NullableType;
@@ -71,17 +73,20 @@ public final class MergingMediaPeriodTest {
             new MergingPeriodDefinition(
                 /* timeOffsetUs= */ 0, /* singleSampleTimeUs= */ 0, childFormat21, childFormat22));
 
-    TrackSelection selectionForChild1 =
+    ExoTrackSelection selectionForChild1 =
         new FixedTrackSelection(mergingMediaPeriod.getTrackGroups().get(1), /* track= */ 0);
-    TrackSelection selectionForChild2 =
+    ExoTrackSelection selectionForChild2 =
         new FixedTrackSelection(mergingMediaPeriod.getTrackGroups().get(2), /* track= */ 0);
     SampleStream[] streams = new SampleStream[4];
     mergingMediaPeriod.selectTracks(
-        /* selections= */ new TrackSelection[] {null, selectionForChild1, selectionForChild2, null},
+        /* selections= */ new ExoTrackSelection[] {
+          null, selectionForChild1, selectionForChild2, null
+        },
         /* mayRetainStreamFlags= */ new boolean[] {false, false, false, false},
         streams,
         /* streamResetFlags= */ new boolean[] {false, false, false, false},
         /* positionUs= */ 0);
+    mergingMediaPeriod.continueLoading(/* positionUs= */ 0);
 
     assertThat(streams[0]).isNull();
     assertThat(streams[3]).isNull();
@@ -89,11 +94,11 @@ public final class MergingMediaPeriodTest {
     FormatHolder formatHolder = new FormatHolder();
     DecoderInputBuffer inputBuffer =
         new DecoderInputBuffer(DecoderInputBuffer.BUFFER_REPLACEMENT_MODE_NORMAL);
-    assertThat(streams[1].readData(formatHolder, inputBuffer, /* formatRequired= */ true))
+    assertThat(streams[1].readData(formatHolder, inputBuffer, FLAG_REQUIRE_FORMAT))
         .isEqualTo(C.RESULT_FORMAT_READ);
     assertThat(formatHolder.format).isEqualTo(childFormat12);
 
-    assertThat(streams[2].readData(formatHolder, inputBuffer, /* formatRequired= */ true))
+    assertThat(streams[2].readData(formatHolder, inputBuffer, FLAG_REQUIRE_FORMAT))
         .isEqualTo(C.RESULT_FORMAT_READ);
     assertThat(formatHolder.format).isEqualTo(childFormat21);
   }
@@ -115,34 +120,35 @@ public final class MergingMediaPeriodTest {
                 childFormat21,
                 childFormat22));
 
-    TrackSelection selectionForChild1 =
+    ExoTrackSelection selectionForChild1 =
         new FixedTrackSelection(mergingMediaPeriod.getTrackGroups().get(0), /* track= */ 0);
-    TrackSelection selectionForChild2 =
+    ExoTrackSelection selectionForChild2 =
         new FixedTrackSelection(mergingMediaPeriod.getTrackGroups().get(2), /* track= */ 0);
     SampleStream[] streams = new SampleStream[2];
     mergingMediaPeriod.selectTracks(
-        /* selections= */ new TrackSelection[] {selectionForChild1, selectionForChild2},
+        /* selections= */ new ExoTrackSelection[] {selectionForChild1, selectionForChild2},
         /* mayRetainStreamFlags= */ new boolean[] {false, false},
         streams,
         /* streamResetFlags= */ new boolean[] {false, false},
         /* positionUs= */ 0);
+    mergingMediaPeriod.continueLoading(/* positionUs= */ 0);
     FormatHolder formatHolder = new FormatHolder();
     DecoderInputBuffer inputBuffer =
         new DecoderInputBuffer(DecoderInputBuffer.BUFFER_REPLACEMENT_MODE_NORMAL);
-    streams[0].readData(formatHolder, inputBuffer, /* formatRequired= */ true);
-    streams[1].readData(formatHolder, inputBuffer, /* formatRequired= */ true);
+    streams[0].readData(formatHolder, inputBuffer, FLAG_REQUIRE_FORMAT);
+    streams[1].readData(formatHolder, inputBuffer, FLAG_REQUIRE_FORMAT);
 
     FakeMediaPeriodWithSelectTracksPosition childMediaPeriod1 =
         (FakeMediaPeriodWithSelectTracksPosition) mergingMediaPeriod.getChildPeriod(0);
     assertThat(childMediaPeriod1.selectTracksPositionUs).isEqualTo(0);
-    assertThat(streams[0].readData(formatHolder, inputBuffer, /* formatRequired= */ false))
+    assertThat(streams[0].readData(formatHolder, inputBuffer, /* readFlags= */ 0))
         .isEqualTo(C.RESULT_BUFFER_READ);
     assertThat(inputBuffer.timeUs).isEqualTo(123_000L);
 
     FakeMediaPeriodWithSelectTracksPosition childMediaPeriod2 =
         (FakeMediaPeriodWithSelectTracksPosition) mergingMediaPeriod.getChildPeriod(1);
     assertThat(childMediaPeriod2.selectTracksPositionUs).isEqualTo(3000L);
-    assertThat(streams[1].readData(formatHolder, inputBuffer, /* formatRequired= */ false))
+    assertThat(streams[1].readData(formatHolder, inputBuffer, /* readFlags= */ 0))
         .isEqualTo(C.RESULT_BUFFER_READ);
     assertThat(inputBuffer.timeUs).isEqualTo(456_000 - 3000);
   }
@@ -168,7 +174,8 @@ public final class MergingMediaPeriodTest {
                       /* mediaTimeOffsetMs= */ 0),
               /* trackDataFactory= */ (unusedFormat, unusedMediaPeriodId) ->
                   ImmutableList.of(
-                      oneByteSample(definition.singleSampleTimeUs), END_OF_STREAM_ITEM));
+                      oneByteSample(definition.singleSampleTimeUs, C.BUFFER_FLAG_KEY_FRAME),
+                      END_OF_STREAM_ITEM));
     }
     MergingMediaPeriod mergingMediaPeriod =
         new MergingMediaPeriod(
@@ -203,9 +210,10 @@ public final class MergingMediaPeriodTest {
         TrackDataFactory trackDataFactory) {
       super(
           trackGroupArray,
+          new DefaultAllocator(/* trimOnReset= */ false, /* individualAllocationSize= */ 1024),
           trackDataFactory,
           mediaSourceEventDispatcher,
-          DrmSessionManager.DUMMY,
+          DrmSessionManager.DRM_UNSUPPORTED,
           new DrmSessionEventListener.EventDispatcher(),
           /* deferOnPrepared= */ false);
       selectTracksPositionUs = C.TIME_UNSET;
@@ -213,7 +221,7 @@ public final class MergingMediaPeriodTest {
 
     @Override
     public long selectTracks(
-        @NullableType TrackSelection[] selections,
+        @NullableType ExoTrackSelection[] selections,
         boolean[] mayRetainStreamFlags,
         @NullableType SampleStream[] streams,
         boolean[] streamResetFlags,

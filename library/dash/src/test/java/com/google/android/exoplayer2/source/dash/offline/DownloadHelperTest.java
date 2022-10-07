@@ -25,9 +25,11 @@ import com.google.android.exoplayer2.testutil.FakeDataSource;
 import com.google.android.exoplayer2.util.MimeTypes;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.robolectric.annotation.internal.DoNotInstrument;
 
 /** Unit test to verify creation of a DASH {@link DownloadHelper}. */
 @RunWith(AndroidJUnit4.class)
+@DoNotInstrument
 public final class DownloadHelperTest {
 
   @Test
@@ -42,6 +44,6 @@ public final class DownloadHelperTest {
         DownloadHelper.DEFAULT_TRACK_SELECTOR_PARAMETERS_WITHOUT_CONTEXT,
         (handler, videoListener, audioListener, text, metadata) -> new Renderer[0],
         new FakeDataSource.Factory(),
-        /* drmSessionManager= */ DrmSessionManager.getDummyDrmSessionManager());
+        /* drmSessionManager= */ DrmSessionManager.DRM_UNSUPPORTED);
   }
 }

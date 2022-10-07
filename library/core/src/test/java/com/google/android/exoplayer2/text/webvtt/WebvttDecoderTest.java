@@ -26,7 +26,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4;
 import com.google.android.exoplayer2.testutil.TestUtil;
 import com.google.android.exoplayer2.text.Cue;
 import com.google.android.exoplayer2.text.SubtitleDecoderException;
-import com.google.android.exoplayer2.text.span.RubySpan;
+import com.google.android.exoplayer2.text.span.TextAnnotation;
 import com.google.android.exoplayer2.util.Assertions;
 import com.google.android.exoplayer2.util.ColorParser;
 import com.google.common.collect.Iterables;
@@ -54,6 +54,7 @@ public class WebvttDecoderTest {
   private static final String WITH_BAD_CUE_HEADER_FILE = "media/webvtt/with_bad_cue_header";
   private static final String WITH_TAGS_FILE = "media/webvtt/with_tags";
   private static final String WITH_CSS_STYLES = "media/webvtt/with_css_styles";
+  private static final String WITH_FONT_SIZE = "media/webvtt/with_font_size";
   private static final String WITH_CSS_COMPLEX_SELECTORS =
       "media/webvtt/with_css_complex_selectors";
   private static final String WITH_CSS_TEXT_COMBINE_UPRIGHT =
@@ -349,7 +350,7 @@ public class WebvttDecoderTest {
     assertThat(firstCue.text.toString()).isEqualTo("Some text with over-ruby.");
     assertThat((Spanned) firstCue.text)
         .hasRubySpanBetween("Some ".length(), "Some text with over-ruby".length())
-        .withTextAndPosition("over", RubySpan.POSITION_OVER);
+        .withTextAndPosition("over", TextAnnotation.POSITION_BEFORE);
 
     // Check that `under` is read from CSS and unspecified defaults to `over`.
     Cue secondCue = Iterables.getOnlyElement(subtitle.getCues(subtitle.getEventTime(2)));
@@ -357,25 +358,25 @@ public class WebvttDecoderTest {
         .isEqualTo("Some text with under-ruby and over-ruby (default).");
     assertThat((Spanned) secondCue.text)
         .hasRubySpanBetween("Some ".length(), "Some text with under-ruby".length())
-        .withTextAndPosition("under", RubySpan.POSITION_UNDER);
+        .withTextAndPosition("under", TextAnnotation.POSITION_AFTER);
     assertThat((Spanned) secondCue.text)
         .hasRubySpanBetween(
             "Some text with under-ruby and ".length(),
             "Some text with under-ruby and over-ruby (default)".length())
-        .withTextAndPosition("over", RubySpan.POSITION_OVER);
+        .withTextAndPosition("over", TextAnnotation.POSITION_BEFORE);
 
     // Check many <rt> tags with different positions nested in a single <ruby> span.
     Cue thirdCue = Iterables.getOnlyElement(subtitle.getCues(subtitle.getEventTime(4)));
     assertThat(thirdCue.text.toString()).isEqualTo("base1base2base3.");
     assertThat((Spanned) thirdCue.text)
         .hasRubySpanBetween(/* start= */ 0, "base1".length())
-        .withTextAndPosition("over1", RubySpan.POSITION_OVER);
+        .withTextAndPosition("over1", TextAnnotation.POSITION_BEFORE);
     assertThat((Spanned) thirdCue.text)
         .hasRubySpanBetween("base1".length(), "base1base2".length())
-        .withTextAndPosition("under2", RubySpan.POSITION_UNDER);
+        .withTextAndPosition("under2", TextAnnotation.POSITION_AFTER);
     assertThat((Spanned) thirdCue.text)
         .hasRubySpanBetween("base1base2".length(), "base1base2base3".length())
-        .withTextAndPosition("under3", RubySpan.POSITION_UNDER);
+        .withTextAndPosition("under3", TextAnnotation.POSITION_AFTER);
 
     // Check a <ruby> span with no <rt> tags.
     Cue fourthCue = Iterables.getOnlyElement(subtitle.getCues(subtitle.getEventTime(6)));
@@ -398,6 +399,58 @@ public class WebvttDecoderTest {
     assertThat(subtitle.getEventTime(3)).isEqualTo(5_000_000L);
     Cue secondCue = Iterables.getOnlyElement(subtitle.getCues(subtitle.getEventTime(2)));
     assertThat(secondCue.text.toString()).isEqualTo("This is the third subtitle.");
+  }
+
+  @Test
+  public void decodeWithCssFontSizeStyle() throws Exception {
+    WebvttSubtitle subtitle = getSubtitleForTestAsset(WITH_FONT_SIZE);
+
+    assertThat(subtitle.getEventTimeCount()).isEqualTo(12);
+
+    assertThat(subtitle.getEventTime(0)).isEqualTo(0L);
+    assertThat(subtitle.getEventTime(1)).isEqualTo(2_000_000L);
+    Cue firstCue = Iterables.getOnlyElement(subtitle.getCues(subtitle.getEventTime(0)));
+    assertThat(firstCue.text.toString()).isEqualTo("Sentence with font-size set to 4.4em.");
+    assertThat((Spanned) firstCue.text)
+        .hasRelativeSizeSpanBetween(0, "Sentence with font-size set to 4.4em.".length())
+        .withSizeChange(4.4f);
+
+    assertThat(subtitle.getEventTime(2)).isEqualTo(2_100_000L);
+    assertThat(subtitle.getEventTime(3)).isEqualTo(2_400_000L);
+    Cue secondCue = Iterables.getOnlyElement(subtitle.getCues(subtitle.getEventTime(2)));
+    assertThat(secondCue.text.toString()).isEqualTo("Sentence with bad font-size unit.");
+    assertThat((Spanned) secondCue.text).hasNoSpans();
+
+    assertThat(subtitle.getEventTime(4)).isEqualTo(2_500_000L);
+    assertThat(subtitle.getEventTime(5)).isEqualTo(4_000_000L);
+    Cue thirdCue = Iterables.getOnlyElement(subtitle.getCues(subtitle.getEventTime(4)));
+    assertThat(thirdCue.text.toString()).isEqualTo("Absolute font-size expressed in px unit!");
+    assertThat((Spanned) thirdCue.text)
+        .hasAbsoluteSizeSpanBetween(0, "Absolute font-size expressed in px unit!".length())
+        .withAbsoluteSize(2);
+
+    assertThat(subtitle.getEventTime(6)).isEqualTo(4_500_000L);
+    assertThat(subtitle.getEventTime(7)).isEqualTo(6_000_000L);
+    Cue fourthCue = Iterables.getOnlyElement(subtitle.getCues(subtitle.getEventTime(6)));
+    assertThat(fourthCue.text.toString()).isEqualTo("Relative font-size expressed in % unit!");
+    assertThat((Spanned) fourthCue.text)
+        .hasRelativeSizeSpanBetween(0, "Relative font-size expressed in % unit!".length())
+        .withSizeChange(0.035f);
+
+    assertThat(subtitle.getEventTime(8)).isEqualTo(6_100_000L);
+    assertThat(subtitle.getEventTime(9)).isEqualTo(6_400_000L);
+    Cue fifthCue = Iterables.getOnlyElement(subtitle.getCues(subtitle.getEventTime(8)));
+    assertThat(fifthCue.text.toString()).isEqualTo("Sentence with bad font-size value.");
+    assertThat((Spanned) secondCue.text).hasNoSpans();
+
+    assertThat(subtitle.getEventTime(10)).isEqualTo(6_500_000L);
+    assertThat(subtitle.getEventTime(11)).isEqualTo(8_000_000L);
+    Cue sixthCue = Iterables.getOnlyElement(subtitle.getCues(subtitle.getEventTime(10)));
+    assertThat(sixthCue.text.toString())
+        .isEqualTo("Upper and lower case letters in font-size unit.");
+    assertThat((Spanned) sixthCue.text)
+        .hasAbsoluteSizeSpanBetween(0, "Upper and lower case letters in font-size unit.".length())
+        .withAbsoluteSize(2);
   }
 
   @Test

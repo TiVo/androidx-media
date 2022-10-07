@@ -59,9 +59,7 @@ public final class ClippingMediaSource extends CompositeMediaSource<Void> {
     /** The reason clipping failed. */
     public final @Reason int reason;
 
-    /**
-     * @param reason The reason clipping failed.
-     */
+    /** @param reason The reason clipping failed. */
     public IllegalClippingException(@Reason int reason) {
       super("Illegal clipping: " + getReasonDescription(reason));
       this.reason = reason;
@@ -188,17 +186,6 @@ public final class ClippingMediaSource extends CompositeMediaSource<Void> {
     window = new Timeline.Window();
   }
 
-  /**
-   * @deprecated Use {@link #getMediaItem()} and {@link MediaItem.PlaybackProperties#tag} instead.
-   */
-  @SuppressWarnings("deprecation")
-  @Deprecated
-  @Override
-  @Nullable
-  public Object getTag() {
-    return mediaSource.getTag();
-  }
-
   @Override
   public MediaItem getMediaItem() {
     return mediaSource.getMediaItem();
@@ -293,22 +280,7 @@ public final class ClippingMediaSource extends CompositeMediaSource<Void> {
     refreshSourceInfo(clippingTimeline);
   }
 
-  @Override
-  protected long getMediaTimeForChildMediaTime(Void id, long mediaTimeMs) {
-    if (mediaTimeMs == C.TIME_UNSET) {
-      return C.TIME_UNSET;
-    }
-    long startMs = C.usToMs(startUs);
-    long clippedTimeMs = max(0, mediaTimeMs - startMs);
-    if (endUs != C.TIME_END_OF_SOURCE) {
-      clippedTimeMs = min(C.usToMs(endUs) - startMs, clippedTimeMs);
-    }
-    return clippedTimeMs;
-  }
-
-  /**
-   * Provides a clipped view of a specified timeline.
-   */
+  /** Provides a clipped view of a specified timeline. */
   private static final class ClippingTimeline extends ForwardingTimeline {
 
     private final long startUs;

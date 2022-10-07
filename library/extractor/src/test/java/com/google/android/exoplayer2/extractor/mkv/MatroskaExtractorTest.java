@@ -16,19 +16,21 @@
 package com.google.android.exoplayer2.extractor.mkv;
 
 import com.google.android.exoplayer2.testutil.ExtractorAsserts;
-import java.util.List;
+import com.google.common.collect.ImmutableList;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.robolectric.ParameterizedRobolectricTestRunner;
 import org.robolectric.ParameterizedRobolectricTestRunner.Parameter;
 import org.robolectric.ParameterizedRobolectricTestRunner.Parameters;
+import org.robolectric.annotation.internal.DoNotInstrument;
 
 /** Tests for {@link MatroskaExtractor}. */
 @RunWith(ParameterizedRobolectricTestRunner.class)
+@DoNotInstrument
 public final class MatroskaExtractorTest {
 
   @Parameters(name = "{0}")
-  public static List<Object[]> params() {
+  public static ImmutableList<ExtractorAsserts.SimulationConfig> params() {
     return ExtractorAsserts.configs();
   }
 
@@ -65,6 +67,12 @@ public final class MatroskaExtractorTest {
         MatroskaExtractor::new,
         "media/mkv/sample_with_null_terminated_ssa_subtitles.mkv",
         simulationConfig);
+  }
+
+  @Test
+  public void mkvSample_withVorbisAudio() throws Exception {
+    ExtractorAsserts.assertBehavior(
+        MatroskaExtractor::new, "media/mkv/sample_with_vorbis_audio.mkv", simulationConfig);
   }
 
   @Test

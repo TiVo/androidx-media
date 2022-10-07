@@ -20,8 +20,8 @@ import android.text.TextUtils;
 import androidx.annotation.ColorInt;
 import androidx.annotation.IntDef;
 import androidx.annotation.Nullable;
-import com.google.android.exoplayer2.text.span.RubySpan;
-import com.google.android.exoplayer2.util.Util;
+import com.google.android.exoplayer2.text.span.TextAnnotation;
+import com.google.common.base.Ascii;
 import java.lang.annotation.Documented;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
@@ -95,7 +95,7 @@ public final class WebvttCssStyle {
   @OptionalBoolean private int italic;
   @FontSizeUnit private int fontSizeUnit;
   private float fontSize;
-  @RubySpan.Position private int rubyPosition;
+  @TextAnnotation.Position private int rubyPosition;
   private boolean combineUpright;
 
   public WebvttCssStyle() {
@@ -111,12 +111,12 @@ public final class WebvttCssStyle {
     bold = UNSPECIFIED;
     italic = UNSPECIFIED;
     fontSizeUnit = UNSPECIFIED;
-    rubyPosition = RubySpan.POSITION_UNKNOWN;
+    rubyPosition = TextAnnotation.POSITION_UNKNOWN;
     combineUpright = false;
   }
 
   public void setTargetId(String targetId) {
-    this.targetId  = targetId;
+    this.targetId = targetId;
   }
 
   public void setTargetTagName(String targetTag) {
@@ -134,24 +134,27 @@ public final class WebvttCssStyle {
   /**
    * Returns a value in a score system compliant with the CSS Specificity rules.
    *
-   * @see <a href="https://www.w3.org/TR/CSS2/cascade.html">CSS Cascading</a>
-   *     <p>The score works as follows:
-   *     <ul>
-   *       <li>Id match adds 0x40000000 to the score.
-   *       <li>Each class and voice match adds 4 to the score.
-   *       <li>Tag matching adds 2 to the score.
-   *       <li>Universal selector matching scores 1.
-   *     </ul>
+   * <p>The score works as follows:
+   *
+   * <ul>
+   *   <li>Id match adds 0x40000000 to the score.
+   *   <li>Each class and voice match adds 4 to the score.
+   *   <li>Tag matching adds 2 to the score.
+   *   <li>Universal selector matching scores 1.
+   * </ul>
    *
    * @param id The id of the cue if present, {@code null} otherwise.
    * @param tag Name of the tag, {@code null} if it refers to the entire cue.
    * @param classes An array containing the classes the tag belongs to. Must not be null.
    * @param voice Annotated voice if present, {@code null} otherwise.
    * @return The score of the match, zero if there is no match.
+   * @see <a href="https://www.w3.org/TR/CSS2/cascade.html">CSS Cascading</a>
    */
   public int getSpecificityScore(
       @Nullable String id, @Nullable String tag, Set<String> classes, @Nullable String voice) {
-    if (targetId.isEmpty() && targetTag.isEmpty() && targetClasses.isEmpty()
+    if (targetId.isEmpty()
+        && targetTag.isEmpty()
+        && targetClasses.isEmpty()
         && targetVoice.isEmpty()) {
       // The selector is universal. It matches with the minimum score if and only if the given
       // element is a whole cue.
@@ -175,12 +178,12 @@ public final class WebvttCssStyle {
    * @return {@link #UNSPECIFIED}, {@link #STYLE_NORMAL}, {@link #STYLE_BOLD}, {@link #STYLE_BOLD}
    *     or {@link #STYLE_BOLD_ITALIC}.
    */
-  @StyleFlags public int getStyle() {
+  @StyleFlags
+  public int getStyle() {
     if (bold == UNSPECIFIED && italic == UNSPECIFIED) {
       return UNSPECIFIED;
     }
-    return (bold == ON ? STYLE_BOLD : STYLE_NORMAL)
-        | (italic == ON ? STYLE_ITALIC : STYLE_NORMAL);
+    return (bold == ON ? STYLE_BOLD : STYLE_NORMAL) | (italic == ON ? STYLE_ITALIC : STYLE_NORMAL);
   }
 
   public boolean isLinethrough() {
@@ -200,6 +203,7 @@ public final class WebvttCssStyle {
     this.underline = underline ? ON : OFF;
     return this;
   }
+
   public WebvttCssStyle setBold(boolean bold) {
     this.bold = bold ? ON : OFF;
     return this;
@@ -216,7 +220,7 @@ public final class WebvttCssStyle {
   }
 
   public WebvttCssStyle setFontFamily(@Nullable String fontFamily) {
-    this.fontFamily = Util.toLowerInvariant(fontFamily);
+    this.fontFamily = fontFamily == null ? null : Ascii.toLowerCase(fontFamily);
     return this;
   }
 
@@ -259,12 +263,13 @@ public final class WebvttCssStyle {
     return this;
   }
 
-  public WebvttCssStyle setFontSizeUnit(short unit) {
+  public WebvttCssStyle setFontSizeUnit(@FontSizeUnit int unit) {
     this.fontSizeUnit = unit;
     return this;
   }
 
-  @FontSizeUnit public int getFontSizeUnit() {
+  @FontSizeUnit
+  public int getFontSizeUnit() {
     return fontSizeUnit;
   }
 
@@ -272,12 +277,12 @@ public final class WebvttCssStyle {
     return fontSize;
   }
 
-  public WebvttCssStyle setRubyPosition(@RubySpan.Position int rubyPosition) {
+  public WebvttCssStyle setRubyPosition(@TextAnnotation.Position int rubyPosition) {
     this.rubyPosition = rubyPosition;
     return this;
   }
 
-  @RubySpan.Position
+  @TextAnnotation.Position
   public int getRubyPosition() {
     return rubyPosition;
   }
@@ -298,5 +303,4 @@ public final class WebvttCssStyle {
     }
     return target.equals(actual) ? currentScore + score : -1;
   }
-
 }

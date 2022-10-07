@@ -24,6 +24,7 @@ import com.google.android.exoplayer2.extractor.ExtractorOutput;
 import com.google.android.exoplayer2.extractor.TrackOutput;
 import com.google.android.exoplayer2.extractor.ts.TsPayloadReader.TrackIdGenerator;
 import com.google.android.exoplayer2.util.Assertions;
+import com.google.android.exoplayer2.util.CodecSpecificDataUtil;
 import com.google.android.exoplayer2.util.Log;
 import com.google.android.exoplayer2.util.MimeTypes;
 import com.google.android.exoplayer2.util.NalUnitUtil;
@@ -35,9 +36,7 @@ import org.checkerframework.checker.nullness.qual.EnsuresNonNull;
 import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
 import org.checkerframework.checker.nullness.qual.RequiresNonNull;
 
-/**
- * Parses a continuous H.265 byte stream and extracts individual frames.
- */
+/** Parses a continuous H.265 byte stream and extracts individual frames. */
 public final class H265Reader implements ElementaryStreamReader {
 
   private static final String TAG = "H265Reader";
@@ -77,9 +76,7 @@ public final class H265Reader implements ElementaryStreamReader {
   // Scratch variables to avoid allocations.
   private final ParsableByteArray seiWrapper;
 
-  /**
-   * @param seiReader An SEI reader for consuming closed caption channels.
-   */
+  /** @param seiReader An SEI reader for consuming closed caption channels. */
   public H265Reader(SeiReader seiReader) {
     this.seiReader = seiReader;
     prefixFlags = new boolean[3];
@@ -88,12 +85,14 @@ public final class H265Reader implements ElementaryStreamReader {
     pps = new NalUnitTargetBuffer(PPS_NUT, 128);
     prefixSei = new NalUnitTargetBuffer(PREFIX_SEI_NUT, 128);
     suffixSei = new NalUnitTargetBuffer(SUFFIX_SEI_NUT, 128);
+    pesTimeUs = C.TIME_UNSET;
     seiWrapper = new ParsableByteArray();
   }
 
   @Override
   public void seek() {
     totalBytesWritten = 0;
+    pesTimeUs = C.TIME_UNSET;
     NalUnitUtil.clearPrefixFlags(prefixFlags);
     vps.reset();
     sps.reset();
@@ -117,7 +116,9 @@ public final class H265Reader implements ElementaryStreamReader {
   @Override
   public void packetStarted(long pesTimeUs, @TsPayloadReader.Flags int flags) {
     // TODO (Internal b/32267012): Consider using random access indicator.
-    this.pesTimeUs = pesTimeUs;
+    if (pesTimeUs != C.TIME_UNSET) {
+      this.pesTimeUs = pesTimeUs;
+    }
   }
 
   @Override
@@ -158,8 +159,11 @@ public final class H265Reader implements ElementaryStreamReader {
         // Indicate the end of the previous NAL unit. If the length to the start of the next unit
         // is negative then we wrote too many bytes to the NAL buffers. Discard the excess bytes
         // when notifying that the unit has ended.
-        endNalUnit(absolutePosition, bytesWrittenPastPosition,
-            lengthToNalUnit < 0 ? -lengthToNalUnit : 0, pesTimeUs);
+        endNalUnit(
+            absolutePosition,
+            bytesWrittenPastPosition,
+            lengthToNalUnit < 0 ? -lengthToNalUnit : 0,
+            pesTimeUs);
         // Indicate the start of the next NAL unit.
         startNalUnit(absolutePosition, bytesWrittenPastPosition, nalUnitType, pesTimeUs);
         // Continue scanning the data.
@@ -334,11 +338,37 @@ public final class H265Reader implements ElementaryStreamReader {
           Log.w(TAG, "Unexpected aspect_ratio_idc value: " + aspectRatioIdc);
         }
       }
+      if (bitArray.readBit()) { // overscan_info_present_flag
+        bitArray.skipBit(); // overscan_appropriate_flag
+      }
+      if (bitArray.readBit()) { // video_signal_type_present_flag
+        bitArray.skipBits(4); // video_format, video_full_range_flag
+        if (bitArray.readBit()) { // colour_description_present_flag
+          // colour_primaries, transfer_characteristics, matrix_coeffs
+          bitArray.skipBits(24);
+        }
+      }
+      if (bitArray.readBit()) { // chroma_loc_info_present_flag
+        bitArray.readUnsignedExpGolombCodedInt(); // chroma_sample_loc_type_top_field
+        bitArray.readUnsignedExpGolombCodedInt(); // chroma_sample_loc_type_bottom_field
+      }
+      bitArray.skipBit(); // neutral_chroma_indication_flag
+      if (bitArray.readBit()) { // field_seq_flag
+        // field_seq_flag equal to 1 indicates that the coded video sequence conveys pictures that
+        // represent fields, which means that frame height is double the picture height.
+        picHeightInLumaSamples *= 2;
+      }
     }
+
+    // Parse the SPS to derive an RFC 6381 codecs string.
+    bitArray.reset(sps.nalData, 0, sps.nalLength);
+    bitArray.skipBits(24); // Skip start code.
+    String codecs = CodecSpecificDataUtil.buildHevcCodecStringFromSps(bitArray);
 
     return new Format.Builder()
         .setId(formatId)
         .setSampleMimeType(MimeTypes.VIDEO_H265)
+        .setCodecs(codecs)
         .setWidth(picWidthInLumaSamples)
         .setHeight(picHeightInLumaSamples)
         .setPixelWidthHeightRatio(pixelWidthHeightRatio)
@@ -346,9 +376,7 @@ public final class H265Reader implements ElementaryStreamReader {
         .build();
   }
 
-  /**
-   * Skips scaling_list_data(). See H.265/HEVC (2014) 7.3.4.
-   */
+  /** Skips scaling_list_data(). See H.265/HEVC (2014) 7.3.4. */
   private static void skipScalingList(ParsableNalUnitBitArray bitArray) {
     for (int sizeId = 0; sizeId < 4; sizeId++) {
       for (int matrixId = 0; matrixId < 6; matrixId += sizeId == 3 ? 3 : 1) {
@@ -512,6 +540,9 @@ public final class H265Reader implements ElementaryStreamReader {
     }
 
     private void outputSample(int offset) {
+      if (sampleTimeUs == C.TIME_UNSET) {
+        return;
+      }
       @C.BufferFlags int flags = sampleIsKeyframe ? C.BUFFER_FLAG_KEY_FRAME : 0;
       int size = (int) (nalUnitPosition - samplePosition);
       output.sampleMetadata(sampleTimeUs, flags, size, offset, null);

@@ -15,8 +15,8 @@ more external libraries as described below. These are licensed separately.
 
 To use this extension you need to clone the ExoPlayer repository and depend on
 its modules locally. Instructions for doing this can be found in ExoPlayer's
-[top level README][]. The extension is not provided via JCenter (see [#2781][]
-for more information).
+[top level README][]. The extension is not provided via Google's Maven
+repository (see [#2781][] for more information).
 
 In addition, it's necessary to manually build the FFmpeg library, so that gradle
 can bundle the FFmpeg binaries in the APK:
@@ -30,7 +30,7 @@ FFMPEG_EXT_PATH="${EXOPLAYER_ROOT}/extensions/ffmpeg/src/main"
 ```
 
 * Download the [Android NDK][] and set its location in a shell variable.
-  This build configuration has been tested on NDK r20.
+  This build configuration has been tested on NDK r21.
 
 ```
 NDK_PATH="<path to Android NDK>"

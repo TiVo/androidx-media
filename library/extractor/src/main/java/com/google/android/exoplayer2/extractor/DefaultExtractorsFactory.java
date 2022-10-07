@@ -23,6 +23,7 @@ import androidx.annotation.Nullable;
 import com.google.android.exoplayer2.extractor.amr.AmrExtractor;
 import com.google.android.exoplayer2.extractor.flac.FlacExtractor;
 import com.google.android.exoplayer2.extractor.flv.FlvExtractor;
+import com.google.android.exoplayer2.extractor.jpeg.JpegExtractor;
 import com.google.android.exoplayer2.extractor.mkv.MatroskaExtractor;
 import com.google.android.exoplayer2.extractor.mp3.Mp3Extractor;
 import com.google.android.exoplayer2.extractor.mp4.FragmentedMp4Extractor;
@@ -69,12 +70,15 @@ import java.util.Map;
  *             generally include a FLAC decoder before API 27. This can be worked around by using
  *             the FLAC extension or the FFmpeg extension.
  *       </ul>
+ *   <li>JPEG ({@link JpegExtractor})
  * </ul>
  */
 public final class DefaultExtractorsFactory implements ExtractorsFactory {
 
   // Extractors order is optimized according to
   // https://docs.google.com/document/d/1w2mKaWMxfz2Ei8-LdxqbPs1VLe_oudB-eryXXw9OvQQ.
+  // The JPEG extractor appears after audio/video extractors because we expect audio/video input to
+  // be more common.
   private static final int[] DEFAULT_EXTRACTOR_ORDER =
       new int[] {
         FileTypes.FLV,
@@ -90,6 +94,7 @@ public final class DefaultExtractorsFactory implements ExtractorsFactory {
         FileTypes.AC3,
         FileTypes.AC4,
         FileTypes.MP3,
+        FileTypes.JPEG,
       };
 
   @Nullable
@@ -98,8 +103,7 @@ public final class DefaultExtractorsFactory implements ExtractorsFactory {
   static {
     @Nullable Constructor<? extends Extractor> flacExtensionExtractorConstructor = null;
     try {
-      // LINT.IfChange
-      @SuppressWarnings("nullness:argument.type.incompatible")
+      @SuppressWarnings("nullness:argument")
       boolean isFlacNativeLibraryAvailable =
           Boolean.TRUE.equals(
               Class.forName("com.google.android.exoplayer2.ext.flac.FlacLibrary")
@@ -111,7 +115,6 @@ public final class DefaultExtractorsFactory implements ExtractorsFactory {
                 .asSubclass(Extractor.class)
                 .getConstructor(int.class);
       }
-      // LINT.ThenChange(../../../../../../../../proguard-rules.txt)
     } catch (ClassNotFoundException e) {
       // Expected if the app was built without the FLAC extension.
     } catch (Exception e) {
@@ -382,6 +385,11 @@ public final class DefaultExtractorsFactory implements ExtractorsFactory {
       case FileTypes.WAV:
         extractors.add(new WavExtractor());
         break;
+      case FileTypes.JPEG:
+        extractors.add(new JpegExtractor());
+        break;
+      case FileTypes.WEBVTT:
+      case FileTypes.UNKNOWN:
       default:
         break;
     }

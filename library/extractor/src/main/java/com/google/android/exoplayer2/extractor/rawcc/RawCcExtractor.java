@@ -30,9 +30,7 @@ import java.io.IOException;
 import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
 import org.checkerframework.checker.nullness.qual.RequiresNonNull;
 
-/**
- * Extracts data from the RawCC container format.
- */
+/** Extracts data from the RawCC container format. */
 public final class RawCcExtractor implements Extractor {
 
   private static final int SCRATCH_SIZE = 9;
@@ -146,7 +144,8 @@ public final class RawCcExtractor implements Extractor {
       }
       timestampUs = dataScratch.readLong();
     } else {
-      throw new ParserException("Unsupported version number: " + version);
+      throw ParserException.createForMalformedContainer(
+          "Unsupported version number: " + version, /* cause= */ null);
     }
 
     remainingSampleCount = dataScratch.readUnsignedByte();

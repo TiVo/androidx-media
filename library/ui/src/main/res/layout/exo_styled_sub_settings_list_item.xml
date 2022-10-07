@@ -14,7 +14,7 @@
      limitations under the License.
 -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:layout_width="wrap_content"
+    android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:minWidth="@dimen/exo_setting_width"
     android:minHeight="@dimen/exo_settings_height"
@@ -43,4 +43,5 @@
         android:textColor="@color/exo_white"
         android:textDirection="locale"
         android:textSize="@dimen/exo_settings_main_text_size"/>
+
 </LinearLayout>

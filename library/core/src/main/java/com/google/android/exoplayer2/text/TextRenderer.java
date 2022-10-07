@@ -16,6 +16,7 @@
 package com.google.android.exoplayer2.text;
 
 import static com.google.android.exoplayer2.util.Assertions.checkNotNull;
+import static com.google.android.exoplayer2.util.Assertions.checkState;
 
 import android.os.Handler;
 import android.os.Handler.Callback;
@@ -28,7 +29,7 @@ import com.google.android.exoplayer2.C;
 import com.google.android.exoplayer2.Format;
 import com.google.android.exoplayer2.FormatHolder;
 import com.google.android.exoplayer2.RendererCapabilities;
-import com.google.android.exoplayer2.source.SampleStream;
+import com.google.android.exoplayer2.source.SampleStream.ReadDataResult;
 import com.google.android.exoplayer2.util.Log;
 import com.google.android.exoplayer2.util.MimeTypes;
 import com.google.android.exoplayer2.util.Util;
@@ -40,10 +41,10 @@ import java.util.List;
 
 /**
  * A renderer for text.
- * <p>
- * {@link Subtitle}s are decoded from sample data using {@link SubtitleDecoder} instances obtained
- * from a {@link SubtitleDecoderFactory}. The actual rendering of the subtitle {@link Cue}s is
- * delegated to a {@link TextOutput}.
+ *
+ * <p>{@link Subtitle}s are decoded from sample data using {@link SubtitleDecoder} instances
+ * obtained from a {@link SubtitleDecoderFactory}. The actual rendering of the subtitle {@link Cue}s
+ * is delegated to a {@link TextOutput}.
  */
 public final class TextRenderer extends BaseRenderer implements Callback {
 
@@ -57,9 +58,7 @@ public final class TextRenderer extends BaseRenderer implements Callback {
     REPLACEMENT_STATE_WAIT_END_OF_STREAM
   })
   private @interface ReplacementState {}
-  /**
-   * The decoder does not need to be replaced.
-   */
+  /** The decoder does not need to be replaced. */
   private static final int REPLACEMENT_STATE_NONE = 0;
   /**
    * The decoder needs to be replaced, but we haven't yet signaled an end of stream to the existing
@@ -91,6 +90,7 @@ public final class TextRenderer extends BaseRenderer implements Callback {
   @Nullable private SubtitleOutputBuffer subtitle;
   @Nullable private SubtitleOutputBuffer nextSubtitle;
   private int nextSubtitleEventIndex;
+  private long finalStreamEndPositionUs;
 
   /**
    * @param output The output.
@@ -121,6 +121,7 @@ public final class TextRenderer extends BaseRenderer implements Callback {
         outputLooper == null ? null : Util.createHandler(outputLooper, /* callback= */ this);
     this.decoderFactory = decoderFactory;
     formatHolder = new FormatHolder();
+    finalStreamEndPositionUs = C.TIME_UNSET;
   }
 
   @Override
@@ -133,12 +134,27 @@ public final class TextRenderer extends BaseRenderer implements Callback {
   public int supportsFormat(Format format) {
     if (decoderFactory.supportsFormat(format)) {
       return RendererCapabilities.create(
-          format.exoMediaCryptoType == null ? FORMAT_HANDLED : FORMAT_UNSUPPORTED_DRM);
+          format.exoMediaCryptoType == null ? C.FORMAT_HANDLED : C.FORMAT_UNSUPPORTED_DRM);
     } else if (MimeTypes.isText(format.sampleMimeType)) {
-      return RendererCapabilities.create(FORMAT_UNSUPPORTED_SUBTYPE);
+      return RendererCapabilities.create(C.FORMAT_UNSUPPORTED_SUBTYPE);
     } else {
-      return RendererCapabilities.create(FORMAT_UNSUPPORTED_TYPE);
+      return RendererCapabilities.create(C.FORMAT_UNSUPPORTED_TYPE);
     }
+  }
+
+  /**
+   * Sets the position at which to stop rendering the current stream.
+   *
+   * <p>Must be called after {@link #setCurrentStreamFinal()}.
+   *
+   * @param streamEndPositionUs The position to stop rendering at or {@link C#LENGTH_UNSET} to
+   *     render until the end of the current stream.
+   */
+  // TODO(internal b/181312195): Remove this when it's no longer needed once subtitles are decoded
+  // on the loading side of SampleQueue.
+  public void setFinalStreamEndPositionUs(long streamEndPositionUs) {
+    checkState(isCurrentStreamFinal());
+    this.finalStreamEndPositionUs = streamEndPositionUs;
   }
 
   @Override
@@ -156,6 +172,7 @@ public final class TextRenderer extends BaseRenderer implements Callback {
     clearOutput();
     inputStreamEnded = false;
     outputStreamEnded = false;
+    finalStreamEndPositionUs = C.TIME_UNSET;
     if (decoderReplacementState != REPLACEMENT_STATE_NONE) {
       replaceDecoder();
     } else {
@@ -166,6 +183,13 @@ public final class TextRenderer extends BaseRenderer implements Callback {
 
   @Override
   public void render(long positionUs, long elapsedRealtimeUs) {
+    if (isCurrentStreamFinal()
+        && finalStreamEndPositionUs != C.TIME_UNSET
+        && positionUs >= finalStreamEndPositionUs) {
+      releaseBuffers();
+      outputStreamEnded = true;
+    }
+
     if (outputStreamEnded) {
       return;
     }
@@ -247,7 +271,7 @@ public final class TextRenderer extends BaseRenderer implements Callback {
           return;
         }
         // Try and read the next subtitle from the source.
-        @SampleStream.ReadDataResult int result = readSource(formatHolder, nextInputBuffer, false);
+        @ReadDataResult int result = readSource(formatHolder, nextInputBuffer, /* readFlags= */ 0);
         if (result == C.RESULT_BUFFER_READ) {
           if (nextInputBuffer.isEndOfStream()) {
             inputStreamEnded = true;
@@ -278,6 +302,7 @@ public final class TextRenderer extends BaseRenderer implements Callback {
   @Override
   protected void onDisabled() {
     streamFormat = null;
+    finalStreamEndPositionUs = C.TIME_UNSET;
     clearOutput();
     releaseDecoder();
   }

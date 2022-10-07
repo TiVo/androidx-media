@@ -21,9 +21,7 @@ import com.google.android.exoplayer2.drm.ExoMediaCrypto;
 import com.google.android.exoplayer2.util.LibraryLoader;
 import com.google.android.exoplayer2.util.Util;
 
-/**
- * Configures and queries the underlying native library.
- */
+/** Configures and queries the underlying native library. */
 public final class OpusLibrary {
 
   static {
@@ -50,9 +48,7 @@ public final class OpusLibrary {
     OpusLibrary.exoMediaCryptoType = exoMediaCryptoType;
   }
 
-  /**
-   * Returns whether the underlying library is available, loading it if necessary.
-   */
+  /** Returns whether the underlying library is available, loading it if necessary. */
   public static boolean isAvailable() {
     return LOADER.isAvailable();
   }
@@ -73,5 +69,6 @@ public final class OpusLibrary {
   }
 
   public static native String opusGetVersion();
+
   public static native boolean opusIsSecureDecodeSupported();
 }

@@ -17,14 +17,10 @@ package com.google.android.exoplayer2.util;
 
 import com.google.android.exoplayer2.PlaybackParameters;
 
-/**
- * Tracks the progression of media time.
- */
+/** Tracks the progression of media time. */
 public interface MediaClock {
 
-  /**
-   * Returns the current media position in microseconds.
-   */
+  /** Returns the current media position in microseconds. */
   long getPositionUs();
 
   /**

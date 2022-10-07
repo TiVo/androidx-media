@@ -30,9 +30,11 @@ import com.google.android.exoplayer2.util.MimeTypes;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.robolectric.annotation.internal.DoNotInstrument;
 
 /** Unit test for {@link EventSampleStream}. */
 @RunWith(AndroidJUnit4.class)
+@DoNotInstrument
 public final class EventSampleStreamTest {
 
   private static final String SCHEME_ID = "urn:test";
@@ -58,14 +60,17 @@ public final class EventSampleStreamTest {
   }
 
   /**
-   * Tests that {@link EventSampleStream#readData(FormatHolder, DecoderInputBuffer, boolean)} will
+   * Tests that {@link EventSampleStream#readData(FormatHolder, DecoderInputBuffer, int)} will
    * return format for the first call.
    */
   @Test
   public void readDataReturnFormatForFirstRead() {
-    EventStream eventStream = new EventStream(SCHEME_ID, VALUE, TIME_SCALE,
-        new long[0], new EventMessage[0]);
-    EventSampleStream sampleStream = new EventSampleStream(eventStream, FORMAT, false);
+    EventStream eventStream =
+        new EventStream(SCHEME_ID, VALUE, TIME_SCALE, new long[0], new EventMessage[0]);
+    // Make the event stream appendable so that the format is read. Otherwise, the format will be
+    // skipped and the end of input will be read.
+    EventSampleStream sampleStream =
+        new EventSampleStream(eventStream, FORMAT, /* eventStreamAppendable= */ true);
 
     int result = readData(sampleStream);
     assertThat(result).isEqualTo(C.RESULT_FORMAT_READ);
@@ -78,8 +83,8 @@ public final class EventSampleStreamTest {
    */
   @Test
   public void readDataOutOfBoundReturnEndOfStreamAfterFormatForNonDynamicEventSampleStream() {
-    EventStream eventStream = new EventStream(SCHEME_ID, VALUE, TIME_SCALE,
-        new long[0], new EventMessage[0]);
+    EventStream eventStream =
+        new EventStream(SCHEME_ID, VALUE, TIME_SCALE, new long[0], new EventMessage[0]);
     EventSampleStream sampleStream = new EventSampleStream(eventStream, FORMAT, false);
     // first read - read format
     readData(sampleStream);
@@ -95,8 +100,8 @@ public final class EventSampleStreamTest {
    */
   @Test
   public void readDataOutOfBoundReturnEndOfStreamAfterFormatForDynamicEventSampleStream() {
-    EventStream eventStream = new EventStream(SCHEME_ID, VALUE, TIME_SCALE,
-        new long[0], new EventMessage[0]);
+    EventStream eventStream =
+        new EventStream(SCHEME_ID, VALUE, TIME_SCALE, new long[0], new EventMessage[0]);
     EventSampleStream sampleStream = new EventSampleStream(eventStream, FORMAT, true);
     // first read - read format
     readData(sampleStream);
@@ -106,29 +111,33 @@ public final class EventSampleStreamTest {
   }
 
   /**
-   * Tests that {@link EventSampleStream#readData(FormatHolder, DecoderInputBuffer, boolean)} will
+   * Tests that {@link EventSampleStream#readData(FormatHolder, DecoderInputBuffer, int)} will
    * return sample data after the first call.
    */
   @Test
   public void readDataReturnDataAfterFormat() {
     long presentationTimeUs = 1000000;
     EventMessage eventMessage = newEventMessageWithId(1);
-    EventStream eventStream = new EventStream(SCHEME_ID, VALUE, TIME_SCALE,
-        new long[] {presentationTimeUs}, new EventMessage[] {eventMessage});
+    EventStream eventStream =
+        new EventStream(
+            SCHEME_ID,
+            VALUE,
+            TIME_SCALE,
+            new long[] {presentationTimeUs},
+            new EventMessage[] {eventMessage});
     EventSampleStream sampleStream = new EventSampleStream(eventStream, FORMAT, false);
     // first read - read format
     readData(sampleStream);
 
     int result = readData(sampleStream);
     assertThat(result).isEqualTo(C.RESULT_BUFFER_READ);
-    assertThat(inputBuffer.data.array())
-        .isEqualTo(getEncodedMessage(eventMessage));
+    assertThat(inputBuffer.data.array()).isEqualTo(getEncodedMessage(eventMessage));
   }
 
   /**
    * Tests that {@link EventSampleStream#skipData(long)} will skip until the given position, and the
-   * next {@link EventSampleStream#readData(FormatHolder, DecoderInputBuffer, boolean)} call will
-   * return sample data from that position.
+   * next {@link EventSampleStream#readData(FormatHolder, DecoderInputBuffer, int)} call will return
+   * sample data from that position.
    */
   @Test
   public void skipDataThenReadDataReturnDataFromSkippedPosition() {
@@ -136,9 +145,13 @@ public final class EventSampleStreamTest {
     long presentationTimeUs2 = 2000000;
     EventMessage eventMessage1 = newEventMessageWithId(1);
     EventMessage eventMessage2 = newEventMessageWithId(2);
-    EventStream eventStream = new EventStream(SCHEME_ID, VALUE, TIME_SCALE,
-        new long[] {presentationTimeUs1, presentationTimeUs2},
-        new EventMessage[] {eventMessage1, eventMessage2});
+    EventStream eventStream =
+        new EventStream(
+            SCHEME_ID,
+            VALUE,
+            TIME_SCALE,
+            new long[] {presentationTimeUs1, presentationTimeUs2},
+            new EventMessage[] {eventMessage1, eventMessage2});
     EventSampleStream sampleStream = new EventSampleStream(eventStream, FORMAT, false);
     // first read - read format
     readData(sampleStream);
@@ -147,13 +160,12 @@ public final class EventSampleStreamTest {
     int result = readData(sampleStream);
     assertThat(skipped).isEqualTo(1);
     assertThat(result).isEqualTo(C.RESULT_BUFFER_READ);
-    assertThat(inputBuffer.data.array())
-        .isEqualTo(getEncodedMessage(eventMessage2));
+    assertThat(inputBuffer.data.array()).isEqualTo(getEncodedMessage(eventMessage2));
   }
 
   /**
    * Tests that {@link EventSampleStream#seekToUs(long)} (long)} will seek to the given position,
-   * and the next {@link EventSampleStream#readData(FormatHolder, DecoderInputBuffer, boolean)} call
+   * and the next {@link EventSampleStream#readData(FormatHolder, DecoderInputBuffer, int)} call
    * will return sample data from that position.
    */
   @Test
@@ -162,9 +174,13 @@ public final class EventSampleStreamTest {
     long presentationTimeUs2 = 2000000;
     EventMessage eventMessage1 = newEventMessageWithId(1);
     EventMessage eventMessage2 = newEventMessageWithId(2);
-    EventStream eventStream = new EventStream(SCHEME_ID, VALUE, TIME_SCALE,
-        new long[] {presentationTimeUs1, presentationTimeUs2},
-        new EventMessage[] {eventMessage1, eventMessage2});
+    EventStream eventStream =
+        new EventStream(
+            SCHEME_ID,
+            VALUE,
+            TIME_SCALE,
+            new long[] {presentationTimeUs1, presentationTimeUs2},
+            new EventMessage[] {eventMessage1, eventMessage2});
     EventSampleStream sampleStream = new EventSampleStream(eventStream, FORMAT, false);
     // first read - read format
     readData(sampleStream);
@@ -172,15 +188,14 @@ public final class EventSampleStreamTest {
     sampleStream.seekToUs(presentationTimeUs2);
     int result = readData(sampleStream);
     assertThat(result).isEqualTo(C.RESULT_BUFFER_READ);
-    assertThat(inputBuffer.data.array())
-        .isEqualTo(getEncodedMessage(eventMessage2));
+    assertThat(inputBuffer.data.array()).isEqualTo(getEncodedMessage(eventMessage2));
   }
 
   /**
    * Tests that {@link EventSampleStream#updateEventStream(EventStream, boolean)} will update the
    * underlying event stream, but keep the read timestamp, so the next {@link
-   * EventSampleStream#readData(FormatHolder, DecoderInputBuffer, boolean)} call will return sample
-   * data from after the last read sample timestamp.
+   * EventSampleStream#readData(FormatHolder, DecoderInputBuffer, int)} call will return sample data
+   * from after the last read sample timestamp.
    */
   @Test
   public void updateEventStreamContinueToReadAfterLastReadSamplePresentationTime() {
@@ -190,12 +205,20 @@ public final class EventSampleStreamTest {
     EventMessage eventMessage1 = newEventMessageWithId(1);
     EventMessage eventMessage2 = newEventMessageWithId(2);
     EventMessage eventMessage3 = newEventMessageWithId(3);
-    EventStream eventStream1 = new EventStream(SCHEME_ID, VALUE, TIME_SCALE,
-        new long[] {presentationTimeUs1, presentationTimeUs2},
-        new EventMessage[] {eventMessage1, eventMessage2});
-    EventStream eventStream2 = new EventStream(SCHEME_ID, VALUE, TIME_SCALE,
-        new long[] {presentationTimeUs1, presentationTimeUs2, presentationTimeUs3},
-        new EventMessage[] {eventMessage1, eventMessage2, eventMessage3});
+    EventStream eventStream1 =
+        new EventStream(
+            SCHEME_ID,
+            VALUE,
+            TIME_SCALE,
+            new long[] {presentationTimeUs1, presentationTimeUs2},
+            new EventMessage[] {eventMessage1, eventMessage2});
+    EventStream eventStream2 =
+        new EventStream(
+            SCHEME_ID,
+            VALUE,
+            TIME_SCALE,
+            new long[] {presentationTimeUs1, presentationTimeUs2, presentationTimeUs3},
+            new EventMessage[] {eventMessage1, eventMessage2, eventMessage3});
     EventSampleStream sampleStream = new EventSampleStream(eventStream1, FORMAT, true);
     // first read - read format
     readData(sampleStream);
@@ -206,15 +229,14 @@ public final class EventSampleStreamTest {
     sampleStream.updateEventStream(eventStream2, true);
     int result = readData(sampleStream);
     assertThat(result).isEqualTo(C.RESULT_BUFFER_READ);
-    assertThat(inputBuffer.data.array())
-        .isEqualTo(getEncodedMessage(eventMessage3));
+    assertThat(inputBuffer.data.array()).isEqualTo(getEncodedMessage(eventMessage3));
   }
 
   /**
    * Tests that {@link EventSampleStream#updateEventStream(EventStream, boolean)} will update the
    * underlying event stream, but keep the timestamp the stream has skipped to, so the next {@link
-   * EventSampleStream#readData(FormatHolder, DecoderInputBuffer, boolean)} call will return sample
-   * data from the skipped position.
+   * EventSampleStream#readData(FormatHolder, DecoderInputBuffer, int)} call will return sample data
+   * from the skipped position.
    */
   @Test
   public void skipDataThenUpdateStreamContinueToReadFromSkippedPosition() {
@@ -224,12 +246,20 @@ public final class EventSampleStreamTest {
     EventMessage eventMessage1 = newEventMessageWithId(1);
     EventMessage eventMessage2 = newEventMessageWithId(2);
     EventMessage eventMessage3 = newEventMessageWithId(3);
-    EventStream eventStream1 = new EventStream(SCHEME_ID, VALUE, TIME_SCALE,
-        new long[] {presentationTimeUs1, presentationTimeUs2},
-        new EventMessage[] {eventMessage1, eventMessage2});
-    EventStream eventStream2 = new EventStream(SCHEME_ID, VALUE, TIME_SCALE,
-        new long[] {presentationTimeUs1, presentationTimeUs2, presentationTimeUs3},
-        new EventMessage[] {eventMessage1, eventMessage2, eventMessage3});
+    EventStream eventStream1 =
+        new EventStream(
+            SCHEME_ID,
+            VALUE,
+            TIME_SCALE,
+            new long[] {presentationTimeUs1, presentationTimeUs2},
+            new EventMessage[] {eventMessage1, eventMessage2});
+    EventStream eventStream2 =
+        new EventStream(
+            SCHEME_ID,
+            VALUE,
+            TIME_SCALE,
+            new long[] {presentationTimeUs1, presentationTimeUs2, presentationTimeUs3},
+            new EventMessage[] {eventMessage1, eventMessage2, eventMessage3});
     EventSampleStream sampleStream = new EventSampleStream(eventStream1, FORMAT, true);
     // first read - read format
     readData(sampleStream);
@@ -238,16 +268,15 @@ public final class EventSampleStreamTest {
     sampleStream.updateEventStream(eventStream2, true);
     int result = readData(sampleStream);
     assertThat(result).isEqualTo(C.RESULT_BUFFER_READ);
-    assertThat(inputBuffer.data.array())
-        .isEqualTo(getEncodedMessage(eventMessage3));
+    assertThat(inputBuffer.data.array()).isEqualTo(getEncodedMessage(eventMessage3));
   }
 
   /**
    * Tests that {@link EventSampleStream#skipData(long)} will only skip to the point right after it
    * last event. A following {@link EventSampleStream#updateEventStream(EventStream, boolean)} will
    * update the underlying event stream and keep the timestamp the stream has skipped to, so the
-   * next {@link EventSampleStream#readData(FormatHolder, DecoderInputBuffer, boolean)} call will
-   * return sample data from the skipped position.
+   * next {@link EventSampleStream#readData(FormatHolder, DecoderInputBuffer, int)} call will return
+   * sample data from the skipped position.
    */
   @Test
   public void skipDataThenUpdateStreamContinueToReadDoNotSkippedMoreThanAvailable() {
@@ -257,12 +286,20 @@ public final class EventSampleStreamTest {
     EventMessage eventMessage1 = newEventMessageWithId(1);
     EventMessage eventMessage2 = newEventMessageWithId(2);
     EventMessage eventMessage3 = newEventMessageWithId(3);
-    EventStream eventStream1 = new EventStream(SCHEME_ID, VALUE, TIME_SCALE,
-        new long[] {presentationTimeUs1},
-        new EventMessage[] {eventMessage1});
-    EventStream eventStream2 = new EventStream(SCHEME_ID, VALUE, TIME_SCALE,
-        new long[] {presentationTimeUs1, presentationTimeUs2, presentationTimeUs3},
-        new EventMessage[] {eventMessage1, eventMessage2, eventMessage3});
+    EventStream eventStream1 =
+        new EventStream(
+            SCHEME_ID,
+            VALUE,
+            TIME_SCALE,
+            new long[] {presentationTimeUs1},
+            new EventMessage[] {eventMessage1});
+    EventStream eventStream2 =
+        new EventStream(
+            SCHEME_ID,
+            VALUE,
+            TIME_SCALE,
+            new long[] {presentationTimeUs1, presentationTimeUs2, presentationTimeUs3},
+            new EventMessage[] {eventMessage1, eventMessage2, eventMessage3});
     EventSampleStream sampleStream = new EventSampleStream(eventStream1, FORMAT, true);
     // first read - read format
     readData(sampleStream);
@@ -273,15 +310,14 @@ public final class EventSampleStreamTest {
     sampleStream.updateEventStream(eventStream2, true);
     int result = readData(sampleStream);
     assertThat(result).isEqualTo(C.RESULT_BUFFER_READ);
-    assertThat(inputBuffer.data.array())
-        .isEqualTo(getEncodedMessage(eventMessage2));
+    assertThat(inputBuffer.data.array()).isEqualTo(getEncodedMessage(eventMessage2));
   }
 
   /**
    * Tests that {@link EventSampleStream#updateEventStream(EventStream, boolean)} will update the
    * underlying event stream, but keep the timestamp the stream has seek to, so the next {@link
-   * EventSampleStream#readData(FormatHolder, DecoderInputBuffer, boolean)} call will return sample
-   * data from the seek position.
+   * EventSampleStream#readData(FormatHolder, DecoderInputBuffer, int)} call will return sample data
+   * from the seek position.
    */
   @Test
   public void seekToUsThenUpdateStreamContinueToReadFromSeekPosition() {
@@ -291,12 +327,20 @@ public final class EventSampleStreamTest {
     EventMessage eventMessage1 = newEventMessageWithId(1);
     EventMessage eventMessage2 = newEventMessageWithId(2);
     EventMessage eventMessage3 = newEventMessageWithId(3);
-    EventStream eventStream1 = new EventStream(SCHEME_ID, VALUE, TIME_SCALE,
-        new long[] {presentationTimeUs1, presentationTimeUs2},
-        new EventMessage[] {eventMessage1, eventMessage2});
-    EventStream eventStream2 = new EventStream(SCHEME_ID, VALUE, TIME_SCALE,
-        new long[] {presentationTimeUs1, presentationTimeUs2, presentationTimeUs3},
-        new EventMessage[] {eventMessage1, eventMessage2, eventMessage3});
+    EventStream eventStream1 =
+        new EventStream(
+            SCHEME_ID,
+            VALUE,
+            TIME_SCALE,
+            new long[] {presentationTimeUs1, presentationTimeUs2},
+            new EventMessage[] {eventMessage1, eventMessage2});
+    EventStream eventStream2 =
+        new EventStream(
+            SCHEME_ID,
+            VALUE,
+            TIME_SCALE,
+            new long[] {presentationTimeUs1, presentationTimeUs2, presentationTimeUs3},
+            new EventMessage[] {eventMessage1, eventMessage2, eventMessage3});
     EventSampleStream sampleStream = new EventSampleStream(eventStream1, FORMAT, true);
     // first read - read format
     readData(sampleStream);
@@ -305,15 +349,14 @@ public final class EventSampleStreamTest {
     sampleStream.updateEventStream(eventStream2, true);
     int result = readData(sampleStream);
     assertThat(result).isEqualTo(C.RESULT_BUFFER_READ);
-    assertThat(inputBuffer.data.array())
-        .isEqualTo(getEncodedMessage(eventMessage2));
+    assertThat(inputBuffer.data.array()).isEqualTo(getEncodedMessage(eventMessage2));
   }
 
   /**
    * Tests that {@link EventSampleStream#updateEventStream(EventStream, boolean)} will update the
    * underlying event stream, but keep the timestamp the stream has seek to, so the next {@link
-   * EventSampleStream#readData(FormatHolder, DecoderInputBuffer, boolean)} call will return sample
-   * data from the seek position.
+   * EventSampleStream#readData(FormatHolder, DecoderInputBuffer, int)} call will return sample data
+   * from the seek position.
    */
   @Test
   public void seekToThenUpdateStreamContinueToReadFromSeekPositionEvenSeekMoreThanAvailable() {
@@ -323,12 +366,20 @@ public final class EventSampleStreamTest {
     EventMessage eventMessage1 = newEventMessageWithId(1);
     EventMessage eventMessage2 = newEventMessageWithId(2);
     EventMessage eventMessage3 = newEventMessageWithId(3);
-    EventStream eventStream1 = new EventStream(SCHEME_ID, VALUE, TIME_SCALE,
-        new long[] {presentationTimeUs1},
-        new EventMessage[] {eventMessage1});
-    EventStream eventStream2 = new EventStream(SCHEME_ID, VALUE, TIME_SCALE,
-        new long[] {presentationTimeUs1, presentationTimeUs2, presentationTimeUs3},
-        new EventMessage[] {eventMessage1, eventMessage2, eventMessage3});
+    EventStream eventStream1 =
+        new EventStream(
+            SCHEME_ID,
+            VALUE,
+            TIME_SCALE,
+            new long[] {presentationTimeUs1},
+            new EventMessage[] {eventMessage1});
+    EventStream eventStream2 =
+        new EventStream(
+            SCHEME_ID,
+            VALUE,
+            TIME_SCALE,
+            new long[] {presentationTimeUs1, presentationTimeUs2, presentationTimeUs3},
+            new EventMessage[] {eventMessage1, eventMessage2, eventMessage3});
     EventSampleStream sampleStream = new EventSampleStream(eventStream1, FORMAT, true);
     // first read - read format
     readData(sampleStream);
@@ -337,13 +388,12 @@ public final class EventSampleStreamTest {
     sampleStream.updateEventStream(eventStream2, true);
     int result = readData(sampleStream);
     assertThat(result).isEqualTo(C.RESULT_BUFFER_READ);
-    assertThat(inputBuffer.data.array())
-        .isEqualTo(getEncodedMessage(eventMessage3));
+    assertThat(inputBuffer.data.array()).isEqualTo(getEncodedMessage(eventMessage3));
   }
 
   private int readData(EventSampleStream sampleStream) {
     inputBuffer.clear();
-    return sampleStream.readData(formatHolder, inputBuffer, false);
+    return sampleStream.readData(formatHolder, inputBuffer, /* readFlags= */ 0);
   }
 
   private EventMessage newEventMessageWithId(int id) {
@@ -353,5 +403,4 @@ public final class EventSampleStreamTest {
   private byte[] getEncodedMessage(EventMessage eventMessage) {
     return eventMessageEncoder.encode(eventMessage);
   }
-
 }

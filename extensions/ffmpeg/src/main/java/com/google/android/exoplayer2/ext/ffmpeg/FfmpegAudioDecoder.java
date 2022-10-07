@@ -36,14 +36,12 @@ import java.util.List;
   private static final int OUTPUT_BUFFER_SIZE_16BIT = 65536;
   private static final int OUTPUT_BUFFER_SIZE_32BIT = OUTPUT_BUFFER_SIZE_16BIT * 2;
 
-  // LINT.IfChange
   private static final int AUDIO_DECODER_ERROR_INVALID_DATA = -1;
   private static final int AUDIO_DECODER_ERROR_OTHER = -2;
-  // LINT.ThenChange(../../../../../../../jni/ffmpeg_jni.cc)
 
   private final String codecName;
   @Nullable private final byte[] extraData;
-  private final @C.Encoding int encoding;
+  @C.Encoding private final int encoding;
   private final int outputBufferSize;
 
   private long nativeContext; // May be reassigned on resetting the codec.
@@ -98,7 +96,8 @@ import java.util.List;
   }
 
   @Override
-  protected @Nullable FfmpegDecoderException decode(
+  @Nullable
+  protected FfmpegDecoderException decode(
       DecoderInputBuffer inputBuffer, SimpleOutputBuffer outputBuffer, boolean reset) {
     if (reset) {
       nativeContext = ffmpegReset(nativeContext, extraData);
@@ -110,14 +109,18 @@ import java.util.List;
     int inputSize = inputData.limit();
     ByteBuffer outputData = outputBuffer.init(inputBuffer.timeUs, outputBufferSize);
     int result = ffmpegDecode(nativeContext, inputData, inputSize, outputData, outputBufferSize);
-    if (result == AUDIO_DECODER_ERROR_INVALID_DATA) {
+    if (result == AUDIO_DECODER_ERROR_OTHER) {
+      return new FfmpegDecoderException("Error decoding (see logcat).");
+    } else if (result == AUDIO_DECODER_ERROR_INVALID_DATA) {
       // Treat invalid data errors as non-fatal to match the behavior of MediaCodec. No output will
       // be produced for this buffer, so mark it as decode-only to ensure that the audio sink's
       // position is reset when more audio is produced.
       outputBuffer.setFlags(C.BUFFER_FLAG_DECODE_ONLY);
       return null;
-    } else if (result == AUDIO_DECODER_ERROR_OTHER) {
-      return new FfmpegDecoderException("Error decoding (see logcat).");
+    } else if (result == 0) {
+      // There's no need to output empty buffers.
+      outputBuffer.setFlags(C.BUFFER_FLAG_DECODE_ONLY);
+      return null;
     }
     if (!hasOutputFormat) {
       channelCount = ffmpegGetChannelCount(nativeContext);
@@ -155,7 +158,8 @@ import java.util.List;
   }
 
   /** Returns the encoding of output audio. */
-  public @C.Encoding int getEncoding() {
+  @C.Encoding
+  public int getEncoding() {
     return encoding;
   }
 
@@ -163,7 +167,8 @@ import java.util.List;
    * Returns FFmpeg-compatible codec-specific initialization data ("extra data"), or {@code null} if
    * not required.
    */
-  private static @Nullable byte[] getExtraData(String mimeType, List<byte[]> initializationData) {
+  @Nullable
+  private static byte[] getExtraData(String mimeType, List<byte[]> initializationData) {
     switch (mimeType) {
       case MimeTypes.AUDIO_AAC:
       case MimeTypes.AUDIO_OPUS:

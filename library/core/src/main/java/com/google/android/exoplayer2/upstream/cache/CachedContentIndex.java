@@ -38,6 +38,7 @@ import com.google.android.exoplayer2.util.Assertions;
 import com.google.android.exoplayer2.util.AtomicFile;
 import com.google.android.exoplayer2.util.ReusableBufferedOutputStream;
 import com.google.android.exoplayer2.util.Util;
+import com.google.common.collect.ImmutableSet;
 import java.io.BufferedInputStream;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -81,7 +82,7 @@ import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
    *
    * <p>[1] (key1, id1) is removed from the in-memory index ... the index is not stored to disk ...
    * [2] id1 is reused for a different key2 ... the index is not stored to disk ... [3] A file for
-   * key2 is partially written using a path corresponding to id1 ... the process is killed before
+   * key2 is partially written using a path corresponding to id1 ... the process is shut down before
    * the index is stored to disk ... [4] The index is read from disk, causing the partially written
    * file to be incorrectly associated to key1
    *
@@ -301,9 +302,8 @@ import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
 
   /** Removes all resources whose {@link CachedContent CachedContents} are empty and unlocked. */
   public void removeEmpty() {
-    String[] keys = new String[keyToContent.size()];
-    keyToContent.keySet().toArray(keys);
-    for (String key : keys) {
+    // Create a copy of the keys as the underlying map is modified by maybeRemove(key).
+    for (String key : ImmutableSet.copyOf(keyToContent.keySet())) {
       maybeRemove(key);
     }
   }
@@ -832,7 +832,7 @@ import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
         try (Cursor cursor = getCursor()) {
           while (cursor.moveToNext()) {
             int id = cursor.getInt(COLUMN_INDEX_ID);
-            String key = cursor.getString(COLUMN_INDEX_KEY);
+            String key = checkNotNull(cursor.getString(COLUMN_INDEX_KEY));
             byte[] metadataBytes = cursor.getBlob(COLUMN_INDEX_METADATA);
 
             ByteArrayInputStream inputStream = new ByteArrayInputStream(metadataBytes);

@@ -36,9 +36,8 @@ import android.content.res.Resources;
 import android.database.DatabaseUtils;
 import android.database.sqlite.SQLiteDatabase;
 import android.graphics.Point;
+import android.hardware.display.DisplayManager;
 import android.media.AudioFormat;
-import android.net.ConnectivityManager;
-import android.net.NetworkInfo;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Handler;
@@ -49,6 +48,7 @@ import android.security.NetworkSecurityPolicy;
 import android.telephony.TelephonyManager;
 import android.text.TextUtils;
 import android.util.Base64;
+import android.util.SparseLongArray;
 import android.view.Display;
 import android.view.SurfaceView;
 import android.view.WindowManager;
@@ -82,6 +82,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.MissingResourceException;
+import java.util.NoSuchElementException;
 import java.util.TimeZone;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
@@ -89,22 +90,24 @@ import java.util.concurrent.Executors;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.zip.DataFormatException;
+import java.util.zip.GZIPOutputStream;
 import java.util.zip.Inflater;
 import org.checkerframework.checker.initialization.qual.UnknownInitialization;
 import org.checkerframework.checker.nullness.compatqual.NullableType;
 import org.checkerframework.checker.nullness.qual.EnsuresNonNull;
 import org.checkerframework.checker.nullness.qual.PolyNull;
 
-/**
- * Miscellaneous utility methods.
- */
+/** Miscellaneous utility methods. */
 public final class Util {
 
   /**
    * Like {@link android.os.Build.VERSION#SDK_INT}, but in a place where it can be conveniently
    * overridden for local testing.
    */
-  public static final int SDK_INT = "R".equals(Build.VERSION.CODENAME) ? 30 : Build.VERSION.SDK_INT;
+  public static final int SDK_INT =
+      "S".equals(Build.VERSION.CODENAME)
+          ? 31
+          : "R".equals(Build.VERSION.CODENAME) ? 30 : Build.VERSION.SDK_INT;
 
   /**
    * Like {@link Build#DEVICE}, but in a place where it can be conveniently overridden for local
@@ -124,23 +127,23 @@ public final class Util {
    */
   public static final String MODEL = Build.MODEL;
 
-  /**
-   * A concise description of the device that it can be useful to log for debugging purposes.
-   */
-  public static final String DEVICE_DEBUG_INFO = DEVICE + ", " + MODEL + ", " + MANUFACTURER + ", "
-      + SDK_INT;
+  /** A concise description of the device that it can be useful to log for debugging purposes. */
+  public static final String DEVICE_DEBUG_INFO =
+      DEVICE + ", " + MODEL + ", " + MANUFACTURER + ", " + SDK_INT;
 
   /** An empty byte array. */
   public static final byte[] EMPTY_BYTE_ARRAY = new byte[0];
 
   private static final String TAG = "Util";
-  private static final Pattern XS_DATE_TIME_PATTERN = Pattern.compile(
-      "(\\d\\d\\d\\d)\\-(\\d\\d)\\-(\\d\\d)[Tt]"
-      + "(\\d\\d):(\\d\\d):(\\d\\d)([\\.,](\\d+))?"
-      + "([Zz]|((\\+|\\-)(\\d?\\d):?(\\d\\d)))?");
+  private static final Pattern XS_DATE_TIME_PATTERN =
+      Pattern.compile(
+          "(\\d\\d\\d\\d)\\-(\\d\\d)\\-(\\d\\d)[Tt]"
+              + "(\\d\\d):(\\d\\d):(\\d\\d)([\\.,](\\d+))?"
+              + "([Zz]|((\\+|\\-)(\\d?\\d):?(\\d\\d)))?");
   private static final Pattern XS_DURATION_PATTERN =
-      Pattern.compile("^(-)?P(([0-9]*)Y)?(([0-9]*)M)?(([0-9]*)D)?"
-          + "(T(([0-9]*)H)?(([0-9]*)M)?(([0-9.]*)S)?)?$");
+      Pattern.compile(
+          "^(-)?P(([0-9]*)Y)?(([0-9]*)M)?(([0-9]*)D)?"
+              + "(T(([0-9]*)H)?(([0-9]*)M)?(([0-9.]*)S)?)?$");
   private static final Pattern ESCAPED_CHARACTER_PATTERN = Pattern.compile("%([A-Fa-f0-9]{2})");
 
   // https://docs.microsoft.com/en-us/azure/media-services/previous/media-services-deliver-content-overview#URLs.
@@ -333,14 +336,14 @@ public final class Util {
    *
    * <p>Use {@link Assertions#checkNotNull(Object)} to throw if the value is null.
    */
-  @SuppressWarnings({"contracts.postcondition.not.satisfied", "return.type.incompatible"})
+  @SuppressWarnings({"nullness:contracts.postcondition", "nullness:return"})
   @EnsuresNonNull("#1")
   public static <T> T castNonNull(@Nullable T value) {
     return value;
   }
 
   /** Casts a nullable type array to a non-null type array without runtime null check. */
-  @SuppressWarnings({"contracts.postcondition.not.satisfied", "return.type.incompatible"})
+  @SuppressWarnings({"nullness:contracts.postcondition", "nullness:return"})
   @EnsuresNonNull("#1")
   public static <T> T[] castNonNullTypeArray(@NullableType T[] value) {
     return value;
@@ -354,7 +357,7 @@ public final class Util {
    * @param length The output array length. Must be less or equal to the length of the input array.
    * @return The copied array.
    */
-  @SuppressWarnings({"nullness:argument.type.incompatible", "nullness:return.type.incompatible"})
+  @SuppressWarnings({"nullness:argument", "nullness:return"})
   public static <T> T[] nullSafeArrayCopy(T[] input, int length) {
     Assertions.checkArgument(length <= input.length);
     return Arrays.copyOf(input, length);
@@ -368,7 +371,7 @@ public final class Util {
    * @param to The end of the range to be copied, exclusive.
    * @return The copied array.
    */
-  @SuppressWarnings({"nullness:argument.type.incompatible", "nullness:return.type.incompatible"})
+  @SuppressWarnings({"nullness:argument", "nullness:return"})
   public static <T> T[] nullSafeArrayCopyOfRange(T[] input, int from, int to) {
     Assertions.checkArgument(0 <= from);
     Assertions.checkArgument(to <= input.length);
@@ -395,7 +398,7 @@ public final class Util {
    * @param second The second array.
    * @return The concatenated result.
    */
-  @SuppressWarnings({"nullness:assignment.type.incompatible"})
+  @SuppressWarnings("nullness:assignment")
   public static <T> T[] nullSafeArrayConcatenation(T[] first, T[] second) {
     T[] concatenation = Arrays.copyOf(first, first.length + second.length);
     System.arraycopy(
@@ -489,7 +492,7 @@ public final class Util {
    *     callback is required.
    * @return A {@link Handler} with the specified callback on the current {@link Looper} thread.
    */
-  @SuppressWarnings({"nullness:argument.type.incompatible", "nullness:return.type.incompatible"})
+  @SuppressWarnings({"nullness:argument", "nullness:return"})
   public static Handler createHandler(
       Looper looper, @Nullable Handler.@UnknownInitialization Callback callback) {
     return new Handler(looper, callback);
@@ -505,6 +508,10 @@ public final class Util {
    *     run. {@code false} otherwise.
    */
   public static boolean postOrRun(Handler handler, Runnable runnable) {
+    Looper looper = handler.getLooper();
+    if (!looper.getThread().isAlive()) {
+      return false;
+    }
     if (handler.getLooper() == Looper.myLooper()) {
       runnable.run();
       return true;
@@ -528,7 +535,7 @@ public final class Util {
    * @param threadName The name of the thread.
    * @return The executor.
    */
-  public static ExecutorService newSingleThreadExecutor(final String threadName) {
+  public static ExecutorService newSingleThreadExecutor(String threadName) {
     return Executors.newSingleThreadExecutor(runnable -> new Thread(runnable, threadName));
   }
 
@@ -662,11 +669,11 @@ public final class Util {
     // Locale data (especially for API < 21) may produce tags with '_' instead of the
     // standard-conformant '-'.
     String normalizedTag = language.replace('_', '-');
-    if (normalizedTag.isEmpty() || "und".equals(normalizedTag)) {
+    if (normalizedTag.isEmpty() || normalizedTag.equals(C.LANGUAGE_UNDETERMINED)) {
       // Tag isn't valid, keep using the original.
       normalizedTag = language;
     }
-    normalizedTag = Util.toLowerInvariant(normalizedTag);
+    normalizedTag = Ascii.toLowerCase(normalizedTag);
     String mainLanguage = Util.splitAtFirst(normalizedTag, "-")[0];
     if (languageTagReplacementMap == null) {
       languageTagReplacementMap = createIsoLanguageReplacementMap();
@@ -750,26 +757,6 @@ public final class Util {
    */
   public static boolean isLinebreak(int c) {
     return c == '\n' || c == '\r';
-  }
-
-  /**
-   * Converts text to lower case using {@link Locale#US}.
-   *
-   * @param text The text to convert.
-   * @return The lower case text, or null if {@code text} is null.
-   */
-  public static @PolyNull String toLowerInvariant(@PolyNull String text) {
-    return text == null ? text : text.toLowerCase(Locale.US);
-  }
-
-  /**
-   * Converts text to upper case using {@link Locale#US}.
-   *
-   * @param text The text to convert.
-   * @return The upper case text, or null if {@code text} is null.
-   */
-  public static @PolyNull String toUpperInvariant(@PolyNull String text) {
-    return text == null ? text : text.toUpperCase(Locale.US);
   }
 
   /**
@@ -944,8 +931,8 @@ public final class Util {
   /**
    * Returns the index of the largest element in {@code array} that is less than (or optionally
    * equal to) a specified {@code value}.
-   * <p>
-   * The search is performed using a binary search algorithm, so the array must be sorted. If the
+   *
+   * <p>The search is performed using a binary search algorithm, so the array must be sorted. If the
    * array contains multiple elements equal to {@code value} and {@code inclusive} is true, the
    * index of the first one will be returned.
    *
@@ -959,8 +946,8 @@ public final class Util {
    * @return The index of the largest element in {@code array} that is less than (or optionally
    *     equal to) {@code value}.
    */
-  public static int binarySearchFloor(long[] array, long value, boolean inclusive,
-      boolean stayInBounds) {
+  public static int binarySearchFloor(
+      long[] array, long value, boolean inclusive, boolean stayInBounds) {
     int index = Arrays.binarySearch(array, value);
     if (index < 0) {
       index = -(index + 2);
@@ -1167,6 +1154,25 @@ public final class Util {
   }
 
   /**
+   * Returns the minimum value in the given {@link SparseLongArray}.
+   *
+   * @param sparseLongArray The {@link SparseLongArray}.
+   * @return The minimum value.
+   * @throws NoSuchElementException If the array is empty.
+   */
+  @RequiresApi(18)
+  public static long minValue(SparseLongArray sparseLongArray) {
+    if (sparseLongArray.size() == 0) {
+      throw new NoSuchElementException();
+    }
+    long min = Long.MAX_VALUE;
+    for (int i = 0; i < sparseLongArray.size(); i++) {
+      min = min(min, sparseLongArray.valueAt(i));
+    }
+    return min;
+  }
+
+  /**
    * Parses an xs:duration attribute value, returning the parsed duration in milliseconds.
    *
    * @param value The attribute value to decode.
@@ -1207,11 +1213,12 @@ public final class Util {
    */
   // incompatible types in argument.
   // dereference of possibly-null reference matcher.group(9)
-  @SuppressWarnings({"nullness:argument.type.incompatible", "nullness:dereference.of.nullable"})
+  @SuppressWarnings({"nullness:argument", "nullness:dereference.of.nullable"})
   public static long parseXsDateTime(String value) throws ParserException {
     Matcher matcher = XS_DATE_TIME_PATTERN.matcher(value);
     if (!matcher.matches()) {
-      throw new ParserException("Invalid date/time format: " + value);
+      throw ParserException.createForMalformedContainer(
+          "Invalid date/time format: " + value, /* cause= */ null);
     }
 
     int timezoneShift;
@@ -1221,8 +1228,8 @@ public final class Util {
     } else if (matcher.group(9).equalsIgnoreCase("Z")) {
       timezoneShift = 0;
     } else {
-      timezoneShift = ((Integer.parseInt(matcher.group(12)) * 60
-          + Integer.parseInt(matcher.group(13))));
+      timezoneShift =
+          ((Integer.parseInt(matcher.group(12)) * 60 + Integer.parseInt(matcher.group(13))));
       if ("-".equals(matcher.group(11))) {
         timezoneShift *= -1;
       }
@@ -1232,12 +1239,13 @@ public final class Util {
 
     dateTime.clear();
     // Note: The month value is 0-based, hence the -1 on group(2)
-    dateTime.set(Integer.parseInt(matcher.group(1)),
-                 Integer.parseInt(matcher.group(2)) - 1,
-                 Integer.parseInt(matcher.group(3)),
-                 Integer.parseInt(matcher.group(4)),
-                 Integer.parseInt(matcher.group(5)),
-                 Integer.parseInt(matcher.group(6)));
+    dateTime.set(
+        Integer.parseInt(matcher.group(1)),
+        Integer.parseInt(matcher.group(2)) - 1,
+        Integer.parseInt(matcher.group(3)),
+        Integer.parseInt(matcher.group(4)),
+        Integer.parseInt(matcher.group(5)),
+        Integer.parseInt(matcher.group(6)));
     if (!TextUtils.isEmpty(matcher.group(8))) {
       final BigDecimal bd = new BigDecimal("0." + matcher.group(8));
       // we care only for milliseconds, so movePointRight(3)
@@ -1254,9 +1262,9 @@ public final class Util {
 
   /**
    * Scales a large timestamp.
-   * <p>
-   * Logically, scaling consists of a multiplication followed by a division. The actual operations
-   * performed are designed to minimize the probability of overflow.
+   *
+   * <p>Logically, scaling consists of a multiplication followed by a division. The actual
+   * operations performed are designed to minimize the probability of overflow.
    *
    * @param timestamp The timestamp to scale.
    * @param multiplier The multiplier.
@@ -1335,7 +1343,7 @@ public final class Util {
    * Returns the duration of media that will elapse in {@code playoutDuration}.
    *
    * @param playoutDuration The duration to scale.
-   * @param speed The playback speed.
+   * @param speed The factor by which playback is sped up.
    * @return The scaled duration, in the same units as {@code playoutDuration}.
    */
   public static long getMediaDurationForPlayoutDuration(long playoutDuration, float speed) {
@@ -1426,8 +1434,10 @@ public final class Util {
     byte[] data = new byte[hexString.length() / 2];
     for (int i = 0; i < data.length; i++) {
       int stringOffset = i * 2;
-      data[i] = (byte) ((Character.digit(hexString.charAt(stringOffset), 16) << 4)
-          + Character.digit(hexString.charAt(stringOffset + 1), 16));
+      data[i] =
+          (byte)
+              ((Character.digit(hexString.charAt(stringOffset), 16) << 4)
+                  + Character.digit(hexString.charAt(stringOffset + 1), 16));
     }
     return data;
   }
@@ -1481,8 +1491,13 @@ public final class Util {
     } catch (NameNotFoundException e) {
       versionName = "?";
     }
-    return applicationName + "/" + versionName + " (Linux;Android " + Build.VERSION.RELEASE
-        + ") " + ExoPlayerLibraryInfo.VERSION_SLASHY;
+    return applicationName
+        + "/"
+        + versionName
+        + " (Linux;Android "
+        + Build.VERSION.RELEASE
+        + ") "
+        + ExoPlayerLibraryInfo.VERSION_SLASHY;
   }
 
   /** Returns the number of codec strings in {@code codecs} whose type matches {@code trackType}. */
@@ -1671,9 +1686,7 @@ public final class Util {
     }
   }
 
-  /**
-   * Returns the {@link C.AudioUsage} corresponding to the specified {@link C.StreamType}.
-   */
+  /** Returns the {@link C.AudioUsage} corresponding to the specified {@link C.StreamType}. */
   @C.AudioUsage
   public static int getAudioUsageForStreamType(@C.StreamType int streamType) {
     switch (streamType) {
@@ -1695,9 +1708,7 @@ public final class Util {
     }
   }
 
-  /**
-   * Returns the {@link C.AudioContentType} corresponding to the specified {@link C.StreamType}.
-   */
+  /** Returns the {@link C.AudioContentType} corresponding to the specified {@link C.StreamType}. */
   @C.AudioContentType
   public static int getAudioContentTypeForStreamType(@C.StreamType int streamType) {
     switch (streamType) {
@@ -1715,9 +1726,7 @@ public final class Util {
     }
   }
 
-  /**
-   * Returns the {@link C.StreamType} corresponding to the specified {@link C.AudioUsage}.
-   */
+  /** Returns the {@link C.StreamType} corresponding to the specified {@link C.AudioUsage}. */
   @C.StreamType
   public static int getStreamTypeForAudioUsage(@C.AudioUsage int usage) {
     switch (usage) {
@@ -1757,7 +1766,7 @@ public final class Util {
    * @return The derived {@link UUID}, or {@code null} if one could not be derived.
    */
   public static @Nullable UUID getDrmUuid(String drmScheme) {
-    switch (toLowerInvariant(drmScheme)) {
+    switch (Ascii.toLowerCase(drmScheme)) {
       case "widevine":
         return C.WIDEVINE_UUID;
       case "playready":
@@ -1795,6 +1804,11 @@ public final class Util {
    */
   @ContentType
   public static int inferContentType(Uri uri) {
+    @Nullable String scheme = uri.getScheme();
+    if (scheme != null && Ascii.equalsIgnoreCase("rtsp", scheme)) {
+      return C.TYPE_RTSP;
+    }
+
     @Nullable String path = uri.getPath();
     return path == null ? C.TYPE_OTHER : inferContentType(path);
   }
@@ -1807,7 +1821,7 @@ public final class Util {
    */
   @ContentType
   public static int inferContentType(String fileName) {
-    fileName = toLowerInvariant(fileName);
+    fileName = Ascii.toLowerCase(fileName);
     if (fileName.endsWith(".mpd")) {
       return C.TYPE_DASH;
     } else if (fileName.endsWith(".m3u8")) {
@@ -1847,6 +1861,8 @@ public final class Util {
         return C.TYPE_HLS;
       case MimeTypes.APPLICATION_SS:
         return C.TYPE_SS;
+      case MimeTypes.APPLICATION_RTSP:
+        return C.TYPE_RTSP;
       default:
         return C.TYPE_OTHER;
     }
@@ -1880,11 +1896,11 @@ public final class Util {
    * @return The fixed URI.
    */
   public static Uri fixSmoothStreamingIsmManifestUri(Uri uri) {
-    @Nullable String path = toLowerInvariant(uri.getPath());
+    @Nullable String path = uri.getPath();
     if (path == null) {
       return uri;
     }
-    Matcher ismMatcher = ISM_URL_PATTERN.matcher(path);
+    Matcher ismMatcher = ISM_URL_PATTERN.matcher(Ascii.toLowerCase(path));
     if (ismMatcher.matches() && ismMatcher.group(1) == null) {
       // Add missing "Manifest" suffix.
       return Uri.withAppendedPath(uri, "Manifest");
@@ -1920,10 +1936,10 @@ public final class Util {
    * Escapes a string so that it's safe for use as a file or directory name on at least FAT32
    * filesystems. FAT32 is the most restrictive of all filesystems still commonly used today.
    *
-   * <p>For simplicity, this only handles common characters known to be illegal on FAT32:
-   * &lt;, &gt;, :, ", /, \, |, ?, and *. % is also escaped since it is used as the escape
-   * character. Escaping is performed in a consistent way so that no collisions occur and
-   * {@link #unescapeFileName(String)} can be used to retrieve the original file name.
+   * <p>For simplicity, this only handles common characters known to be illegal on FAT32: &lt;,
+   * &gt;, :, ", /, \, |, ?, and *. % is also escaped since it is used as the escape character.
+   * Escaping is performed in a consistent way so that no collisions occur and {@link
+   * #unescapeFileName(String)} can be used to retrieve the original file name.
    *
    * @param fileName File name to be escaped.
    * @return An escaped file name which will be safe for use on at least FAT32 filesystems.
@@ -2017,15 +2033,13 @@ public final class Util {
 
   /** Returns a data URI with the specified MIME type and data. */
   public static Uri getDataUriForString(String mimeType, String data) {
-    // TODO(internal: b/169937045): For now we don't pass the URL_SAFE flag as DataSchemeDataSource
-    // doesn't decode using it.
     return Uri.parse(
         "data:" + mimeType + ";base64," + Base64.encodeToString(data.getBytes(), Base64.NO_WRAP));
   }
 
   /**
-   * A hacky method that always throws {@code t} even if {@code t} is a checked exception,
-   * and is not declared to be thrown.
+   * A hacky method that always throws {@code t} even if {@code t} is a checked exception, and is
+   * not declared to be thrown.
    */
   public static void sneakyThrow(Throwable t) {
     sneakyThrowInternal(t);
@@ -2057,7 +2071,7 @@ public final class Util {
 
   /** Creates a new empty file in the directory returned by {@link Context#getCacheDir()}. */
   public static File createTempFile(Context context, String prefix) throws IOException {
-    return File.createTempFile(prefix, null, context.getCacheDir());
+    return File.createTempFile(prefix, null, checkNotNull(context.getCacheDir()));
   }
 
   /**
@@ -2072,8 +2086,9 @@ public final class Util {
    */
   public static int crc32(byte[] bytes, int start, int end, int initialValue) {
     for (int i = start; i < end; i++) {
-      initialValue = (initialValue << 8)
-          ^ CRC32_BYTES_MSBF[((initialValue >>> 24) ^ (bytes[i] & 0xFF)) & 0xFF];
+      initialValue =
+          (initialValue << 8)
+              ^ CRC32_BYTES_MSBF[((initialValue >>> 24) ^ (bytes[i] & 0xFF)) & 0xFF];
     }
     return initialValue;
   }
@@ -2095,6 +2110,19 @@ public final class Util {
     return initialValue;
   }
 
+  /** Compresses {@code input} using gzip and returns the result in a newly allocated byte array. */
+  public static byte[] gzip(byte[] input) {
+    ByteArrayOutputStream output = new ByteArrayOutputStream();
+    try (GZIPOutputStream os = new GZIPOutputStream(output)) {
+      os.write(input);
+    } catch (IOException e) {
+      // A ByteArrayOutputStream wrapped in a GZipOutputStream should never throw IOException since
+      // no I/O is happening.
+      throw new IllegalStateException(e);
+    }
+    return output.toByteArray();
+  }
+
   /**
    * Absolute <i>get</i> method for reading an int value in {@link ByteOrder#BIG_ENDIAN} in a {@link
    * ByteBuffer}. Same as {@link ByteBuffer#getInt(int)} except the buffer's order as returned by
@@ -2108,52 +2136,6 @@ public final class Util {
   public static int getBigEndianInt(ByteBuffer buffer, int index) {
     int value = buffer.getInt(index);
     return buffer.order() == ByteOrder.BIG_ENDIAN ? value : Integer.reverseBytes(value);
-  }
-
-  /**
-   * Returns the {@link C.NetworkType} of the current network connection.
-   *
-   * @param context A context to access the connectivity manager.
-   * @return The {@link C.NetworkType} of the current network connection.
-   */
-  // Intentional null check to guard against user input.
-  @SuppressWarnings("known.nonnull")
-  @C.NetworkType
-  public static int getNetworkType(Context context) {
-    if (context == null) {
-      // Note: This is for backward compatibility only (context used to be @Nullable).
-      return C.NETWORK_TYPE_UNKNOWN;
-    }
-    NetworkInfo networkInfo;
-    @Nullable
-    ConnectivityManager connectivityManager =
-        (ConnectivityManager) context.getSystemService(Context.CONNECTIVITY_SERVICE);
-    if (connectivityManager == null) {
-      return C.NETWORK_TYPE_UNKNOWN;
-    }
-    try {
-      networkInfo = connectivityManager.getActiveNetworkInfo();
-    } catch (SecurityException e) {
-      // Expected if permission was revoked.
-      return C.NETWORK_TYPE_UNKNOWN;
-    }
-    if (networkInfo == null || !networkInfo.isConnected()) {
-      return C.NETWORK_TYPE_OFFLINE;
-    }
-    switch (networkInfo.getType()) {
-      case ConnectivityManager.TYPE_WIFI:
-        return C.NETWORK_TYPE_WIFI;
-      case ConnectivityManager.TYPE_WIMAX:
-        return C.NETWORK_TYPE_4G;
-      case ConnectivityManager.TYPE_MOBILE:
-      case ConnectivityManager.TYPE_MOBILE_DUN:
-      case ConnectivityManager.TYPE_MOBILE_HIPRI:
-        return getMobileNetworkType(networkInfo);
-      case ConnectivityManager.TYPE_ETHERNET:
-        return C.NETWORK_TYPE_ETHERNET;
-      default: // VPN, Bluetooth, Dummy.
-        return C.NETWORK_TYPE_OTHER;
-    }
   }
 
   /**
@@ -2171,11 +2153,11 @@ public final class Util {
       if (telephonyManager != null) {
         String countryCode = telephonyManager.getNetworkCountryIso();
         if (!TextUtils.isEmpty(countryCode)) {
-          return toUpperInvariant(countryCode);
+          return Ascii.toUpperCase(countryCode);
         }
       }
     }
-    return toUpperInvariant(Locale.getDefault().getCountry());
+    return Ascii.toUpperCase(Locale.getDefault().getCountry());
   }
 
   /**
@@ -2207,9 +2189,8 @@ public final class Util {
     if (input.bytesLeft() <= 0) {
       return false;
     }
-    byte[] outputData = output.getData();
-    if (outputData.length < input.bytesLeft()) {
-      outputData = new byte[2 * input.bytesLeft()];
+    if (output.capacity() < input.bytesLeft()) {
+      output.ensureCapacity(2 * input.bytesLeft());
     }
     if (inflater == null) {
       inflater = new Inflater();
@@ -2218,16 +2199,17 @@ public final class Util {
     try {
       int outputSize = 0;
       while (true) {
-        outputSize += inflater.inflate(outputData, outputSize, outputData.length - outputSize);
+        outputSize +=
+            inflater.inflate(output.getData(), outputSize, output.capacity() - outputSize);
         if (inflater.finished()) {
-          output.reset(outputData, outputSize);
+          output.setLimit(outputSize);
           return true;
         }
         if (inflater.needsDictionary() || inflater.needsInput()) {
           return false;
         }
-        if (outputSize == outputData.length) {
-          outputData = Arrays.copyOf(outputData, outputData.length * 2);
+        if (outputSize == output.capacity()) {
+          output.ensureCapacity(output.capacity() * 2);
         }
       }
     } catch (DataFormatException e) {
@@ -2265,9 +2247,23 @@ public final class Util {
    * @return The size of the current mode, in pixels.
    */
   public static Point getCurrentDisplayModeSize(Context context) {
-    WindowManager windowManager =
-        checkNotNull((WindowManager) context.getSystemService(Context.WINDOW_SERVICE));
-    return getCurrentDisplayModeSize(context, windowManager.getDefaultDisplay());
+    @Nullable Display defaultDisplay = null;
+    if (Util.SDK_INT >= 17) {
+      @Nullable
+      DisplayManager displayManager =
+          (DisplayManager) context.getSystemService(Context.DISPLAY_SERVICE);
+      // We don't expect displayManager to ever be null, so this check is just precautionary.
+      // Consider removing it when the library minSdkVersion is increased to 17 or higher.
+      if (displayManager != null) {
+        defaultDisplay = displayManager.getDisplay(Display.DEFAULT_DISPLAY);
+      }
+    }
+    if (defaultDisplay == null) {
+      WindowManager windowManager =
+          checkNotNull((WindowManager) context.getSystemService(Context.WINDOW_SERVICE));
+      defaultDisplay = windowManager.getDefaultDisplay();
+    }
+    return getCurrentDisplayModeSize(context, defaultDisplay);
   }
 
   /**
@@ -2405,6 +2401,34 @@ public final class Util {
     return count > 0;
   }
 
+  /**
+   * Attempts to parse an error code from a diagnostic string found in framework media exceptions.
+   *
+   * <p>For example: android.media.MediaCodec.error_1 or android.media.MediaDrm.error_neg_2.
+   *
+   * @param diagnosticsInfo A string from which to parse the error code.
+   * @return The parser error code, or 0 if an error code could not be parsed.
+   */
+  public static int getErrorCodeFromPlatformDiagnosticsInfo(@Nullable String diagnosticsInfo) {
+    // TODO (internal b/192337376): Change 0 for ERROR_UNKNOWN once available.
+    if (diagnosticsInfo == null) {
+      return 0;
+    }
+    String[] strings = split(diagnosticsInfo, "_");
+    int length = strings.length;
+    if (length < 2) {
+      return 0;
+    }
+    String digitsSection = strings[length - 1];
+    boolean isNegative = length >= 3 && "neg".equals(strings[length - 2]);
+    try {
+      int errorCode = Integer.parseInt(Assertions.checkNotNull(digitsSection));
+      return isNegative ? -errorCode : errorCode;
+    } catch (NumberFormatException e) {
+      return 0;
+    }
+  }
+
   @Nullable
   private static String getSystemProperty(String name) {
     try {
@@ -2449,38 +2473,6 @@ public final class Util {
   @RequiresApi(21)
   private static String getLocaleLanguageTagV21(Locale locale) {
     return locale.toLanguageTag();
-  }
-
-  private static @C.NetworkType int getMobileNetworkType(NetworkInfo networkInfo) {
-    switch (networkInfo.getSubtype()) {
-      case TelephonyManager.NETWORK_TYPE_EDGE:
-      case TelephonyManager.NETWORK_TYPE_GPRS:
-        return C.NETWORK_TYPE_2G;
-      case TelephonyManager.NETWORK_TYPE_1xRTT:
-      case TelephonyManager.NETWORK_TYPE_CDMA:
-      case TelephonyManager.NETWORK_TYPE_EVDO_0:
-      case TelephonyManager.NETWORK_TYPE_EVDO_A:
-      case TelephonyManager.NETWORK_TYPE_EVDO_B:
-      case TelephonyManager.NETWORK_TYPE_HSDPA:
-      case TelephonyManager.NETWORK_TYPE_HSPA:
-      case TelephonyManager.NETWORK_TYPE_HSUPA:
-      case TelephonyManager.NETWORK_TYPE_IDEN:
-      case TelephonyManager.NETWORK_TYPE_UMTS:
-      case TelephonyManager.NETWORK_TYPE_EHRPD:
-      case TelephonyManager.NETWORK_TYPE_HSPAP:
-      case TelephonyManager.NETWORK_TYPE_TD_SCDMA:
-        return C.NETWORK_TYPE_3G;
-      case TelephonyManager.NETWORK_TYPE_LTE:
-        return C.NETWORK_TYPE_4G;
-      case TelephonyManager.NETWORK_TYPE_NR:
-        return SDK_INT >= 29 ? C.NETWORK_TYPE_5G : C.NETWORK_TYPE_UNKNOWN;
-      case TelephonyManager.NETWORK_TYPE_IWLAN:
-        return C.NETWORK_TYPE_WIFI;
-      case TelephonyManager.NETWORK_TYPE_GSM:
-      case TelephonyManager.NETWORK_TYPE_UNKNOWN:
-      default: // Future mobile network types.
-        return C.NETWORK_TYPE_CELLULAR_UNKNOWN;
-    }
   }
 
   private static HashMap<String, String> createIsoLanguageReplacementMap() {
@@ -2589,7 +2581,7 @@ public final class Util {
         "hsn", "zh-hsn"
       };
 
-  // Legacy ("grandfathered") tags, replaced by modern equivalents (including macrolanguage)
+  // Legacy tags that have been replaced by modern equivalents (including macrolanguage)
   // See https://www.iana.org/assignments/language-subtag-registry/language-subtag-registry.
   private static final String[] isoLegacyTagReplacements =
       new String[] {

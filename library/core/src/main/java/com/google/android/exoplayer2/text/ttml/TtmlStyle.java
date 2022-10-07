@@ -19,17 +19,16 @@ import android.graphics.Typeface;
 import android.text.Layout;
 import androidx.annotation.IntDef;
 import androidx.annotation.Nullable;
-import com.google.android.exoplayer2.text.span.RubySpan;
+import com.google.android.exoplayer2.text.span.TextAnnotation;
 import java.lang.annotation.Documented;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 
-/**
- * Style object of a <code>TtmlNode</code>
- */
+/** Style object of a <code>TtmlNode</code> */
 /* package */ final class TtmlStyle {
 
   public static final int UNSPECIFIED = -1;
+  public static final float UNSPECIFIED_SHEAR = Float.MAX_VALUE;
 
   @Documented
   @Retention(RetentionPolicy.SOURCE)
@@ -83,9 +82,12 @@ import java.lang.annotation.RetentionPolicy;
   private float fontSize;
   @Nullable private String id;
   @RubyType private int rubyType;
-  @RubySpan.Position private int rubyPosition;
+  @TextAnnotation.Position private int rubyPosition;
   @Nullable private Layout.Alignment textAlign;
+  @Nullable private Layout.Alignment multiRowAlign;
   @OptionalBoolean private int textCombine;
+  @Nullable private TextEmphasis textEmphasis;
+  private float shearPercentage;
 
   public TtmlStyle() {
     linethrough = UNSPECIFIED;
@@ -94,8 +96,9 @@ import java.lang.annotation.RetentionPolicy;
     italic = UNSPECIFIED;
     fontSizeUnit = UNSPECIFIED;
     rubyType = UNSPECIFIED;
-    rubyPosition = RubySpan.POSITION_UNKNOWN;
+    rubyPosition = TextAnnotation.POSITION_UNKNOWN;
     textCombine = UNSPECIFIED;
+    shearPercentage = UNSPECIFIED_SHEAR;
   }
 
   /**
@@ -104,12 +107,12 @@ import java.lang.annotation.RetentionPolicy;
    * @return {@link #UNSPECIFIED}, {@link #STYLE_NORMAL}, {@link #STYLE_BOLD}, {@link #STYLE_BOLD}
    *     or {@link #STYLE_BOLD_ITALIC}.
    */
-  @StyleFlags public int getStyle() {
+  @StyleFlags
+  public int getStyle() {
     if (bold == UNSPECIFIED && italic == UNSPECIFIED) {
       return UNSPECIFIED;
     }
-    return (bold == ON ? STYLE_BOLD : STYLE_NORMAL)
-        | (italic == ON ? STYLE_ITALIC : STYLE_NORMAL);
+    return (bold == ON ? STYLE_BOLD : STYLE_NORMAL) | (italic == ON ? STYLE_ITALIC : STYLE_NORMAL);
   }
 
   public boolean isLinethrough() {
@@ -184,6 +187,15 @@ import java.lang.annotation.RetentionPolicy;
     return hasBackgroundColor;
   }
 
+  public TtmlStyle setShearPercentage(float shearPercentage) {
+    this.shearPercentage = shearPercentage;
+    return this;
+  }
+
+  public float getShearPercentage() {
+    return shearPercentage;
+  }
+
   /**
    * Chains this style to referential style. Local properties which are already set are never
    * overridden.
@@ -225,11 +237,14 @@ import java.lang.annotation.RetentionPolicy;
       if (underline == UNSPECIFIED) {
         underline = ancestor.underline;
       }
-      if (rubyPosition == RubySpan.POSITION_UNKNOWN) {
+      if (rubyPosition == TextAnnotation.POSITION_UNKNOWN) {
         rubyPosition = ancestor.rubyPosition;
       }
       if (textAlign == null && ancestor.textAlign != null) {
         textAlign = ancestor.textAlign;
+      }
+      if (multiRowAlign == null && ancestor.multiRowAlign != null) {
+        multiRowAlign = ancestor.multiRowAlign;
       }
       if (textCombine == UNSPECIFIED) {
         textCombine = ancestor.textCombine;
@@ -237,6 +252,12 @@ import java.lang.annotation.RetentionPolicy;
       if (fontSizeUnit == UNSPECIFIED) {
         fontSizeUnit = ancestor.fontSizeUnit;
         fontSize = ancestor.fontSize;
+      }
+      if (textEmphasis == null) {
+        textEmphasis = ancestor.textEmphasis;
+      }
+      if (shearPercentage == UNSPECIFIED_SHEAR) {
+        shearPercentage = ancestor.shearPercentage;
       }
       // attributes not inherited as of http://www.w3.org/TR/ttml1/
       if (chaining && !hasBackgroundColor && ancestor.hasBackgroundColor) {
@@ -269,12 +290,12 @@ import java.lang.annotation.RetentionPolicy;
     return rubyType;
   }
 
-  public TtmlStyle setRubyPosition(@RubySpan.Position int position) {
+  public TtmlStyle setRubyPosition(@TextAnnotation.Position int position) {
     this.rubyPosition = position;
     return this;
   }
 
-  @RubySpan.Position
+  @TextAnnotation.Position
   public int getRubyPosition() {
     return rubyPosition;
   }
@@ -289,6 +310,16 @@ import java.lang.annotation.RetentionPolicy;
     return this;
   }
 
+  @Nullable
+  public Layout.Alignment getMultiRowAlign() {
+    return multiRowAlign;
+  }
+
+  public TtmlStyle setMultiRowAlign(@Nullable Layout.Alignment multiRowAlign) {
+    this.multiRowAlign = multiRowAlign;
+    return this;
+  }
+
   /** Returns true if the source entity has {@code tts:textCombine=all}. */
   public boolean getTextCombine() {
     return textCombine == ON;
@@ -296,6 +327,16 @@ import java.lang.annotation.RetentionPolicy;
 
   public TtmlStyle setTextCombine(boolean combine) {
     this.textCombine = combine ? ON : OFF;
+    return this;
+  }
+
+  @Nullable
+  public TextEmphasis getTextEmphasis() {
+    return textEmphasis;
+  }
+
+  public TtmlStyle setTextEmphasis(@Nullable TextEmphasis textEmphasis) {
+    this.textEmphasis = textEmphasis;
     return this;
   }
 
@@ -309,7 +350,8 @@ import java.lang.annotation.RetentionPolicy;
     return this;
   }
 
-  @FontSizeUnit public int getFontSizeUnit() {
+  @FontSizeUnit
+  public int getFontSizeUnit() {
     return fontSizeUnit;
   }
 

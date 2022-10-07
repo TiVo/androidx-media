@@ -53,8 +53,8 @@ import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
  * A {@link SampleStream} that loads media in {@link Chunk}s, obtained from a {@link ChunkSource}.
  * May also be configured to expose additional embedded {@link SampleStream}s.
  */
-public class ChunkSampleStream<T extends ChunkSource> implements SampleStream, SequenceableLoader,
-    Loader.Callback<Chunk>, Loader.ReleaseCallback {
+public class ChunkSampleStream<T extends ChunkSource>
+    implements SampleStream, SequenceableLoader, Loader.Callback<Chunk>, Loader.ReleaseCallback {
 
   /** A callback to be notified when a sample stream has finished being released. */
   public interface ReleaseCallback<T extends ChunkSource> {
@@ -133,7 +133,7 @@ public class ChunkSampleStream<T extends ChunkSource> implements SampleStream, S
     this.callback = callback;
     this.mediaSourceEventDispatcher = mediaSourceEventDispatcher;
     this.loadErrorHandlingPolicy = loadErrorHandlingPolicy;
-    loader = new Loader("Loader:ChunkSampleStream");
+    loader = new Loader("ChunkSampleStream");
     nextChunkHolder = new ChunkHolder();
     mediaChunks = new ArrayList<>();
     readOnlyMediaChunks = Collections.unmodifiableList(mediaChunks);
@@ -145,7 +145,7 @@ public class ChunkSampleStream<T extends ChunkSource> implements SampleStream, S
     SampleQueue[] sampleQueues = new SampleQueue[1 + embeddedTrackCount];
 
     primarySampleQueue =
-        new SampleQueue(
+        SampleQueue.createWithDrm(
             allocator,
             /* playbackLooper= */ checkNotNull(Looper.myLooper()),
             drmSessionManager,
@@ -154,12 +154,7 @@ public class ChunkSampleStream<T extends ChunkSource> implements SampleStream, S
     sampleQueues[0] = primarySampleQueue;
 
     for (int i = 0; i < embeddedTrackCount; i++) {
-      SampleQueue sampleQueue =
-          new SampleQueue(
-              allocator,
-              /* playbackLooper= */ checkNotNull(Looper.myLooper()),
-              DrmSessionManager.getDummyDrmSessionManager(),
-              drmEventDispatcher);
+      SampleQueue sampleQueue = SampleQueue.createWithoutDrm(allocator);
       embeddedSampleQueues[i] = sampleQueue;
       sampleQueues[i + 1] = sampleQueue;
       trackTypes[i + 1] = this.embeddedTrackTypes[i];
@@ -216,9 +211,7 @@ public class ChunkSampleStream<T extends ChunkSource> implements SampleStream, S
     throw new IllegalStateException();
   }
 
-  /**
-   * Returns the {@link ChunkSource} used by this stream.
-   */
+  /** Returns the {@link ChunkSource} used by this stream. */
   public T getChunkSource() {
     return chunkSource;
   }
@@ -238,8 +231,10 @@ public class ChunkSampleStream<T extends ChunkSource> implements SampleStream, S
     } else {
       long bufferedPositionUs = lastSeekPositionUs;
       BaseMediaChunk lastMediaChunk = getLastMediaChunk();
-      BaseMediaChunk lastCompletedMediaChunk = lastMediaChunk.isLoadCompleted() ? lastMediaChunk
-          : mediaChunks.size() > 1 ? mediaChunks.get(mediaChunks.size() - 2) : null;
+      BaseMediaChunk lastCompletedMediaChunk =
+          lastMediaChunk.isLoadCompleted()
+              ? lastMediaChunk
+              : mediaChunks.size() > 1 ? mediaChunks.get(mediaChunks.size() - 2) : null;
       if (lastCompletedMediaChunk != null) {
         bufferedPositionUs = max(bufferedPositionUs, lastCompletedMediaChunk.endTimeUs);
       }
@@ -386,8 +381,8 @@ public class ChunkSampleStream<T extends ChunkSource> implements SampleStream, S
   }
 
   @Override
-  public int readData(FormatHolder formatHolder, DecoderInputBuffer buffer,
-      boolean formatRequired) {
+  public int readData(
+      FormatHolder formatHolder, DecoderInputBuffer buffer, @ReadFlags int readFlags) {
     if (isPendingReset()) {
       return C.RESULT_NOTHING_READ;
     }
@@ -400,7 +395,7 @@ public class ChunkSampleStream<T extends ChunkSource> implements SampleStream, S
     }
     maybeNotifyPrimaryTrackFormatChanged();
 
-    return primarySampleQueue.read(formatHolder, buffer, formatRequired, loadingFinished);
+    return primarySampleQueue.read(formatHolder, buffer, readFlags, loadingFinished);
   }
 
   @Override
@@ -521,12 +516,9 @@ public class ChunkSampleStream<T extends ChunkSource> implements SampleStream, S
     LoadErrorInfo loadErrorInfo =
         new LoadErrorInfo(loadEventInfo, mediaLoadData, error, errorCount);
 
-    long exclusionDurationMs =
-        cancelable
-            ? loadErrorHandlingPolicy.getBlacklistDurationMsFor(loadErrorInfo)
-            : C.TIME_UNSET;
     @Nullable LoadErrorAction loadErrorAction = null;
-    if (chunkSource.onChunkLoadError(loadable, cancelable, error, exclusionDurationMs)) {
+    if (chunkSource.onChunkLoadError(
+        loadable, cancelable, loadErrorInfo, loadErrorHandlingPolicy)) {
       if (cancelable) {
         loadErrorAction = Loader.DONT_RETRY;
         if (isMediaChunk) {
@@ -817,9 +809,7 @@ public class ChunkSampleStream<T extends ChunkSource> implements SampleStream, S
     return firstRemovedChunk;
   }
 
-  /**
-   * A {@link SampleStream} embedded in a {@link ChunkSampleStream}.
-   */
+  /** A {@link SampleStream} embedded in a {@link ChunkSampleStream}. */
   public final class EmbeddedSampleStream implements SampleStream {
 
     public final ChunkSampleStream<T> parent;
@@ -867,8 +857,8 @@ public class ChunkSampleStream<T extends ChunkSource> implements SampleStream, S
     }
 
     @Override
-    public int readData(FormatHolder formatHolder, DecoderInputBuffer buffer,
-        boolean formatRequired) {
+    public int readData(
+        FormatHolder formatHolder, DecoderInputBuffer buffer, @ReadFlags int readFlags) {
       if (isPendingReset()) {
         return C.RESULT_NOTHING_READ;
       }
@@ -880,7 +870,7 @@ public class ChunkSampleStream<T extends ChunkSource> implements SampleStream, S
         return C.RESULT_NOTHING_READ;
       }
       maybeNotifyDownstreamFormat();
-      return sampleQueue.read(formatHolder, buffer, formatRequired, loadingFinished);
+      return sampleQueue.read(formatHolder, buffer, readFlags, loadingFinished);
     }
 
     public void release() {
@@ -900,5 +890,4 @@ public class ChunkSampleStream<T extends ChunkSource> implements SampleStream, S
       }
     }
   }
-
 }

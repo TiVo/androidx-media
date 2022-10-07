@@ -25,7 +25,7 @@ import com.google.android.exoplayer2.FormatHolder;
 import com.google.android.exoplayer2.MediaItem;
 import com.google.android.exoplayer2.SeekParameters;
 import com.google.android.exoplayer2.decoder.DecoderInputBuffer;
-import com.google.android.exoplayer2.trackselection.TrackSelection;
+import com.google.android.exoplayer2.trackselection.ExoTrackSelection;
 import com.google.android.exoplayer2.upstream.Allocator;
 import com.google.android.exoplayer2.upstream.TransferListener;
 import com.google.android.exoplayer2.util.Assertions;
@@ -132,7 +132,7 @@ public final class SilenceMediaSource extends BaseMediaSource {
             durationUs,
             /* isSeekable= */ true,
             /* isDynamic= */ false,
-            /* isLive= */ false,
+            /* useLiveConfiguration= */ false,
             /* manifest= */ null,
             mediaItem));
   }
@@ -147,17 +147,6 @@ public final class SilenceMediaSource extends BaseMediaSource {
 
   @Override
   public void releasePeriod(MediaPeriod mediaPeriod) {}
-
-  /**
-   * @deprecated Use {@link #getMediaItem()} and {@link MediaItem.PlaybackProperties#tag} instead.
-   */
-  @SuppressWarnings("deprecation")
-  @Deprecated
-  @Nullable
-  @Override
-  public Object getTag() {
-    return Assertions.checkNotNull(mediaItem.playbackProperties).tag;
-  }
 
   @Override
   public MediaItem getMediaItem() {
@@ -194,7 +183,7 @@ public final class SilenceMediaSource extends BaseMediaSource {
 
     @Override
     public long selectTracks(
-        @NullableType TrackSelection[] selections,
+        @NullableType ExoTrackSelection[] selections,
         boolean[] mayRetainStreamFlags,
         @NullableType SampleStream[] streams,
         boolean[] streamResetFlags,
@@ -292,8 +281,8 @@ public final class SilenceMediaSource extends BaseMediaSource {
 
     @Override
     public int readData(
-        FormatHolder formatHolder, DecoderInputBuffer buffer, boolean formatRequired) {
-      if (!sentFormat || formatRequired) {
+        FormatHolder formatHolder, DecoderInputBuffer buffer, @ReadFlags int readFlags) {
+      if (!sentFormat || (readFlags & FLAG_REQUIRE_FORMAT) != 0) {
         formatHolder.format = FORMAT;
         sentFormat = true;
         return C.RESULT_FORMAT_READ;
@@ -305,12 +294,16 @@ public final class SilenceMediaSource extends BaseMediaSource {
         return C.RESULT_BUFFER_READ;
       }
 
-      int bytesToWrite = (int) min(SILENCE_SAMPLE.length, bytesRemaining);
-      buffer.ensureSpaceForWrite(bytesToWrite);
-      buffer.data.put(SILENCE_SAMPLE, /* offset= */ 0, bytesToWrite);
       buffer.timeUs = getAudioPositionUs(positionBytes);
       buffer.addFlag(C.BUFFER_FLAG_KEY_FRAME);
-      positionBytes += bytesToWrite;
+      int bytesToWrite = (int) min(SILENCE_SAMPLE.length, bytesRemaining);
+      if ((readFlags & FLAG_OMIT_SAMPLE_DATA) == 0) {
+        buffer.ensureSpaceForWrite(bytesToWrite);
+        buffer.data.put(SILENCE_SAMPLE, /* offset= */ 0, bytesToWrite);
+      }
+      if ((readFlags & FLAG_PEEK) == 0) {
+        positionBytes += bytesToWrite;
+      }
       return C.RESULT_BUFFER_READ;
     }
 

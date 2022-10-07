@@ -26,9 +26,9 @@ import com.google.android.exoplayer2.C;
 import com.google.android.exoplayer2.MediaItem;
 import com.google.android.exoplayer2.source.ads.AdsLoader;
 import com.google.android.exoplayer2.source.ads.AdsMediaSource;
+import com.google.android.exoplayer2.ui.AdViewProvider;
 import com.google.android.exoplayer2.util.MimeTypes;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -60,19 +60,6 @@ public final class DefaultMediaSourceFactoryTest {
     MediaSource mediaSource = defaultMediaSourceFactory.createMediaSource(mediaItem);
 
     assertThat(mediaSource).isInstanceOf(ProgressiveMediaSource.class);
-  }
-
-  @Test
-  @SuppressWarnings("deprecation") // Testing deprecated MediaSource.getTag() still works.
-  public void createMediaSource_withTag_tagInSource_deprecated() {
-    Object tag = new Object();
-    DefaultMediaSourceFactory defaultMediaSourceFactory =
-        new DefaultMediaSourceFactory((Context) ApplicationProvider.getApplicationContext());
-    MediaItem mediaItem = new MediaItem.Builder().setUri(URI_MEDIA).setTag(tag).build();
-
-    MediaSource mediaSource = defaultMediaSourceFactory.createMediaSource(mediaItem);
-
-    assertThat(mediaSource.getTag()).isEqualTo(tag);
   }
 
   @Test
@@ -116,26 +103,6 @@ public final class DefaultMediaSourceFactoryTest {
     MediaSource mediaSource = defaultMediaSourceFactory.createMediaSource(mediaItem);
 
     assertThat(mediaSource).isInstanceOf(MergingMediaSource.class);
-  }
-
-  @Test
-  @SuppressWarnings("deprecation") // Testing deprecated MediaSource.getTag() still works.
-  public void createMediaSource_withSubtitle_hasTag_deprecated() {
-    DefaultMediaSourceFactory defaultMediaSourceFactory =
-        new DefaultMediaSourceFactory((Context) ApplicationProvider.getApplicationContext());
-    Object tag = new Object();
-    MediaItem mediaItem =
-        new MediaItem.Builder()
-            .setTag(tag)
-            .setUri(URI_MEDIA)
-            .setSubtitles(
-                Collections.singletonList(
-                    new MediaItem.Subtitle(Uri.parse(URI_TEXT), MimeTypes.APPLICATION_TTML, "en")))
-            .build();
-
-    MediaSource mediaSource = defaultMediaSourceFactory.createMediaSource(mediaItem);
-
-    assertThat(mediaSource.getTag()).isEqualTo(tag);
   }
 
   @Test
@@ -204,8 +171,8 @@ public final class DefaultMediaSourceFactoryTest {
     MediaItem mediaItem = new MediaItem.Builder().setUri(URI_MEDIA).setAdTagUri(adTagUri).build();
     DefaultMediaSourceFactory defaultMediaSourceFactory =
         new DefaultMediaSourceFactory((Context) ApplicationProvider.getApplicationContext())
-            .setAdsLoaderProvider(ignoredAdTagUri -> mock(AdsLoader.class))
-            .setAdViewProvider(mock(AdsLoader.AdViewProvider.class));
+            .setAdsLoaderProvider(ignoredAdsConfiguration -> mock(AdsLoader.class))
+            .setAdViewProvider(mock(AdViewProvider.class));
 
     MediaSource mediaSource = defaultMediaSourceFactory.createMediaSource(mediaItem);
 
@@ -234,5 +201,67 @@ public final class DefaultMediaSourceFactoryTest {
         new DefaultMediaSourceFactory(applicationContext).createMediaSource(mediaItem);
 
     assertThat(mediaSource).isNotInstanceOf(AdsMediaSource.class);
+  }
+
+  @Test
+  public void createMediaSource_undefinedLiveProperties_livePropertiesUnset() {
+    DefaultMediaSourceFactory defaultMediaSourceFactory =
+        new DefaultMediaSourceFactory((Context) ApplicationProvider.getApplicationContext());
+    MediaItem mediaItem = new MediaItem.Builder().setUri(URI_MEDIA + "/file.mp4").build();
+    MediaSource mediaSource = defaultMediaSourceFactory.createMediaSource(mediaItem);
+
+    MediaItem mediaItemFromSource = mediaSource.getMediaItem();
+
+    assertThat(mediaItemFromSource.liveConfiguration.targetOffsetMs).isEqualTo(C.TIME_UNSET);
+    assertThat(mediaItemFromSource.liveConfiguration.minOffsetMs).isEqualTo(C.TIME_UNSET);
+    assertThat(mediaItemFromSource.liveConfiguration.maxOffsetMs).isEqualTo(C.TIME_UNSET);
+    assertThat(mediaItemFromSource.liveConfiguration.minPlaybackSpeed).isEqualTo(C.RATE_UNSET);
+    assertThat(mediaItemFromSource.liveConfiguration.maxPlaybackSpeed).isEqualTo(C.RATE_UNSET);
+  }
+
+  @Test
+  public void createMediaSource_withoutMediaItemProperties_usesFactoryLiveProperties() {
+    DefaultMediaSourceFactory defaultMediaSourceFactory =
+        new DefaultMediaSourceFactory((Context) ApplicationProvider.getApplicationContext())
+            .setLiveTargetOffsetMs(20)
+            .setLiveMinOffsetMs(2222)
+            .setLiveMaxOffsetMs(4444)
+            .setLiveMinSpeed(.1f)
+            .setLiveMaxSpeed(2.0f);
+    MediaItem mediaItem = new MediaItem.Builder().setUri(URI_MEDIA + "/file.mp4").build();
+    MediaSource mediaSource = defaultMediaSourceFactory.createMediaSource(mediaItem);
+
+    MediaItem mediaItemFromSource = mediaSource.getMediaItem();
+
+    assertThat(mediaItemFromSource.liveConfiguration.targetOffsetMs).isEqualTo(20);
+    assertThat(mediaItemFromSource.liveConfiguration.minOffsetMs).isEqualTo(2222);
+    assertThat(mediaItemFromSource.liveConfiguration.maxOffsetMs).isEqualTo(4444);
+    assertThat(mediaItemFromSource.liveConfiguration.minPlaybackSpeed).isEqualTo(.1f);
+    assertThat(mediaItemFromSource.liveConfiguration.maxPlaybackSpeed).isEqualTo(2.0f);
+  }
+
+  @Test
+  public void createMediaSource_withMediaItemLiveProperties_overridesFactoryLiveProperties() {
+    DefaultMediaSourceFactory defaultMediaSourceFactory =
+        new DefaultMediaSourceFactory((Context) ApplicationProvider.getApplicationContext())
+            .setLiveTargetOffsetMs(20)
+            .setLiveMinOffsetMs(2222)
+            .setLiveMinOffsetMs(4444)
+            .setLiveMinSpeed(.1f)
+            .setLiveMaxSpeed(2.0f);
+    MediaItem mediaItem =
+        new MediaItem.Builder()
+            .setUri(URI_MEDIA + "/file.mp4")
+            .setLiveTargetOffsetMs(10)
+            .setLiveMinOffsetMs(1111)
+            .setLiveMinOffsetMs(3333)
+            .setLiveMinPlaybackSpeed(20.0f)
+            .setLiveMaxPlaybackSpeed(20.0f)
+            .build();
+    MediaSource mediaSource = defaultMediaSourceFactory.createMediaSource(mediaItem);
+
+    MediaItem mediaItemFromSource = mediaSource.getMediaItem();
+
+    assertThat(mediaItemFromSource).isEqualTo(mediaItem);
   }
 }

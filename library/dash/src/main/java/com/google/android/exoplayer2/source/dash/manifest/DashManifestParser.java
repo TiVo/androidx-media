@@ -24,6 +24,7 @@ import androidx.annotation.Nullable;
 import com.google.android.exoplayer2.C;
 import com.google.android.exoplayer2.Format;
 import com.google.android.exoplayer2.ParserException;
+import com.google.android.exoplayer2.audio.Ac3Util;
 import com.google.android.exoplayer2.drm.DrmInitData;
 import com.google.android.exoplayer2.drm.DrmInitData.SchemeData;
 import com.google.android.exoplayer2.extractor.mp4.PsshAtomUtil;
@@ -39,12 +40,14 @@ import com.google.android.exoplayer2.util.MimeTypes;
 import com.google.android.exoplayer2.util.UriUtil;
 import com.google.android.exoplayer2.util.Util;
 import com.google.android.exoplayer2.util.XmlPullParserUtil;
+import com.google.common.base.Ascii;
 import com.google.common.base.Charsets;
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Lists;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 import java.util.regex.Matcher;
@@ -56,9 +59,7 @@ import org.xmlpull.v1.XmlPullParserException;
 import org.xmlpull.v1.XmlPullParserFactory;
 import org.xmlpull.v1.XmlSerializer;
 
-/**
- * A parser of media presentation description files.
- */
+/** A parser of media presentation description files. */
 public class DashManifestParser extends DefaultHandler
     implements ParsingLoadable.Parser<DashManifest> {
 
@@ -99,34 +100,39 @@ public class DashManifestParser extends DefaultHandler
       xpp.setInput(inputStream, null);
       int eventType = xpp.next();
       if (eventType != XmlPullParser.START_TAG || !"MPD".equals(xpp.getName())) {
-        throw new ParserException(
-            "inputStream does not contain a valid media presentation description");
+        throw ParserException.createForMalformedManifest(
+            "inputStream does not contain a valid media presentation description",
+            /* cause= */ null);
       }
-      return parseMediaPresentationDescription(xpp, uri.toString());
+      return parseMediaPresentationDescription(xpp, new BaseUrl(uri.toString()));
     } catch (XmlPullParserException e) {
-      throw new ParserException(e);
+      throw ParserException.createForMalformedManifest(/* message= */ null, /* cause= */ e);
     }
   }
 
-  protected DashManifest parseMediaPresentationDescription(XmlPullParser xpp,
-      String baseUrl) throws XmlPullParserException, IOException {
+  protected DashManifest parseMediaPresentationDescription(
+      XmlPullParser xpp, BaseUrl documentBaseUrl) throws XmlPullParserException, IOException {
     long availabilityStartTime = parseDateTime(xpp, "availabilityStartTime", C.TIME_UNSET);
     long durationMs = parseDuration(xpp, "mediaPresentationDuration", C.TIME_UNSET);
     long minBufferTimeMs = parseDuration(xpp, "minBufferTime", C.TIME_UNSET);
     String typeString = xpp.getAttributeValue(null, "type");
     boolean dynamic = "dynamic".equals(typeString);
-    long minUpdateTimeMs = dynamic ? parseDuration(xpp, "minimumUpdatePeriod", C.TIME_UNSET)
-        : C.TIME_UNSET;
-    long timeShiftBufferDepthMs = dynamic
-        ? parseDuration(xpp, "timeShiftBufferDepth", C.TIME_UNSET) : C.TIME_UNSET;
-    long suggestedPresentationDelayMs = dynamic
-        ? parseDuration(xpp, "suggestedPresentationDelay", C.TIME_UNSET) : C.TIME_UNSET;
+    long minUpdateTimeMs =
+        dynamic ? parseDuration(xpp, "minimumUpdatePeriod", C.TIME_UNSET) : C.TIME_UNSET;
+    long timeShiftBufferDepthMs =
+        dynamic ? parseDuration(xpp, "timeShiftBufferDepth", C.TIME_UNSET) : C.TIME_UNSET;
+    long suggestedPresentationDelayMs =
+        dynamic ? parseDuration(xpp, "suggestedPresentationDelay", C.TIME_UNSET) : C.TIME_UNSET;
     long publishTimeMs = parseDateTime(xpp, "publishTime", C.TIME_UNSET);
     ProgramInformation programInformation = null;
     UtcTimingElement utcTiming = null;
     Uri location = null;
+    ServiceDescriptionElement serviceDescription = null;
+    long baseUrlAvailabilityTimeOffsetUs = dynamic ? 0 : C.TIME_UNSET;
+    ArrayList<BaseUrl> parentBaseUrls = Lists.newArrayList(documentBaseUrl);
 
     List<Period> periods = new ArrayList<>();
+    ArrayList<BaseUrl> baseUrls = new ArrayList<>();
     long nextPeriodStartMs = dynamic ? C.TIME_UNSET : 0;
     boolean seenEarlyAccessPeriod = false;
     boolean seenFirstBaseUrl = false;
@@ -134,17 +140,28 @@ public class DashManifestParser extends DefaultHandler
       xpp.next();
       if (XmlPullParserUtil.isStartTag(xpp, "BaseURL")) {
         if (!seenFirstBaseUrl) {
-          baseUrl = parseBaseUrl(xpp, baseUrl);
+          baseUrlAvailabilityTimeOffsetUs =
+              parseAvailabilityTimeOffsetUs(xpp, baseUrlAvailabilityTimeOffsetUs);
           seenFirstBaseUrl = true;
         }
+        baseUrls.addAll(parseBaseUrl(xpp, parentBaseUrls));
       } else if (XmlPullParserUtil.isStartTag(xpp, "ProgramInformation")) {
         programInformation = parseProgramInformation(xpp);
       } else if (XmlPullParserUtil.isStartTag(xpp, "UTCTiming")) {
         utcTiming = parseUtcTiming(xpp);
       } else if (XmlPullParserUtil.isStartTag(xpp, "Location")) {
         location = Uri.parse(xpp.nextText());
+      } else if (XmlPullParserUtil.isStartTag(xpp, "ServiceDescription")) {
+        serviceDescription = parseServiceDescription(xpp);
       } else if (XmlPullParserUtil.isStartTag(xpp, "Period") && !seenEarlyAccessPeriod) {
-        Pair<Period, Long> periodWithDurationMs = parsePeriod(xpp, baseUrl, nextPeriodStartMs);
+        Pair<Period, Long> periodWithDurationMs =
+            parsePeriod(
+                xpp,
+                !baseUrls.isEmpty() ? baseUrls : parentBaseUrls,
+                nextPeriodStartMs,
+                baseUrlAvailabilityTimeOffsetUs,
+                availabilityStartTime,
+                timeShiftBufferDepthMs);
         Period period = periodWithDurationMs.first;
         if (period.startMs == C.TIME_UNSET) {
           if (dynamic) {
@@ -152,12 +169,13 @@ public class DashManifestParser extends DefaultHandler
             // early access.
             seenEarlyAccessPeriod = true;
           } else {
-            throw new ParserException("Unable to determine start of period " + periods.size());
+            throw ParserException.createForMalformedManifest(
+                "Unable to determine start of period " + periods.size(), /* cause= */ null);
           }
         } else {
           long periodDurationMs = periodWithDurationMs.second;
-          nextPeriodStartMs = periodDurationMs == C.TIME_UNSET ? C.TIME_UNSET
-              : (period.startMs + periodDurationMs);
+          nextPeriodStartMs =
+              periodDurationMs == C.TIME_UNSET ? C.TIME_UNSET : (period.startMs + periodDurationMs);
           periods.add(period);
         }
       } else {
@@ -170,12 +188,13 @@ public class DashManifestParser extends DefaultHandler
         // If we know the end time of the final period, we can use it as the duration.
         durationMs = nextPeriodStartMs;
       } else if (!dynamic) {
-        throw new ParserException("Unable to determine duration of static manifest.");
+        throw ParserException.createForMalformedManifest(
+            "Unable to determine duration of static manifest.", /* cause= */ null);
       }
     }
 
     if (periods.isEmpty()) {
-      throw new ParserException("No periods found.");
+      throw ParserException.createForMalformedManifest("No periods found.", /* cause= */ null);
     }
 
     return buildMediaPresentationDescription(
@@ -189,6 +208,7 @@ public class DashManifestParser extends DefaultHandler
         publishTimeMs,
         programInformation,
         utcTiming,
+        serviceDescription,
         location,
         periods);
   }
@@ -204,6 +224,7 @@ public class DashManifestParser extends DefaultHandler
       long publishTimeMs,
       @Nullable ProgramInformation programInformation,
       @Nullable UtcTimingElement utcTiming,
+      @Nullable ServiceDescriptionElement serviceDescription,
       @Nullable Uri location,
       List<Period> periods) {
     return new DashManifest(
@@ -217,6 +238,7 @@ public class DashManifestParser extends DefaultHandler
         publishTimeMs,
         programInformation,
         utcTiming,
+        serviceDescription,
         location,
         periods);
   }
@@ -231,33 +253,97 @@ public class DashManifestParser extends DefaultHandler
     return new UtcTimingElement(schemeIdUri, value);
   }
 
-  protected Pair<Period, Long> parsePeriod(XmlPullParser xpp, String baseUrl, long defaultStartMs)
+  protected ServiceDescriptionElement parseServiceDescription(XmlPullParser xpp)
+      throws XmlPullParserException, IOException {
+    long targetOffsetMs = C.TIME_UNSET;
+    long minOffsetMs = C.TIME_UNSET;
+    long maxOffsetMs = C.TIME_UNSET;
+    float minPlaybackSpeed = C.RATE_UNSET;
+    float maxPlaybackSpeed = C.RATE_UNSET;
+    do {
+      xpp.next();
+      if (XmlPullParserUtil.isStartTag(xpp, "Latency")) {
+        targetOffsetMs = parseLong(xpp, "target", C.TIME_UNSET);
+        minOffsetMs = parseLong(xpp, "min", C.TIME_UNSET);
+        maxOffsetMs = parseLong(xpp, "max", C.TIME_UNSET);
+      } else if (XmlPullParserUtil.isStartTag(xpp, "PlaybackRate")) {
+        minPlaybackSpeed = parseFloat(xpp, "min", C.RATE_UNSET);
+        maxPlaybackSpeed = parseFloat(xpp, "max", C.RATE_UNSET);
+      }
+    } while (!XmlPullParserUtil.isEndTag(xpp, "ServiceDescription"));
+    return new ServiceDescriptionElement(
+        targetOffsetMs, minOffsetMs, maxOffsetMs, minPlaybackSpeed, maxPlaybackSpeed);
+  }
+
+  protected Pair<Period, Long> parsePeriod(
+      XmlPullParser xpp,
+      List<BaseUrl> parentBaseUrls,
+      long defaultStartMs,
+      long baseUrlAvailabilityTimeOffsetUs,
+      long availabilityStartTimeMs,
+      long timeShiftBufferDepthMs)
       throws XmlPullParserException, IOException {
     @Nullable String id = xpp.getAttributeValue(null, "id");
     long startMs = parseDuration(xpp, "start", defaultStartMs);
+    long periodStartUnixTimeMs =
+        availabilityStartTimeMs != C.TIME_UNSET ? availabilityStartTimeMs + startMs : C.TIME_UNSET;
     long durationMs = parseDuration(xpp, "duration", C.TIME_UNSET);
     @Nullable SegmentBase segmentBase = null;
     @Nullable Descriptor assetIdentifier = null;
     List<AdaptationSet> adaptationSets = new ArrayList<>();
     List<EventStream> eventStreams = new ArrayList<>();
+    ArrayList<BaseUrl> baseUrls = new ArrayList<>();
     boolean seenFirstBaseUrl = false;
+    long segmentBaseAvailabilityTimeOffsetUs = C.TIME_UNSET;
     do {
       xpp.next();
       if (XmlPullParserUtil.isStartTag(xpp, "BaseURL")) {
         if (!seenFirstBaseUrl) {
-          baseUrl = parseBaseUrl(xpp, baseUrl);
+          baseUrlAvailabilityTimeOffsetUs =
+              parseAvailabilityTimeOffsetUs(xpp, baseUrlAvailabilityTimeOffsetUs);
           seenFirstBaseUrl = true;
         }
+        baseUrls.addAll(parseBaseUrl(xpp, parentBaseUrls));
       } else if (XmlPullParserUtil.isStartTag(xpp, "AdaptationSet")) {
-        adaptationSets.add(parseAdaptationSet(xpp, baseUrl, segmentBase, durationMs));
+        adaptationSets.add(
+            parseAdaptationSet(
+                xpp,
+                !baseUrls.isEmpty() ? baseUrls : parentBaseUrls,
+                segmentBase,
+                durationMs,
+                baseUrlAvailabilityTimeOffsetUs,
+                segmentBaseAvailabilityTimeOffsetUs,
+                periodStartUnixTimeMs,
+                timeShiftBufferDepthMs));
       } else if (XmlPullParserUtil.isStartTag(xpp, "EventStream")) {
         eventStreams.add(parseEventStream(xpp));
       } else if (XmlPullParserUtil.isStartTag(xpp, "SegmentBase")) {
-        segmentBase = parseSegmentBase(xpp, null);
+        segmentBase = parseSegmentBase(xpp, /* parent= */ null);
       } else if (XmlPullParserUtil.isStartTag(xpp, "SegmentList")) {
-        segmentBase = parseSegmentList(xpp, null, durationMs);
+        segmentBaseAvailabilityTimeOffsetUs =
+            parseAvailabilityTimeOffsetUs(xpp, /* parentAvailabilityTimeOffsetUs= */ C.TIME_UNSET);
+        segmentBase =
+            parseSegmentList(
+                xpp,
+                /* parent= */ null,
+                periodStartUnixTimeMs,
+                durationMs,
+                baseUrlAvailabilityTimeOffsetUs,
+                segmentBaseAvailabilityTimeOffsetUs,
+                timeShiftBufferDepthMs);
       } else if (XmlPullParserUtil.isStartTag(xpp, "SegmentTemplate")) {
-        segmentBase = parseSegmentTemplate(xpp, null, Collections.emptyList(), durationMs);
+        segmentBaseAvailabilityTimeOffsetUs =
+            parseAvailabilityTimeOffsetUs(xpp, /* parentAvailabilityTimeOffsetUs= */ C.TIME_UNSET);
+        segmentBase =
+            parseSegmentTemplate(
+                xpp,
+                /* parent= */ null,
+                ImmutableList.of(),
+                periodStartUnixTimeMs,
+                durationMs,
+                baseUrlAvailabilityTimeOffsetUs,
+                segmentBaseAvailabilityTimeOffsetUs,
+                timeShiftBufferDepthMs);
       } else if (XmlPullParserUtil.isStartTag(xpp, "AssetIdentifier")) {
         assetIdentifier = parseDescriptor(xpp, "AssetIdentifier");
       } else {
@@ -281,7 +367,14 @@ public class DashManifestParser extends DefaultHandler
   // AdaptationSet parsing.
 
   protected AdaptationSet parseAdaptationSet(
-      XmlPullParser xpp, String baseUrl, @Nullable SegmentBase segmentBase, long periodDurationMs)
+      XmlPullParser xpp,
+      List<BaseUrl> parentBaseUrls,
+      @Nullable SegmentBase segmentBase,
+      long periodDurationMs,
+      long baseUrlAvailabilityTimeOffsetUs,
+      long segmentBaseAvailabilityTimeOffsetUs,
+      long periodStartUnixTimeMs,
+      long timeShiftBufferDepthMs)
       throws XmlPullParserException, IOException {
     int id = parseInt(xpp, "id", AdaptationSet.ID_UNSET);
     int contentType = parseContentType(xpp);
@@ -303,15 +396,18 @@ public class DashManifestParser extends DefaultHandler
     ArrayList<Descriptor> essentialProperties = new ArrayList<>();
     ArrayList<Descriptor> supplementalProperties = new ArrayList<>();
     List<RepresentationInfo> representationInfos = new ArrayList<>();
+    ArrayList<BaseUrl> baseUrls = new ArrayList<>();
 
     boolean seenFirstBaseUrl = false;
     do {
       xpp.next();
       if (XmlPullParserUtil.isStartTag(xpp, "BaseURL")) {
         if (!seenFirstBaseUrl) {
-          baseUrl = parseBaseUrl(xpp, baseUrl);
+          baseUrlAvailabilityTimeOffsetUs =
+              parseAvailabilityTimeOffsetUs(xpp, baseUrlAvailabilityTimeOffsetUs);
           seenFirstBaseUrl = true;
         }
+        baseUrls.addAll(parseBaseUrl(xpp, parentBaseUrls));
       } else if (XmlPullParserUtil.isStartTag(xpp, "ContentProtection")) {
         Pair<String, SchemeData> contentProtection = parseContentProtection(xpp);
         if (contentProtection.first != null) {
@@ -337,7 +433,7 @@ public class DashManifestParser extends DefaultHandler
         RepresentationInfo representationInfo =
             parseRepresentation(
                 xpp,
-                baseUrl,
+                !baseUrls.isEmpty() ? baseUrls : parentBaseUrls,
                 mimeType,
                 codecs,
                 width,
@@ -351,7 +447,11 @@ public class DashManifestParser extends DefaultHandler
                 essentialProperties,
                 supplementalProperties,
                 segmentBase,
-                periodDurationMs);
+                periodStartUnixTimeMs,
+                periodDurationMs,
+                baseUrlAvailabilityTimeOffsetUs,
+                segmentBaseAvailabilityTimeOffsetUs,
+                timeShiftBufferDepthMs);
         contentType =
             checkContentTypeConsistency(
                 contentType, MimeTypes.getTrackType(representationInfo.format.sampleMimeType));
@@ -359,11 +459,30 @@ public class DashManifestParser extends DefaultHandler
       } else if (XmlPullParserUtil.isStartTag(xpp, "SegmentBase")) {
         segmentBase = parseSegmentBase(xpp, (SingleSegmentBase) segmentBase);
       } else if (XmlPullParserUtil.isStartTag(xpp, "SegmentList")) {
-        segmentBase = parseSegmentList(xpp, (SegmentList) segmentBase, periodDurationMs);
+        segmentBaseAvailabilityTimeOffsetUs =
+            parseAvailabilityTimeOffsetUs(xpp, segmentBaseAvailabilityTimeOffsetUs);
+        segmentBase =
+            parseSegmentList(
+                xpp,
+                (SegmentList) segmentBase,
+                periodStartUnixTimeMs,
+                periodDurationMs,
+                baseUrlAvailabilityTimeOffsetUs,
+                segmentBaseAvailabilityTimeOffsetUs,
+                timeShiftBufferDepthMs);
       } else if (XmlPullParserUtil.isStartTag(xpp, "SegmentTemplate")) {
+        segmentBaseAvailabilityTimeOffsetUs =
+            parseAvailabilityTimeOffsetUs(xpp, segmentBaseAvailabilityTimeOffsetUs);
         segmentBase =
             parseSegmentTemplate(
-                xpp, (SegmentTemplate) segmentBase, supplementalProperties, periodDurationMs);
+                xpp,
+                (SegmentTemplate) segmentBase,
+                supplementalProperties,
+                periodStartUnixTimeMs,
+                periodDurationMs,
+                baseUrlAvailabilityTimeOffsetUs,
+                segmentBaseAvailabilityTimeOffsetUs,
+                timeShiftBufferDepthMs);
       } else if (XmlPullParserUtil.isStartTag(xpp, "InbandEventStream")) {
         inbandEventStreams.add(parseDescriptor(xpp, "InbandEventStream"));
       } else if (XmlPullParserUtil.isStartTag(xpp, "Label")) {
@@ -412,10 +531,14 @@ public class DashManifestParser extends DefaultHandler
 
   protected int parseContentType(XmlPullParser xpp) {
     String contentType = xpp.getAttributeValue(null, "contentType");
-    return TextUtils.isEmpty(contentType) ? C.TRACK_TYPE_UNKNOWN
-        : MimeTypes.BASE_TYPE_AUDIO.equals(contentType) ? C.TRACK_TYPE_AUDIO
-            : MimeTypes.BASE_TYPE_VIDEO.equals(contentType) ? C.TRACK_TYPE_VIDEO
-                : MimeTypes.BASE_TYPE_TEXT.equals(contentType) ? C.TRACK_TYPE_TEXT
+    return TextUtils.isEmpty(contentType)
+        ? C.TRACK_TYPE_UNKNOWN
+        : MimeTypes.BASE_TYPE_AUDIO.equals(contentType)
+            ? C.TRACK_TYPE_AUDIO
+            : MimeTypes.BASE_TYPE_VIDEO.equals(contentType)
+                ? C.TRACK_TYPE_VIDEO
+                : MimeTypes.BASE_TYPE_TEXT.equals(contentType)
+                    ? C.TRACK_TYPE_TEXT
                     : C.TRACK_TYPE_UNKNOWN;
   }
 
@@ -437,7 +560,7 @@ public class DashManifestParser extends DefaultHandler
 
     String schemeIdUri = xpp.getAttributeValue(null, "schemeIdUri");
     if (schemeIdUri != null) {
-      switch (Util.toLowerInvariant(schemeIdUri)) {
+      switch (Ascii.toLowerCase(schemeIdUri)) {
         case "urn:mpeg:dash:mp4protection:2011":
           schemeType = xpp.getAttributeValue(null, "value");
           String defaultKid = XmlPullParserUtil.getAttributeValueIgnorePrefix(xpp, "default_KID");
@@ -510,7 +633,7 @@ public class DashManifestParser extends DefaultHandler
 
   protected RepresentationInfo parseRepresentation(
       XmlPullParser xpp,
-      String baseUrl,
+      List<BaseUrl> parentBaseUrls,
       @Nullable String adaptationSetMimeType,
       @Nullable String adaptationSetCodecs,
       int adaptationSetWidth,
@@ -524,7 +647,11 @@ public class DashManifestParser extends DefaultHandler
       List<Descriptor> adaptationSetEssentialProperties,
       List<Descriptor> adaptationSetSupplementalProperties,
       @Nullable SegmentBase segmentBase,
-      long periodDurationMs)
+      long periodStartUnixTimeMs,
+      long periodDurationMs,
+      long baseUrlAvailabilityTimeOffsetUs,
+      long segmentBaseAvailabilityTimeOffsetUs,
+      long timeShiftBufferDepthMs)
       throws XmlPullParserException, IOException {
     String id = xpp.getAttributeValue(null, "id");
     int bandwidth = parseInt(xpp, "bandwidth", Format.NO_VALUE);
@@ -542,28 +669,47 @@ public class DashManifestParser extends DefaultHandler
     ArrayList<Descriptor> essentialProperties = new ArrayList<>(adaptationSetEssentialProperties);
     ArrayList<Descriptor> supplementalProperties =
         new ArrayList<>(adaptationSetSupplementalProperties);
+    ArrayList<BaseUrl> baseUrls = new ArrayList<>();
 
     boolean seenFirstBaseUrl = false;
     do {
       xpp.next();
       if (XmlPullParserUtil.isStartTag(xpp, "BaseURL")) {
         if (!seenFirstBaseUrl) {
-          baseUrl = parseBaseUrl(xpp, baseUrl);
+          baseUrlAvailabilityTimeOffsetUs =
+              parseAvailabilityTimeOffsetUs(xpp, baseUrlAvailabilityTimeOffsetUs);
           seenFirstBaseUrl = true;
         }
+        baseUrls.addAll(parseBaseUrl(xpp, parentBaseUrls));
       } else if (XmlPullParserUtil.isStartTag(xpp, "AudioChannelConfiguration")) {
         audioChannels = parseAudioChannelConfiguration(xpp);
       } else if (XmlPullParserUtil.isStartTag(xpp, "SegmentBase")) {
         segmentBase = parseSegmentBase(xpp, (SingleSegmentBase) segmentBase);
       } else if (XmlPullParserUtil.isStartTag(xpp, "SegmentList")) {
-        segmentBase = parseSegmentList(xpp, (SegmentList) segmentBase, periodDurationMs);
+        segmentBaseAvailabilityTimeOffsetUs =
+            parseAvailabilityTimeOffsetUs(xpp, segmentBaseAvailabilityTimeOffsetUs);
+        segmentBase =
+            parseSegmentList(
+                xpp,
+                (SegmentList) segmentBase,
+                periodStartUnixTimeMs,
+                periodDurationMs,
+                baseUrlAvailabilityTimeOffsetUs,
+                segmentBaseAvailabilityTimeOffsetUs,
+                timeShiftBufferDepthMs);
       } else if (XmlPullParserUtil.isStartTag(xpp, "SegmentTemplate")) {
+        segmentBaseAvailabilityTimeOffsetUs =
+            parseAvailabilityTimeOffsetUs(xpp, segmentBaseAvailabilityTimeOffsetUs);
         segmentBase =
             parseSegmentTemplate(
                 xpp,
                 (SegmentTemplate) segmentBase,
                 adaptationSetSupplementalProperties,
-                periodDurationMs);
+                periodStartUnixTimeMs,
+                periodDurationMs,
+                baseUrlAvailabilityTimeOffsetUs,
+                segmentBaseAvailabilityTimeOffsetUs,
+                timeShiftBufferDepthMs);
       } else if (XmlPullParserUtil.isStartTag(xpp, "ContentProtection")) {
         Pair<String, SchemeData> contentProtection = parseContentProtection(xpp);
         if (contentProtection.first != null) {
@@ -601,8 +747,14 @@ public class DashManifestParser extends DefaultHandler
             supplementalProperties);
     segmentBase = segmentBase != null ? segmentBase : new SingleSegmentBase();
 
-    return new RepresentationInfo(format, baseUrl, segmentBase, drmSchemeType, drmSchemeDatas,
-        inbandEventStreams, Representation.REVISION_ID_DEFAULT);
+    return new RepresentationInfo(
+        format,
+        !baseUrls.isEmpty() ? baseUrls : parentBaseUrls,
+        segmentBase,
+        drmSchemeType,
+        drmSchemeDatas,
+        inbandEventStreams,
+        Representation.REVISION_ID_DEFAULT);
   }
 
   protected Format buildFormat(
@@ -623,6 +775,9 @@ public class DashManifestParser extends DefaultHandler
     @Nullable String sampleMimeType = getSampleMimeType(containerMimeType, codecs);
     if (MimeTypes.AUDIO_E_AC3.equals(sampleMimeType)) {
       sampleMimeType = parseEac3SupplementalProperties(supplementalProperties);
+      if (MimeTypes.AUDIO_E_AC3_JOC.equals(sampleMimeType)) {
+        codecs = Ac3Util.E_AC3_JOC_CODEC_STRING;
+      }
     }
     @C.SelectionFlags int selectionFlags = parseSelectionFlagsFromRoleDescriptors(roleDescriptors);
     @C.RoleFlags int roleFlags = parseRoleFlagsFromRoleDescriptors(roleDescriptors);
@@ -683,7 +838,7 @@ public class DashManifestParser extends DefaultHandler
     return Representation.newInstance(
         representationInfo.revisionId,
         formatBuilder.build(),
-        representationInfo.baseUrl,
+        representationInfo.baseUrls,
         representationInfo.segmentBase,
         inbandEventStreams);
   }
@@ -695,8 +850,9 @@ public class DashManifestParser extends DefaultHandler
       throws XmlPullParserException, IOException {
 
     long timescale = parseLong(xpp, "timescale", parent != null ? parent.timescale : 1);
-    long presentationTimeOffset = parseLong(xpp, "presentationTimeOffset",
-        parent != null ? parent.presentationTimeOffset : 0);
+    long presentationTimeOffset =
+        parseLong(
+            xpp, "presentationTimeOffset", parent != null ? parent.presentationTimeOffset : 0);
 
     long indexStart = parent != null ? parent.indexStart : 0;
     long indexLength = parent != null ? parent.indexLength : 0;
@@ -717,25 +873,39 @@ public class DashManifestParser extends DefaultHandler
       }
     } while (!XmlPullParserUtil.isEndTag(xpp, "SegmentBase"));
 
-    return buildSingleSegmentBase(initialization, timescale, presentationTimeOffset, indexStart,
-        indexLength);
+    return buildSingleSegmentBase(
+        initialization, timescale, presentationTimeOffset, indexStart, indexLength);
   }
 
-  protected SingleSegmentBase buildSingleSegmentBase(RangedUri initialization, long timescale,
-      long presentationTimeOffset, long indexStart, long indexLength) {
-    return new SingleSegmentBase(initialization, timescale, presentationTimeOffset, indexStart,
-        indexLength);
+  protected SingleSegmentBase buildSingleSegmentBase(
+      RangedUri initialization,
+      long timescale,
+      long presentationTimeOffset,
+      long indexStart,
+      long indexLength) {
+    return new SingleSegmentBase(
+        initialization, timescale, presentationTimeOffset, indexStart, indexLength);
   }
 
   protected SegmentList parseSegmentList(
-      XmlPullParser xpp, @Nullable SegmentList parent, long periodDurationMs)
+      XmlPullParser xpp,
+      @Nullable SegmentList parent,
+      long periodStartUnixTimeMs,
+      long periodDurationMs,
+      long baseUrlAvailabilityTimeOffsetUs,
+      long segmentBaseAvailabilityTimeOffsetUs,
+      long timeShiftBufferDepthMs)
       throws XmlPullParserException, IOException {
 
     long timescale = parseLong(xpp, "timescale", parent != null ? parent.timescale : 1);
-    long presentationTimeOffset = parseLong(xpp, "presentationTimeOffset",
-        parent != null ? parent.presentationTimeOffset : 0);
+    long presentationTimeOffset =
+        parseLong(
+            xpp, "presentationTimeOffset", parent != null ? parent.presentationTimeOffset : 0);
     long duration = parseLong(xpp, "duration", parent != null ? parent.duration : C.TIME_UNSET);
     long startNumber = parseLong(xpp, "startNumber", parent != null ? parent.startNumber : 1);
+    long availabilityTimeOffsetUs =
+        getFinalAvailabilityTimeOffset(
+            baseUrlAvailabilityTimeOffsetUs, segmentBaseAvailabilityTimeOffsetUs);
 
     RangedUri initialization = null;
     List<SegmentTimelineElement> timeline = null;
@@ -763,8 +933,17 @@ public class DashManifestParser extends DefaultHandler
       segments = segments != null ? segments : parent.mediaSegments;
     }
 
-    return buildSegmentList(initialization, timescale, presentationTimeOffset,
-        startNumber, duration, timeline, segments);
+    return buildSegmentList(
+        initialization,
+        timescale,
+        presentationTimeOffset,
+        startNumber,
+        duration,
+        timeline,
+        availabilityTimeOffsetUs,
+        segments,
+        timeShiftBufferDepthMs,
+        periodStartUnixTimeMs);
   }
 
   protected SegmentList buildSegmentList(
@@ -774,29 +953,50 @@ public class DashManifestParser extends DefaultHandler
       long startNumber,
       long duration,
       @Nullable List<SegmentTimelineElement> timeline,
-      @Nullable List<RangedUri> segments) {
-    return new SegmentList(initialization, timescale, presentationTimeOffset,
-        startNumber, duration, timeline, segments);
+      long availabilityTimeOffsetUs,
+      @Nullable List<RangedUri> segments,
+      long timeShiftBufferDepthMs,
+      long periodStartUnixTimeMs) {
+    return new SegmentList(
+        initialization,
+        timescale,
+        presentationTimeOffset,
+        startNumber,
+        duration,
+        timeline,
+        availabilityTimeOffsetUs,
+        segments,
+        C.msToUs(timeShiftBufferDepthMs),
+        C.msToUs(periodStartUnixTimeMs));
   }
 
   protected SegmentTemplate parseSegmentTemplate(
       XmlPullParser xpp,
       @Nullable SegmentTemplate parent,
       List<Descriptor> adaptationSetSupplementalProperties,
-      long periodDurationMs)
+      long periodStartUnixTimeMs,
+      long periodDurationMs,
+      long baseUrlAvailabilityTimeOffsetUs,
+      long segmentBaseAvailabilityTimeOffsetUs,
+      long timeShiftBufferDepthMs)
       throws XmlPullParserException, IOException {
     long timescale = parseLong(xpp, "timescale", parent != null ? parent.timescale : 1);
-    long presentationTimeOffset = parseLong(xpp, "presentationTimeOffset",
-        parent != null ? parent.presentationTimeOffset : 0);
+    long presentationTimeOffset =
+        parseLong(
+            xpp, "presentationTimeOffset", parent != null ? parent.presentationTimeOffset : 0);
     long duration = parseLong(xpp, "duration", parent != null ? parent.duration : C.TIME_UNSET);
     long startNumber = parseLong(xpp, "startNumber", parent != null ? parent.startNumber : 1);
     long endNumber =
         parseLastSegmentNumberSupplementalProperty(adaptationSetSupplementalProperties);
+    long availabilityTimeOffsetUs =
+        getFinalAvailabilityTimeOffset(
+            baseUrlAvailabilityTimeOffsetUs, segmentBaseAvailabilityTimeOffsetUs);
 
-    UrlTemplate mediaTemplate = parseUrlTemplate(xpp, "media",
-        parent != null ? parent.mediaTemplate : null);
-    UrlTemplate initializationTemplate = parseUrlTemplate(xpp, "initialization",
-        parent != null ? parent.initializationTemplate : null);
+    UrlTemplate mediaTemplate =
+        parseUrlTemplate(xpp, "media", parent != null ? parent.mediaTemplate : null);
+    UrlTemplate initializationTemplate =
+        parseUrlTemplate(
+            xpp, "initialization", parent != null ? parent.initializationTemplate : null);
 
     RangedUri initialization = null;
     List<SegmentTimelineElement> timeline = null;
@@ -825,8 +1025,11 @@ public class DashManifestParser extends DefaultHandler
         endNumber,
         duration,
         timeline,
+        availabilityTimeOffsetUs,
         initializationTemplate,
-        mediaTemplate);
+        mediaTemplate,
+        timeShiftBufferDepthMs,
+        periodStartUnixTimeMs);
   }
 
   protected SegmentTemplate buildSegmentTemplate(
@@ -837,8 +1040,11 @@ public class DashManifestParser extends DefaultHandler
       long endNumber,
       long duration,
       List<SegmentTimelineElement> timeline,
+      long availabilityTimeOffsetUs,
       @Nullable UrlTemplate initializationTemplate,
-      @Nullable UrlTemplate mediaTemplate) {
+      @Nullable UrlTemplate mediaTemplate,
+      long timeShiftBufferDepthMs,
+      long periodStartUnixTimeMs) {
     return new SegmentTemplate(
         initialization,
         timescale,
@@ -847,8 +1053,11 @@ public class DashManifestParser extends DefaultHandler
         endNumber,
         duration,
         timeline,
+        availabilityTimeOffsetUs,
         initializationTemplate,
-        mediaTemplate);
+        mediaTemplate,
+        C.msToUs(timeShiftBufferDepthMs),
+        C.msToUs(periodStartUnixTimeMs));
   }
 
   /**
@@ -887,8 +1096,12 @@ public class DashManifestParser extends DefaultHandler
     return buildEventStream(schemeIdUri, value, timescale, presentationTimesUs, events);
   }
 
-  protected EventStream buildEventStream(String schemeIdUri, String value, long timescale,
-      long[] presentationTimesUs, EventMessage[] events) {
+  protected EventStream buildEventStream(
+      String schemeIdUri,
+      String value,
+      long timescale,
+      long[] presentationTimesUs,
+      EventMessage[] events) {
     return new EventStream(schemeIdUri, value, timescale, presentationTimesUs, events);
   }
 
@@ -917,8 +1130,8 @@ public class DashManifestParser extends DefaultHandler
     long duration = parseLong(xpp, "duration", C.TIME_UNSET);
     long presentationTime = parseLong(xpp, "presentationTime", 0);
     long durationMs = Util.scaleLargeTimestamp(duration, C.MILLIS_PER_SECOND, timescale);
-    long presentationTimesUs = Util.scaleLargeTimestamp(presentationTime, C.MICROS_PER_SECOND,
-        timescale);
+    long presentationTimesUs =
+        Util.scaleLargeTimestamp(presentationTime, C.MICROS_PER_SECOND, timescale);
     String messageData = parseString(xpp, "messageData", null);
     byte[] eventObject = parseEventObject(xpp, scratchOutputStream);
     return Pair.create(
@@ -959,8 +1172,8 @@ public class DashManifestParser extends DefaultHandler
         case (XmlPullParser.START_TAG):
           xmlSerializer.startTag(xpp.getNamespace(), xpp.getName());
           for (int i = 0; i < xpp.getAttributeCount(); i++) {
-            xmlSerializer.attribute(xpp.getAttributeNamespace(i), xpp.getAttributeName(i),
-                xpp.getAttributeValue(i));
+            xmlSerializer.attribute(
+                xpp.getAttributeNamespace(i), xpp.getAttributeName(i), xpp.getAttributeValue(i));
           }
           break;
         case (XmlPullParser.END_TAG):
@@ -1093,8 +1306,8 @@ public class DashManifestParser extends DefaultHandler
     return parseRangedUrl(xpp, "media", "mediaRange");
   }
 
-  protected RangedUri parseRangedUrl(XmlPullParser xpp, String urlAttribute,
-      String rangeAttribute) {
+  protected RangedUri parseRangedUrl(
+      XmlPullParser xpp, String urlAttribute, String rangeAttribute) {
     String urlText = xpp.getAttributeValue(null, urlAttribute);
     long rangeStart = 0;
     long rangeLength = C.LENGTH_UNSET;
@@ -1151,14 +1364,59 @@ public class DashManifestParser extends DefaultHandler
    * Parses a BaseURL element.
    *
    * @param xpp The parser from which to read.
-   * @param parentBaseUrl A base URL for resolving the parsed URL.
+   * @param parentBaseUrls The parent base URLs for resolving the parsed URLs.
    * @throws XmlPullParserException If an error occurs parsing the element.
    * @throws IOException If an error occurs reading the element.
-   * @return The parsed and resolved URL.
+   * @return The list of parsed and resolved URLs.
    */
-  protected String parseBaseUrl(XmlPullParser xpp, String parentBaseUrl)
+  protected List<BaseUrl> parseBaseUrl(XmlPullParser xpp, List<BaseUrl> parentBaseUrls)
       throws XmlPullParserException, IOException {
-    return UriUtil.resolve(parentBaseUrl, parseText(xpp, "BaseURL"));
+    @Nullable String priorityValue = xpp.getAttributeValue(null, "dvb:priority");
+    int priority =
+        priorityValue != null ? Integer.parseInt(priorityValue) : BaseUrl.DEFAULT_PRIORITY;
+    @Nullable String weightValue = xpp.getAttributeValue(null, "dvb:weight");
+    int weight = weightValue != null ? Integer.parseInt(weightValue) : BaseUrl.DEFAULT_WEIGHT;
+    @Nullable String serviceLocation = xpp.getAttributeValue(null, "serviceLocation");
+    String baseUrl = parseText(xpp, "BaseURL");
+    if (serviceLocation == null) {
+      serviceLocation = baseUrl;
+    }
+    if (UriUtil.isAbsolute(baseUrl)) {
+      return Lists.newArrayList(new BaseUrl(baseUrl, serviceLocation, priority, weight));
+    }
+
+    List<BaseUrl> baseUrls = new ArrayList<>();
+    for (int i = 0; i < parentBaseUrls.size(); i++) {
+      BaseUrl parentBaseUrl = parentBaseUrls.get(i);
+      priority = parentBaseUrl.priority;
+      weight = parentBaseUrl.weight;
+      serviceLocation = parentBaseUrl.serviceLocation;
+      baseUrls.add(
+          new BaseUrl(
+              UriUtil.resolve(parentBaseUrl.url, baseUrl), serviceLocation, priority, weight));
+    }
+    return baseUrls;
+  }
+
+  /**
+   * Parses the availabilityTimeOffset value and returns the parsed value or the parent value if it
+   * doesn't exist.
+   *
+   * @param xpp The parser from which to read.
+   * @param parentAvailabilityTimeOffsetUs The availability time offset of a parent element in
+   *     microseconds.
+   * @return The parsed availabilityTimeOffset in microseconds.
+   */
+  protected long parseAvailabilityTimeOffsetUs(
+      XmlPullParser xpp, long parentAvailabilityTimeOffsetUs) {
+    String value = xpp.getAttributeValue(/* namespace= */ null, "availabilityTimeOffset");
+    if (value == null) {
+      return parentAvailabilityTimeOffsetUs;
+    }
+    if ("INF".equals(value)) {
+      return Long.MAX_VALUE;
+    }
+    return (long) (Float.parseFloat(value) * C.MICROS_PER_SECOND);
   }
 
   // AudioChannelConfiguration parsing.
@@ -1190,15 +1448,31 @@ public class DashManifestParser extends DefaultHandler
 
   // Selection flag parsing.
 
+  @C.SelectionFlags
   protected int parseSelectionFlagsFromRoleDescriptors(List<Descriptor> roleDescriptors) {
+    @C.SelectionFlags int result = 0;
     for (int i = 0; i < roleDescriptors.size(); i++) {
       Descriptor descriptor = roleDescriptors.get(i);
-      if ("urn:mpeg:dash:role:2011".equalsIgnoreCase(descriptor.schemeIdUri)
-          && "main".equals(descriptor.value)) {
-        return C.SELECTION_FLAG_DEFAULT;
+      if (Ascii.equalsIgnoreCase("urn:mpeg:dash:role:2011", descriptor.schemeIdUri)) {
+        result |= parseSelectionFlagsFromDashRoleScheme(descriptor.value);
       }
     }
-    return 0;
+    return result;
+  }
+
+  @C.SelectionFlags
+  protected int parseSelectionFlagsFromDashRoleScheme(@Nullable String value) {
+    if (value == null) {
+      return 0;
+    }
+    switch (value) {
+      case "main":
+        return C.SELECTION_FLAG_DEFAULT;
+      case "forced_subtitle":
+        return C.SELECTION_FLAG_FORCED;
+      default:
+        return 0;
+    }
   }
 
   // Role and Accessibility parsing.
@@ -1208,8 +1482,8 @@ public class DashManifestParser extends DefaultHandler
     @C.RoleFlags int result = 0;
     for (int i = 0; i < roleDescriptors.size(); i++) {
       Descriptor descriptor = roleDescriptors.get(i);
-      if ("urn:mpeg:dash:role:2011".equalsIgnoreCase(descriptor.schemeIdUri)) {
-        result |= parseDashRoleSchemeValue(descriptor.value);
+      if (Ascii.equalsIgnoreCase("urn:mpeg:dash:role:2011", descriptor.schemeIdUri)) {
+        result |= parseRoleFlagsFromDashRoleScheme(descriptor.value);
       }
     }
     return result;
@@ -1221,10 +1495,10 @@ public class DashManifestParser extends DefaultHandler
     @C.RoleFlags int result = 0;
     for (int i = 0; i < accessibilityDescriptors.size(); i++) {
       Descriptor descriptor = accessibilityDescriptors.get(i);
-      if ("urn:mpeg:dash:role:2011".equalsIgnoreCase(descriptor.schemeIdUri)) {
-        result |= parseDashRoleSchemeValue(descriptor.value);
-      } else if ("urn:tva:metadata:cs:AudioPurposeCS:2007"
-          .equalsIgnoreCase(descriptor.schemeIdUri)) {
+      if (Ascii.equalsIgnoreCase("urn:mpeg:dash:role:2011", descriptor.schemeIdUri)) {
+        result |= parseRoleFlagsFromDashRoleScheme(descriptor.value);
+      } else if (Ascii.equalsIgnoreCase(
+          "urn:tva:metadata:cs:AudioPurposeCS:2007", descriptor.schemeIdUri)) {
         result |= parseTvaAudioPurposeCsValue(descriptor.value);
       }
     }
@@ -1236,7 +1510,8 @@ public class DashManifestParser extends DefaultHandler
     @C.RoleFlags int result = 0;
     for (int i = 0; i < accessibilityDescriptors.size(); i++) {
       Descriptor descriptor = accessibilityDescriptors.get(i);
-      if ("http://dashif.org/guidelines/trickmode".equalsIgnoreCase(descriptor.schemeIdUri)) {
+      if (Ascii.equalsIgnoreCase(
+          "http://dashif.org/guidelines/trickmode", descriptor.schemeIdUri)) {
         result |= C.ROLE_FLAG_TRICK_PLAY;
       }
     }
@@ -1244,7 +1519,7 @@ public class DashManifestParser extends DefaultHandler
   }
 
   @C.RoleFlags
-  protected int parseDashRoleSchemeValue(@Nullable String value) {
+  protected int parseRoleFlagsFromDashRoleScheme(@Nullable String value) {
     if (value == null) {
       return 0;
     }
@@ -1263,6 +1538,7 @@ public class DashManifestParser extends DefaultHandler
         return C.ROLE_FLAG_EMERGENCY;
       case "caption":
         return C.ROLE_FLAG_CAPTION;
+      case "forced_subtitle":
       case "subtitle":
         return C.ROLE_FLAG_SUBTITLE;
       case "sign":
@@ -1322,9 +1598,7 @@ public class DashManifestParser extends DefaultHandler
     }
   }
 
-  /**
-   * Removes unnecessary {@link SchemeData}s with null {@link SchemeData#data}.
-   */
+  /** Removes unnecessary {@link SchemeData}s with null {@link SchemeData#data}. */
   private static void filterRedundantIncompleteSchemeDatas(ArrayList<SchemeData> schemeDatas) {
     for (int i = schemeDatas.size() - 1; i >= 0; i--) {
       SchemeData schemeData = schemeDatas.get(i);
@@ -1395,9 +1669,9 @@ public class DashManifestParser extends DefaultHandler
   /**
    * Checks two adaptation set content types for consistency, returning the consistent type, or
    * throwing an {@link IllegalStateException} if the types are inconsistent.
-   * <p>
-   * Two types are consistent if they are equal, or if one is {@link C#TRACK_TYPE_UNKNOWN}.
-   * Where one of the types is {@link C#TRACK_TYPE_UNKNOWN}, the other is returned.
+   *
+   * <p>Two types are consistent if they are equal, or if one is {@link C#TRACK_TYPE_UNKNOWN}. Where
+   * one of the types is {@link C#TRACK_TYPE_UNKNOWN}, the other is returned.
    *
    * @param firstType The first type.
    * @param secondType The second type.
@@ -1434,8 +1708,7 @@ public class DashManifestParser extends DefaultHandler
     return new Descriptor(schemeIdUri, value, id);
   }
 
-  protected static int parseCea608AccessibilityChannel(
-      List<Descriptor> accessibilityDescriptors) {
+  protected static int parseCea608AccessibilityChannel(List<Descriptor> accessibilityDescriptors) {
     for (int i = 0; i < accessibilityDescriptors.size(); i++) {
       Descriptor descriptor = accessibilityDescriptors.get(i);
       if ("urn:scte:dash:cc:cea-608:2015".equals(descriptor.schemeIdUri)
@@ -1451,8 +1724,7 @@ public class DashManifestParser extends DefaultHandler
     return Format.NO_VALUE;
   }
 
-  protected static int parseCea708AccessibilityChannel(
-      List<Descriptor> accessibilityDescriptors) {
+  protected static int parseCea708AccessibilityChannel(List<Descriptor> accessibilityDescriptors) {
     for (int i = 0; i < accessibilityDescriptors.size(); i++) {
       Descriptor descriptor = accessibilityDescriptors.get(i);
       if ("urn:scte:dash:cc:cea-708:2015".equals(descriptor.schemeIdUri)
@@ -1543,6 +1815,11 @@ public class DashManifestParser extends DefaultHandler
     return value == null ? defaultValue : Long.parseLong(value);
   }
 
+  protected static float parseFloat(XmlPullParser xpp, String name, float defaultValue) {
+    String value = xpp.getAttributeValue(null, name);
+    return value == null ? defaultValue : Float.parseFloat(value);
+  }
+
   protected static String parseString(XmlPullParser xpp, String name, String defaultValue) {
     String value = xpp.getAttributeValue(null, name);
     return value == null ? defaultValue : value;
@@ -1574,11 +1851,11 @@ public class DashManifestParser extends DefaultHandler
    *     not be parsed.
    */
   protected static int parseDolbyChannelConfiguration(XmlPullParser xpp) {
-    String value = Util.toLowerInvariant(xpp.getAttributeValue(null, "value"));
+    @Nullable String value = xpp.getAttributeValue(null, "value");
     if (value == null) {
       return Format.NO_VALUE;
     }
-    switch (value) {
+    switch (Ascii.toLowerCase(value)) {
       case "4000":
         return 1;
       case "a000":
@@ -1596,19 +1873,33 @@ public class DashManifestParser extends DefaultHandler
       List<Descriptor> supplementalProperties) {
     for (int i = 0; i < supplementalProperties.size(); i++) {
       Descriptor descriptor = supplementalProperties.get(i);
-      if ("http://dashif.org/guidelines/last-segment-number"
-          .equalsIgnoreCase(descriptor.schemeIdUri)) {
+      if (Ascii.equalsIgnoreCase(
+          "http://dashif.org/guidelines/last-segment-number", descriptor.schemeIdUri)) {
         return Long.parseLong(descriptor.value);
       }
     }
     return C.INDEX_UNSET;
   }
 
+  private static long getFinalAvailabilityTimeOffset(
+      long baseUrlAvailabilityTimeOffsetUs, long segmentBaseAvailabilityTimeOffsetUs) {
+    long availabilityTimeOffsetUs = segmentBaseAvailabilityTimeOffsetUs;
+    if (availabilityTimeOffsetUs == C.TIME_UNSET) {
+      // Fall back to BaseURL values if no SegmentBase specifies an offset.
+      availabilityTimeOffsetUs = baseUrlAvailabilityTimeOffsetUs;
+    }
+    if (availabilityTimeOffsetUs == Long.MAX_VALUE) {
+      // Replace INF value with TIME_UNSET to specify that all segments are available immediately.
+      availabilityTimeOffsetUs = C.TIME_UNSET;
+    }
+    return availabilityTimeOffsetUs;
+  }
+
   /** A parsed Representation element. */
   protected static final class RepresentationInfo {
 
     public final Format format;
-    public final String baseUrl;
+    public final ImmutableList<BaseUrl> baseUrls;
     public final SegmentBase segmentBase;
     @Nullable public final String drmSchemeType;
     public final ArrayList<SchemeData> drmSchemeDatas;
@@ -1617,21 +1908,19 @@ public class DashManifestParser extends DefaultHandler
 
     public RepresentationInfo(
         Format format,
-        String baseUrl,
+        List<BaseUrl> baseUrls,
         SegmentBase segmentBase,
         @Nullable String drmSchemeType,
         ArrayList<SchemeData> drmSchemeDatas,
         ArrayList<Descriptor> inbandEventStreams,
         long revisionId) {
       this.format = format;
-      this.baseUrl = baseUrl;
+      this.baseUrls = ImmutableList.copyOf(baseUrls);
       this.segmentBase = segmentBase;
       this.drmSchemeType = drmSchemeType;
       this.drmSchemeDatas = drmSchemeDatas;
       this.inbandEventStreams = inbandEventStreams;
       this.revisionId = revisionId;
     }
-
   }
-
 }

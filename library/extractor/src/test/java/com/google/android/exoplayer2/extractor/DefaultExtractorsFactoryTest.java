@@ -22,6 +22,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4;
 import com.google.android.exoplayer2.extractor.amr.AmrExtractor;
 import com.google.android.exoplayer2.extractor.flac.FlacExtractor;
 import com.google.android.exoplayer2.extractor.flv.FlvExtractor;
+import com.google.android.exoplayer2.extractor.jpeg.JpegExtractor;
 import com.google.android.exoplayer2.extractor.mkv.MatroskaExtractor;
 import com.google.android.exoplayer2.extractor.mp3.Mp3Extractor;
 import com.google.android.exoplayer2.extractor.mp4.FragmentedMp4Extractor;
@@ -41,9 +42,11 @@ import java.util.List;
 import java.util.Map;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.robolectric.annotation.internal.DoNotInstrument;
 
 /** Unit test for {@link DefaultExtractorsFactory}. */
 @RunWith(AndroidJUnit4.class)
+@DoNotInstrument
 public final class DefaultExtractorsFactoryTest {
 
   @Test
@@ -68,7 +71,8 @@ public final class DefaultExtractorsFactoryTest {
             AdtsExtractor.class,
             Ac3Extractor.class,
             Ac4Extractor.class,
-            Mp3Extractor.class)
+            Mp3Extractor.class,
+            JpegExtractor.class)
         .inOrder();
   }
 
@@ -109,7 +113,8 @@ public final class DefaultExtractorsFactoryTest {
             MatroskaExtractor.class,
             AdtsExtractor.class,
             Ac3Extractor.class,
-            Ac4Extractor.class)
+            Ac4Extractor.class,
+            JpegExtractor.class)
         .inOrder();
   }
 

@@ -19,9 +19,7 @@ import androidx.annotation.Nullable;
 import com.google.android.exoplayer2.C;
 import java.io.File;
 
-/**
- * Defines a span of data that may or may not be cached (as indicated by {@link #isCached}).
- */
+/** Defines a span of data that may or may not be cached (as indicated by {@link #isCached}). */
 public class CacheSpan implements Comparable<CacheSpan> {
 
   /** The cache key that uniquely identifies the resource. */
@@ -73,16 +71,12 @@ public class CacheSpan implements Comparable<CacheSpan> {
     this.lastTouchTimestamp = lastTouchTimestamp;
   }
 
-  /**
-   * Returns whether this is an open-ended {@link CacheSpan}.
-   */
+  /** Returns whether this is an open-ended {@link CacheSpan}. */
   public boolean isOpenEnded() {
     return length == C.LENGTH_UNSET;
   }
 
-  /**
-   * Returns whether this is a hole {@link CacheSpan}.
-   */
+  /** Returns whether this is a hole {@link CacheSpan}. */
   public boolean isHoleSpan() {
     return !isCached;
   }

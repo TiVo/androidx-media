@@ -44,9 +44,11 @@ import java.io.InputStream;
 import java.util.List;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.robolectric.annotation.internal.DoNotInstrument;
 
 /** Unit tests for {@link DashMediaPeriod}. */
 @RunWith(AndroidJUnit4.class)
+@DoNotInstrument
 public final class DashMediaPeriodTest {
 
   @Test
@@ -198,10 +200,11 @@ public final class DashMediaPeriodTest {
     return new DashMediaPeriod(
         /* id= */ periodIndex,
         manifest,
+        new BaseUrlExclusionList(),
         periodIndex,
         mock(DashChunkSource.Factory.class),
         mock(TransferListener.class),
-        DrmSessionManager.getDummyDrmSessionManager(),
+        DrmSessionManager.DRM_UNSUPPORTED,
         new DrmSessionEventListener.EventDispatcher()
             .withParameters(/* windowIndex= */ 0, mediaPeriodId),
         mock(LoadErrorHandlingPolicy.class),

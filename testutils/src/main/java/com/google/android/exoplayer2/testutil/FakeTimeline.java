@@ -21,6 +21,7 @@ import android.net.Uri;
 import android.util.Pair;
 import com.google.android.exoplayer2.C;
 import com.google.android.exoplayer2.MediaItem;
+import com.google.android.exoplayer2.Player;
 import com.google.android.exoplayer2.Timeline;
 import com.google.android.exoplayer2.source.ads.AdPlaybackState;
 import com.google.android.exoplayer2.util.Assertions;
@@ -30,9 +31,7 @@ import java.util.Arrays;
 /** Fake {@link Timeline} which can be setup to return custom {@link TimelineWindowDefinition}s. */
 public final class FakeTimeline extends Timeline {
 
-  /**
-   * Definition used to define a {@link FakeTimeline}.
-   */
+  /** Definition used to define a {@link FakeTimeline}. */
   public static final class TimelineWindowDefinition {
 
     /** Default window duration in microseconds. */
@@ -58,7 +57,7 @@ public final class FakeTimeline extends Timeline {
      *
      * @param tag The tag to use in the timeline.
      */
-    public static TimelineWindowDefinition createDummy(Object tag) {
+    public static TimelineWindowDefinition createPlaceholder(Object tag) {
       return new TimelineWindowDefinition(
           /* periodCount= */ 1,
           /* id= */ tag,
@@ -105,8 +104,8 @@ public final class FakeTimeline extends Timeline {
      * @param isDynamic Whether the window is dynamic.
      * @param durationUs The duration of the window in microseconds.
      */
-    public TimelineWindowDefinition(int periodCount, Object id, boolean isSeekable,
-        boolean isDynamic, long durationUs) {
+    public TimelineWindowDefinition(
+        int periodCount, Object id, boolean isSeekable, boolean isDynamic, long durationUs) {
       this(periodCount, id, isSeekable, isDynamic, durationUs, AdPlaybackState.NONE);
     }
 
@@ -235,6 +234,7 @@ public final class FakeTimeline extends Timeline {
   private final TimelineWindowDefinition[] windowDefinitions;
   private final Object[] manifests;
   private final int[] periodOffsets;
+  private final FakeShuffleOrder fakeShuffleOrder;
 
   /**
    * Returns an ad playback state with the specified number of ads in each of the specified ad
@@ -246,7 +246,8 @@ public final class FakeTimeline extends Timeline {
    */
   public static AdPlaybackState createAdPlaybackState(int adsPerAdGroup, long... adGroupTimesUs) {
     int adGroupCount = adGroupTimesUs.length;
-    AdPlaybackState adPlaybackState = new AdPlaybackState(adGroupTimesUs);
+    AdPlaybackState adPlaybackState =
+        new AdPlaybackState(/* adsId= */ new Object(), adGroupTimesUs);
     long[][] adDurationsUs = new long[adGroupCount][];
     for (int i = 0; i < adGroupCount; i++) {
       adPlaybackState = adPlaybackState.withAdCount(/* adGroupIndex= */ i, adsPerAdGroup);
@@ -255,7 +256,7 @@ public final class FakeTimeline extends Timeline {
             adPlaybackState.withAdUri(
                 /* adGroupIndex= */ i,
                 /* adIndexInAdGroup= */ j,
-                Uri.parse("https://ad/" + i + "/" + j));
+                Uri.parse("https://example.com/ad/" + i + "/" + j));
       }
       adDurationsUs[i] = new long[adsPerAdGroup];
       Arrays.fill(adDurationsUs[i], AD_DURATION_US);
@@ -263,6 +264,14 @@ public final class FakeTimeline extends Timeline {
     adPlaybackState = adPlaybackState.withAdDurationsUs(adDurationsUs);
 
     return adPlaybackState;
+  }
+
+  /**
+   * Create a fake timeline with one seekable, non-dynamic window with one period and a duration of
+   * {@link TimelineWindowDefinition#DEFAULT_WINDOW_DURATION_US}.
+   */
+  public FakeTimeline() {
+    this(/* windowCount= */ 1);
   }
 
   /**
@@ -299,11 +308,54 @@ public final class FakeTimeline extends Timeline {
     for (int i = 0; i < windowDefinitions.length; i++) {
       periodOffsets[i + 1] = periodOffsets[i] + windowDefinitions[i].periodCount;
     }
+    fakeShuffleOrder = new FakeShuffleOrder(windowDefinitions.length);
   }
 
   @Override
   public int getWindowCount() {
     return windowDefinitions.length;
+  }
+
+  @Override
+  public int getNextWindowIndex(
+      int windowIndex, @Player.RepeatMode int repeatMode, boolean shuffleModeEnabled) {
+    if (repeatMode == Player.REPEAT_MODE_ONE) {
+      return windowIndex;
+    }
+    if (windowIndex == getLastWindowIndex(shuffleModeEnabled)) {
+      return repeatMode == Player.REPEAT_MODE_ALL
+          ? getFirstWindowIndex(shuffleModeEnabled)
+          : C.INDEX_UNSET;
+    }
+    return shuffleModeEnabled ? fakeShuffleOrder.getNextIndex(windowIndex) : windowIndex + 1;
+  }
+
+  @Override
+  public int getPreviousWindowIndex(
+      int windowIndex, @Player.RepeatMode int repeatMode, boolean shuffleModeEnabled) {
+    if (repeatMode == Player.REPEAT_MODE_ONE) {
+      return windowIndex;
+    }
+    if (windowIndex == getFirstWindowIndex(shuffleModeEnabled)) {
+      return repeatMode == Player.REPEAT_MODE_ALL
+          ? getLastWindowIndex(shuffleModeEnabled)
+          : C.INDEX_UNSET;
+    }
+    return shuffleModeEnabled ? fakeShuffleOrder.getPreviousIndex(windowIndex) : windowIndex - 1;
+  }
+
+  @Override
+  public int getLastWindowIndex(boolean shuffleModeEnabled) {
+    return shuffleModeEnabled
+        ? fakeShuffleOrder.getLastIndex()
+        : super.getLastWindowIndex(/* shuffleModeEnabled= */ false);
+  }
+
+  @Override
+  public int getFirstWindowIndex(boolean shuffleModeEnabled) {
+    return shuffleModeEnabled
+        ? fakeShuffleOrder.getFirstIndex()
+        : super.getFirstWindowIndex(/* shuffleModeEnabled= */ false);
   }
 
   @Override
@@ -314,11 +366,13 @@ public final class FakeTimeline extends Timeline {
         windowDefinition.mediaItem,
         manifests[windowIndex],
         /* presentationStartTimeMs= */ C.TIME_UNSET,
-        /* windowStartTimeMs= */ C.TIME_UNSET,
-        /* elapsedRealtimeEpochOffsetMs= */ C.TIME_UNSET,
+        /* windowStartTimeMs= */ windowDefinition.isLive
+            ? C.usToMs(windowDefinition.windowOffsetInFirstPeriodUs)
+            : C.TIME_UNSET,
+        /* elapsedRealtimeEpochOffsetMs= */ windowDefinition.isLive ? 0 : C.TIME_UNSET,
         windowDefinition.isSeekable,
         windowDefinition.isDynamic,
-        windowDefinition.isLive,
+        windowDefinition.isLive ? windowDefinition.mediaItem.liveConfiguration : null,
         windowDefinition.defaultPositionUs,
         windowDefinition.durationUs,
         periodOffsets[windowIndex],
@@ -354,13 +408,15 @@ public final class FakeTimeline extends Timeline {
     } else {
       positionInWindowUs = periodDurationUs * windowPeriodIndex;
     }
-    return period.set(
+    period.set(
         id,
         uid,
         windowIndex,
         periodDurationUs,
         positionInWindowUs,
-        windowDefinition.adPlaybackState);
+        windowDefinition.adPlaybackState,
+        windowDefinition.isPlaceholder);
+    return period;
   }
 
   @Override
@@ -391,5 +447,4 @@ public final class FakeTimeline extends Timeline {
     }
     return windowDefinitions;
   }
-
 }

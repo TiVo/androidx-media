@@ -36,9 +36,7 @@ import java.lang.annotation.RetentionPolicy;
 import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
 import org.checkerframework.checker.nullness.qual.RequiresNonNull;
 
-/**
- * Parses a continuous (E-)AC-3 byte stream and extracts individual samples.
- */
+/** Parses a continuous (E-)AC-3 byte stream and extracts individual samples. */
 public final class Ac3Reader implements ElementaryStreamReader {
 
   @Documented
@@ -73,9 +71,7 @@ public final class Ac3Reader implements ElementaryStreamReader {
   // Used when reading the samples.
   private long timeUs;
 
-  /**
-   * Constructs a new reader for (E-)AC-3 elementary streams.
-   */
+  /** Constructs a new reader for (E-)AC-3 elementary streams. */
   public Ac3Reader() {
     this(null);
   }
@@ -89,6 +85,7 @@ public final class Ac3Reader implements ElementaryStreamReader {
     headerScratchBits = new ParsableBitArray(new byte[HEADER_SIZE]);
     headerScratchBytes = new ParsableByteArray(headerScratchBits.data);
     state = STATE_FINDING_SYNC;
+    timeUs = C.TIME_UNSET;
     this.language = language;
   }
 
@@ -97,18 +94,21 @@ public final class Ac3Reader implements ElementaryStreamReader {
     state = STATE_FINDING_SYNC;
     bytesRead = 0;
     lastByteWas0B = false;
+    timeUs = C.TIME_UNSET;
   }
 
   @Override
-  public void createTracks(ExtractorOutput extractorOutput, TrackIdGenerator generator) {
-    generator.generateNewId();
-    formatId = generator.getFormatId();
-    output = extractorOutput.track(generator.getTrackId(), C.TRACK_TYPE_AUDIO);
+  public void createTracks(ExtractorOutput extractorOutput, TrackIdGenerator idGenerator) {
+    idGenerator.generateNewId();
+    formatId = idGenerator.getFormatId();
+    output = extractorOutput.track(idGenerator.getTrackId(), C.TRACK_TYPE_AUDIO);
   }
 
   @Override
   public void packetStarted(long pesTimeUs, @TsPayloadReader.Flags int flags) {
-    timeUs = pesTimeUs;
+    if (pesTimeUs != C.TIME_UNSET) {
+      timeUs = pesTimeUs;
+    }
   }
 
   @Override
@@ -137,8 +137,10 @@ public final class Ac3Reader implements ElementaryStreamReader {
           output.sampleData(data, bytesToRead);
           bytesRead += bytesToRead;
           if (bytesRead == sampleSize) {
-            output.sampleMetadata(timeUs, C.BUFFER_FLAG_KEY_FRAME, sampleSize, 0, null);
-            timeUs += sampleDurationUs;
+            if (timeUs != C.TIME_UNSET) {
+              output.sampleMetadata(timeUs, C.BUFFER_FLAG_KEY_FRAME, sampleSize, 0, null);
+              timeUs += sampleDurationUs;
+            }
             state = STATE_FINDING_SYNC;
           }
           break;
@@ -217,5 +219,4 @@ public final class Ac3Reader implements ElementaryStreamReader {
     // specifies the number of PCM audio samples per second.
     sampleDurationUs = C.MICROS_PER_SECOND * frameInfo.sampleCount / format.sampleRate;
   }
-
 }

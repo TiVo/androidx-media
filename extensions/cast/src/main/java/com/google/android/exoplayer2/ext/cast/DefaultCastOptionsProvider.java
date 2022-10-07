@@ -22,9 +22,7 @@ import com.google.android.gms.cast.framework.SessionProvider;
 import java.util.Collections;
 import java.util.List;
 
-/**
- * A convenience {@link OptionsProvider} to target the default cast receiver app.
- */
+/** A convenience {@link OptionsProvider} to target the default cast receiver app. */
 public final class DefaultCastOptionsProvider implements OptionsProvider {
 
   /**
@@ -39,6 +37,8 @@ public final class DefaultCastOptionsProvider implements OptionsProvider {
   @Override
   public CastOptions getCastOptions(Context context) {
     return new CastOptions.Builder()
+        .setResumeSavedSession(false)
+        .setEnableReconnectionService(false)
         .setReceiverApplicationId(APP_ID_DEFAULT_RECEIVER_WITH_DRM)
         .setStopReceiverApplicationWhenEndingSession(true)
         .build();
@@ -48,5 +48,4 @@ public final class DefaultCastOptionsProvider implements OptionsProvider {
   public List<SessionProvider> getAdditionalSessionProviders(Context context) {
     return Collections.emptyList();
   }
-
 }

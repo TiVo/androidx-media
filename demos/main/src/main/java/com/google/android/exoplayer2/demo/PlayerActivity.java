@@ -19,7 +19,6 @@ import static com.google.android.exoplayer2.util.Assertions.checkNotNull;
 
 import android.content.Intent;
 import android.content.pm.PackageManager;
-import android.net.Uri;
 import android.os.Bundle;
 import android.util.Pair;
 import android.view.KeyEvent;
@@ -33,8 +32,8 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 import com.google.android.exoplayer2.C;
-import com.google.android.exoplayer2.ExoPlaybackException;
 import com.google.android.exoplayer2.MediaItem;
+import com.google.android.exoplayer2.PlaybackException;
 import com.google.android.exoplayer2.Player;
 import com.google.android.exoplayer2.RenderersFactory;
 import com.google.android.exoplayer2.SimpleExoPlayer;
@@ -44,7 +43,6 @@ import com.google.android.exoplayer2.ext.ima.ImaAdsLoader;
 import com.google.android.exoplayer2.mediacodec.MediaCodecRenderer.DecoderInitializationException;
 import com.google.android.exoplayer2.mediacodec.MediaCodecUtil.DecoderQueryException;
 import com.google.android.exoplayer2.offline.DownloadRequest;
-import com.google.android.exoplayer2.source.BehindLiveWindowException;
 import com.google.android.exoplayer2.source.DefaultMediaSourceFactory;
 import com.google.android.exoplayer2.source.MediaSourceFactory;
 import com.google.android.exoplayer2.source.TrackGroupArray;
@@ -52,16 +50,13 @@ import com.google.android.exoplayer2.source.ads.AdsLoader;
 import com.google.android.exoplayer2.trackselection.DefaultTrackSelector;
 import com.google.android.exoplayer2.trackselection.MappingTrackSelector.MappedTrackInfo;
 import com.google.android.exoplayer2.trackselection.TrackSelectionArray;
-import com.google.android.exoplayer2.ui.DebugTextViewHelper;
 import com.google.android.exoplayer2.ui.StyledPlayerControlView;
 import com.google.android.exoplayer2.ui.StyledPlayerView;
 import com.google.android.exoplayer2.upstream.DataSource;
+import com.google.android.exoplayer2.util.DebugTextViewHelper;
 import com.google.android.exoplayer2.util.ErrorMessageProvider;
 import com.google.android.exoplayer2.util.EventLogger;
 import com.google.android.exoplayer2.util.Util;
-import java.net.CookieHandler;
-import java.net.CookieManager;
-import java.net.CookiePolicy;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -78,17 +73,10 @@ public class PlayerActivity extends AppCompatActivity
   private static final String KEY_POSITION = "position";
   private static final String KEY_AUTO_PLAY = "auto_play";
 
-  private static final CookieManager DEFAULT_COOKIE_MANAGER;
-
-  static {
-    DEFAULT_COOKIE_MANAGER = new CookieManager();
-    DEFAULT_COOKIE_MANAGER.setCookiePolicy(CookiePolicy.ACCEPT_ORIGINAL_SERVER);
-  }
-
   protected StyledPlayerView playerView;
   protected LinearLayout debugRootView;
   protected TextView debugTextView;
-  protected SimpleExoPlayer player;
+  protected @Nullable SimpleExoPlayer player;
 
   private boolean isShowingTrackSelectionDialog;
   private Button selectTracksButton;
@@ -102,20 +90,16 @@ public class PlayerActivity extends AppCompatActivity
   private int startWindow;
   private long startPosition;
 
-  // Fields used only for ad playback.
+  // For ad playback only.
 
   private AdsLoader adsLoader;
-  private Uri loadedAdTagUri;
 
-  // Activity lifecycle
+  // Activity lifecycle.
 
   @Override
   public void onCreate(Bundle savedInstanceState) {
     super.onCreate(savedInstanceState);
     dataSourceFactory = DemoUtil.getDataSourceFactory(/* context= */ this);
-    if (CookieHandler.getDefault() != DEFAULT_COOKIE_MANAGER) {
-      CookieHandler.setDefault(DEFAULT_COOKIE_MANAGER);
-    }
 
     setContentView();
     debugRootView = findViewById(R.id.controls_root);
@@ -348,7 +332,7 @@ public class PlayerActivity extends AppCompatActivity
           return Collections.emptyList();
         }
       }
-      hasAds |= mediaItem.playbackProperties.adTagUri != null;
+      hasAds |= mediaItem.playbackProperties.adsConfiguration != null;
     }
     if (!hasAds) {
       releaseAdsLoader();
@@ -356,16 +340,7 @@ public class PlayerActivity extends AppCompatActivity
     return mediaItems;
   }
 
-  private AdsLoader getAdsLoader(Uri adTagUri) {
-    if (mediaItems.size() > 1) {
-      showToast(R.string.unsupported_ads_in_playlist);
-      releaseAdsLoader();
-      return null;
-    }
-    if (!adTagUri.equals(loadedAdTagUri)) {
-      releaseAdsLoader();
-      loadedAdTagUri = adTagUri;
-    }
+  private AdsLoader getAdsLoader(MediaItem.AdsConfiguration adsConfiguration) {
     // The ads loader is reused for multiple playbacks, so that ad playback can resume.
     if (adsLoader == null) {
       adsLoader = new ImaAdsLoader.Builder(/* context= */ this).build();
@@ -394,7 +369,6 @@ public class PlayerActivity extends AppCompatActivity
     if (adsLoader != null) {
       adsLoader.release();
       adsLoader = null;
-      loadedAdTagUri = null;
       playerView.getOverlayFrameLayout().removeAllViews();
     }
   }
@@ -438,21 +412,7 @@ public class PlayerActivity extends AppCompatActivity
     Toast.makeText(getApplicationContext(), message, Toast.LENGTH_LONG).show();
   }
 
-  private static boolean isBehindLiveWindow(ExoPlaybackException e) {
-    if (e.type != ExoPlaybackException.TYPE_SOURCE) {
-      return false;
-    }
-    Throwable cause = e.getSourceException();
-    while (cause != null) {
-      if (cause instanceof BehindLiveWindowException) {
-        return true;
-      }
-      cause = cause.getCause();
-    }
-    return false;
-  }
-
-  private class PlayerEventListener implements Player.EventListener {
+  private class PlayerEventListener implements Player.Listener {
 
     @Override
     public void onPlaybackStateChanged(@Player.State int playbackState) {
@@ -463,10 +423,10 @@ public class PlayerActivity extends AppCompatActivity
     }
 
     @Override
-    public void onPlayerError(@NonNull ExoPlaybackException e) {
-      if (isBehindLiveWindow(e)) {
-        clearStartPosition();
-        initializePlayer();
+    public void onPlayerError(@NonNull PlaybackException error) {
+      if (error.errorCode == PlaybackException.ERROR_CODE_BEHIND_LIVE_WINDOW) {
+        player.seekToDefaultPosition();
+        player.prepare();
       } else {
         updateButtonVisibility();
         showControls();
@@ -495,35 +455,33 @@ public class PlayerActivity extends AppCompatActivity
     }
   }
 
-  private class PlayerErrorMessageProvider implements ErrorMessageProvider<ExoPlaybackException> {
+  private class PlayerErrorMessageProvider implements ErrorMessageProvider<PlaybackException> {
 
     @Override
     @NonNull
-    public Pair<Integer, String> getErrorMessage(@NonNull ExoPlaybackException e) {
+    public Pair<Integer, String> getErrorMessage(@NonNull PlaybackException e) {
       String errorString = getString(R.string.error_generic);
-      if (e.type == ExoPlaybackException.TYPE_RENDERER) {
-        Exception cause = e.getRendererException();
-        if (cause instanceof DecoderInitializationException) {
-          // Special case for decoder initialization failures.
-          DecoderInitializationException decoderInitializationException =
-              (DecoderInitializationException) cause;
-          if (decoderInitializationException.codecInfo == null) {
-            if (decoderInitializationException.getCause() instanceof DecoderQueryException) {
-              errorString = getString(R.string.error_querying_decoders);
-            } else if (decoderInitializationException.secureDecoderRequired) {
-              errorString =
-                  getString(
-                      R.string.error_no_secure_decoder, decoderInitializationException.mimeType);
-            } else {
-              errorString =
-                  getString(R.string.error_no_decoder, decoderInitializationException.mimeType);
-            }
-          } else {
+      Throwable cause = e.getCause();
+      if (cause instanceof DecoderInitializationException) {
+        // Special case for decoder initialization failures.
+        DecoderInitializationException decoderInitializationException =
+            (DecoderInitializationException) cause;
+        if (decoderInitializationException.codecInfo == null) {
+          if (decoderInitializationException.getCause() instanceof DecoderQueryException) {
+            errorString = getString(R.string.error_querying_decoders);
+          } else if (decoderInitializationException.secureDecoderRequired) {
             errorString =
                 getString(
-                    R.string.error_instantiating_decoder,
-                    decoderInitializationException.codecInfo.name);
+                    R.string.error_no_secure_decoder, decoderInitializationException.mimeType);
+          } else {
+            errorString =
+                getString(R.string.error_no_decoder, decoderInitializationException.mimeType);
           }
+        } else {
+          errorString =
+              getString(
+                  R.string.error_instantiating_decoder,
+                  decoderInitializationException.codecInfo.name);
         }
       }
       return Pair.create(0, errorString);

@@ -20,17 +20,14 @@ import com.google.android.exoplayer2.C;
 import java.util.Arrays;
 import java.util.Locale;
 
-/**
- * Helper utility to dump field values.
- */
+/** Helper utility to dump field values. */
 public final class Dumper {
 
-  /**
-   * Provides custom dump method.
-   */
+  /** Provides custom dump method. */
   public interface Dumpable {
     /**
      * Dumps the fields of the object using the {@code dumper}.
+     *
      * @param dumper The {@link Dumper} to be used to dump fields.
      */
     void dump(Dumper dumper);
@@ -92,5 +89,4 @@ public final class Dumper {
     sb.append(string);
     return this;
   }
-
 }

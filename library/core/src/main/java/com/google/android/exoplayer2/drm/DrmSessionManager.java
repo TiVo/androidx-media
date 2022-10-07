@@ -18,17 +18,30 @@ package com.google.android.exoplayer2.drm;
 import android.os.Looper;
 import androidx.annotation.Nullable;
 import com.google.android.exoplayer2.Format;
+import com.google.android.exoplayer2.PlaybackException;
 
 /** Manages a DRM session. */
 public interface DrmSessionManager {
 
-  /** Returns {@link #DUMMY}. */
-  static DrmSessionManager getDummyDrmSessionManager() {
-    return DUMMY;
+  /**
+   * Represents a single reference count of a {@link DrmSession}, while deliberately not giving
+   * access to the underlying session.
+   */
+  interface DrmSessionReference {
+    /** A reference that is never populated with an underlying {@link DrmSession}. */
+    DrmSessionReference EMPTY = () -> {};
+
+    /**
+     * Releases the underlying session at most once.
+     *
+     * <p>Can be called from any thread. Calling this method more than once will only release the
+     * underlying session once.
+     */
+    void release();
   }
 
-  /** {@link DrmSessionManager} that supports no DRM schemes. */
-  DrmSessionManager DUMMY =
+  /** An instance that supports no DRM schemes. */
+  DrmSessionManager DRM_UNSUPPORTED =
       new DrmSessionManager() {
 
         @Override
@@ -42,8 +55,8 @@ public interface DrmSessionManager {
           } else {
             return new ErrorStateDrmSession(
                 new DrmSession.DrmSessionException(
-                    new UnsupportedDrmException(
-                        UnsupportedDrmException.REASON_UNSUPPORTED_SCHEME)));
+                    new UnsupportedDrmException(UnsupportedDrmException.REASON_UNSUPPORTED_SCHEME),
+                    PlaybackException.ERROR_CODE_DRM_SCHEME_UNSUPPORTED));
           }
         }
 
@@ -53,6 +66,23 @@ public interface DrmSessionManager {
           return format.drmInitData != null ? UnsupportedMediaCrypto.class : null;
         }
       };
+
+  /**
+   * An instance that supports no DRM schemes.
+   *
+   * @deprecated Use {@link #DRM_UNSUPPORTED}.
+   */
+  @Deprecated DrmSessionManager DUMMY = DRM_UNSUPPORTED;
+
+  /**
+   * Returns {@link #DRM_UNSUPPORTED}.
+   *
+   * @deprecated Use {@link #DRM_UNSUPPORTED}.
+   */
+  @Deprecated
+  static DrmSessionManager getDummyDrmSessionManager() {
+    return DRM_UNSUPPORTED;
+  }
 
   /**
    * Acquires any required resources.
@@ -67,6 +97,51 @@ public interface DrmSessionManager {
   /** Releases any acquired resources. */
   default void release() {
     // Do nothing.
+  }
+
+  /**
+   * Pre-acquires a DRM session for the specified {@link Format}.
+   *
+   * <p>This notifies the manager that a subsequent call to {@link #acquireSession(Looper,
+   * DrmSessionEventListener.EventDispatcher, Format)} with the same {@link Format} is likely,
+   * allowing a manager that supports pre-acquisition to get the required {@link DrmSession} ready
+   * in the background.
+   *
+   * <p>The caller must call {@link DrmSessionReference#release()} on the returned instance when
+   * they no longer require the pre-acquisition (i.e. they know they won't be making a matching call
+   * to {@link #acquireSession(Looper, DrmSessionEventListener.EventDispatcher, Format)} in the near
+   * future).
+   *
+   * <p>This manager may silently release the underlying session in order to allow another operation
+   * to complete. This will result in a subsequent call to {@link #acquireSession(Looper,
+   * DrmSessionEventListener.EventDispatcher, Format)} re-initializing a new session, including
+   * repeating key loads and other async initialization steps.
+   *
+   * <p>The caller must separately call {@link #acquireSession(Looper,
+   * DrmSessionEventListener.EventDispatcher, Format)} in order to obtain a session suitable for
+   * playback. The pre-acquired {@link DrmSessionReference} and full {@link DrmSession} instances
+   * are distinct. The caller must release both, and can release the {@link DrmSessionReference}
+   * before the {@link DrmSession} without affecting playback.
+   *
+   * <p>This can be called from any thread.
+   *
+   * <p>Implementations that do not support pre-acquisition always return an empty {@link
+   * DrmSessionReference} instance.
+   *
+   * @param playbackLooper The looper associated with the media playback thread.
+   * @param eventDispatcher The {@link DrmSessionEventListener.EventDispatcher} used to distribute
+   *     events, and passed on to {@link
+   *     DrmSession#acquire(DrmSessionEventListener.EventDispatcher)}.
+   * @param format The {@link Format} for which to pre-acquire a {@link DrmSession}.
+   * @return A releaser for the pre-acquired session. Guaranteed to be non-null even if the matching
+   *     {@link #acquireSession(Looper, DrmSessionEventListener.EventDispatcher, Format)} would
+   *     return null.
+   */
+  default DrmSessionReference preacquireSession(
+      Looper playbackLooper,
+      @Nullable DrmSessionEventListener.EventDispatcher eventDispatcher,
+      Format format) {
+    return DrmSessionReference.EMPTY;
   }
 
   /**

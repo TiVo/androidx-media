@@ -34,11 +34,11 @@ import com.google.android.exoplayer2.offline.DownloadManager;
 import com.google.android.exoplayer2.offline.DownloadRequest;
 import com.google.android.exoplayer2.offline.DownloadService;
 import com.google.android.exoplayer2.offline.StreamKey;
+import com.google.android.exoplayer2.robolectric.TestDownloadManagerListener;
 import com.google.android.exoplayer2.scheduler.Scheduler;
 import com.google.android.exoplayer2.testutil.DummyMainThread;
 import com.google.android.exoplayer2.testutil.FakeDataSet;
 import com.google.android.exoplayer2.testutil.FakeDataSource;
-import com.google.android.exoplayer2.testutil.TestDownloadManagerListener;
 import com.google.android.exoplayer2.testutil.TestUtil;
 import com.google.android.exoplayer2.upstream.DataSource;
 import com.google.android.exoplayer2.upstream.cache.CacheDataSource;
@@ -57,9 +57,11 @@ import org.junit.Before;
 import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.robolectric.annotation.internal.DoNotInstrument;
 
 /** Unit tests for {@link DownloadService}. */
 @RunWith(AndroidJUnit4.class)
+@DoNotInstrument
 public class DownloadServiceDashTest {
 
   private SimpleCache cache;

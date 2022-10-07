@@ -38,10 +38,11 @@
       android:name="androidx.multidex.MultiDexApplication"
       tools:targetApi="29">
 
-    <activity android:name="com.google.android.exoplayer2.demo.SampleChooserActivity"
+    <activity android:name=".SampleChooserActivity"
         android:configChanges="keyboardHidden"
         android:label="@string/application_name"
-        android:theme="@style/Theme.AppCompat">
+        android:theme="@style/Theme.AppCompat"
+        android:exported="true">
       <intent-filter>
         <action android:name="android.intent.action.MAIN"/>
         <category android:name="android.intent.category.LAUNCHER"/>
@@ -61,11 +62,12 @@
       </intent-filter>
     </activity>
 
-    <activity android:name="com.google.android.exoplayer2.demo.PlayerActivity"
+    <activity android:name=".PlayerActivity"
         android:configChanges="keyboard|keyboardHidden|orientation|screenSize|screenLayout|smallestScreenSize|uiMode"
         android:launchMode="singleTop"
         android:label="@string/application_name"
-        android:theme="@style/PlayerTheme">
+        android:theme="@style/PlayerTheme"
+        android:exported="true">
       <intent-filter>
         <action android:name="com.google.android.exoplayer.demo.action.VIEW"/>
         <category android:name="android.intent.category.DEFAULT"/>
@@ -81,7 +83,7 @@
       </intent-filter>
     </activity>
 
-    <service android:name="com.google.android.exoplayer2.demo.DemoDownloadService"
+    <service android:name=".DemoDownloadService"
         android:exported="false">
       <intent-filter>
         <action android:name="com.google.android.exoplayer.downloadService.action.RESTART"/>

@@ -15,9 +15,7 @@
  */
 package com.google.android.exoplayer2.extractor;
 
-/**
- * Receives stream level data extracted by an {@link Extractor}.
- */
+/** Receives stream level data extracted by an {@link Extractor}. */
 public interface ExtractorOutput {
 
   /**
@@ -68,5 +66,4 @@ public interface ExtractorOutput {
    * @param seekMap The extracted {@link SeekMap}.
    */
   void seekMap(SeekMap seekMap);
-
 }

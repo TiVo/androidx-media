@@ -19,8 +19,6 @@ import static com.google.android.exoplayer2.audio.AudioSink.CURRENT_POSITION_NOT
 import static com.google.android.exoplayer2.audio.AudioSink.SINK_FORMAT_SUPPORTED_DIRECTLY;
 import static com.google.android.exoplayer2.audio.AudioSink.SINK_FORMAT_SUPPORTED_WITH_TRANSCODING;
 import static com.google.common.truth.Truth.assertThat;
-import static org.robolectric.annotation.Config.OLDEST_SDK;
-import static org.robolectric.annotation.Config.TARGET_SDK;
 
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import com.google.android.exoplayer2.C;
@@ -30,6 +28,7 @@ import com.google.android.exoplayer2.util.MimeTypes;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.Arrays;
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -65,7 +64,7 @@ public final class DefaultAudioSinkTest {
             new DefaultAudioSink.DefaultAudioProcessorChain(teeAudioProcessor),
             /* enableFloatOutput= */ false,
             /* enableAudioTrackPlaybackParams= */ false,
-            /* enableOffload= */ false);
+            DefaultAudioSink.OFFLOAD_MODE_DISABLED);
   }
 
   @Test
@@ -218,7 +217,7 @@ public final class DefaultAudioSinkTest {
         .isEqualTo(SINK_FORMAT_SUPPORTED_WITH_TRANSCODING);
   }
 
-  @Config(minSdk = OLDEST_SDK, maxSdk = 20)
+  @Config(maxSdk = 20)
   @Test
   public void floatPcmNeedsTranscodingIfFloatOutputEnabledBeforeApi21() {
     defaultAudioSink =
@@ -236,7 +235,7 @@ public final class DefaultAudioSinkTest {
         .isEqualTo(SINK_FORMAT_SUPPORTED_WITH_TRANSCODING);
   }
 
-  @Config(minSdk = 21, maxSdk = TARGET_SDK)
+  @Config(minSdk = 21)
   @Test
   public void floatOutputSupportedIfFloatOutputEnabledFromApi21() {
     defaultAudioSink =
@@ -305,6 +304,32 @@ public final class DefaultAudioSinkTest {
     defaultAudioSink.experimentalFlushWithoutAudioTrackRelease();
     assertThat(defaultAudioSink.getCurrentPositionUs(/* sourceEnded= */ false))
         .isEqualTo(CURRENT_POSITION_NOT_SET);
+  }
+
+  @Test
+  public void configure_throwsConfigurationException_withInvalidInput() {
+    Format format = new Format.Builder().setSampleMimeType(MimeTypes.AUDIO_AAC).build();
+    AudioSink.ConfigurationException thrown =
+        Assert.assertThrows(
+            AudioSink.ConfigurationException.class,
+            () ->
+                defaultAudioSink.configure(
+                    format, /* specifiedBufferSize= */ 0, /* outputChannels= */ null));
+    assertThat(thrown.format).isEqualTo(format);
+  }
+
+  @Test
+  public void setPlaybackParameters_doesNothingWhenTunnelingIsEnabled() throws Exception {
+    defaultAudioSink.setAudioSessionId(1);
+    defaultAudioSink.enableTunnelingV21();
+    defaultAudioSink.setPlaybackParameters(new PlaybackParameters(2));
+    configureDefaultAudioSink(/* channelCount= */ 2);
+    defaultAudioSink.handleBuffer(
+        createDefaultSilenceBuffer(),
+        /* presentationTimeUs= */ 5 * C.MICROS_PER_SECOND,
+        /* encodedAccessUnitCount= */ 1);
+
+    assertThat(defaultAudioSink.getPlaybackParameters().speed).isEqualTo(1);
   }
 
   private void configureDefaultAudioSink(int channelCount) throws AudioSink.ConfigurationException {

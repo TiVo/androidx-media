@@ -145,7 +145,6 @@ public final class HlsMasterPlaylist extends HlsPlaylist {
       this.groupId = groupId;
       this.name = name;
     }
-
   }
 
   /** All of the media playlist URLs referenced by the playlist. */
@@ -214,8 +213,8 @@ public final class HlsMasterPlaylist extends HlsPlaylist {
     this.subtitles = Collections.unmodifiableList(subtitles);
     this.closedCaptions = Collections.unmodifiableList(closedCaptions);
     this.muxedAudioFormat = muxedAudioFormat;
-    this.muxedCaptionFormats = muxedCaptionFormats != null
-        ? Collections.unmodifiableList(muxedCaptionFormats) : null;
+    this.muxedCaptionFormats =
+        muxedCaptionFormats != null ? Collections.unmodifiableList(muxedCaptionFormats) : null;
     this.variableDefinitions = Collections.unmodifiableMap(variableDefinitions);
     this.sessionKeyDrmInitData = Collections.unmodifiableList(sessionKeyDrmInitData);
   }
@@ -309,7 +308,7 @@ public final class HlsMasterPlaylist extends HlsPlaylist {
       T stream = streams.get(i);
       for (int j = 0; j < streamKeys.size(); j++) {
         StreamKey streamKey = streamKeys.get(j);
-        if (streamKey.groupIndex == groupIndex && streamKey.trackIndex == i) {
+        if (streamKey.groupIndex == groupIndex && streamKey.streamIndex == i) {
           copiedStreams.add(stream);
           break;
         }
@@ -317,5 +316,4 @@ public final class HlsMasterPlaylist extends HlsPlaylist {
     }
     return copiedStreams;
   }
-
 }

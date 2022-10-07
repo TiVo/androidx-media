@@ -21,9 +21,7 @@ import com.google.android.exoplayer2.decoder.OutputBuffer;
 import com.google.android.exoplayer2.util.Assertions;
 import java.util.List;
 
-/**
- * Base class for {@link SubtitleDecoder} output buffers.
- */
+/** Base class for {@link SubtitleDecoder} output buffers. */
 public abstract class SubtitleOutputBuffer extends OutputBuffer implements Subtitle {
 
   @Nullable private Subtitle subtitle;
@@ -35,14 +33,14 @@ public abstract class SubtitleOutputBuffer extends OutputBuffer implements Subti
    *
    * @param timeUs The time of the start of the subtitle in microseconds.
    * @param subtitle The subtitle.
-   * @param subsampleOffsetUs An offset that must be added to the subtitle's event times, or
-   *     {@link Format#OFFSET_SAMPLE_RELATIVE} if {@code timeUs} should be added.
+   * @param subsampleOffsetUs An offset that must be added to the subtitle's event times, or {@link
+   *     Format#OFFSET_SAMPLE_RELATIVE} if {@code timeUs} should be added.
    */
   public void setContent(long timeUs, Subtitle subtitle, long subsampleOffsetUs) {
     this.timeUs = timeUs;
     this.subtitle = subtitle;
-    this.subsampleOffsetUs = subsampleOffsetUs == Format.OFFSET_SAMPLE_RELATIVE ? this.timeUs
-        : subsampleOffsetUs;
+    this.subsampleOffsetUs =
+        subsampleOffsetUs == Format.OFFSET_SAMPLE_RELATIVE ? this.timeUs : subsampleOffsetUs;
   }
 
   @Override
@@ -70,5 +68,4 @@ public abstract class SubtitleOutputBuffer extends OutputBuffer implements Subti
     super.clear();
     subtitle = null;
   }
-
 }

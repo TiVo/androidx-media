@@ -17,9 +17,7 @@ package com.google.android.exoplayer2.util;
 
 import java.util.Arrays;
 
-/**
- * An append-only, auto-growing {@code long[]}.
- */
+/** An append-only, auto-growing {@code long[]}. */
 public final class LongArray {
 
   private static final int DEFAULT_INITIAL_CAPACITY = 32;
@@ -31,9 +29,7 @@ public final class LongArray {
     this(DEFAULT_INITIAL_CAPACITY);
   }
 
-  /**
-   * @param initialCapacity The initial capacity of the array.
-   */
+  /** @param initialCapacity The initial capacity of the array. */
   public LongArray(int initialCapacity) {
     values = new long[initialCapacity];
   }
@@ -65,9 +61,7 @@ public final class LongArray {
     return values[index];
   }
 
-  /**
-   * Returns the current size of the array.
-   */
+  /** Returns the current size of the array. */
   public int size() {
     return size;
   }
@@ -80,5 +74,4 @@ public final class LongArray {
   public long[] toArray() {
     return Arrays.copyOf(values, size);
   }
-
 }

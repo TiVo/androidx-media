@@ -115,7 +115,7 @@ import java.io.IOException;
     input.resetPeekPosition();
 
     ParsableByteArray scratch = new ParsableByteArray(ChunkHeader.SIZE_IN_BYTES);
-    // Skip all chunks until we hit the data header.
+    // Skip all chunks until we find the data header.
     ChunkHeader chunkHeader = ChunkHeader.peek(input, scratch);
     while (chunkHeader.id != WavUtil.DATA_FOURCC) {
       if (chunkHeader.id != WavUtil.RIFF_FOURCC && chunkHeader.id != WavUtil.FMT_FOURCC) {
@@ -127,7 +127,8 @@ import java.io.IOException;
         bytesToSkip = ChunkHeader.SIZE_IN_BYTES + 4;
       }
       if (bytesToSkip > Integer.MAX_VALUE) {
-        throw new ParserException("Chunk is too large (~2GB+) to skip; id: " + chunkHeader.id);
+        throw ParserException.createForUnsupportedContainerFeature(
+            "Chunk is too large (~2GB+) to skip; id: " + chunkHeader.id);
       }
       input.skipFully((int) bytesToSkip);
       chunkHeader = ChunkHeader.peek(input, scratch);
