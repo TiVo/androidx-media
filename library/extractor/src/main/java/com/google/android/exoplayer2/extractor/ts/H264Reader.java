@@ -45,8 +45,6 @@ public final class H264Reader implements ElementaryStreamReader {
   private static final int NAL_UNIT_TYPE_SEI = 6; // Supplemental enhancement information
   private static final int NAL_UNIT_TYPE_SPS = 7; // Sequence parameter set
   private static final int NAL_UNIT_TYPE_PPS = 8; // Picture parameter set
-  private static final int NAL_UNIT_TYPE_FILLER = 12; // Filler data
-
 
   private final SeiReader seiReader;
   private final boolean allowNonIdrKeyframes;
@@ -148,12 +146,6 @@ public final class H264Reader implements ElementaryStreamReader {
       // We've seen the start of a NAL unit of the following type.
       int nalUnitType = NalUnitUtil.getNalUnitType(dataArray, nalUnitOffset);
 
-      if (nalUnitType == NAL_UNIT_TYPE_FILLER) {
-        // We've scanned and hit filler data without finding the start of another NAL unit.
-        nalUnitData(dataArray, offset, limit);
-        return;
-      }
-
       // This is the number of bytes from the current offset to the start of the next NAL unit.
       // It may be negative if the NAL unit started in the previously consumed data.
       int lengthToNalUnit = nalUnitOffset - offset;
@@ -180,7 +172,7 @@ public final class H264Reader implements ElementaryStreamReader {
   @Override
   public void endOfStream() {
     if (sampleReader != null) {
-      if (sampleReader.endOfStream(hasOutputFormat, randomAccessIndicator, totalBytesWritten)) {
+      if (sampleReader.endOfStream(hasOutputFormat, totalBytesWritten)) {
         randomAccessIndicator = false;
         hasOutputFormat = false;  // don't write again till after next AUD read
       }
@@ -518,25 +510,21 @@ public final class H264Reader implements ElementaryStreamReader {
 
     /**
      *
-     * @param hasOutputFormat
-     * @param randomAccessIndicator
-     * @param totalBytesWritten
-     * @return
+     * @param hasOutputFormat Output format of the current sample
+     * @param totalBytesWritten The size of the current sample
+     * @return true if the current sample was output
      */
-    public boolean endOfStream(boolean hasOutputFormat, boolean randomAccessIndicator, long totalBytesWritten) {
-      boolean writeSample = hasOutputFormat
-          && readingSample                                // we are in an access unit
-          && nalUnitType == NAL_UNIT_TYPE_IDR             // current NALU is an IDR
-          && randomAccessIndicator;                       // It is the first IDR after ramdom_access_indicator (2.4.3.5 ISO/IEC 13818-1)
-      if (writeSample) {
-        // Because of the way SampleQueue computes the absolute offset it must have at least one
-        // zero_byte ((ISO/IEC 13818-1 Annex B.1.2) after the NALU (which is not included in this sample)
-        // Add this manually
-        output.sampleData(new ParsableByteArray(new byte[] {0x00}), 1);   // zero_byte
-        totalBytesWritten++;
-        output.sampleMetadata(sampleTimeUs, C.BUFFER_FLAG_KEY_FRAME, (int) totalBytesWritten - 1, (int) 0, null);
+    public boolean endOfStream(boolean hasOutputFormat, long totalBytesWritten) {
+      // If we're still holding on to the first iframe sample output it now.
+      // This is allows iframe track trick play to a download a single iframe per seek.
+      boolean shouldOutputSample = hasOutputFormat
+          && readingSample
+          && (sampleIsKeyframe || nalUnitType == NAL_UNIT_TYPE_IDR)
+          && (samplePosition == 1); // it's the only sample in the stream
+      if (shouldOutputSample) {
+        output.sampleMetadata(sampleTimeUs, C.BUFFER_FLAG_KEY_FRAME, (int)totalBytesWritten, 0, null);
       }
-      return writeSample;
+      return shouldOutputSample;
     }
 
     private void outputSample(int offset) {
