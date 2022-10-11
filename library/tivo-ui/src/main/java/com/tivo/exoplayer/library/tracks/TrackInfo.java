@@ -38,18 +38,20 @@ public class TrackInfo {
   public final int type;
   public final boolean isSelected;
   public final Format format;
+  public final @C.FormatSupport int renderSupport;
   public String desc;
 
   /**
    * Create a TrackInfo for the track with the indicated {@link Format}.  The
    * Format is the buisness key for locating a track.
-   *
-   * @param format - format that identifies the track
+   *  @param format - format that identifies the track
    * @param isSelected - if it is selected.
+   * @param fixedSupport
    */
-  public TrackInfo(Format format, boolean isSelected) {
+  public TrackInfo(Format format, boolean isSelected, @C.FormatSupport int fixedSupport) {
     this.isSelected = isSelected;
     this.format = format;
+    this.renderSupport = fixedSupport;
 
     type = MimeTypes.getTrackType(format.sampleMimeType);
 

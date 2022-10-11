@@ -42,6 +42,7 @@ dependencies {
     implementation project(path: ':library-dash')
     testImplementation project(modulePrefix + 'testutils')
     testImplementation 'org.robolectric:robolectric:' + robolectricVersion
+    testImplementation project(path: ':robolectricutils')
     compileOnly 'org.checkerframework:checker-qual:' + checkerframeworkVersion
 }
 

@@ -7,6 +7,7 @@ import androidx.annotation.CallSuper;
 import androidx.annotation.Nullable;
 import androidx.annotation.RequiresApi;
 
+import androidx.annotation.VisibleForTesting;
 import com.google.android.exoplayer2.C;
 import com.google.android.exoplayer2.DefaultLoadControl;
 import com.google.android.exoplayer2.DefaultRenderersFactory;
@@ -17,11 +18,8 @@ import com.google.android.exoplayer2.LoadControl;
 import com.google.android.exoplayer2.MediaItem;
 import com.google.android.exoplayer2.PlaybackException;
 import com.google.android.exoplayer2.Player;
-import com.google.android.exoplayer2.RendererCapabilities;
-import com.google.android.exoplayer2.RenderersFactory;
 import com.google.android.exoplayer2.SimpleExoPlayer;
 import com.google.android.exoplayer2.analytics.AnalyticsListener;
-import com.google.android.exoplayer2.mediacodec.MediaCodecRenderer;
 import com.google.android.exoplayer2.source.TrackGroup;
 import com.google.android.exoplayer2.source.TrackGroupArray;
 import com.google.android.exoplayer2.source.UnrecognizedInputFormatException;
@@ -51,6 +49,7 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Properties;
 
@@ -494,6 +493,21 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
   }
 
   /**
+   * Inject a test ExoPlayer created by TestExoPlayerBuilder for some basic tests of logic in
+   * this factory, this is enough for testing the renderer control and track selecton logic in
+   * this class, but nothing else as the player is not linked to media source creating or trick play
+   *
+   * @param testPlayer a test SimpleExoPlayer
+   * @param testSelector and it's track selector.
+   */
+  @VisibleForTesting
+  void injectForTesting(SimpleExoPlayer testPlayer,
+      DefaultTrackSelector testSelector) {
+    player = testPlayer;
+    trackSelector = testSelector;
+  }
+
+  /**
    * Start playback of the specified URL on the current ExoPlayer.  Must have previously
    * called {@link #createPlayer(boolean, boolean)}
    *
@@ -693,7 +707,7 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
    * @return list of all text in the current MediaSource.
    */
   public List<TrackInfo> getAvailableTextTracks() {
-    return getMatchingAvailableTrackInfo(input -> isTextFormat(input));
+    return getSelectableTrackInfoForTrackType(C.TRACK_TYPE_TEXT);
   }
 
   /**
@@ -704,7 +718,7 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
    * @return list of all text in the current MediaSource.
    */
   public List<TrackInfo> getAvailableAudioTracks() {
-    return getMatchingAvailableTrackInfo(input -> isAudioFormat(input));
+    return getSelectableTrackInfoForTrackType(C.TRACK_TYPE_AUDIO);
   }
 
   /**
@@ -729,39 +743,71 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
   }
 
   /**
-   * Return TrackInfo objects for the tracks matching the format indicated by the Predicate.
-   * <p>
-   * Use this API call to use forced track selection via overrides.  To select a TrackInfo with an override
-   * use {@link #selectTrack(TrackInfo)}
-   * <p>
-   * The preferred method is using the APIs that use Constraint Based Selection (see
-   * <a href="https://exoplayer.dev/doc/reference/com/google/android/exoplayer2/trackselection/DefaultTrackSelector.html">DefaultTrackSelector</a>)
-   * like for example {@link #setCloseCaption(boolean, String)}
-   * <p>
-   * Note, this will return an empty list until the media is prepared (player transitions to playback state
-   * {@link com.google.android.exoplayer2.Player#STATE_READY}
+   * Return TrackInfo objects for the tracks matching the indicated trackType, one of the {@code TRACK_TYPE_*}
+   * constants.  For example:
+   *     getSelectableTrackInfoForTrackType(C.TRACK_TYPE_TEXT)
+   * Will return text tracks (both subtitle and closed caption tracks, anything that con be rendered as
+   * text.
+   *
+   * One (or more for adaptive tracks) of the returned TrackInfo objects may have {@link TrackInfo#isSelected}
+   * set true. These selected track[s] are enabled to be played by the renderer, assuming it is enabled. This selected state is
+   * either the result of default Constraint Based Selection
+   * (see <a href="https://exoplayer.dev/doc/reference/com/google/android/exoplayer2/trackselection/DefaultTrackSelector.html">DefaultTrackSelector</a>)
+   * or if a selection override was set in place using {@link #selectTrack(TrackInfo)}
+   *
+   * @param trackType The {@code TRACK_TYPE_*} constant for the requested renderer.
+   * @return List of {@link TrackInfo} that match the type, one or more may be marked {@link TrackInfo#isSelected}
+   */
+  public List<TrackInfo> getSelectableTrackInfoForTrackType(int trackType) {
+    List<TrackInfo> availableTracks = Collections.emptyList();
+    if (trackSelector != null || player == null) {
+      availableTracks = getSelectableTrackInfoForTrackType(trackType, trackSelector, player);
+    }
+
+    return availableTracks;
+  }
+
+  /**
+   * Static equivalent for {@link #getSelectableTrackInfoForTrackType(int)}, in place for ExoPlayerPlayer migration
+   *
+   * @param trackType The {@code TRACK_TYPE_*} constant for the requested renderer.
+   * @param defaultTrackSelector the current DefaultTrackSelector
+   * @param player the current player
+   * @return List of {@link TrackInfo} that match the type, one or more may be marked {@link TrackInfo#isSelected}
+   */
+  public static List<TrackInfo> getSelectableTrackInfoForTrackType(int trackType,
+      DefaultTrackSelector defaultTrackSelector, SimpleExoPlayer player) {
+    List<TrackInfo> availableTracks = new ArrayList<>();
+    TrackSelectionArray selections = player.getCurrentTrackSelections();
+    @Nullable MappingTrackSelector.MappedTrackInfo mappedTrackInfo = defaultTrackSelector.getCurrentMappedTrackInfo();
+    if (mappedTrackInfo != null) {
+      int rendererIndex = getRendererIndex(trackType, player);
+      TrackSelection selection = selections.get(rendererIndex);
+      TrackGroupArray rendererTrackGroups = mappedTrackInfo.getTrackGroups(rendererIndex);
+      for (int groupIndex = 0; groupIndex < rendererTrackGroups.length; groupIndex++) {
+        TrackGroup trackGroup = rendererTrackGroups.get(groupIndex);
+        for (int trackIndex = 0; trackIndex < trackGroup.length; trackIndex++) {
+          Format format = trackGroup.getFormat(trackIndex);
+          boolean isSelected = selection != null
+              && selection.getTrackGroup() == trackGroup
+              && selection.indexOf(trackIndex) != C.INDEX_UNSET;
+          int formatSupport = mappedTrackInfo.getTrackSupport(rendererIndex, groupIndex, trackIndex);
+          availableTracks.add(new TrackInfo(format, isSelected, formatSupport));
+        }
+      }
+    }
+    return availableTracks;
+  }
+
+  /**
+   * Method does not work properly, switch to {@link #getSelectableTrackInfoForTrackType(int)}
    *
    * @param matching - {@link Predicate} used to filter the desired formats.
    * @return list of all tracks matching the predicate in the current MediaSource.
    */
+  @Deprecated
   public List<TrackInfo> getMatchingAvailableTrackInfo(Predicate<Format> matching) {
     List<TrackInfo> availableTracks = new ArrayList<>();
-    if (player != null) {
-      TrackGroupArray availableTrackGroups = player.getCurrentTrackGroups();
-
-      for (int groupIndex = 0; groupIndex < availableTrackGroups.length; groupIndex++) {
-        TrackGroup group = availableTrackGroups.get(groupIndex);
-        TrackSelection groupSelection = getTrackSelectionForGroup(group);
-        for (int trackIndex = 0; trackIndex < group.length; trackIndex++) {
-          Format format = group.getFormat(trackIndex);
-//          if (matching.apply(format)) {
-//            boolean isSelected = groupSelection != null
-//                    && groupSelection.getSelectedFormat().equals(format);
-//            availableTracks.add(new TrackInfo(format, isSelected));
-//          }
-        }
-      }
-    }
     return availableTracks;
   }
 
@@ -797,7 +843,7 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
 
     for (TrackInfo trackInfo : originalTrackInfoList) {
       Format format = trackInfo.format;
-      int rendererIndex = getRendererIndex(trackInfo.type);
+      int rendererIndex = getRendererIndex(trackInfo.type, player);
       boolean isFormatSupported = false;
       TrackGroupArray trackGroupArray = mappedTrackInfo.getTrackGroups(rendererIndex);
       for (int groupIndex = 0; groupIndex < trackGroupArray.length; groupIndex++) {
@@ -805,8 +851,8 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
         for (int formatIndex = 0; formatIndex < trackGroup.length; formatIndex++) {
           if (format.equals(trackGroup.getFormat(formatIndex))) {
             int formatSupport = mappedTrackInfo.getTrackSupport(rendererIndex, groupIndex, formatIndex);
-            isFormatSupported = (formatSupport == RendererCapabilities.FORMAT_HANDLED)
-                    || (trackSelector.getParameters().exceedRendererCapabilitiesIfNecessary && formatSupport == RendererCapabilities.FORMAT_EXCEEDS_CAPABILITIES);
+            isFormatSupported = (formatSupport == C.FORMAT_HANDLED)
+                    || (trackSelector.getParameters().exceedRendererCapabilitiesIfNecessary && formatSupport == C.FORMAT_EXCEEDS_CAPABILITIES);
           }
         }
       }
@@ -984,9 +1030,10 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
    * Get the current Renderer's index for the specified C.TRACK_TYPE_x value
    *
    * @param trackType C.TRACK_TYPE_ value
+   * @param player the current {@link SimpleExoPlayer}, must be non-null
    * @return value or -1 if no renderer was created for the type
    */
-  private int getRendererIndex(int trackType) {
+  private static int getRendererIndex(int trackType, SimpleExoPlayer player) {
     int index = C.INDEX_UNSET;
     for (int i = 0; i < player.getRendererCount() && index == C.INDEX_UNSET; i++) {
       if (player.getRendererType(i) == trackType) {
