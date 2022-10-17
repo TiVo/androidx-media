@@ -1,5 +1,229 @@
 # Release notes #
 
+### 2.15.1-1.0-dev (pending release)
+
+First merge of Google's 2.15.1 ExoPlayer release with our `release` branch.   This release skips forward from 2.12.3 accross three major Google .0 releases in order to bring key features post 2.12.3 including:
+
+* HLS and Dash Low Latency with Dynamic Live Offset support (**[Low-latency live streaming with ExoPlayer](https://medium.com/google-exoplayer/low-latency-live-streaming-with-exoplayer-8552d5841060)** )
+* Improvements to DRM Session Management
+* PlaybackException object reports all errors with a numeric list of [errorCode](https://exoplayer.dev/doc/reference/com/google/android/exoplayer2/PlaybackException.html)
+* Update [LoadErrorHandlingPolicy](https://exoplayer.dev/doc/reference/com/google/android/exoplayer2/upstream/LoadErrorHandlingPolicy.html#FALLBACK_TYPE_LOCATION) allowing fallback to another location or track
+
+The document [tivo-docs/exo_2.15.1/HANDLING_2.15.1_MERGE_CONFLICTS.md](https://github.com/tivocorp/exoplayerprvt/blob/release/tivo-docs/exo_2.15.1/HANDLING_2.15.1_MERGE_CONFLICTS.md) describes the exact mechanics of how the merge was executed.
+
+#### Known Issues
+
+1. Cea708Decoder &mdash; requires fixups for open pull requests that conflicted
+2. analytics.PlaybackStatsListenerTest &mdash; Test cases broken by changes to `AnalyticsCollector` also affects trick play metrics
+3. Merge of changes to library-extractor for filler NALU is incomplete
+4. The API for enabling Async queuing has changed ([Async queuing on MultiLockAsyncMediaCodecAdapter](https://github.com/google/ExoPlayer/commit/bc02643df0a1b148df62387cd00ed6e25c1d93f2)) so need to update our call to this in ExoPlayerPlayer
+5. Our deprecated support for `setLiveOffset()` must be updated to use the new support from Low Latency
+
+#### Our Internal Changes
+
+Many of our pull requests have been merged, and only our post 2.15.1 cherry-picks remain (see 2.12.3-2.1 and -2.0 release notes below).  We continue to maintain the following internal only deviations form Google ExoPlayer:
+
+1. Changes to HLS library to support Dual Mode trick-play, added methods to `HlsMediaPlaylist.Segment` (copyWithUpdates(), copyWithDuration())
+2. Methods added to `HlsMediaPlaylist` for checking update valid (`isUpdateValid()` and cloning the playlist (`copyWithUpdates()`)
+3. Support for bluetooth speaker audio route change (`audio.AudioCapabilitiesReceiver`) 
+4. Track selection allows trickplay tracks
+5. Track selection keeps tunneling on when audio track is disabled for broadcom devices that suppot this.
+6. Small fixes to AC-3 and AAC support
+
+#### Highlights From Google Release Notes
+
+These sections highlight changes most of interest to TiVo from the respective ExoPlayer major releases
+
+##### Release 2.15.1 (2021-09-20) &mdash;  [RELEASENOTES.md](https://github.com/google/ExoPlayer/releases/tag/r2.15.1)
+
+* Extractors:
+  - Support TS packets without PTS flag ([#9294](https://github.com/google/ExoPlayer/issues/9294)).
+
+*   Video:
+    *   Request smaller decoder input buffers for Dolby Vision. This fixes an
+        issue that could cause UHD Dolby Vision playbacks to fail on some
+        devices, including Amazon Fire TV 4K.
+*   DRM:
+    *   Fix `DefaultDrmSessionManager` to correctly eagerly release preacquired
+        DRM sessions when there's a shortage of DRM resources on the device.
+    
+##### Release 2.15.0 (2021-08-10) &mdash; [RELEASENOTES.md](https://github.com/google/ExoPlayer/releases/tag/r2.15.0)
+
+*   Core Library:
+    *   `PlaybackException` introduces an `errorCode` which identifies the cause
+        of the failure in order to simplify error handling ([#1611](https://github.com/google/ExoPlayer/issues/1611)).
+    *   Add `@FallbackType` to `LoadErrorHandlingPolicy` to support
+        customization of the exclusion duration for locations and tracks.
+    *   Change interface of `LoadErrorHandlingPolicy` to support configuring the
+        behavior of track and location fallback. Location fallback is currently
+        only supported for DASH manifests with multiple base URLs.
+    *   Restrict use of `AudioTrack.isDirectPlaybackSupported` to TVs, to avoid
+        listing audio offload encodings as supported for passthrough mode on
+        mobile devices ([#9239](https://github.com/google/ExoPlayer/issues/9239)).
+    
+*   Extractors:
+    *   Add support for DTS-UHD in MP4 ([#9163](https://github.com/google/ExoPlayer/issues/9163)).
+    
+*   HLS:
+    *   Fix issue that could cause some playbacks to be stuck buffering (note we previously cherry picked these) ([#8850](https://github.com/google/ExoPlayer/issues/8850), [#9153](https://github.com/google/ExoPlayer/issues/9153)).
+    *   Report audio track type in
+        `AnalyticsListener.onDownstreamFormatChanged()` for audio-only
+        playlists, so that the `PlaybackStatsListener` can derive audio
+        format-related information
+        ([#9175](https://github.com/google/ExoPlayer/issues/9175)).
+    
+##### Release 2.14.2 (2021-07-20) &mdash; [RELEASENOTES.md](https://github.com/google/ExoPlayer/releases/tag/r2.14.2)
+
+*   Video:
+    *   Fix `IncorrectContextUseViolation` strict mode warning on Android 11
+        ([#8246](https://github.com/google/ExoPlayer/pull/8246)).
+*   Audio:
+    *   Fix track selection for E-AC-3 streams.
+    *   Use `AudioTrack.isDirectPlaybackSupported` to check for encoded audio
+        passthrough capability from API 29 onwards, instead of using the HDMI
+        audio plug intent
+        ([#6500](https://github.com/google/ExoPlayer/pull/6500)).
+*   HLS:
+    *   Fix issue where playback of a live event could become stuck rather than
+        transitioning to `STATE_ENDED` when the event ends
+        ([#9067](https://github.com/google/ExoPlayer/issues/9067)).
+*   DRM:
+    *   Allow repeated provisioning in `DefaultDrmSession(Manager)`.
+    *   Fix a crash due to `DefaultDrmSessionManager.release()` incorrectly
+        releasing too many keep-alive `DefaultDrmSession` references, resulting
+        in `DefaultDrmSession.release()` throwing an `IllegalStateException`
+        ([#9193](https://github.com/google/ExoPlayer/issues/9193)).
+
+##### Release 2.14.1 (2021-06-11) &mdash; [RELEASENOTES.md](https://github.com/google/ExoPlayer/releases/tag/r2.14.1)
+
+The first DRM fix was already cherry-picked into our 2.12.3 version 
+
+DRM:
+
+*   Keep secure `MediaCodec` instances initialized when disabling (but not
+    resetting) `MediaCodecRenderer`. This helps re-use secure decoders in
+    more contexts, which avoids the 'black flash' caused by detaching a
+    `Surface` from a secure decoder on some devices
+    ([#8842](https://github.com/google/ExoPlayer/issues/8842)). It will also
+    result in DRM license refresh network requests while the player is
+    stopped if `Player#setForegroundMode` is true.
+*   Fix issue where offline keys were unnecessarily (and incorrectly)
+    restored into a session before being released. This call sequence is
+    explicitly disallowed in OEMCrypto v16.
+
+##### Release 2.14.0 (2021-05-13) &mdash; [RELEASENOTES.md](https://github.com/google/ExoPlayer/releases/tag/r2.14.0)
+
+The changes for `MediaCodecRenderer` can be used to better hook our subclass.  The DRM fix to prefetch DRM sessions should improve key rotation
+
+* Core Library:
+  *   Remove `MediaCodecRenderer.configureCodec()` and add
+      `MediaCodecRenderer.getMediaCodecConfiguration()`. The new method is
+      called just before the `MediaCodec` is created and returns the
+      parameters needed to create and configure the `MediaCodec` instance.
+      Applications can override `MediaCodecRenderer.onCodecInitialized()` to
+      be notified after a `MediaCodec` is initialized, or they can inject a
+      custom `MediaCodecAdapter.Factory` if they want to control how the
+      `MediaCodec` is configured.
+* DRM:
+  *   Prepare DRM sessions (and fetch keys) ahead of the playback position
+      ([#4133](https://github.com/google/ExoPlayer/issues/4133)).
+  *   Only dispatch DRM session acquire and release events once per period
+      when playing content that uses the same encryption keys for both audio &
+      video tracks. Previously, separate acquire and release events were
+      dispatched for each track in each period.
+  *   Include the session state in DRM session-acquired listener methods.
+
+##### Release 2.13.3 (2021-04-14) &mdash; [RELEASENOTES.md](https://github.com/google/ExoPlayer/releases/tag/r2.13.3)
+
+* HLS:
+  *   Fix bug of ignoring `EXT-X-START` when setting the live target offset
+      ([#8764](https://github.com/google/ExoPlayer/pull/8764)).
+  *   Fix incorrect application of byte ranges to `EXT-X-MAP` tags
+      ([#8783](https://github.com/google/ExoPlayer/issues/8783)).
+  *   Fix issue that could cause playback to become stuck if corresponding
+      `EXT-X-DISCONTINUITY` tags in different media playlists occur at
+      different positions in time
+      ([#8372](https://github.com/google/ExoPlayer/issues/8372)).
+  *   Fix issue that could cause playback of on-demand content to not start in
+      cases where the media playlists referenced by the master playlist have
+      different starting `EXT-X-PROGRAM-DATE-TIME` tags.
+  *   Fix container type detection for segments with incorrect file extension
+      or HTTP Content-Type
+      ([#8733](https://github.com/google/ExoPlayer/issues/8733)).
+* Text:
+  *   Don't display subtitles after the end position of the current media
+      period (if known). This ensures sideloaded subtitles respect the end
+      point of `ClippingMediaPeriod` and prevents content subtitles from
+      continuing to be displayed over mid-roll ads
+      ([#5317](https://github.com/google/ExoPlayer/issues/5317),
+      [#8456](https://github.com/google/ExoPlayer/issues/8456)).
+  *   Fix CEA-708 priority handling to sort cues in the order defined by the
+      spec ([#8704](https://github.com/google/ExoPlayer/issues/8704)).
+
+##### Release 2.13.1 (2021-02-12) &mdash; [RELEASENOTES.md](https://github.com/google/ExoPlayer/releases/tag/r2.13.1)
+
+The DRM changes here were already cherry-picked related to the "flash to black" issue when transitioning from secure to non-secure decoder, here we have taken their code changes
+
+* DRM:
+  *   Re-use the previous `DrmSessionManager` instance when playing a playlist
+      (if possible)
+      ([#8523](https://github.com/google/ExoPlayer/issues/8523)).
+  *   Propagate DRM configuration when creating media sources for ad content
+      ([#8568](https://github.com/google/ExoPlayer/issues/8568)).
+  *   Only release 'keepalive' references to `DrmSession` in
+      `DefaultDrmSessionManager#release()` if keepalive is enabled
+      ([#8576](https://github.com/google/ExoPlayer/issues/8576)).
+
+##### Release 2.13.0 (2021-02-04) &mdash; [RELEASENOTES.md](https://github.com/google/ExoPlayer/releases/tag/r2.13.0)
+
+Changes to core-library for stuck on `Player.release()` are in our 2.12.3 code base as a cherry pick, the surface detach fix is new.  The Low Latency is the big new feature.
+
+* Core library:
+  *   Time out on release to prevent ANRs if an underlying platform call is
+      stuck ([#4352](https://github.com/google/ExoPlayer/issues/4352)).
+  *   Time out when detaching a surface to prevent ANRs if the underlying
+      platform call is stuck
+      ([#5887](https://github.com/google/ExoPlayer/issues/5887)).
+  *   Fix bug where `AnalyticsListener` callbacks could arrive in the wrong
+      order ([#8048](https://github.com/google/ExoPlayer/issues/8048)).
+* Low latency live streaming:
+  *   Support low-latency DASH (also known as ULL-CMAF) and Apple's
+      low-latency HLS extension.
+  *   Add `LiveConfiguration` to `MediaItem` to define live offset and
+      playback speed adjustment parameters. The same parameters can be set on
+      `DefaultMediaSourceFactory` to apply for all `MediaItems`.
+  *   Add `LivePlaybackSpeedControl` to control playback speed adjustments
+      during live playbacks. Such adjustments allow the player to stay close
+      to the live offset. `DefaultLivePlaybackSpeedControl` is provided as a
+      default implementation.
+* DASH:
+  *   Support low-latency DASH playback (`availabilityTimeOffset` and
+      `ServiceDescription` tags)
+      ([#4904](https://github.com/google/ExoPlayer/issues/4904)).
+* HLS:
+  *   Support playlist delta updates, blocking playlist reloads and rendition
+      reports.
+  *   Support low-latency HLS playback (`EXT-X-PART` and preload hints)
+      ([#5011](https://github.com/google/ExoPlayer/issues/5011)).
+
+* Video:
+  *   Fall back to AVC/HEVC decoders for Dolby Vision streams with level 10
+      to 13 ([#8530](https://github.com/google/ExoPlayer/issues/8530)).
+* Audio:
+  *   Fix handling of audio session IDs ([#8190](https://github.com/google/ExoPlayer/issues/8190)).
+  *   Retry playback after some types of `AudioTrack` error.
+  *   Create E-AC3 JOC passthrough `AudioTrack` instances using the maximum
+      supported channel count (instead of assuming 6 channels) from API 29.
+* Text:
+  *   Add support for the SSA `primaryColour` style attribute
+      ([#8435](https://github.com/google/ExoPlayer/issues/8435)).
+  *   Fix CEA-708 sequence number discontinuity handling
+      ([#1807](https://github.com/google/ExoPlayer/issues/1807)).
+  *   Fix CEA-708 handling of unexpectedly small packets
+      ([#1807](https://github.com/google/ExoPlayer/issues/1807)).
+
+
+
 ### 2.12.3-2.1 (08-02-2022)
 
 #### Our Internal Changes
