@@ -248,6 +248,15 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
                   case C.TYPE_SS:
                     break;
                 }
+
+                // Configure Live Offset
+                itemBuilder.setLiveTargetOffsetMs(30_000)
+//                        .setLiveMinPlaybackSpeed(1.0f)
+//                        .setLiveMaxPlaybackSpeed(1.0f)
+//                        .setLiveMaxOffsetMs(50_000)
+//                        .setLiveMinOffsetMs(20_000)
+                    ;
+
               }
             })
             .setUserAgentPrefix("TenFootDemo");
