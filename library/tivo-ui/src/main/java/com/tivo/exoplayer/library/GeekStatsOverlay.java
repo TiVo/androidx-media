@@ -331,7 +331,7 @@ public class GeekStatsOverlay implements AnalyticsListener, Runnable {
 
     }
 
-    return time + " (" + position + ")";
+    return time + " [live - " + String.format("%.3f", (float) (player.getCurrentLiveOffset() / 1000.0)) +"s] (" + position + ")";
   }
 
 
