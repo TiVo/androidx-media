@@ -181,11 +181,25 @@ public class DefaultMediaSourceLifeCycle implements MediaSourceLifeCycle, Player
         if (!folder.exists()) {
           folder.mkdirs();
         }
+
+        String sourceDir = context.getApplicationInfo().sourceDir;
+        // AAB install will place the libs in split directory. Look for
+        // matching directory with pattern armeabi. We are exporting
+        // armeabi_v7a only
+        String[] splitSourceDirs = context.getApplicationInfo().splitSourceDirs;
+        if (splitSourceDirs != null) {
+            for (String splitSourceDir : splitSourceDirs) {
+                if (splitSourceDir.contains(".armeabi")) {
+                    sourceDir = splitSourceDir;
+                }
+            }
+        }
+
         DataSource.Factory vfactory = (DataSource.Factory) constructor
                 .newInstance(upstreamFactory,
                         filesDir,
                         context.getApplicationInfo().nativeLibraryDir,
-                        context.getApplicationInfo().sourceDir,
+                        sourceDir,
                         vDrmInfo.getCaId(),
                         vDrmInfo.getBootAddr(),
                         vDrmInfo.isDebugOn());
