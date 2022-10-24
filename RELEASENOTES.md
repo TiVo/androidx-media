@@ -4,7 +4,10 @@
 
 First merge of Google's 2.15.1 ExoPlayer release with our `release` branch.   This release skips forward from 2.12.3 accross three major Google .0 releases in order to bring key features post 2.12.3 including:
 
-* HLS and Dash Low Latency with Dynamic Live Offset support (**[Low-latency live streaming with ExoPlayer](https://medium.com/google-exoplayer/low-latency-live-streaming-with-exoplayer-8552d5841060)** )
+* HLS and Dash Low Latency support (**[Low-latency live streaming with ExoPlayer](https://medium.com/google-exoplayer/low-latency-live-streaming-with-exoplayer-8552d5841060)**)
+* Dynamic Live Edge &mdash; Replaces / enhances our `setLiveOffset()` method.  Example call in the tenfoot demo
+  to `MediaItem.setLiveTargetOffsetMs()` does the same feature, except the player maintains this live offset even accross
+  stalling.   This enables features like [Synced Video Playback Between Devices](https://jira.xperi.com/browse/UXPGTM-439?focusedCommentId=5030300)
 * Improvements to DRM Session Management
 * PlaybackException object reports all errors with a numeric list of [errorCode](https://exoplayer.dev/doc/reference/com/google/android/exoplayer2/PlaybackException.html)
 * Update [LoadErrorHandlingPolicy](https://exoplayer.dev/doc/reference/com/google/android/exoplayer2/upstream/LoadErrorHandlingPolicy.html#FALLBACK_TYPE_LOCATION) allowing fallback to another location or track
@@ -16,7 +19,7 @@ The document [tivo-docs/exo_2.15.1/HANDLING_2.15.1_MERGE_CONFLICTS.md](https://g
 1. Cea708Decoder &mdash; requires fixups for open pull requests that conflicted
 2. analytics.PlaybackStatsListenerTest &mdash; Test cases broken by changes to `AnalyticsCollector` also affects trick play metrics
 3. Merge of changes to library-extractor for filler NALU is incomplete
-4. The API for enabling Async queuing has changed ([Async queuing on MultiLockAsyncMediaCodecAdapter](https://github.com/google/ExoPlayer/commit/bc02643df0a1b148df62387cd00ed6e25c1d93f2)) so need to update our call to this in ExoPlayerPlayer
+4. The API for enabling Async queuing has changed ([Async queuing on MultiLockAsyncMediaCodecAdapter](https://github.com/google/ExoPlayer/commit/bc02643df0a1b148df62387cd00ed6e25c1d93f2)) so need to update our call to this in ExoPlayerPlayer.  Until this is done there may be more frame dropping with widevine playback
 5. Our deprecated support for `setLiveOffset()` must be updated to use the new support from Low Latency
 
 #### Our Internal Changes
