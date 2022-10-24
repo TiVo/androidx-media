@@ -244,10 +244,10 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
     }
 
     /**
-     * Set to use asyncrhrounus mode for audio and video
-     * MediaCodec renderers.
+     * Set to use MediaCodec in asynchronous mode for audio and video along with threading options
+     * to improve performance of 60 FPS video content.  If not est the default is used.
      *
-     * @param asyncMode true for async mode...  TODO specify what this means at the MediaCodec level
+     * @param asyncMode true for "async mode" to improve 60FPS operation, if not set default is used
      * @return this builder for chaining
      */
     public Builder setMediaCodecOperationMode(boolean asyncMode) {
@@ -466,7 +466,8 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
     DefaultRenderersFactory renderersFactory = trickPlayControl.createRenderersFactory(context);
 
     if (nonDefaultMediaCodecOperationMode) {
-      // TODO - how to set this in the renderer
+      renderersFactory.experimentalSetAsynchronousBufferQueueingEnabled(mediaCodecAsyncMode);
+      renderersFactory.experimentalSetForceAsyncQueueingSynchronizationWorkaround(mediaCodecAsyncMode);
     }
 
     LoadControl loadControl = trickPlayControl.createLoadControl(controlBuilder.createDefaultLoadControl());
