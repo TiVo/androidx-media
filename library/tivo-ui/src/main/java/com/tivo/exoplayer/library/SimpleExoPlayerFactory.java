@@ -33,6 +33,7 @@ import com.google.android.exoplayer2.trickplay.TrickPlayControlFactory;
 import com.google.android.exoplayer2.util.EventLogger;
 import com.google.android.exoplayer2.util.Log;
 import com.google.android.exoplayer2.util.MimeTypes;
+import com.google.android.exoplayer2.util.Util;
 import com.google.common.base.Predicate;
 import com.tivo.exoplayer.library.errorhandlers.AudioTrackInitPlayerErrorHandler;
 import com.tivo.exoplayer.library.errorhandlers.BehindLiveWindowExceptionRecovery;
@@ -467,7 +468,9 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
 
     if (nonDefaultMediaCodecOperationMode) {
       renderersFactory.experimentalSetAsynchronousBufferQueueingEnabled(mediaCodecAsyncMode);
-      renderersFactory.experimentalSetForceAsyncQueueingSynchronizationWorkaround(mediaCodecAsyncMode);
+      boolean forceAsyncQueueingSynchronizationWorkaround =
+          !Util.MANUFACTURER.toLowerCase().contains("amazon") && mediaCodecAsyncMode;
+      renderersFactory.experimentalSetForceAsyncQueueingSynchronizationWorkaround(forceAsyncQueueingSynchronizationWorkaround);
     }
 
     LoadControl loadControl = trickPlayControl.createLoadControl(controlBuilder.createDefaultLoadControl());
