@@ -31,11 +31,28 @@ class TrickPlayRendererFactory extends DefaultRenderersFactory {
   protected static final int MAX_DROPPED_VIDEO_FRAME_COUNT_TO_NOTIFY = 10;
 
   private final TrickPlayControlInternal trickPlayController;
+  private boolean enableAsyncQueueing;
+  private boolean forceAsyncQueueingSynchronizationWorkaround;
 
   TrickPlayRendererFactory(Context context, TrickPlayControlInternal controller) {
     super(context);
     trickPlayController = controller;
+    enableAsyncQueueing = false;
+    forceAsyncQueueingSynchronizationWorkaround = false;
     setAllowedVideoJoiningTimeMs(0);
+  }
+
+  @Override
+  public DefaultRenderersFactory experimentalSetAsynchronousBufferQueueingEnabled(boolean enabled) {
+    enableAsyncQueueing = enabled;
+    return super.experimentalSetAsynchronousBufferQueueingEnabled(enabled);
+  }
+
+  @Override
+  public DefaultRenderersFactory experimentalSetForceAsyncQueueingSynchronizationWorkaround(
+      boolean enabled) {
+    forceAsyncQueueingSynchronizationWorkaround = enabled;
+    return super.experimentalSetForceAsyncQueueingSynchronizationWorkaround(enabled);
   }
 
   @Override
@@ -57,6 +74,8 @@ class TrickPlayRendererFactory extends DefaultRenderersFactory {
             enableDecoderFallback,
             eventHandler,
             eventListener, MAX_DROPPED_VIDEO_FRAME_COUNT_TO_NOTIFY);
+    videoRenderer.experimentalSetAsynchronousBufferQueueingEnabled(enableAsyncQueueing);
+    videoRenderer.experimentalSetForceAsyncQueueingSynchronizationWorkaround(forceAsyncQueueingSynchronizationWorkaround);
     out.add(videoRenderer);
   }
 
