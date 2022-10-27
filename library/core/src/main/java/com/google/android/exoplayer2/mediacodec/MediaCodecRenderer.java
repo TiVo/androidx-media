@@ -889,6 +889,14 @@ public abstract class MediaCodecRenderer extends BaseRenderer {
     return false;
   }
 
+  // TIVO_CHANGE_BEGIN
+  protected void flushForSingleIFrameSeek() {
+    // Clear codecReceivedBuffers so drainAndUpdateCodecDrmSession() will update on a key rotation
+    // if necessary after the seek.
+    codecReceivedBuffers = false;
+  }
+// TIVO_CHANGE_END
+
   /** Flushes the codec. */
   private void flushCodec() {
     try {

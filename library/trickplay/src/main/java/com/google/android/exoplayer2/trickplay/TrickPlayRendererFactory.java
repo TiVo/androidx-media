@@ -191,9 +191,9 @@ class TrickPlayRendererFactory extends DefaultRenderersFactory {
     @Override
     protected boolean flushOrReleaseCodec() {
       if (!skipFlush) {
-      return super.flushOrReleaseCodec();
-      }
-      else {
+        return super.flushOrReleaseCodec();
+      } else {
+        super.flushForSingleIFrameSeek();
         return false;
       }
     }
