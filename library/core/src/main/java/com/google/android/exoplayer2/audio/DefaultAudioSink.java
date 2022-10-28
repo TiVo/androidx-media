@@ -2146,6 +2146,10 @@ public final class DefaultAudioSink implements AudioSink {
         // Maintain the buffer duration by scaling the size accordingly.
         bufferSize = Math.round(bufferSize * maxAudioTrackPlaybackSpeed);
       }
+      // TIVO_CHANGE_BEGIN
+      bufferSize *= 4;
+      Log.w(TAG, "getPcmDefaultBufferSize is now " + bufferSize);
+      // TIVO_CHANGE_END
       return bufferSize;
     }
 
