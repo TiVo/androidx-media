@@ -516,10 +516,11 @@ public final class H264Reader implements ElementaryStreamReader {
      */
     public boolean endOfStream(boolean hasOutputFormat, long totalBytesWritten) {
       // If we're still holding on to the first iframe sample output it now.
-      // This is allows iframe track trick play to a download a single iframe per seek.
+      // This is allows iframe track trick play to download a single iframe per seek.
       boolean shouldOutputSample = hasOutputFormat
           && readingSample
-          && (sampleIsKeyframe || nalUnitType == NAL_UNIT_TYPE_IDR)
+          && (sampleIsKeyframe || nalUnitType == NAL_UNIT_TYPE_IDR
+            || (!detectAccessUnits && nalUnitType == NAL_UNIT_TYPE_NON_IDR ))
           && (samplePosition == 1); // it's the only sample in the stream
       if (shouldOutputSample) {
         output.sampleMetadata(sampleTimeUs, C.BUFFER_FLAG_KEY_FRAME, (int)totalBytesWritten, 0, null);
