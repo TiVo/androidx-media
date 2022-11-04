@@ -2299,6 +2299,12 @@ public final class Util {
           Util.SDK_INT < 28
               ? getSystemProperty("sys.display-size")
               : getSystemProperty("vendor.display-size");
+      // TIVO_CHANGE_BEGIN
+      if (TextUtils.isEmpty(displaySize)) {
+        Log.e(TAG, "Invalid display-size so trying vendor.nx.display-size");
+        displaySize = getSystemProperty("vendor.nx.display-size");
+      }
+      // TIVO_CHANGE_END
       // If we managed to read the display size, attempt to parse it.
       if (!TextUtils.isEmpty(displaySize)) {
         try {
