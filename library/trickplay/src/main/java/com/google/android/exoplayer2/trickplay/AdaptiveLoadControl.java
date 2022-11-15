@@ -5,8 +5,8 @@ import com.google.android.exoplayer2.LoadControl;
 import com.google.android.exoplayer2.Renderer;
 import com.google.android.exoplayer2.source.TrackGroupArray;
 import com.google.android.exoplayer2.trackselection.ExoTrackSelection;
-import com.google.android.exoplayer2.trackselection.TrackSelectionArray;
 import com.google.android.exoplayer2.upstream.Allocator;
+import com.google.android.exoplayer2.util.Log;
 import com.google.android.exoplayer2.util.Util;
 
 public class AdaptiveLoadControl implements LoadControl, TrickPlayEventListener {
@@ -85,7 +85,6 @@ public class AdaptiveLoadControl implements LoadControl, TrickPlayEventListener 
           break;
 
         case NONE:
-          requiredBufferedTimeUs = C.TIME_UNSET;
           break;
       }
     }
@@ -93,39 +92,51 @@ public class AdaptiveLoadControl implements LoadControl, TrickPlayEventListener 
     if (requiredBufferedTimeUs != C.TIME_UNSET) {
       shouldContinue = bufferedDurationUs < requiredBufferedTimeUs;
     }
-//
-//    if (trickPlayController.getCurrentTrickDirection() == TrickPlayControl.TrickPlayDirection.REVERSE) {
-//      Log.d(TAG, "shouldContinueLoading() - speed: " + playbackSpeed + " buffered: " + bufferedDurationUs);
-//    }
     return shouldContinue;
   }
 
+  /**
+   * This override uses trick-play specific values depending on the mode.
+   *
+   * For forward playback (here playbackSpeed indicates the rate at which media will be consumed)
+   * we ignore rebuffering (set to false always) in order to use the minimum required buffer duration
+   * for playback start ({@link com.google.android.exoplayer2.DefaultLoadControl.Builder#setBufferDurationsMs(int, int, int, int)}'s
+   * third argument, bufferForPlaybackMs).  For frame by frame based modes (SCRUB and REVERSE) return true always,
+   * as play when ready is false (we are only rendering first frame).
+   *
+   * @param bufferedDurationUs The duration of media that's currently buffered.
+   * @param playbackSpeed The current factor by which playback is sped up.
+   * @param rebuffering Whether the player is rebuffering. A rebuffer is defined to be caused by
+   *     buffer depletion rather than a user action. Hence this parameter is false during initial
+   *     buffering and when buffering as a result of a seek operation.
+   * @param targetLiveOffsetUs The desired playback position offset to the live edge in
+   *     microseconds, or {@link C#TIME_UNSET} if the media is not a live stream or no offset is
+   *     configured.
+   * @return value of super or modified value if in trick-play mode.
+   */
   @Override
   public boolean shouldStartPlayback(long bufferedDurationUs, float playbackSpeed,
       boolean rebuffering, long targetLiveOffsetUs) {
     boolean defaultShouldStart =
         delegate.shouldStartPlayback(bufferedDurationUs, playbackSpeed, rebuffering, targetLiveOffsetUs);
 
-    if (trickPlayController.getCurrentTrickDirection() == TrickPlayControl.TrickPlayDirection.SCRUB) {
-//      Log.d(TAG, "shouldStartPlayback() - speed: " + playbackSpeed + " buffered: " + bufferedDurationUs + " rebuffer: " + rebuffering + " super:shouldStartPlayback(): " + defaultShouldStart);
-      defaultShouldStart = true;
+    switch (trickPlayController.getCurrentTrickDirection()) {
+
+      case FORWARD:
+        // ignore rebuffering flag during VTP to avoid trying to be overly aggressive in rebuffering before starting playback.
+        defaultShouldStart = delegate.shouldStartPlayback(bufferedDurationUs, playbackSpeed, false, targetLiveOffsetUs);
+        if (!defaultShouldStart) {
+          Log.d(TAG, "shouldStartPlayback() delaying for buffering - buffered(ms): " + C.usToMs(bufferedDurationUs) + " speed: " + playbackSpeed);
+        }
+        break;
+      case NONE:
+      case REVERSE:
+        break;
+      case SCRUB:
+        defaultShouldStart = true;    // TODO probably does not matter as we are paused
+        break;
     }
 
     return defaultShouldStart;
-  }
-
-  @Override
-  public void playlistMetadataValid(boolean isMetadataValid) {
-
-  }
-
-  @Override
-  public void trickPlayModeChanged(TrickPlayControl.TrickMode newMode, TrickPlayControl.TrickMode prevMode) {
-
-  }
-
-  @Override
-  public void trickFrameRendered(long frameRenderTimeUs) {
-
   }
 }

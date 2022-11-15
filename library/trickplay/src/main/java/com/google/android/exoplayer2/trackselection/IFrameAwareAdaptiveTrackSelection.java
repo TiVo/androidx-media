@@ -12,9 +12,11 @@ import com.google.android.exoplayer2.trickplay.TrickPlayControlInternal;
 import com.google.android.exoplayer2.trickplay.hls.AugmentedPlaylistParser;
 import com.google.android.exoplayer2.upstream.BandwidthMeter;
 import com.google.android.exoplayer2.util.Clock;
+import com.google.android.exoplayer2.util.Log;
 import com.google.android.exoplayer2.util.MimeTypes;
 
 import com.google.common.collect.ImmutableList;
+import java.text.Normalizer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
@@ -194,7 +196,7 @@ public class IFrameAwareAdaptiveTrackSelection extends AdaptiveTrackSelection {
       if (prevMode != null && size > 1) {
         Float currentSpeed = control.getSpeedFor(currMode);
         Float prevSpeed = control.getSpeedFor(prevMode);
-        if (control.getTargetFrameRateForPlaybackSpeed(currentSpeed) < control.getTargetFrameRateForPlaybackSpeed(prevSpeed)) {
+        if (control.getTargetFrameRateForPlaybackSpeed(currentSpeed) != control.getTargetFrameRateForPlaybackSpeed(prevSpeed)) {
           Format bestFormat = closestTargetFrameRateMatch(currentSpeed);
           boolean firstOldFormatFound = false;
           for (int i = 1; i < queue.size() && ! firstOldFormatFound; i++) {
@@ -203,6 +205,13 @@ public class IFrameAwareAdaptiveTrackSelection extends AdaptiveTrackSelection {
               size = i;
               firstOldFormatFound = true;
             }
+          }
+          if (firstOldFormatFound) {
+            Log.d(TAG, "evaluateQueueSize() - queue.size() = " + queue.size()
+                + " discard " + (queue.size() - size)
+                + " selected: " + Format.toLogString(getSelectedFormat())
+                + " best: " + Format.toLogString(bestFormat)
+            );
           }
         }
       }
