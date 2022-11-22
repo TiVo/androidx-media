@@ -20,7 +20,7 @@ At this point you will have one *origin* remote that is named `tivo-pvt` and you
 
 If you are working on code that will ultimately be shared with the ExoPlayer opensource (the most likely case), it is helpful to setup additional remotes to the two public GitHub repositories we will work with
 
-1. [TiVo Corporate ExoPlayer Fork](https://github.com/TiVo/ExoPlayer) &mdash; The *tivo-public* repository, used to publish branches for pull requests.  Request push access from Alon Rohter
+1. [TiVo Corporate ExoPlayer Fork](https://github.com/TiVo/ExoPlayer) &mdash; The *tivo-public* repository, used to publish branches for pull requests.
 2. [Google's ExoPlayer GitHub](https://github.com/google/ExoPlayer) &mdash; *upstream*, the GitHub Google publishes ExoPlayer releases too, our ultimate goal for code changes is to live here.
 
 To add both of these, use these commands:
@@ -30,9 +30,17 @@ git remote add tivo-public https://github.com/TiVo/ExoPlayer
 git remote add upstream https://github.com/google/ExoPlayer
 ```
 
-### Accessing Public Repository ###
+### Getting push access to Tivo Public Repository ###
+1. Create a Servicenow ticket (RITM) and ask to be added to `CN=Okta Github Users,OU=Okta,OU=Groups,OU=CORP,DC=corp,DC=xperi,DC=com` &mdash; AD/LDAP Security Group. Here is a [sample](https://tivo.service-now.com/ess/ticket_status.do?sys_id=78acb177878f9d505c8464283cbb35a8&sys_class_name=sc_req_item&sysparm_view=ess) request.
+2. Email Alon Rother for access to the `tivo-public` remote GitHub.
+3. Once you can [SSO log in](https://github.com/orgs/TiVo/sso) to github, [authorise](https://docs.github.com/en/enterprise-cloud@latest/authentication/authenticating-with-saml-single-sign-on/authorizing-an-ssh-key-for-use-with-saml-single-sign-on) your ssh key
 
-Email Alon Rother for access to the `tivo-public` remote GitHub.  You must also be added to the [Google CLA](https://opensource.google/docs/cla/) in order to make pull requests with TiVo code, email Steve Mayhew for access to this and approval for sharing your specific changes.
+### Google CLA ###
+You must also be added to the [Google CLA](https://opensource.google/docs/cla/) in order to make pull requests with TiVo code.
+1) Create a Google account with your xperi.com email.
+2) Email Steve Mayhew to be added to Google Group tivo-exo@googlegroups.com
+3) On recieving the invite, it is IMPORTANT that you are logged in with the xperi.com email above. Best practice is to copy and paste the link of the invite into the browser you are sure is signed in with the correct email. If not, you will have to repeat steps 2-3
+4) Being added to the group also sets up your CLA. Confirm you are [added](https://groups.google.com/my-groups?pli=1) to tivo-exo@googlegroups.com and [signed up](https://cla.developers.google.com/clas) to the CLA.
 
 ## Making Changes ##
 ExoPlayer is not a TiVo product, this is the mind set we want, the vast majority of changes will come from Google.  Our goal is to push all code changes we make (that are not proprietary) to *upstream* via the `tivo-public` github and pull requests.
