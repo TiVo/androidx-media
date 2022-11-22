@@ -10,6 +10,7 @@ import androidx.annotation.RequiresApi;
 
 import androidx.annotation.VisibleForTesting;
 import com.google.android.exoplayer2.C;
+import com.google.android.exoplayer2.DefaultLivePlaybackSpeedControl;
 import com.google.android.exoplayer2.DefaultLoadControl;
 import com.google.android.exoplayer2.DefaultRenderersFactory;
 import com.google.android.exoplayer2.ExoPlaybackException;
@@ -488,9 +489,11 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
 
     LoadControl loadControl = trickPlayControl.createLoadControl(controlBuilder.createDefaultLoadControl());
 
+    DefaultLivePlaybackSpeedControl livePlaybackSpeedControl = new DefaultLivePlaybackSpeedControl.Builder().build();
     player = new SimpleExoPlayer.Builder(context, renderersFactory)
             .setTrackSelector(trackSelector)
             .setLoadControl(loadControl)
+            .setLivePlaybackSpeedControl(livePlaybackSpeedControl)
             .build();
 
 
@@ -500,6 +503,9 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
 
     AnalyticsListener logger = eventListenerFactory.createEventLogger(trackSelector);
     if (logger != null) {
+      if (logger instanceof ExtendedEventLogger) {
+        ((ExtendedEventLogger)logger).setCurrentSpeedControl(livePlaybackSpeedControl);
+      }
       player.addAnalyticsListener(logger);
     }
     playerErrorHandler = createPlayerErrorHandler();

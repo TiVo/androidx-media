@@ -22,6 +22,7 @@ import com.google.android.exoplayer2.util.Util;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.Date;
+import java.util.Formatter;
 import java.util.Locale;
 
 /**
@@ -307,31 +308,38 @@ public class GeekStatsOverlay implements AnalyticsListener, Runnable {
 
   protected String getPositionString() {
     String time = "";
-    long position = 0L;
+
+    StringBuilder timeString = new StringBuilder();
 
     if (player != null) {
-      position = player.getCurrentPosition();
+      long position = player.getCurrentPosition();
+      Formatter formatter = new Formatter(timeString);
 
       Timeline timeline = player.getCurrentTimeline();
       if (! timeline.isEmpty()) {
         int windowIndex = player.getCurrentWindowIndex();
         Timeline.Window currentWindow = timeline.getWindow(windowIndex, new Timeline.Window());
-        long absTime;
-        DateFormat format;
-        if (currentWindow.windowStartTimeMs == C.TIME_UNSET) {
-          format = UTC_TIME;
-          absTime = position;
+        if (currentWindow.windowStartTimeMs == C.TIME_UNSET) {    // VOD
+          formatter.format("%1$tT.%1$tL (%1$d)", position);
+        } else if (currentWindow.isLive()) {
+          formatter.format("%1$tF %1$tT.%1$tL [live - %3$.3f] (%2$d)",
+              currentWindow.windowStartTimeMs + position,
+              position,
+              player.getCurrentLiveOffset() / 1000.0
+          );
         } else {
-          format = UTC_DATETIME;
-          absTime = currentWindow.windowStartTimeMs + position;
+          formatter.format("%1$tF %1$tT.%1$tL [ended live] (%2$d)",
+              currentWindow.windowStartTimeMs + position,
+              position,
+              player.getCurrentLiveOffset() / 1000.0
+          );
         }
-        Date currentMediaTime = new Date(absTime);
-        time = format.format(currentMediaTime);
+        time = formatter.toString();
       }
 
     }
 
-    return time + " [live - " + String.format("%.3f", (float) (player.getCurrentLiveOffset() / 1000.0)) +"s] (" + position + ")";
+    return time;
   }
 
 

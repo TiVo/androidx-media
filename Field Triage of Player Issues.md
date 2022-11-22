@@ -86,20 +86,20 @@ The timeline event reports the playlist updates, the playlist defines the seek b
 An example VOD timeline event:
 
 ````
-07-20 11:56:04.493 25219 25219 D EventLogger: timeline [eventTime=9222.35, mediaPos=0.00, buffered=0.0, window=0, periodCount=1, windowCount=1, reason=PREPARED
+07-20 11:56:04.493 25219 25219 D EventLogger: timeline [eventTime=9222.35, mediaPos=0.00, buffered=0.0, window=0, periodCount=1, windowCount=1, reason=PLAYLIST_CHANGED
 07-20 11:56:04.493 25219 25219 D EventLogger:   period [1807.81]
 07-20 11:56:04.493 25219 25219 D EventLogger:   window [1807.81, true, false]
 07-20 11:56:04.493 25219 25219 D EventLogger: ]
 ````
 
-The `reason=PREPARED` indicate this is the initial timeline (for VOD this will be the only event).  The `window [1807.81, true, false]` indicates the playlist is 1807.81 seconds long and not dynamic.
+The `reason=PLAYLIST_CHANGED` indicate this is the initial timeline (for VOD this will be the only event).  The `window [1807.81, true, false]` indicates the playlist is 1807.81 seconds long and not dynamic.
 
 Live and Event timeline events are more interesting, these must occur no less frequently then the playlist update interval (specified in the `EXT-X-TARGETDURATION` header in the playlist).  These events should happen every target duration, if not you will see error [V552](#v552).
 
-Update here will have `reason=DYNAMIC`, an example timeline update for live:
+Update here will have `reason=SOURCE_UPDATE`, an example timeline update for live:
 
 ````
-07-20 12:08:28.315 25219 25219 D EventLogger: timeline [eventTime=9966.17, mediaPos=569.35, buffered=13.65, window=0, period=0, periodCount=1, windowCount=1, reason=DYNAMIC
+07-20 12:08:28.315 25219 25219 D EventLogger: timeline [eventTime=9966.17, mediaPos=569.35, buffered=13.65, window=0, period=0, periodCount=1, windowCount=1, reason=SOURCE_UPDATE
 07-20 12:08:28.315 25219 25219 D EventLogger:   period [?]
 07-20 12:08:28.315 25219 25219 D EventLogger:   window [594.59, true, true]
 07-20 12:08:28.315 25219 25219 D EventLogger: ]
@@ -111,6 +111,47 @@ For live the playback position (`mediaPos`) should remain near the edge of the w
 ````
 
 The player starts 3 segments from the window edge for live (for 6 second segments, that is 18 seconds).  The player will drift closer or further from the live edge depending on how regular the origin server updates the playlist and how fresh the edge cached copy of the playlist is.
+
+#### Timeline Initialized
+
+This event will follow the first `Timeline` event, and has different forms for Live / uncompleted SOCU, completed SOCU, and VOD.  
+
+For Live, the events look like:
+
+```
+11-29 11:04:40.009 22854 22854 D EventLogger: timelineInitialized [eventTime=1.48, mediaPos=1765.76, buffered=0.00, window=0, period=0, Live - duration: 1795.794000, endTime: 2022-11-29 11:04:32.592 (1669748672592), window live setback: 7.41400, startOffset: 30.030, targetLiveOffset: 37.32300]
+```
+
+In addtion to the general format are these values:
+
+* *duration* &mdash; playlist duration in seconds
+* *endTime* &mdash; playlist endTime (start + duration), as a time and in microseconds
+* *window live setback* &mdash; real-time now - the playlist endTime, this is the origin/edge pipeline delay, in seconds
+* *startOffset* &mdash; default start position offset from playlist end, in this example set by `EXT-X-START:30`
+* *targetLiveOffset* &mdash; the target live offset, either set from the playback request (`MediaItem`) or computed based on the `startOffset`.   Here it is set from the startOffset (30.030 + live offset)
+
+#### Timeline Changed
+
+These will only occur for live playback (for obvious reasons).  This `timelineChanged` event is logged when the client recieves a completed load for a primary (current video) playlist and the playlist has changed (either segments removed, added or both) 
+
+The entries look like:
+
+```
+11-29 11:11:59.232 22854 22854 D EventLogger: timelineChanged [eventTime=440.71, mediaPos=1764.01, buffered=19.80, window=0, period=0, deltaLast: 9.62500, addedLast: 12.01200, duration: 1795.794000, endTime: 2022-11-29 11:11:51.030 (1669749111030), window live setback: 8.20100, position window offset: 31.782000, currentLiveOffset: 39.98300, targetLiveOffset: 37.32300, currTargetLiveOffset: 37.32300]
+
+```
+
+In addtion to the general format are these values:
+
+* *deltaLast*  &mdash; time since the last playlist changed.  This is largely controlled by the origin server, but will be bounded by the required polling from Pantos [6.3.4. Reloading the Media Playlist File](https://datatracker.ietf.org/doc/html/draft-pantos-hls-rfc8216bis-09#section-6.3.4)
+* *addedLast*  &mdash; Media time added in this playlist update (segments).  Again this is largely controlled by the origin server, if it is less then one segment worth that will cause buffer depletion.
+* *duration* &mdash; playlist duration in seconds
+* *endTime* &mdash; playlist endTime (start + duration), as a time and in microseconds.   This should increase each playlist update, by the amount of *addedLast*.
+* *window live setback* &mdash; real-time now - the playlist endTime, this is the origin/edge pipeline delay, in seconds.  It is entirely controlled by how fast the edge/origin produces and publishes live segments.
+* *position window offset* &mdash; time from current position to the window edge (*duration*) in seconds.  This is basically the max segments available to buffer.
+* *currentLiveOffset* &mdash; offset of the current playback position from real-time (`now()` on the player).  Same as *position window offset* + *window live setback*
+* *targetLiveOffset* &mdash; the current setting for target live offset, it can only change from the initial *targetLiveOffset* if that value falls out of the range of the window (that is if *window live setback* increases enough that this value exceeds it)
+* *currTargetLiveOffset* &mdash; when the *currentLiveOffset* does not match the *targetLiveOffset* the player adjusts playback speed (very slightly).  This value is a reflection of how the player is accomplising the adjustment.  
 
 <div id="playback-state"/>
 
@@ -166,10 +207,10 @@ Of particular interest when diagnosing stalls is the load duration, this must be
 And a playlist load example completion:
 
 ````
-06-23 10:58:15.883 18336 18336 D EventLogger: loadCompletedMedia [eventTime=870.28, mediaPos=3299.41, buffered=174.06, window=0, period=0, trackId: iFrame-0 load-duration: 48ms codecs: avc1.640020 start(dur): 4344468/14014 offset/len: 1682600/29892 uri: http://frumos.tivo.com/ccur-session/01_3669909912/rolling-buffer/media/kgo/kgo/transmux/CCURStream_video_MultiPortMulticast2_1624470900-CCUR_iframe.tsv]
+11-22 08:53:47.322 25191 25191 D EventLogger: loadCompletedPlaylist [eventTime=2592.35, mediaPos=1787.24, buffered=8.57, window=0,  load-duration: 799ms uri: http://frumos.tivo.com/ccur-session/01_262825606/rolling-buffer/...]
 ````
 
-Live playlist loads should trigger a [Timeline](#timeline) update event, if not the origin/transcoder is not producing new segments quickly enough which can result in stalls.
+Live playlist loads for the primary playlist (current video level) should trigger a [Timeline](#timeline) update event, if not the origin/transcoder is not producing new segments quickly enough which can result in stalls.
 
 <div id="load-error"/>
 
@@ -522,7 +563,7 @@ The origin server produces and ExoPlayer parses:
 Issues in the format of any of these will cause ExoPlayer to stop playback and report this error.
 
 To find the root cause, look for the actual `ParserException` in the log file.  For example, the error:
-  
+
 >  *Cannot find sync byte. Most likely not a Transport Stream.*
 
 Indicates the segment is corrupted, this is either the result of an incorrect decryption key or initialization vector or the origin server truncated the segment.
