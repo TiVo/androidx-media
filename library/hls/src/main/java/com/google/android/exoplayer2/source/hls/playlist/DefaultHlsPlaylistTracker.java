@@ -750,12 +750,27 @@ public final class DefaultHlsPlaylistTracker
       }
       long durationUntilNextLoadUs = 0L;
       if (!playlistSnapshot.serverControl.canBlockReload) {
-        // If blocking requests are not supported, do not allow the playlist to load again within
-        // the target duration if we obtained a new snapshot, or half the target duration otherwise.
+        // If blocking requests are not supported, follow rules from
+        // Section 6.3.4 - Reloading the Media Playlist File
+        // (https://datatracker.ietf.org/doc/html/draft-pantos-hls-rfc8216bis-12#section-6.3.4).
+        // That is duration of last segment if playlist changed, otherwise half the target duration.
+        //
+        long ifChangedNextLoadUs =
+            playlistSnapshot.segments.size() > 0
+                ? playlistSnapshot.segments.get(playlistSnapshot.segments.size() - 1).durationUs
+                : playlistSnapshot.targetDurationUs;
+
         durationUntilNextLoadUs =
             playlistSnapshot != oldPlaylist
-                ? playlistSnapshot.targetDurationUs
+                ? ifChangedNextLoadUs
                 : (playlistSnapshot.targetDurationUs / 2);
+
+        // remove playlist load duration (up to 20% of targetDuration) from the time to prevent drift
+        durationUntilNextLoadUs -=
+            Math.min(
+                C.msToUs(loadEventInfo.loadDurationMs),
+                (playlistSnapshot.targetDurationUs * 20) / 100
+            );
       }
       earliestNextLoadTimeMs = currentTimeMs + C.usToMs(durationUntilNextLoadUs);
       // Schedule a load if this is the primary playlist or a playlist of a low-latency stream and
