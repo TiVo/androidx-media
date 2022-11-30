@@ -14,7 +14,9 @@ import com.google.android.exoplayer2.LoadControl;
 import com.google.android.exoplayer2.Player;
 import com.google.android.exoplayer2.Timeline;
 import com.google.android.exoplayer2.source.TrackGroup;
-import com.google.android.exoplayer2.source.hls.HlsManifest;
+import com.google.android.exoplayer2.source.hls.playlist.DefaultHlsPlaylistParserFactory;
+import com.google.android.exoplayer2.source.hls.playlist.HlsPlaylistParserFactory;
+import com.google.android.exoplayer2.trickplay.hls.DualModeHlsPlaylistParserFactory;
 import com.google.android.exoplayer2.trickplay.hls.FrameRateAnalyzer;
 import com.google.android.exoplayer2.util.MimeTypes;
 import java.util.ArrayList;
@@ -31,7 +33,6 @@ import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
 
 import com.google.android.exoplayer2.C;
 import com.google.android.exoplayer2.PlaybackParameters;
-import com.google.android.exoplayer2.RenderersFactory;
 import com.google.android.exoplayer2.SimpleExoPlayer;
 import com.google.android.exoplayer2.analytics.AnalyticsListener;
 import com.google.android.exoplayer2.source.TrackGroupArray;
@@ -81,9 +82,9 @@ class TrickPlayController implements TrickPlayControlInternal {
     private final LastNPositions lastRenderPositions = new LastNPositions();
     private boolean playbackSpeedForwardTrickPlayEnabled = true;
 
-    /** Setup on first playlist load, used to resolve the frame rate for an iFrame variant
+    /** Created by the DualModeHlsPlaylistParserFactory, used to resolve the frame rate for an iFrame variant
      */
-    private FrameRateAnalyzer frameRateAnalyzer;
+    @Nullable private FrameRateAnalyzer frameRateAnalyzer;
 
     TrickPlayController(DefaultTrackSelector trackSelector) {
         this.trackSelector = trackSelector;
@@ -274,20 +275,9 @@ class TrickPlayController implements TrickPlayControlInternal {
         public void onTimelineChanged(EventTime eventTime, @Player.TimelineChangeReason int reason) {
             switch (reason) {
                 case Player.TIMELINE_CHANGE_REASON_PLAYLIST_CHANGED:        // TODO - VTP should have exited ?
-                    frameRateAnalyzer = null;
                     break;
                 case Player.TIMELINE_CHANGE_REASON_SOURCE_UPDATE:
                     Timeline timeline = eventTime.timeline;
-
-                    // TODO, this will need changes for DASH, and it only supports single window timeline
-                    Timeline.Window window = timeline.getWindow(0, new Timeline.Window());
-                    if (window.manifest instanceof HlsManifest) {
-                        HlsManifest manifest = (HlsManifest) window.manifest;
-                        if (frameRateAnalyzer == null) {
-                            frameRateAnalyzer = new FrameRateAnalyzer(FrameRateAnalyzer.findIFrameOnlySourceFormat(manifest.masterPlaylist));
-                        }
-                        frameRateAnalyzer.playlistUpdated(manifest.masterPlaylist, manifest.mediaPlaylist);
-                    }
                     exitTrickPlayIfTimelineExceeded(timeline);
                     break;
             }
@@ -594,6 +584,17 @@ class TrickPlayController implements TrickPlayControlInternal {
     @Override
     public LoadControl createLoadControl(LoadControl delegate) {
         return new AdaptiveLoadControl(this, delegate);
+    }
+
+    @Override
+    public HlsPlaylistParserFactory createHlsPlaylistParserFactory(boolean useDualMode) {
+        HlsPlaylistParserFactory factory = new DefaultHlsPlaylistParserFactory();
+        if (useDualMode) {
+            DualModeHlsPlaylistParserFactory dualModeFactory = new DualModeHlsPlaylistParserFactory(factory);
+            frameRateAnalyzer = dualModeFactory.getFrameRateAnalyzer();
+            factory = dualModeFactory;
+        }
+        return factory;
     }
 
     @Override

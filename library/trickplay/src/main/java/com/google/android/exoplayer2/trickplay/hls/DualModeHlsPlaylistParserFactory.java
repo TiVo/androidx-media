@@ -1,5 +1,6 @@
 package com.google.android.exoplayer2.trickplay.hls;
 
+import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import com.google.android.exoplayer2.source.hls.playlist.HlsMasterPlaylist;
 import com.google.android.exoplayer2.source.hls.playlist.HlsMediaPlaylist;
@@ -10,6 +11,7 @@ import com.google.android.exoplayer2.upstream.ParsingLoadable;
 public class DualModeHlsPlaylistParserFactory implements HlsPlaylistParserFactory {
     private final int[] subsetTargets;
     private final HlsPlaylistParserFactory delegatePlaylistParserFactory;
+    private final FrameRateAnalyzer frameRateAnalyzer;
 
     /**
      * Create a dual-mode {@link HlsPlaylistParserFactory} implementation.
@@ -29,6 +31,7 @@ public class DualModeHlsPlaylistParserFactory implements HlsPlaylistParserFactor
     public DualModeHlsPlaylistParserFactory(HlsPlaylistParserFactory delegateFactory, int[] subsets) {
         delegatePlaylistParserFactory = delegateFactory;
         subsetTargets = subsets;
+        frameRateAnalyzer = new FrameRateAnalyzer();
     }
 
     /**
@@ -41,16 +44,38 @@ public class DualModeHlsPlaylistParserFactory implements HlsPlaylistParserFactor
         this(delegateFactory, new int[] {2, 3, 4, 5});
     }
 
+    /**
+     * Accessor for the FrameRateAnalyzer is used by the TrickPlayController for adaptive rate
+     * shifting trickplay tracks.   This is unfortunately required for two reasons:
+     *
+     * <ol>
+     *   <li>HLS master playlists for iFrame variants do not report frame-rate attribute</li>
+     *   <li>The Format object created by the master playlist parse is immuteable, so not possible
+     *   to change the frame rate after playlist is loaded</li>
+     * </ol>
+     *
+     * The FrameRateAnalzyer returned by this method lives for the life of this factory.
+     *
+     * @return FrameRateAnalzyer object
+     */
+    public FrameRateAnalyzer getFrameRateAnalyzer() {
+        return frameRateAnalyzer;
+    }
+
+    @NonNull
     @Override
     public ParsingLoadable.Parser<HlsPlaylist> createPlaylistParser() {
+        frameRateAnalyzer.resetOnNewMasterPlaylist();
         return new AugmentedPlaylistParser(delegatePlaylistParserFactory.createPlaylistParser(), subsetTargets);
     }
 
+    @NonNull
     @Override
     public ParsingLoadable.Parser<HlsPlaylist> createPlaylistParser(
-        HlsMasterPlaylist masterPlaylist,
+        @NonNull HlsMasterPlaylist masterPlaylist,
         @Nullable HlsMediaPlaylist previousMediaPlaylist) {
-        return new FrameCuratorPlaylistParser(delegatePlaylistParserFactory, masterPlaylist, previousMediaPlaylist);
+        return new FrameCuratorPlaylistParser(delegatePlaylistParserFactory, frameRateAnalyzer, masterPlaylist,
+            previousMediaPlaylist);
     }
 
 }

@@ -2,6 +2,7 @@ package com.google.android.exoplayer2.trickplay.hls;
 
 import android.net.Uri;
 import android.util.Pair;
+import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.annotation.VisibleForTesting;
 
@@ -26,13 +27,20 @@ public class FrameCuratorPlaylistParser implements ParsingLoadable.Parser<HlsPla
     private final ParsingLoadable.Parser<HlsPlaylist> parserDelegate;
     private final Map<Uri, HlsMediaPlaylist> previousPlaylists;
     private final Map<Uri, HlsMediaPlaylist> previousSourcePlaylist;
+    @Nullable private final HlsMasterPlaylist masterPlaylist;
+    @Nullable private final HlsMediaPlaylist previousMediaPlaylist;
+    @Nullable private final FrameRateAnalyzer frameRateAnalyzer;
 
     public FrameCuratorPlaylistParser(HlsPlaylistParserFactory hlsPlaylistParserFactory,
-        HlsMasterPlaylist masterPlaylist,
-        @Nullable HlsMediaPlaylist previousMediaPlaylist) {
-        parserDelegate = hlsPlaylistParserFactory.createPlaylistParser(masterPlaylist, previousMediaPlaylist);
+        @Nullable FrameRateAnalyzer rateAnalyzer,
+        @NonNull HlsMasterPlaylist hlsMasterPlaylist,
+        @Nullable HlsMediaPlaylist previousHlsMediaPlaylist) {
+        parserDelegate = hlsPlaylistParserFactory.createPlaylistParser(hlsMasterPlaylist, previousHlsMediaPlaylist);
         previousPlaylists = new HashMap<>();
         previousSourcePlaylist = new HashMap<>();
+        frameRateAnalyzer = rateAnalyzer;
+        masterPlaylist = hlsMasterPlaylist;
+        previousMediaPlaylist = previousHlsMediaPlaylist;
     }
 
     @VisibleForTesting
@@ -40,10 +48,14 @@ public class FrameCuratorPlaylistParser implements ParsingLoadable.Parser<HlsPla
         parserDelegate = new DefaultHlsPlaylistParserFactory().createPlaylistParser();
         previousPlaylists = new HashMap<>();
         previousSourcePlaylist = new HashMap<>();
+        frameRateAnalyzer = null;
+        masterPlaylist = null;
+        previousMediaPlaylist = null;
     }
 
+    @NonNull
     @Override
-    public HlsPlaylist parse(Uri uri, InputStream inputStream) throws IOException {
+    public HlsPlaylist parse(@NonNull Uri uri, @NonNull InputStream inputStream) throws IOException {
         HlsPlaylist playlist = parserDelegate.parse(uri, inputStream);
         if (playlist instanceof HlsMediaPlaylist && uri.getFragment() != null) {
             int subsetTarget = Integer.parseInt(uri.getFragment());
@@ -61,6 +73,15 @@ public class FrameCuratorPlaylistParser implements ParsingLoadable.Parser<HlsPla
             previousPlaylists.put(uri, curatedPlaylist);
             previousSourcePlaylist.put(uri, sourcePlaylist);
             playlist = curatedPlaylist;
+        }
+        if (playlist instanceof HlsMediaPlaylist && frameRateAnalyzer != null) {
+            assert masterPlaylist != null;      // true because of constructor path
+            HlsMediaPlaylist updatedMediaPlaylist = (HlsMediaPlaylist) playlist;
+            if (updatedMediaPlaylist.isUpdateValid(previousMediaPlaylist)) {
+                frameRateAnalyzer.playlistUpdated(masterPlaylist, updatedMediaPlaylist);
+            } else if (updatedMediaPlaylist.isNewerThan(previousMediaPlaylist)) {
+                Log.w(TAG, "ignoring invalid playlist for frame rate analyze.");
+            }
         }
         return playlist;
     }

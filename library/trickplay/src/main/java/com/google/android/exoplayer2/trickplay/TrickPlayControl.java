@@ -8,6 +8,7 @@ import com.google.android.exoplayer2.LoadControl;
 import com.google.android.exoplayer2.Player;
 import com.google.android.exoplayer2.RenderersFactory;
 import com.google.android.exoplayer2.SimpleExoPlayer;
+import com.google.android.exoplayer2.source.hls.playlist.HlsPlaylistParserFactory;
 import com.google.android.exoplayer2.trackselection.DefaultTrackSelector;
 import com.google.android.exoplayer2.trackselection.TrackSelector;
 import com.google.android.exoplayer2.util.MediaClock;
@@ -40,6 +41,15 @@ public interface TrickPlayControl {
      * @return new LoadControl instance, wrapping the delegate, that handles trick-play
      */
     LoadControl createLoadControl(LoadControl delegate);
+
+    /**
+     * Creates an HlsPlaylistParserFactory for trick-play.  This allows the trick-play
+     * controller to access internals from the HlsPlayListParserFactory
+     *
+     * @param useDualMode if true, create the dual mode parser factory
+     * @return an HlsPlaylistParserImplementation that optionally supports dual-mode trickplay
+     */
+    HlsPlaylistParserFactory createHlsPlaylistParserFactory(boolean useDualMode);
 
     /**
      * Before the trickplay control can be used it must be bound to a player instance.

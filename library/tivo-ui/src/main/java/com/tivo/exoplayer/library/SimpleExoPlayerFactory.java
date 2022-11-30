@@ -4,6 +4,7 @@ import android.content.Context;
 import android.net.Uri;
 import android.os.Build;
 import androidx.annotation.CallSuper;
+import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.annotation.RequiresApi;
 
@@ -23,6 +24,8 @@ import com.google.android.exoplayer2.analytics.AnalyticsListener;
 import com.google.android.exoplayer2.source.TrackGroup;
 import com.google.android.exoplayer2.source.TrackGroupArray;
 import com.google.android.exoplayer2.source.UnrecognizedInputFormatException;
+import com.google.android.exoplayer2.source.hls.playlist.DefaultHlsPlaylistParserFactory;
+import com.google.android.exoplayer2.source.hls.playlist.HlsPlaylistParserFactory;
 import com.google.android.exoplayer2.trackselection.DefaultTrackSelector;
 import com.google.android.exoplayer2.trackselection.ExoTrackSelection;
 import com.google.android.exoplayer2.trackselection.MappingTrackSelector;
@@ -30,6 +33,7 @@ import com.google.android.exoplayer2.trackselection.TrackSelection;
 import com.google.android.exoplayer2.trackselection.TrackSelectionArray;
 import com.google.android.exoplayer2.trickplay.TrickPlayControl;
 import com.google.android.exoplayer2.trickplay.TrickPlayControlFactory;
+import com.google.android.exoplayer2.trickplay.hls.DualModeHlsPlaylistParserFactory;
 import com.google.android.exoplayer2.util.EventLogger;
 import com.google.android.exoplayer2.util.Log;
 import com.google.android.exoplayer2.util.MimeTypes;
@@ -53,6 +57,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Properties;
+import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
 
 /**
  * Handles creating, destroying and helper classes managing a TiVo extended SimpleExoPlayer including
@@ -84,6 +89,11 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
    * Android application context for access to Android
    */
   private final Context context;
+
+  /**
+   * HlsPlaylistParserFactory, used only for HLS MediaSource
+   */
+  @MonotonicNonNull private HlsPlaylistParserFactory hlsPlaylistParserFactory;
 
   /**
    * Reference to the current created SimpleExoPlayer,  The {@link #createPlayer(boolean, boolean)} creates
@@ -316,7 +326,8 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
 
   private DefaultMediaSourceLifeCycle getDefaultMediaSourceLifeCycle() {
     assert player != null;
-    DefaultMediaSourceLifeCycle mediaSourceLifeCycle = new DefaultMediaSourceLifeCycle(player, context);
+    DefaultMediaSourceLifeCycle mediaSourceLifeCycle =
+        new DefaultMediaSourceLifeCycle(context, player, hlsPlaylistParserFactory);
     mediaSourceLifeCycle.setMediaSourceEventCallback(callback);
     mediaSourceLifeCycle.factoriesCreated = factoriesCreatedCallback == null
         ? new SourceFactoriesCreated() {} : factoriesCreatedCallback;
@@ -464,6 +475,8 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
     ExoTrackSelection.Factory trackSelectionFactory = trickPlayControlFactory.getTrackSelectionFactory();
     trackSelector = createTrackSelector(defaultTunneling, context, trackSelectionFactory);
     trickPlayControl = trickPlayControlFactory.createTrickPlayControl(trackSelector);
+    hlsPlaylistParserFactory = trickPlayControl.createHlsPlaylistParserFactory(true);
+
     DefaultRenderersFactory renderersFactory = trickPlayControl.createRenderersFactory(context);
 
     if (nonDefaultMediaCodecOperationMode) {

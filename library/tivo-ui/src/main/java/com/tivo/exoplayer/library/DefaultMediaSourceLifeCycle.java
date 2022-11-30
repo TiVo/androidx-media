@@ -4,6 +4,7 @@ package com.tivo.exoplayer.library;
 import android.content.Context;
 import android.net.Uri;
 import android.os.Build;
+import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import com.google.android.exoplayer2.C;
 import com.google.android.exoplayer2.MediaItem;
@@ -21,8 +22,7 @@ import com.google.android.exoplayer2.source.ProgressiveMediaSource;
 import com.google.android.exoplayer2.source.UnrecognizedInputFormatException;
 import com.google.android.exoplayer2.source.dash.DashMediaSource;
 import com.google.android.exoplayer2.source.hls.HlsMediaSource;
-import com.google.android.exoplayer2.source.hls.playlist.DefaultHlsPlaylistParserFactory;
-import com.google.android.exoplayer2.trickplay.hls.DualModeHlsPlaylistParserFactory;
+import com.google.android.exoplayer2.source.hls.playlist.HlsPlaylistParserFactory;
 import com.google.android.exoplayer2.upstream.DataSource;
 import com.google.android.exoplayer2.upstream.DefaultDataSourceFactory;
 import com.google.android.exoplayer2.upstream.DefaultHttpDataSourceFactory;
@@ -35,10 +35,7 @@ import com.tivo.exoplayer.tivocrypt.TivoCryptDataSourceFactory;
 
 import java.io.File;
 import java.lang.reflect.Constructor;
-import java.util.HashMap;
 import java.util.Map;
-
-import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
 
 /**
  * Manages creation and the lifecycle of playback of an ExoPlayer {@link MediaSource}
@@ -58,6 +55,7 @@ public class DefaultMediaSourceLifeCycle implements MediaSourceLifeCycle, Player
   @Nullable private SimpleExoPlayer player;
   private final Context context;
   @Nullable private MediaSource currentMediaSource;
+  @NonNull private final HlsPlaylistParserFactory hlsPlaylistParserFactory;
 
   @Nullable private MediaSourceEventCallback callback;
 
@@ -69,13 +67,15 @@ public class DefaultMediaSourceLifeCycle implements MediaSourceLifeCycle, Player
   /**
    * Construct the default implementation of {@link MediaSourceLifeCycle}
    *
-   * @param player - SimpleExoPlayer to build mediasources for
    * @param context - android context
+   * @param player - SimpleExoPlayer to build mediasources for
+   * @param hlsPlaylistParserFactory - used for HLS data source only
    */
-  public DefaultMediaSourceLifeCycle(SimpleExoPlayer player, Context context) {
+  public DefaultMediaSourceLifeCycle(Context context, SimpleExoPlayer player,
+      HlsPlaylistParserFactory hlsPlaylistParserFactory) {
     this.player = player;
     this.context = context;
-
+    this.hlsPlaylistParserFactory = hlsPlaylistParserFactory;
     player.addListener(this);
   }
 
@@ -256,7 +256,7 @@ public class DefaultMediaSourceLifeCycle implements MediaSourceLifeCycle, Player
         itemBuilder.setMimeType(MimeTypes.APPLICATION_M3U8);
         factory = new HlsMediaSource.Factory(dataSourceFactory)
             .setAllowChunklessPreparation(enableChunkless)
-            .setPlaylistParserFactory(new DualModeHlsPlaylistParserFactory(new DefaultHlsPlaylistParserFactory()));
+            .setPlaylistParserFactory(hlsPlaylistParserFactory);
         break;
       case C.TYPE_OTHER:
         factory =  new ProgressiveMediaSource.Factory(dataSourceFactory);

@@ -32,7 +32,7 @@ public class FrameRateAnalyzer {
   private static final String TAG = "FrameRateAnalyzer";
 
   @NonNull private final Map<FormatKey, Float> frameRatesByFormat;
-  @Nullable private final Format iFrameOnlySourceFormat;
+  @Nullable private Format iFrameOnlySourceFormat;
 
   /**
    * The HlsSampleStreamWrapper clones the sample {@link Format} object and combines it with
@@ -65,9 +65,18 @@ public class FrameRateAnalyzer {
     }
   }
 
-  public FrameRateAnalyzer(@Nullable Format sourceIframeOnly) {
-    iFrameOnlySourceFormat = sourceIframeOnly;
+  public FrameRateAnalyzer() {
     frameRatesByFormat = new HashMap<>();
+  }
+
+  public FrameRateAnalyzer(@Nullable Format sourceIframeOnly) {
+    this();
+    iFrameOnlySourceFormat = sourceIframeOnly;
+  }
+
+  public synchronized void resetOnNewMasterPlaylist() {
+    frameRatesByFormat.clear();
+    iFrameOnlySourceFormat = null;
   }
 
   /**
@@ -89,6 +98,9 @@ public class FrameRateAnalyzer {
       if (candidate.url.equals(targetUri) ) {
         matched = candidate;
       }
+    }
+    if (iFrameOnlySourceFormat == null) {
+      iFrameOnlySourceFormat = findIFrameOnlySourceFormat(masterPlaylist);
     }
     if (matched != null) {
       if ((matched.format.roleFlags & C.ROLE_FLAG_TRICK_PLAY) == C.ROLE_FLAG_TRICK_PLAY) {
@@ -210,7 +222,8 @@ public class FrameRateAnalyzer {
   }
 
 
-  public static Format findIFrameOnlySourceFormat(HlsMasterPlaylist masterPlaylist) {
+  @VisibleForTesting
+  static Format findIFrameOnlySourceFormat(HlsMasterPlaylist masterPlaylist) {
     Format sourceFormat = null;
     for (int i=0; i < masterPlaylist.variants.size() && sourceFormat == null; i++) {
       HlsMasterPlaylist.Variant variant = masterPlaylist.variants.get(i);
