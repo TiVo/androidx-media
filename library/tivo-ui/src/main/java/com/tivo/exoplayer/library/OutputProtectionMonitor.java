@@ -234,13 +234,9 @@ public class OutputProtectionMonitor extends Handler {
 
     private boolean isLevelAtLeastHdcp2_2(/* @MediaDrm.HdcpLevel */ int hdcpLevel) 
     {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            return hdcpLevel == MediaDrm.HDCP_V2_2 ||
+        return hdcpLevel == MediaDrm.HDCP_V2_2 ||
             // HDCP 2.3 only in > Pie 
             Build.VERSION.SDK_INT > 28 && hdcpLevel == MediaDrm.HDCP_V2_3;
-        }
-        // HDCP V2.2 is added in Android P. Consider false on earlier versions
-        return false;
     }
 
     private void notifyStatusChange()
@@ -339,9 +335,9 @@ public class OutputProtectionMonitor extends Handler {
             }
         }
 
-
-        private boolean checkHdcpStatus() {
-            isErrorGettingHdcpLevel = true;
+        // Utility function to get HDCP for API level 28 and above
+        private void getHdcpLevelV28()
+        {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                 try {
                     MediaDrm widevineDrm = new MediaDrm(C.WIDEVINE_UUID);
@@ -353,6 +349,52 @@ public class OutputProtectionMonitor extends Handler {
                 } catch (@SuppressLint({"NewApi", "LocalSuppress"}) MediaDrmResetException e) {
                     Log.e(TAG, "MediaDrmResetException" + Build.VERSION.RELEASE);
                 }
+            }
+        }
+
+        // Utility function to get HDCP for API level from 18 to 27
+        private void getHdcpLevelV18To27()
+        {
+            // Do Not worry about API 17 and prior versions since there is no
+            // Widevine support.
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR2 && 
+                Build.VERSION.SDK_INT < Build.VERSION_CODES.P) {
+                try {
+                    MediaDrm widevineDrm = new MediaDrm(C.WIDEVINE_UUID);
+                    String hdcpLevelString = widevineDrm.getPropertyString("hdcpLevel");
+                    switch (hdcpLevelString) {
+                        case "HDCP-1.x":
+                            hdcpLevel = MediaDrm.HDCP_V1;
+                            break;
+                        case "HDCP-2.2":
+                            hdcpLevel = MediaDrm.HDCP_V2_2;
+                            break;
+                        case "HDCP-2.3":
+                            hdcpLevel = MediaDrm.HDCP_V2_3;
+                            break;
+                        case "Disconnected":
+                            hdcpLevel = MediaDrm.HDCP_NO_DIGITAL_OUTPUT;
+                            break;
+                        default:
+                            hdcpLevel = MediaDrm.HDCP_NONE;
+                    }
+                    // In API versions 18 through 27, MediaDrm release
+                    // should be called
+                    widevineDrm.release();
+                    isErrorGettingHdcpLevel = false;
+                } catch (UnsupportedSchemeException e) {
+                    Log.e(TAG, "Widevine UUID is not supported on this version: " + Build.VERSION.RELEASE);
+                }
+            } 
+        }
+
+        private boolean checkHdcpStatus() {
+            isErrorGettingHdcpLevel = true;
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                getHdcpLevelV28();
+            } else {
+                getHdcpLevelV18To27();
             }
 
             if (isErrorGettingHdcpLevel) {
