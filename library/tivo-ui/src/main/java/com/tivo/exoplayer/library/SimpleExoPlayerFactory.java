@@ -16,6 +16,7 @@ import com.google.android.exoplayer2.DefaultRenderersFactory;
 import com.google.android.exoplayer2.ExoPlaybackException;
 import com.google.android.exoplayer2.ExoPlayerLibraryInfo;
 import com.google.android.exoplayer2.Format;
+import com.google.android.exoplayer2.LivePlaybackSpeedControl;
 import com.google.android.exoplayer2.LoadControl;
 import com.google.android.exoplayer2.MediaItem;
 import com.google.android.exoplayer2.PlaybackException;
@@ -49,6 +50,7 @@ import com.tivo.exoplayer.library.errorhandlers.PlayerErrorHandlerListener;
 import com.tivo.exoplayer.library.errorhandlers.PlayerErrorRecoverable;
 import com.tivo.exoplayer.library.errorhandlers.StuckPlaylistErrorRecovery;
 import com.tivo.exoplayer.library.logging.ExtendedEventLogger;
+import com.tivo.exoplayer.library.logging.LoggingLivePlaybackSpeedControl;
 import com.tivo.exoplayer.library.tracks.TrackInfo;
 import java.io.File;
 import java.io.FileInputStream;
@@ -489,7 +491,9 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
 
     LoadControl loadControl = trickPlayControl.createLoadControl(controlBuilder.createDefaultLoadControl());
 
-    DefaultLivePlaybackSpeedControl livePlaybackSpeedControl = new DefaultLivePlaybackSpeedControl.Builder().build();
+    // Wrap default with our own version that logs useful bits, TODO factory method for default
+    LivePlaybackSpeedControl livePlaybackSpeedControl =
+        new LoggingLivePlaybackSpeedControl(new DefaultLivePlaybackSpeedControl.Builder().build());
     player = new SimpleExoPlayer.Builder(context, renderersFactory)
             .setTrackSelector(trackSelector)
             .setLoadControl(loadControl)
@@ -503,9 +507,6 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
 
     AnalyticsListener logger = eventListenerFactory.createEventLogger(trackSelector);
     if (logger != null) {
-      if (logger instanceof ExtendedEventLogger) {
-        ((ExtendedEventLogger)logger).setCurrentSpeedControl(livePlaybackSpeedControl);
-      }
       player.addAnalyticsListener(logger);
     }
     playerErrorHandler = createPlayerErrorHandler();

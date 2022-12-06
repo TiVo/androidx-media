@@ -40,8 +40,6 @@ public class ExtendedEventLogger extends EventLogger {
     private long lastWindowEndMs = C.TIME_UNSET;
     private boolean firstTimeLineUpdateSeen;
 
-    private @Nullable LivePlaybackSpeedControl currentSpeedControl;
-
     public ExtendedEventLogger(@Nullable MappingTrackSelector trackSelector) {
         this(trackSelector, DEFAULT_TAG);
     }
@@ -50,10 +48,6 @@ public class ExtendedEventLogger extends EventLogger {
         super(trackSelector, tag);
         startTimeMs = SystemClock.elapsedRealtime();
         this.tag = tag;
-    }
-
-    public void setCurrentSpeedControl(@Nullable LivePlaybackSpeedControl currentSpeedControl) {
-        this.currentSpeedControl = currentSpeedControl;
     }
 
     // Extends - call super, but add something
@@ -204,10 +198,7 @@ public class ExtendedEventLogger extends EventLogger {
                     long currentUnixTimeMs = window.getCurrentUnixTimeMs();
                     long windowEndLiveOffsetMs = currentUnixTimeMs - windowEndMs;
                     long liveOffsetMs = currentUnixTimeMs - window.windowStartTimeMs - eventTime.eventPlaybackPositionMs;
-                    long currentLiveOffsetTargetMs = C.TIME_UNSET;
-                    if (currentSpeedControl != null) {
-                        currentLiveOffsetTargetMs = C.usToMs(currentSpeedControl.getTargetLiveOffsetUs());
-                    }
+                    long targetLiveOffset = window.liveConfiguration == null ? C.TIME_UNSET : window.liveConfiguration.targetOffsetMs;
                     long deltaLastMs = 0;
                     if (lastTimelineUpdateMs != C.TIME_UNSET) {
                         deltaLastMs = eventTime.realtimeMs - lastTimelineUpdateMs;
@@ -224,12 +215,12 @@ public class ExtendedEventLogger extends EventLogger {
                     if (!firstTimeLineUpdateSeen) {
                         firstTimeLineUpdateSeen = true;
                         if (window.isLive()) {
-                            formatter.format("Live - duration: %2$f, endTime: %3$tF %3$tT.%3$tL (%3$d), window live setback: %4$3.5f, startOffset: %1$3.3f, targetLiveOffset: %5$3.5f",
+                            formatter.format("Live - duration: %2$f, endTime: %3$tF %3$tT.%3$tL (%3$d), now-endTime: %4$3.2f, startOffset: %1$3.3f, targetLiveOffset: %5$3.2f",
                                 (window.durationUs - window.defaultPositionUs) / 1000000.0,
                                 window.getDurationMs() /1000.D,
                                 windowEndMs,
                                 windowEndLiveOffsetMs / 1000.0,
-                                currentLiveOffsetTargetMs / 1000.0
+                                targetLiveOffset / 1000.0
                             );
                         } else if (window.windowStartTimeMs != C.TIME_UNSET) {
                             formatter.format("SOCU - duration: %1$f, startTime: %2$tF %2$tT.%2$tL (%2$d), endTime: %3$tF %3$tT.%3$tL (%3$d), defaultStartPosition: %4$3.3f",
@@ -247,16 +238,15 @@ public class ExtendedEventLogger extends EventLogger {
                     } else {
                         // isLive() must be true for more then one timeline update.
                         assert window.liveConfiguration != null;
-                        formatter.format("deltaLast: %1$3.5f, addedLast: %9$3.5f, duration: %2$f, endTime: %3$tF %3$tT.%3$tL (%3$d), window live setback: %5$3.5f, position window offset: %6$f, currentLiveOffset: %4$3.5f, targetLiveOffset: %7$3.5f, currTargetLiveOffset: %8$3.5f",
+                        formatter.format("deltaLast: %1$3.2f, addedLast: %2$3.2f, duration: %3$f, endTime: %4$tF %4$tT.%4$tL (%4$d), now-endTime: %5$3.2f, endTime-position: %6$f, liveOffset: %7$3.2f, targetLiveOffset: %8$3.2f",
                             deltaLastMs / 1000.0,
+                            deltaMediaTimeMs / 1000.0,
                             window.getDurationMs() / 1000.0,
                             windowEndMs,
-                            liveOffsetMs / 1000.0,
-                            (currentUnixTimeMs - windowEndMs) / 1000.0,
+                            windowEndLiveOffsetMs / 1000.0,
                             (window.getDurationMs() - eventTime.eventPlaybackPositionMs) / 1000.0,
-                            window.liveConfiguration.targetOffsetMs / 1000.0,
-                            currentLiveOffsetTargetMs / 1000.0,
-                            deltaMediaTimeMs / 1000.0
+                            liveOffsetMs / 1000.0,
+                            window.liveConfiguration.targetOffsetMs / 1000.0
                         );
                     }
                     logd(eventTime, eventName, logString.toString());

@@ -126,7 +126,7 @@ In addtion to the general format are these values:
 
 * *duration* &mdash; playlist duration in seconds
 * *endTime* &mdash; playlist endTime (start + duration), as a time and in microseconds
-* *window live setback* &mdash; real-time now - the playlist endTime, this is the origin/edge pipeline delay, in seconds
+* *now-endTime* &mdash; real-time now - the playlist endTime, this is the origin/edge pipeline delay, in seconds
 * *startOffset* &mdash; default start position offset from playlist end, in this example set by `EXT-X-START:30`
 * *targetLiveOffset* &mdash; the target live offset, either set from the playback request (`MediaItem`) or computed based on the `startOffset`.   Here it is set from the startOffset (30.030 + live offset)
 
@@ -147,11 +147,10 @@ In addtion to the general format are these values:
 * *addedLast*  &mdash; Media time added in this playlist update (segments).  Again this is largely controlled by the origin server, if it is less then one segment worth that will cause buffer depletion.
 * *duration* &mdash; playlist duration in seconds
 * *endTime* &mdash; playlist endTime (start + duration), as a time and in microseconds.   This should increase each playlist update, by the amount of *addedLast*.
-* *window live setback* &mdash; real-time now - the playlist endTime, this is the origin/edge pipeline delay, in seconds.  It is entirely controlled by how fast the edge/origin produces and publishes live segments.
-* *position window offset* &mdash; time from current position to the window edge (*duration*) in seconds.  This is basically the max segments available to buffer.
-* *currentLiveOffset* &mdash; offset of the current playback position from real-time (`now()` on the player).  Same as *position window offset* + *window live setback*
-* *targetLiveOffset* &mdash; the current setting for target live offset, it can only change from the initial *targetLiveOffset* if that value falls out of the range of the window (that is if *window live setback* increases enough that this value exceeds it)
-* *currTargetLiveOffset* &mdash; when the *currentLiveOffset* does not match the *targetLiveOffset* the player adjusts playback speed (very slightly).  This value is a reflection of how the player is accomplising the adjustment.  
+* *now-endTime* &mdash; real-time now - the playlist endTime, this is the origin/edge pipeline delay, in seconds.  It is entirely controlled by how fast the edge/origin produces and publishes live segments.
+* *endTime-position* &mdash; time from current position to the window edge (*duration*) in seconds.  This is basically the max segments available to buffer.
+* *liveOffset* &mdash; offset of the current playback position from real-time (`now()` on the player).  Same as *endTime-position* + *now-endTime*
+* *targetLiveOffset* &mdash; the current setting for target live offset, it can only change from the initial *targetLiveOffset* if that value falls out of the range of the window (that is if *ow-endTime* increases enough that this value exceeds it)
 
 <div id="playback-state"/>
 
