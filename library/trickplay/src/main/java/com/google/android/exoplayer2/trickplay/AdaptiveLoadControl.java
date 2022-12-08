@@ -130,9 +130,9 @@ public class AdaptiveLoadControl implements LoadControl, TrickPlayEventListener 
         defaultShouldStart = delegateShouldStart && bufferedFrames >= MIN_BUFFERED_FRAMES_TO_START_TRICKPLAY;
         if (!defaultShouldStart) {
           Log.d(TAG, "shouldStartPlayback() delaying for buffering - buffered(ms): " + C.usToMs(bufferedDurationUs)
-              + " rebuffering: " + rebuffering
-              + " bufferedFrames: " + bufferedFrames
-              + " speed: " + playbackSpeed);
+              + ", rebuffering: " + rebuffering
+              + ", bufferedFrames: " + bufferedFrames
+              + ", speed: " + playbackSpeed);
         }
         break;
       case NONE:
@@ -142,7 +142,11 @@ public class AdaptiveLoadControl implements LoadControl, TrickPlayEventListener 
         defaultShouldStart = true;    // TODO probably does not matter as we are paused
         break;
     }
-
+    if (!defaultShouldStart) {
+      Log.d(TAG, "shouldStartPlayback() delaying for buffering - buffered(ms): " + C.usToMs(bufferedDurationUs)
+          + ", rebuffering: " + rebuffering
+          + ", speed: " + playbackSpeed);
+    }
     return defaultShouldStart;
   }
 }

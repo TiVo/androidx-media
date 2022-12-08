@@ -7,11 +7,13 @@ import com.google.android.exoplayer2.C;
 import com.google.android.exoplayer2.Format;
 import com.google.android.exoplayer2.source.TrackGroup;
 import com.google.android.exoplayer2.source.chunk.MediaChunk;
+import com.google.android.exoplayer2.source.chunk.MediaChunkIterator;
 import com.google.android.exoplayer2.trickplay.TrickPlayControl;
 import com.google.android.exoplayer2.trickplay.TrickPlayControlInternal;
 import com.google.android.exoplayer2.trickplay.hls.AugmentedPlaylistParser;
 import com.google.android.exoplayer2.upstream.BandwidthMeter;
 import com.google.android.exoplayer2.util.Clock;
+import com.google.android.exoplayer2.util.EventLogger;
 import com.google.android.exoplayer2.util.Log;
 import com.google.android.exoplayer2.util.MimeTypes;
 
@@ -208,9 +210,9 @@ public class IFrameAwareAdaptiveTrackSelection extends AdaptiveTrackSelection {
           }
           if (firstOldFormatFound) {
             Log.d(TAG, "evaluateQueueSize() - queue.size() = " + queue.size()
-                + " discard " + (queue.size() - size)
-                + " selected: " + Format.toLogString(getSelectedFormat())
-                + " best: " + Format.toLogString(bestFormat)
+                + ", discard " + (queue.size() - size)
+                + ", selected: " + Format.toLogString(getSelectedFormat())
+                + ", best: " + Format.toLogString(bestFormat)
             );
           }
         }
@@ -283,8 +285,38 @@ public class IFrameAwareAdaptiveTrackSelection extends AdaptiveTrackSelection {
           // default to false
           break;
       }
+
+      Format currentFormat = getFormat(currentSelectedIndex);
+      if (!currentFormat.equals(selectedFormat)) {
+        Log.d(TAG, "shouldDeferSwitching() switching tracks -"
+            + " FROM: [" + Format.toLogString(currentFormat) + "]"
+            + ", TO: [" + Format.toLogString(currentFormat) + "]"
+            + ", buffered: " + EventLogger.getTimeString(C.usToMs(bufferedDurationUs))
+            + ", mode: " + control.getCurrentTrickMode()
+            + ", defer: " + value
+        );
+      }
     }
     return value;
+  }
+
+  @Override
+  public void updateSelectedTrack(long playbackPositionUs, long bufferedDurationUs,
+      long availableDurationUs, List<? extends MediaChunk> queue,
+      MediaChunkIterator[] mediaChunkIterators) {
+    Format currentFormat = getSelectedFormat();
+    super.updateSelectedTrack(playbackPositionUs, bufferedDurationUs, availableDurationUs, queue,
+        mediaChunkIterators);
+    Format selectedFormat = getSelectedFormat();
+    if (!selectedFormat.equals(currentFormat)) {
+      Log.d(TAG, "updateSelectedTrack() switching tracks -"
+          + " FROM: [" + Format.toLogString(currentFormat) + "]"
+          + ", TO: [" + Format.toLogString(selectedFormat) + "]"
+          + ", buffered: " + EventLogger.getTimeString(C.usToMs(bufferedDurationUs))
+          + ", mode: " + control.getCurrentTrickMode()
+      );
+    }
+
   }
 
   /**
