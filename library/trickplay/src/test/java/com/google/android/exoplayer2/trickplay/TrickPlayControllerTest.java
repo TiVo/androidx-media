@@ -28,7 +28,7 @@ public class TrickPlayControllerTest {
 
     assertThat(testee.getTargetFrameRateForPlaybackSpeed(testee.getSpeedFor(TrickPlayControl.TrickMode.FF1))).isEqualTo(4);
     assertThat(testee.getTargetFrameRateForPlaybackSpeed(testee.getSpeedFor(TrickPlayControl.TrickMode.FF2))).isEqualTo(5);
-    assertThat(testee.getTargetFrameRateForPlaybackSpeed(testee.getSpeedFor(TrickPlayControl.TrickMode.FF3))).isEqualTo(8);
+    assertThat(testee.getTargetFrameRateForPlaybackSpeed(testee.getSpeedFor(TrickPlayControl.TrickMode.FF3))).isEqualTo(7);
 
   }
 }

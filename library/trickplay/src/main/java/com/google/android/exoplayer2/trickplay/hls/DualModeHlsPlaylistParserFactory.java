@@ -36,12 +36,12 @@ public class DualModeHlsPlaylistParserFactory implements HlsPlaylistParserFactor
 
     /**
      * Like {@link #DualModeHlsPlaylistParserFactory(HlsPlaylistParserFactory, int[])} only the subsets
-     * are the default (2, 3, 4 and 5)
+     * are the default (2, 3, 4, 5, 7)
      *
      * @param delegateFactory called to do the actual playlist parsing
      */
     public DualModeHlsPlaylistParserFactory(HlsPlaylistParserFactory delegateFactory) {
-        this(delegateFactory, new int[] {2, 3, 4, 5});
+        this(delegateFactory, new int[] {2, 3, 4, 5, 7});
     }
 
     /**

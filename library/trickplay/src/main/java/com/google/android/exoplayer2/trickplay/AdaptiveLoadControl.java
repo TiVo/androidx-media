@@ -12,6 +12,7 @@ import com.google.android.exoplayer2.util.Util;
 public class AdaptiveLoadControl implements LoadControl, TrickPlayEventListener {
 
   private static final String TAG = "AdaptiveLoadControl";
+  public static final int MIN_BUFFERED_FRAMES_TO_START_TRICKPLAY = 30;
 
   private final TrickPlayControlInternal trickPlayController;
   private final LoadControl delegate;
@@ -98,11 +99,12 @@ public class AdaptiveLoadControl implements LoadControl, TrickPlayEventListener 
   /**
    * This override uses trick-play specific values depending on the mode.
    *
-   * For forward playback (here playbackSpeed indicates the rate at which media will be consumed)
-   * we ignore rebuffering (set to false always) in order to use the minimum required buffer duration
-   * for playback start ({@link com.google.android.exoplayer2.DefaultLoadControl.Builder#setBufferDurationsMs(int, int, int, int)}'s
-   * third argument, bufferForPlaybackMs).  For frame by frame based modes (SCRUB and REVERSE) return true always,
-   * as play when ready is false (we are only rendering first frame).
+   * For forward playback (here playbackSpeed indicates the rate at which media will be consumed) criteria
+   * is based on super() method and number of frames buffered, super method at 1x speed is used
+   * to along with making sure number of frames is sufficient to start forward without an initial stall
+   *
+   * For frame by frame based modes (SCRUB and REVERSE) return true always,
+   * as play when ready is false (we are only rendering first frame) (playWhenReady is fales anyway)
    *
    * @param bufferedDurationUs The duration of media that's currently buffered.
    * @param playbackSpeed The current factor by which playback is sped up.
@@ -123,10 +125,14 @@ public class AdaptiveLoadControl implements LoadControl, TrickPlayEventListener 
     switch (trickPlayController.getCurrentTrickDirection()) {
 
       case FORWARD:
-        // ignore rebuffering flag during VTP to avoid trying to be overly aggressive in rebuffering before starting playback.
-        defaultShouldStart = delegate.shouldStartPlayback(bufferedDurationUs, playbackSpeed, false, targetLiveOffsetUs);
+        boolean delegateShouldStart = delegate.shouldStartPlayback(bufferedDurationUs, 1, rebuffering, targetLiveOffsetUs);
+        int bufferedFrames = (int) ((trickPlayController.getTargetFrameRateForPlaybackSpeed(playbackSpeed) * bufferedDurationUs) / 1_000_000);
+        defaultShouldStart = delegateShouldStart && bufferedFrames >= MIN_BUFFERED_FRAMES_TO_START_TRICKPLAY;
         if (!defaultShouldStart) {
-          Log.d(TAG, "shouldStartPlayback() delaying for buffering - buffered(ms): " + C.usToMs(bufferedDurationUs) + " speed: " + playbackSpeed);
+          Log.d(TAG, "shouldStartPlayback() delaying for buffering - buffered(ms): " + C.usToMs(bufferedDurationUs)
+              + " rebuffering: " + rebuffering
+              + " bufferedFrames: " + bufferedFrames
+              + " speed: " + playbackSpeed);
         }
         break;
       case NONE:

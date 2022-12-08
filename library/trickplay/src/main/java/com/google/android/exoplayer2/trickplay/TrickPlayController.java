@@ -736,7 +736,7 @@ class TrickPlayController implements TrickPlayControlInternal {
         // As the JavaDoc for the method says, we can use different, even non linear
         // if the speeds are more continuous in the future.
         //
-        final float beta = speed < 0 ? 0.04286f : 0.09048f;
+        final float beta = speed < 0 ? 0.04286f : 0.06667f;
         frameRate = (Math.abs(speed) *  beta) + 2.5f;
 
         return Math.round(frameRate);
