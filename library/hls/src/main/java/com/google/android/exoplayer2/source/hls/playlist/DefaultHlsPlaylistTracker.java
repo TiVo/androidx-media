@@ -765,12 +765,10 @@ public final class DefaultHlsPlaylistTracker
                 ? ifChangedNextLoadUs
                 : (playlistSnapshot.targetDurationUs / 2);
 
-        // remove playlist load duration (up to 20% of targetDuration) from the time to prevent drift
-        durationUntilNextLoadUs -=
-            Math.min(
-                C.msToUs(loadEventInfo.loadDurationMs),
-                (playlistSnapshot.targetDurationUs * 20) / 100
-            );
+        // remove playlist load duration from the time to prevent drift,
+        // if loadDuration exceeded next load time, just load immediately
+        durationUntilNextLoadUs =
+            Math.max(durationUntilNextLoadUs - C.msToUs(loadEventInfo.loadDurationMs), 0);
       }
       earliestNextLoadTimeMs = currentTimeMs + C.usToMs(durationUntilNextLoadUs);
       // Schedule a load if this is the primary playlist or a playlist of a low-latency stream and
