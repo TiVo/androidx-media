@@ -755,9 +755,17 @@ public final class DefaultHlsPlaylistTracker
         // (https://datatracker.ietf.org/doc/html/draft-pantos-hls-rfc8216bis-12#section-6.3.4).
         // That is duration of last segment if playlist changed, otherwise half the target duration.
         //
-        long ifChangedNextLoadUs =
+        long lastSegmentDurationUs =
             playlistSnapshot.segments.size() > 0
                 ? playlistSnapshot.segments.get(playlistSnapshot.segments.size() - 1).durationUs
+                : C.TIME_UNSET;
+
+        // iFrame only playlist may update many segments at a time, so only use lastSegmentDuration if
+        // it is within a rounding error difference from targetDuration (which is a whole number)
+        //
+        long ifChangedNextLoadUs =
+            lastSegmentDurationUs != C.TIME_UNSET  && playlistSnapshot.targetDurationUs - lastSegmentDurationUs <= 1_000_000
+                ? lastSegmentDurationUs
                 : playlistSnapshot.targetDurationUs;
 
         durationUntilNextLoadUs =
