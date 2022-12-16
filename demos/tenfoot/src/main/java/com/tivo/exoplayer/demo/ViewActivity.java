@@ -22,8 +22,11 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.fragment.app.DialogFragment;
 import com.google.android.exoplayer2.C;
 import com.google.android.exoplayer2.DefaultLoadControl;
+import com.google.android.exoplayer2.DefaultRenderersFactory;
 import com.google.android.exoplayer2.ExoPlaybackException;
 import com.google.android.exoplayer2.Format;
+import com.google.android.exoplayer2.LivePlaybackSpeedControl;
+import com.google.android.exoplayer2.LoadControl;
 import com.google.android.exoplayer2.MediaItem;
 import com.google.android.exoplayer2.PlaybackException;
 import com.google.android.exoplayer2.Player;
@@ -46,6 +49,10 @@ import com.google.android.exoplayer2.ui.PlayerControlView;
 import com.google.android.exoplayer2.ui.PlayerView;
 import com.google.android.exoplayer2.ui.SubtitleView;
 import com.google.android.exoplayer2.ui.TimeBar;
+import com.google.android.exoplayer2.util.Util;
+import com.streamingmediainsights.smiclientsdk.SMIClientSdk;
+import com.streamingmediainsights.smiclientsdk.SMIEventCallbackListener;
+import com.streamingmediainsights.smiclientsdk.SMISimpleExoPlayer;
 import com.tivo.exoplayer.library.DrmInfo;
 import com.tivo.exoplayer.library.GeekStatsOverlay;
 import com.tivo.exoplayer.library.OutputProtectionMonitor;
@@ -62,6 +69,10 @@ import java.io.File;
 import java.io.IOException;
 import com.tivo.exoplayer.library.util.AccessibilityHelper;
 
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
+
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -76,7 +87,7 @@ import java.util.HashMap;
  */
 public class ViewActivity extends AppCompatActivity implements PlayerControlView.VisibilityListener {
 
-  public static final String TAG = "ExoDemo";
+  public static final String TAG = "ExoDemoSMI";
   private PlayerView playerView;
 
   private boolean isShowingTrackSelectionDialog;
@@ -111,6 +122,8 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
 
   public static final String DRM_SCHEME_VCAS = "vcas";
   public static final String DRM_SCHEME_WIDEVINE = "widevine";
+
+  public static final String ENABLE_TRUSTREME_LOGGING = "enable_trustreme_logging";
 
   protected Uri[] uris;
 
@@ -158,6 +171,164 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
 
   private Uri currentUri;
 
+  private static boolean isSMIPlayer;
+  private static boolean isSmiClientInitialized = false;
+  private static SimpleExoPlayer player;
+
+  private static void initSmiClientIfNeeded(Context context)
+  {
+    if (isSmiClientInitialized == true) {
+      return;
+    }
+
+    JSONObject jsonconfig = new JSONObject();
+    try {
+      String _hostString = "twenty20video.dev.tivoservice.com";
+      String _hostport = "8883";
+      String _username = null;
+      String _authenticationstring = "H4sIAARqal8AA4tWUFLSgWKFWC4ADJJ70A8AAAA=";
+      boolean _auth_hostboolean = false;
+      String _keepalive = "3";
+      String _networkcache = "1024";
+      boolean _tlsBoolean = false;
+      boolean _tsreport_tsBoolean = true;
+      boolean _tsreport_serviceBoolean= true;
+      boolean _tsreport_pidBoolean= true;
+      boolean _tsreport_tableBoolean= true;
+      boolean _tsreport_errorBoolean= false;
+      boolean _tsreport_psiBoolean= true;
+
+      JSONArray _keyfileMimetypesArray = new JSONArray();
+      _keyfileMimetypesArray.put("application/pgp-keys");
+      _keyfileMimetypesArray.put("application/x-binary");
+      _keyfileMimetypesArray.put("application/octet-stream");
+      JSONArray _mpegurlMimetypesArray = new JSONArray();
+      _mpegurlMimetypesArray.put(".*mpegurl");
+      JSONArray _mp2tMimetypesArray = new JSONArray();
+      _mp2tMimetypesArray.put(".*mp2t");
+      _mp2tMimetypesArray.put("binary/octet-stream");
+      JSONArray _callbackFilterArray = new JSONArray();
+      _callbackFilterArray.put("sessionids");
+      _callbackFilterArray.put("networkmetric");
+      _callbackFilterArray.put("bmqsstatus");
+
+      JSONArray _playerNotificationAray = new JSONArray();
+      _playerNotificationAray.put("playerNotification");
+
+      JSONObject jsonObj_2020video = new JSONObject();
+
+
+      {
+        JSONObject jsonObj_debug = new JSONObject();
+        JSONObject jsonObj_loglevel = new JSONObject();
+        JSONObject jsonObj_destination = new JSONObject();
+        //
+        String _vmoduleString = "smi_client*=0";
+        jsonObj_loglevel.put("verbose", "0");
+        jsonObj_loglevel.put("vmodule", _vmoduleString);
+        jsonObj_loglevel.put("javalog", _playerNotificationAray);
+        jsonObj_debug.put("loglevel", jsonObj_loglevel);
+        //
+        jsonObj_2020video.put("debug", jsonObj_debug);
+      }
+
+      {
+        JSONObject jsonObj_bmqs = new JSONObject();
+        //
+        if (_authenticationstring != null)
+        {
+          JSONObject jsonObj_authentication = new JSONObject();
+          //
+          jsonObj_authentication.put("authentication", _authenticationstring);
+          jsonObj_authentication.put("server_hostname", _auth_hostboolean);
+          //
+          jsonObj_bmqs.put("authenticate", jsonObj_authentication);
+        }
+        {
+          JSONObject jsonObj_filter = new JSONObject();
+          //
+          jsonObj_filter.put("callback", _callbackFilterArray);
+          //
+          jsonObj_bmqs.put("filter", jsonObj_filter);
+        }
+
+        jsonObj_bmqs.put("host", _hostString);
+        jsonObj_bmqs.put("port", Integer.parseInt(_hostport));
+        jsonObj_bmqs.put( "keepalive", Integer.parseInt(_keepalive) );
+        jsonObj_bmqs.put( "networkcache", Integer.parseInt(_networkcache) );
+        if (_username != null) {
+          jsonObj_bmqs.put( "username", _username);
+        }
+        //
+        jsonObj_2020video.put("bmqs", jsonObj_bmqs);
+      }
+
+      {
+        JSONObject jsonObj_tsreport = new JSONObject();
+        //
+        jsonObj_tsreport.put("ts", _tsreport_tsBoolean);
+        jsonObj_tsreport.put("service", _tsreport_serviceBoolean);
+        jsonObj_tsreport.put("pid", _tsreport_pidBoolean);
+        jsonObj_tsreport.put("table", _tsreport_tableBoolean);
+        jsonObj_tsreport.put("error", _tsreport_errorBoolean);
+        jsonObj_tsreport.put("psi", _tsreport_psiBoolean);
+        //
+        jsonObj_2020video.put("tsreport", jsonObj_tsreport);
+      }
+
+      {
+        JSONObject jsonObj_mimetype = new JSONObject();
+        jsonObj_mimetype.put("keyfile", _keyfileMimetypesArray);
+        jsonObj_mimetype.put("mpegurl", _mpegurlMimetypesArray);
+        jsonObj_mimetype.put("mp2t", _mp2tMimetypesArray);
+        //
+        jsonObj_2020video.put("mimetypes", jsonObj_mimetype);
+      }
+
+      {
+        JSONArray jsonArray_datasourcefactories = new JSONArray();
+        //
+        JSONObject jsonObj_classAndMember = new JSONObject();
+        jsonObj_classAndMember.put("class", "com.tivo.exoplayer.vcas.VerimatrixDataSourceFactory");
+        jsonObj_classAndMember.put("member", "mDelegateFactory");
+        jsonArray_datasourcefactories.put(jsonObj_classAndMember);
+        //
+        jsonObj_2020video.put("datasourcefactories", jsonArray_datasourcefactories);
+      }
+
+      jsonconfig.put("2020-video",jsonObj_2020video);
+    } catch ( JSONException e) {
+      e.printStackTrace();
+    }
+    try
+    {
+      SMIClientSdk.initialize(context, jsonconfig.toString());
+
+      // Initialize the callback. Starting from ExoPlayer 2.12.x, SMI SDK
+      // requires global addCallBackEventListener.
+      SMIClientSdk.addCallBackEventListener(new SMIEventCallbackListener() {
+
+        @Override
+        public void onEventCallback(String category, String value) {
+          // The category - sessionIds, networkmetric and bmqsstatus.
+          // We are interested only in sessionIds and bmqsstatus
+          if (category.equals("sessionids"))
+          {
+            String identifyMe = Util.getHSN() ;
+            SMIClientSdk.outboundMessage(player, "DeviceIdentity", identifyMe);
+            Log.d(TAG, value);
+            Log.d(TAG, "DeviceIdentity: " + identifyMe);
+          }
+        }
+      });
+
+      isSmiClientInitialized = true;
+    }
+    catch (Exception e) {
+      Log.d(TAG,"SMI SDK is disabled in release candidate");
+    }
+  }
+
   // Activity lifecycle
   @Override
   public void onCreate(Bundle savedInstanceState) {
@@ -168,6 +339,13 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
     Context context = getApplicationContext();
 
     SimpleExoPlayerFactory.initializeLogging(context, DEFAULT_LOG_LEVEL);
+
+    isSMIPlayer = getIntent().getBooleanExtra(ENABLE_TRUSTREME_LOGGING, false);
+
+    if(isSMIPlayer == true) {
+      initSmiClientIfNeeded(context);
+    }
+
     SimpleExoPlayerFactory.Builder builder = new SimpleExoPlayerFactory.Builder(context)
             .setPlaybackErrorHandlerListener((error, status) -> {
               switch (status) {
@@ -366,7 +544,29 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
             DefaultLoadControl.DEFAULT_MAX_BUFFER_MS,
             1000,   // Faster channel change
             DefaultLoadControl.DEFAULT_BUFFER_FOR_PLAYBACK_AFTER_REBUFFER_MS);
-    SimpleExoPlayer player = exoPlayerFactory.createPlayer(false, false, builder);
+
+    exoPlayerFactory.createPlayerPart1(false, builder);
+    DefaultRenderersFactory renderersFactory = exoPlayerFactory.getRenderersFactory();
+    LoadControl loadControl = exoPlayerFactory.getLoadControl();
+    LivePlaybackSpeedControl livePlaybackSpeedControl = exoPlayerFactory.getlivePlaybackSpeedControl();
+    DefaultTrackSelector trackSelector = exoPlayerFactory.getTrackSelector();
+
+    if (isSMIPlayer == true) {
+      player = new SMISimpleExoPlayer.Builder(this, renderersFactory)
+              .setTrackSelector(trackSelector)
+              .setLoadControl(loadControl)
+             // .setLivePlaybackSpeedControl(livePlaybackSpeedControl)
+              .build();
+    } else {
+      player = new SimpleExoPlayer.Builder(this, renderersFactory)
+              .setTrackSelector(trackSelector)
+              .setLoadControl(loadControl)
+              .setLivePlaybackSpeedControl(livePlaybackSpeedControl)
+              .build();
+    }
+    exoPlayerFactory.setPlayer(player);
+    exoPlayerFactory.createPlayerPart2(false);
+
     player.setAudioAttributes(AudioAttributes.DEFAULT,true);
 
     TrickPlayControl trickPlayControl = exoPlayerFactory.getCurrentTrickPlayControl();

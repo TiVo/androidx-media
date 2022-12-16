@@ -5,3 +5,212 @@
 -keepclassmembers class com.google.android.exoplayer2.ext.ima.ImaAdsLoader {
   <init>(android.content.Context, android.net.Uri);
 }
+
+
+-keep class com.streamingmediainsights.smiclientsdk.** {
+      public *;
+}
+
+# Copyright 2016 The Chromium Authors. All rights reserved.
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+# Contains flags that can be safely shared with Cronet, and thus would be
+# appropriate for third-party apps to include.
+
+# Keep all annotation related attributes that can affect runtime
+-keepattributes RuntimeVisible*Annotations
+-keepattributes AnnotationDefault
+
+# Keep the annotations, because if we don't, the ProGuard rules that use them
+# will not be respected. These classes then show up in our final dex, which we
+# do not want - see crbug.com/628226.
+-keep @interface org.chromium.base.annotations.AccessedByNative
+-keep @interface org.chromium.base.annotations.CalledByNative
+-keep @interface org.chromium.base.annotations.CalledByNativeUnchecked
+-keep @interface org.chromium.base.annotations.DoNotInline
+-keep @interface org.chromium.base.annotations.RemovableInRelease
+-keep @interface org.chromium.base.annotations.UsedByReflection
+
+# Android support library annotations will get converted to androidx ones
+# which we want to keep.
+-keep @interface androidx.annotation.Keep
+-keep @androidx.annotation.Keep class *
+-keepclasseswithmembers class * {
+  @androidx.annotation.Keep <fields>;
+}
+-keepclasseswithmembers class * {
+  @androidx.annotation.Keep <methods>;
+}
+
+# Keeps for class level annotations.
+-keep @org.chromium.base.annotations.UsedByReflection class ** {}
+
+# Keeps for method level annotations.
+-keepclasseswithmembers class ** {
+  @org.chromium.base.annotations.AccessedByNative <fields>;
+}
+-keepclasseswithmembers,includedescriptorclasses class ** {
+  @org.chromium.base.annotations.CalledByNative <methods>;
+}
+-keepclasseswithmembers,includedescriptorclasses class ** {
+  @org.chromium.base.annotations.CalledByNativeUnchecked <methods>;
+}
+-keepclasseswithmembers class ** {
+  @org.chromium.base.annotations.UsedByReflection <methods>;
+}
+-keepclasseswithmembers class ** {
+  @org.chromium.base.annotations.UsedByReflection <fields>;
+}
+-keepclasseswithmembers,includedescriptorclasses class ** {
+  native <methods>;
+}
+
+# Remove methods annotated with this if their return value is unused.
+-assumenosideeffects class ** {
+  @org.chromium.base.annotations.RemovableInRelease <methods>;
+}
+
+-assumevalues class ** {
+  # Remove object @RemovableInRelease methods even when return value is used.
+  # Note: ** in return type does not match primitives.
+  @org.chromium.base.annotations.RemovableInRelease ** *(...) return null;
+  # Remove boolean @RemovableInRelease methods even when return value is used.
+  @org.chromium.base.annotations.RemovableInRelease boolean *(...) return false;
+}
+
+# Never inline classes or methods with this annotation, but allow shrinking and
+# obfuscation.
+-keepnames,allowobfuscation @org.chromium.base.annotations.DoNotInline class ** {
+  *;
+}
+-keepclassmembernames,allowobfuscation class ** {
+  @org.chromium.base.annotations.DoNotInline <methods>;
+}
+
+# Keep all CREATOR fields within Parcelable that are kept.
+-keepclassmembers class org.chromium.** implements android.os.Parcelable {
+  public static *** CREATOR;
+}
+
+# Don't obfuscate Parcelables as they might be marshalled outside Chrome.
+# If we annotated all Parcelables that get put into Bundles other than
+# for saveInstanceState (e.g. PendingIntents), then we could actually keep the
+# names of just those ones. For now, we'll just keep them all.
+-keepnames class org.chromium.** implements android.os.Parcelable {}
+
+# Keep all enum values and valueOf methods. See
+# http://proguard.sourceforge.net/index.html#manual/examples.html
+# for the reason for this. Also, see http://crbug.com/248037.
+-keepclassmembers enum org.chromium.** {
+    public static **[] values();
+}
+# Proguard config for apps that depend on cronet_impl_native_java.jar.
+
+# This constructor is called using the reflection from Cronet API (cronet_api.jar).
+-keep class org.chromium.net.impl.NativeCronetProvider {
+    public <init>(android.content.Context);
+}
+
+# Suppress unnecessary warnings.
+-dontnote org.chromium.net.ProxyChangeListener$ProxyReceiver
+-dontnote org.chromium.net.AndroidKeyStore
+# Needs 'void setTextAppearance(int)' (API level 23).
+-dontwarn org.chromium.base.ApiCompatibilityUtils
+# Needs 'boolean onSearchRequested(android.view.SearchEvent)' (API level 23).
+-dontwarn org.chromium.base.WindowCallbackWrapper
+
+# Generated for chrome apk and not included into cronet.
+-dontwarn org.chromium.base.library_loader.NativeLibraries
+-dontwarn org.chromium.base.multidex.ChromiumMultiDexInstaller
+-dontwarn org.chromium.base.metrics.CachedMetrics
+-dontwarn org.chromium.base.library_loader.LibraryLoader
+-dontwarn org.chromium.base.SysUtils
+
+# Objects of this type are passed around by native code, but the class
+# is never used directly by native code. Since the class is not loaded, it does
+# not need to be preserved as an entry point.
+-dontnote org.chromium.net.UrlRequest$ResponseHeadersMap
+# https://android.googlesource.com/platform/sdk/+/marshmallow-mr1-release/files/proguard-android.txt#54
+-dontwarn android.support.**
+
+# This class should be explicitly kept to avoid failure if
+# class/merging/horizontal proguard optimization is enabled.
+-keep class org.chromium.base.CollectionUtil
+
+
+# Proguard config for apps that depend on cronet_impl_common_java.jar.
+
+# Proguard config for apps that depend on cronet_impl_platform_java.jar.
+
+# This constructor is called using the reflection from Cronet API (cronet_api.jar).
+-keep class org.chromium.net.impl.JavaCronetProvider {
+    public <init>(android.content.Context);
+}
+
+# Add project specific ProGuard rules here.
+# You can control the set of applied configuration files using the
+# proguardFiles setting in build.gradle.
+#
+# For more details, see
+#   http://developer.android.com/guide/developing/tools/proguard.html
+
+# If your project uses WebView with JS, uncomment the following
+# and specify the fully qualified class name to the JavaScript interface
+# class:
+  #-keepclassmembers class fqcn.of.javascript.interface.for.webview {
+#   public *;
+#}
+
+# Uncomment this to preserve the line number information for
+# debugging stack traces.
+#-keepattributes SourceFile,LineNumberTable
+
+# If you keep the line number information, uncomment this to
+# hide the original source file name.
+#-renamesourcefileattribute SourceFile
+
+-dontoptimize
+-dontusemixedcaseclassnames
+-dontskipnonpubliclibraryclasses
+-verbose
+-keepattributes *Annotation*,Signature,InnerClasses,EnclosingMethod
+#-printseeds  generation_res.txt
+
+-keep public class com.streamingmediainsights.smiclientsdk.SMIClientSdk {
+    public protected *;
+}
+
+-keep public class com.streamingmediainsights.smiclientsdk.SMISimpleExoPlayer {
+    public protected *;
+}
+
+-keep public class com.streamingmediainsights.smiclientsdk.SMISimpleExoPlayer$Builder {
+    public protected *;
+}
+
+-keep public class com.streamingmediainsights.smiclientsdk.SMITplSimpleExoPlayer$Builder {
+     public protected *;
+}
+
+-keep public class com.streamingmediainsights.smiclientsdk.SMIExoPlayerFactory {
+    public protected *;
+    public static *** newSimpleInstance(***);
+}
+
+-keep public interface com.streamingmediainsights.smiclientsdk.SMIEventCallbackListener { *; }
+
+-keepclasseswithmembers public class com.google.android.exoplayer2.upstream.DefaultHttpDataSourceFactory {
+  *;
+}
+
+-keep public class com.google.android.exoplayer2.upstream.HttpDataSource$RequestProperties{
+  *;
+}
+
+-keepclasseswithmembers public class com.google.android.exoplayer2.source.hls.HlsMediaSource {*;}
+-keepclasseswithmembers public class com.google.android.exoplayer2.source.hls.DefaultHlsDataSourceFactory {*;}
+-keepclasseswithmembers public class com.google.android.exoplayer2.upstream.cache.CacheDataSourceFactory  {*;}
+-keepclasseswithmembers public class com.google.android.exoplayer2.upstream.DefaultDataSourceFactory {*;}
+-keepclasseswithmembers public class com.google.android.exoplayer2.upstream.DefaultHttpDataSourceFactory {*;}
+-keepclasseswithmembers public class com.tivo.exoplayer.vcas.VerimatrixDataSourceFactory {*;}
