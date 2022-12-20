@@ -342,6 +342,29 @@ public class GeekStatsOverlay implements AnalyticsListener, Runnable {
     return time;
   }
 
+  /**
+   * Playback position, either relative to the start of an unknown start time
+   * VOD asset or in time since the unix Epoch for live or event asset.
+   *
+   * Time is always increasing (assuming no seeks)
+   *
+   * @return time in millieeconds since the epoch or start of VOD asset
+   */
+  protected long getPeriodPosition() {
+    long position = C.TIME_UNSET;
+    if (player != null) {
+      position = player.getContentPosition();
+      Timeline timeline = player.getCurrentTimeline();
+      if (! timeline.isEmpty()) {
+        int windowIndex = player.getCurrentWindowIndex();
+        Timeline.Window currentWindow = timeline.getWindow(windowIndex, new Timeline.Window());
+        if (currentWindow.windowStartTimeMs != C.TIME_UNSET) {    // VOD
+          position += currentWindow.windowStartTimeMs;
+        }
+      }
+    }
+    return position;
+ }
 
   protected String getPlaybackRateString() {
     float playbackRate = 0.0f;
@@ -350,7 +373,7 @@ public class GeekStatsOverlay implements AnalyticsListener, Runnable {
     if (lastTimeUpdate == C.TIME_UNSET) {
         lastTimeUpdate = System.currentTimeMillis();
     } else if (player != null && trickPlayControl != null) {
-        long currentPosition = player.getCurrentPosition();
+        long currentPosition = getPeriodPosition();
         long positionChange = Math.abs(lastPositionReport - currentPosition);
         long timeChange = System.currentTimeMillis() - lastTimeUpdate;
         lastTimeUpdate = System.currentTimeMillis();
