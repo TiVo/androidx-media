@@ -41,11 +41,6 @@ android {
         }
         debug {
             jniDebuggable = true
-            minifyEnabled false
-            proguardFiles = [
-                    "proguard-rules.txt",
-                    getDefaultProguardFile('proguard-android.txt')
-            ]
         }
     }
 
@@ -58,7 +53,7 @@ android {
 
 
 dependencies {
-    implementation files('libs/smiandroidclientsdk-armv7-r_2_15_1-sdkstd-debug.aar')
+    implementation 'com.tivo.android.exoplayer:trustreme:2.0.4.204'
     implementation 'androidx.annotation:annotation:1.0.2'
     implementation 'androidx.legacy:legacy-support-core-ui:1.0.0'
     implementation 'androidx.fragment:fragment:1.0.0'

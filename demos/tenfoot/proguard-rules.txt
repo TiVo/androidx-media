@@ -1,11 +1,4 @@
-# Proguard rules specific to the main demo app.
-
-# Constructor accessed via reflection in PlayerActivity
--dontnote com.google.android.exoplayer2.ext.ima.ImaAdsLoader
--keepclassmembers class com.google.android.exoplayer2.ext.ima.ImaAdsLoader {
-  <init>(android.content.Context, android.net.Uri);
-}
-
+# Proguard rules specific to the tenfoot demo app.
 
 -keep class com.streamingmediainsights.smiclientsdk.** {
       public *;
@@ -138,16 +131,6 @@
 # class/merging/horizontal proguard optimization is enabled.
 -keep class org.chromium.base.CollectionUtil
 
-
-# Proguard config for apps that depend on cronet_impl_common_java.jar.
-
-# Proguard config for apps that depend on cronet_impl_platform_java.jar.
-
-# This constructor is called using the reflection from Cronet API (cronet_api.jar).
--keep class org.chromium.net.impl.JavaCronetProvider {
-    public <init>(android.content.Context);
-}
-
 # Add project specific ProGuard rules here.
 # You can control the set of applied configuration files using the
 # proguardFiles setting in build.gradle.
@@ -164,11 +147,11 @@
 
 # Uncomment this to preserve the line number information for
 # debugging stack traces.
-#-keepattributes SourceFile,LineNumberTable
+-keepattributes SourceFile,LineNumberTable
 
 # If you keep the line number information, uncomment this to
 # hide the original source file name.
-#-renamesourcefileattribute SourceFile
+-renamesourcefileattribute SourceFile
 
 -dontoptimize
 -dontusemixedcaseclassnames

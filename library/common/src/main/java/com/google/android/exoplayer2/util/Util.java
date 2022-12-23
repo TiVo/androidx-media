@@ -2407,50 +2407,6 @@ public final class Util {
     return count > 0;
   }
 
-
-  public static String getHSN()
-  {
-/*
-    if (!hasSystemLevelPermissions())
-    {
-      return null;
-    }
-
- */
-    try {
-      String s = (String)
-              (((Class.forName("android.os.SystemProperties"))
-                      .getDeclaredMethod
-                              ("get", new Class[] { String.class, String.class }))
-                      .invoke
-                              (null, new Object[] { "ro.product.hsnt", "" }));
-      if ((s != null) && (s.length() > 0)) {
-        return s;
-      }
-    }
-    catch (Exception e) {
-      Log.e(TAG, "Failed to get hardware serial number from ro.product.hsnt: " + e);
-    }
-
-    // HSNT could be in ro.vendor.hsnt. Look for that as well.
-    try {
-      String s = (String)
-              (((Class.forName("android.os.SystemProperties"))
-                      .getDeclaredMethod
-                              ("get", new Class[] { String.class, String.class }))
-                      .invoke
-                              (null, new Object[] { "ro.vendor.hsnt", "" }));
-      if ((s != null) && (s.length() > 0)) {
-        return s;
-      }
-    }
-    catch (Exception e) {
-      Log.e(TAG, "Failed to get hardware serial number from ro.vendor.hsnt: " + e);
-    }
-
-    return null;
-  }
-
   /**
    * Attempts to parse an error code from a diagnostic string found in framework media exceptions.
    *

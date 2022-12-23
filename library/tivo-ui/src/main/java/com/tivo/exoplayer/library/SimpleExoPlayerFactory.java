@@ -4,7 +4,6 @@ import android.content.Context;
 import android.net.Uri;
 import android.os.Build;
 import androidx.annotation.CallSuper;
-import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.annotation.RequiresApi;
 
@@ -26,17 +25,14 @@ import com.google.android.exoplayer2.analytics.AnalyticsListener;
 import com.google.android.exoplayer2.source.TrackGroup;
 import com.google.android.exoplayer2.source.TrackGroupArray;
 import com.google.android.exoplayer2.source.UnrecognizedInputFormatException;
-import com.google.android.exoplayer2.source.hls.playlist.DefaultHlsPlaylistParserFactory;
 import com.google.android.exoplayer2.source.hls.playlist.HlsPlaylistParserFactory;
 import com.google.android.exoplayer2.trackselection.DefaultTrackSelector;
 import com.google.android.exoplayer2.trackselection.ExoTrackSelection;
 import com.google.android.exoplayer2.trackselection.MappingTrackSelector;
 import com.google.android.exoplayer2.trackselection.TrackSelection;
 import com.google.android.exoplayer2.trackselection.TrackSelectionArray;
-import com.google.android.exoplayer2.trackselection.TrackSelector;
 import com.google.android.exoplayer2.trickplay.TrickPlayControl;
 import com.google.android.exoplayer2.trickplay.TrickPlayControlFactory;
-import com.google.android.exoplayer2.trickplay.hls.DualModeHlsPlaylistParserFactory;
 import com.google.android.exoplayer2.util.EventLogger;
 import com.google.android.exoplayer2.util.Log;
 import com.google.android.exoplayer2.util.MimeTypes;
@@ -161,9 +157,7 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
   /** If the factory has set a value for mediaCodecAsyncMode */
   private boolean nonDefaultMediaCodecOperationMode;
   private boolean mediaCodecAsyncMode;
-  private LoadControl loadControl;
-  private DefaultRenderersFactory renderersFactory;
-  private LivePlaybackSpeedControl livePlaybackSpeedControl;
+  private AlternatePlayerFactory alternatePlayerFactory;
 
   /**
    * Simple callback to produce an AnalyticsListener for logging purposes.
@@ -188,6 +182,33 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
   }
 
   /**
+   * Callback interface to allow client to hook player creation.  This callback is provided
+   * to allow alternate {@link SimpleExoPlayer.Builder} implementations to construct the player
+   *
+   * This was implemented to allow Truestream integration without a dependency on specific Truetream
+   * version in this module.  Implementers should not save the returned player
+   * or use any of the factories passed to {@link #buildSimpleExoPlayer(DefaultRenderersFactory, LoadControl, DefaultTrackSelector, LivePlaybackSpeedControl)}
+   * for any other purpose then construction the player.
+   */
+  public interface AlternatePlayerFactory {
+
+    /**
+     * Implementors must construct a SimpleExoPlayer using the arguments
+     *
+     * @param renderersFactory - renderers factory to pass to the player builder
+     * @param loadControl - load control to pass to player builder to pass to the player builder
+     * @param trackSelector - trackselector to use for player builder
+     * @param livePlaybackSpeedControl livespeedcontrol to pass to the player builder
+     * @return a SimpleExoPlayer instance
+     */
+    SimpleExoPlayer buildSimpleExoPlayer(
+        DefaultRenderersFactory renderersFactory,
+        LoadControl loadControl,
+        DefaultTrackSelector trackSelector,
+        LivePlaybackSpeedControl livePlaybackSpeedControl);
+  }
+
+  /**
    * Preferred mechanism for creating the {@link SimpleExoPlayerFactory}.  Basic builder pattern,
    * e.g. to get all the default simply:
    *
@@ -201,6 +222,7 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
     private String userAgentPrefix;
     private boolean mediaCodecAsyncMode;
     private boolean nonDefaultMediaCodecOperationMode = false;
+    private AlternatePlayerFactory alternatePlayerFactory = null;
 
     public Builder(Context context) {
       this.context = context;
@@ -246,6 +268,18 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
     }
 
     /**
+     * Allow client to optionally specify their own factory to produce the {@link SimpleExoPlayer}
+     * If not specified the default {@link SimpleExoPlayer.Builder} is used
+     *
+     * @param alternatePlayerFactory factory call back
+     * @return this builder for chaining
+     */
+    public Builder setAlternatePlayerFactory(AlternatePlayerFactory alternatePlayerFactory) {
+      this.alternatePlayerFactory = alternatePlayerFactory;
+      return this;
+    }
+
+    /**
      * Allows the client to specify their own portion of the user-agent header presented for
      * HTTP requests (playlists, segments, etc.).  The generate user-agent will include ExoPlayer
      * version info.  For example, with a prefix "MyApp" the user-agent will be:
@@ -276,6 +310,7 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
 
     public SimpleExoPlayerFactory build() {
       SimpleExoPlayerFactory simpleExoPlayerFactory = new SimpleExoPlayerFactory(context);
+      simpleExoPlayerFactory.alternatePlayerFactory = this.alternatePlayerFactory;
       simpleExoPlayerFactory.playerErrorHandlerListener = this.listener;
       simpleExoPlayerFactory.eventListenerFactory = this.factory;
       simpleExoPlayerFactory.factoriesCreatedCallback = this.factoriesCreatedCallback;
@@ -428,7 +463,7 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
    * Call this when your application is started.
    *
    * This API takes the defaults for {@link DefaultLoadControl} which can be changed using the sister API
-   * {@link #createPlayerPart1(boolean, DefaultLoadControl.Builder)}
+   * {@link #createPlayer(boolean, boolean, DefaultLoadControl.Builder)}
    *
    * @param playWhenReady sets the play when ready flag.
    * @param defaultTunneling - default track selection to prefer tunneling (can turn this off {@link #setTunnelingMode(boolean)}}
@@ -444,18 +479,7 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
             DefaultLoadControl.DEFAULT_BUFFER_FOR_PLAYBACK_MS,
             DefaultLoadControl.DEFAULT_BUFFER_FOR_PLAYBACK_AFTER_REBUFFER_MS);
 
-    createPlayerPart1(defaultTunneling, builder);
-    getRenderersFactory();
-    getLoadControl();
-    getlivePlaybackSpeedControl();
-
-    player = new SimpleExoPlayer.Builder(context, renderersFactory)
-            .setTrackSelector(trackSelector)
-            .setLoadControl(loadControl)
-            .setLivePlaybackSpeedControl(livePlaybackSpeedControl)
-            .build();
-    createPlayerPart2(playWhenReady);
-    return player;
+    return createPlayer(playWhenReady, defaultTunneling, builder);
   }
 
   /**
@@ -476,13 +500,14 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
    * after re-buffering following a stall.  Setting the 3rd parameter lower reduces channel change latency at
    * the cost of higher risk of initial re-buffering.
    *
+   * @param playWhenReady sets the play when ready flag.
    * @param defaultTunneling - default track selection to prefer tunneling (can turn this off {@link #setTunnelingMode(boolean)}}
    * @param controlBuilder - DefaultLoadControl.Builder, allows changing buffering behavior for how often player fetches and what
    *                       the player keeps {@link DefaultLoadControl.Builder#setBufferDurationsMs(int, int, int, int)}
    * @return the newly created player.  Also always available via {@link #getCurrentPlayer()}
    */
   @CallSuper
-  public void createPlayerPart1(boolean defaultTunneling, DefaultLoadControl.Builder controlBuilder) {
+  public SimpleExoPlayer createPlayer(boolean playWhenReady, boolean defaultTunneling, DefaultLoadControl.Builder controlBuilder) {
     assert controlBuilder != null;
     if (player != null) {
       releasePlayer();
@@ -494,49 +519,35 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
     trickPlayControl = trickPlayControlFactory.createTrickPlayControl(trackSelector);
     hlsPlaylistParserFactory = trickPlayControl.createHlsPlaylistParserFactory(true);
 
-    renderersFactory = trickPlayControl.createRenderersFactory(context);
+    DefaultRenderersFactory renderersFactory = trickPlayControl.createRenderersFactory(context);
 
     if (nonDefaultMediaCodecOperationMode) {
       renderersFactory.experimentalSetAsynchronousBufferQueueingEnabled(mediaCodecAsyncMode);
       boolean forceAsyncQueueingSynchronizationWorkaround =
-              !Util.MANUFACTURER.toLowerCase().contains("amazon") && mediaCodecAsyncMode;
+          !Util.MANUFACTURER.toLowerCase().contains("amazon") && mediaCodecAsyncMode;
       renderersFactory.experimentalSetForceAsyncQueueingSynchronizationWorkaround(forceAsyncQueueingSynchronizationWorkaround);
     }
 
-    loadControl = trickPlayControl.createLoadControl(controlBuilder.createDefaultLoadControl());
+    LoadControl loadControl = trickPlayControl.createLoadControl(controlBuilder.createDefaultLoadControl());
 
     // Wrap default with our own version that logs useful bits, TODO factory method for default
-    livePlaybackSpeedControl =
-            new LoggingLivePlaybackSpeedControl(new DefaultLivePlaybackSpeedControl.Builder().build());
-  }
+    LivePlaybackSpeedControl livePlaybackSpeedControl =
+        new LoggingLivePlaybackSpeedControl(new DefaultLivePlaybackSpeedControl.Builder().build());
 
+    if (alternatePlayerFactory != null) {
+      player = alternatePlayerFactory.buildSimpleExoPlayer(
+          renderersFactory,
+          loadControl,
+          trackSelector,
+          livePlaybackSpeedControl);
+    } else {
+      player = new SimpleExoPlayer.Builder(context, renderersFactory)
+          .setTrackSelector(trackSelector)
+          .setLoadControl(loadControl)
+          .setLivePlaybackSpeedControl(livePlaybackSpeedControl)
+          .build();
+    }
 
-
-
-
-
-  public DefaultRenderersFactory getRenderersFactory()
-  {
-    return renderersFactory;
-  }
-
-  public LoadControl getLoadControl()
-  {
-    return loadControl;
-  }
-
-  public LivePlaybackSpeedControl getlivePlaybackSpeedControl()
-  {
-    return livePlaybackSpeedControl;
-  }
-
-  public void setPlayer(SimpleExoPlayer p)
-  {
-      player = p;
-  }
-
-  public SimpleExoPlayer createPlayerPart2 (boolean playWhenReady)
-  {
     mediaSourceLifeCycle = createMediaSourceLifeCycle();
 
     trickPlayControl.setPlayer(player);
