@@ -56,6 +56,49 @@ public class FrameCuratorPlaylistParserTest {
         }
     }
 
+    private static class FakePlaylistTracker {
+
+        private final HlsPlaylistParserFactory parserFactory;
+        private final HlsMasterPlaylist master;
+        private Uri dualModeVariantUri;
+        @Nullable private HlsMediaPlaylist dualModePlaylistSnapshot;
+        @Nullable private HlsMediaPlaylist curatedSourcePlaylist;
+
+        FakePlaylistTracker(String masterPlaylist) throws IOException {
+            final DefaultHlsPlaylistParserFactory defaultHlsPlaylistParserFactory = new DefaultHlsPlaylistParserFactory();
+            parserFactory = new DualModeHlsPlaylistParserFactory(defaultHlsPlaylistParserFactory);
+            ParsingLoadable.Parser<HlsPlaylist> masterParser = parserFactory.createPlaylistParser();
+            ByteArrayInputStream inputStream =
+                new ByteArrayInputStream(masterPlaylist.getBytes(Charsets.UTF_8));
+            master = (HlsMasterPlaylist) masterParser.parse(Uri.EMPTY, inputStream);
+            for (HlsMasterPlaylist.Variant variant : master.variants) {
+                if (variant.url.getFragment() != null) {
+                    dualModeVariantUri = variant.url;
+                }
+            }
+        }
+
+        void clearSnapshots() {
+            dualModePlaylistSnapshot = null;
+        }
+
+        HlsMediaPlaylist parsePlaylistUpdate(String testPlaylistFile) throws IOException {
+            InputStream testPlaylistStream = TestUtil.getInputStream(ApplicationProvider.getApplicationContext(), testPlaylistFile);
+            ParsingLoadable.Parser<HlsPlaylist> playlistParser = parserFactory.createPlaylistParser(master, dualModePlaylistSnapshot);
+            assertThat(playlistParser).isInstanceOf(FrameCuratorPlaylistParser.class);
+            FrameCuratorPlaylistParser curatorPlaylistParser = (FrameCuratorPlaylistParser) playlistParser;
+            dualModePlaylistSnapshot = (HlsMediaPlaylist) playlistParser.parse(dualModeVariantUri, testPlaylistStream);
+            curatedSourcePlaylist = curatorPlaylistParser.getSourceMediaPlaylist(dualModeVariantUri);
+
+            return dualModePlaylistSnapshot;
+        }
+
+        HlsMediaPlaylist getCuratedSourcePlaylist() {
+            return curatedSourcePlaylist;
+        }
+    }
+
+
     @Before
     public void setupTest() throws IOException {
         InputStream testPlaylistStream = TestUtil.getInputStream(ApplicationProvider.getApplicationContext(), "testplaylist.m3u8");
@@ -113,22 +156,7 @@ public class FrameCuratorPlaylistParserTest {
             "dummy.m3u8\n" +
             "#EXT-X-I-FRAME-STREAM-INF:BANDWIDTH=1373400,URI=\"test_playlist.m3u8\",CODECS=\"avc1.640020\",RESOLUTION=1280x720\n";
 
-
-        // Dual Mode parser will parse the master above and create a curated iFrame playlist from test_playlist
-        // State for updates is initialized and saved in the FrameCuratorPlaylistParser created each time a master playlist is
-        // parsed (every channel change)
-        final DefaultHlsPlaylistParserFactory defaultHlsPlaylistParserFactory = new DefaultHlsPlaylistParserFactory();
-        HlsPlaylistParserFactory parserFactory = new DualModeHlsPlaylistParserFactory(defaultHlsPlaylistParserFactory);
-        ParsingLoadable.Parser<HlsPlaylist> masterParser = parserFactory.createPlaylistParser();
-        ByteArrayInputStream inputStream =
-            new ByteArrayInputStream(testMaster.getBytes(Charsets.UTF_8));
-        HlsMasterPlaylist master = (HlsMasterPlaylist) masterParser.parse(Uri.EMPTY, inputStream);
-        Uri dualModeVariantUri = null;
-        for (HlsMasterPlaylist.Variant variant : master.variants) {
-            if (variant.url.getFragment() != null) {
-                dualModeVariantUri = variant.url;
-            }
-        }
+        FakePlaylistTracker playlistTracker = new FakePlaylistTracker(testMaster);
 
         String previousSources[] = {
             "testplaylist_update_previous.m3u8",
@@ -145,32 +173,22 @@ public class FrameCuratorPlaylistParserTest {
             String previousSource = previousSources[i];
             String currentSource = currentSources[i];
 
-            // The DefaultHlsPlaylistTracker creates the playlist parser once on load/parse complete for the master
-            // playlist, so this is used to save playlist state across loads.
+            playlistTracker.clearSnapshots();
+
+            // Parse and validate previous as an update, basically this is the initial playlist load, there is no previous
+            // snapshot
             //
-            ParsingLoadable.Parser<HlsPlaylist> playlistParser = parserFactory.createPlaylistParser(master, null);
-
-            // Load and parse first playlist.
-            InputStream testPlaylistStream = TestUtil.getInputStream(ApplicationProvider.getApplicationContext(), previousSource);
-            HlsMediaPlaylist sourcePlaylistPrevious = (HlsMediaPlaylist) defaultHlsPlaylistParserFactory.createPlaylistParser().parse(Uri.EMPTY, testPlaylistStream);
-
-            testPlaylistStream = TestUtil.getInputStream(ApplicationProvider.getApplicationContext(), previousSource);
-            HlsPlaylist playlist = playlistParser.parse(dualModeVariantUri, testPlaylistStream);
-            assertThat(playlist).isInstanceOf(HlsMediaPlaylist.class);
-
-            validatePlaylistCuration(sourcePlaylistPrevious, (HlsMediaPlaylist) playlist);
+            HlsMediaPlaylist previous = playlistTracker.parsePlaylistUpdate(previousSource);
+            assertThat(playlistTracker.getCuratedSourcePlaylist()).isNotNull();
+            validatePlaylistCuration(playlistTracker.getCuratedSourcePlaylist(), previous);
 
             // load and parse update.
-            testPlaylistStream = TestUtil.getInputStream(ApplicationProvider.getApplicationContext(), currentSource);
-            HlsMediaPlaylist sourcePlaylistCurrent = (HlsMediaPlaylist) defaultHlsPlaylistParserFactory.createPlaylistParser().parse(Uri.EMPTY, testPlaylistStream);
-
-            testPlaylistStream = TestUtil.getInputStream(ApplicationProvider.getApplicationContext(), currentSource);
-            HlsPlaylist playlistUpdate = playlistParser.parse(dualModeVariantUri, testPlaylistStream);
-            assertThat(playlistUpdate).isInstanceOf(HlsMediaPlaylist.class);
-
-            validatePlaylistCuration(sourcePlaylistCurrent, (HlsMediaPlaylist) playlistUpdate);
-
-            assertThat(((HlsMediaPlaylist) playlistUpdate).isUpdateValid((HlsMediaPlaylist) playlist)).isTrue();
+            HlsMediaPlaylist previousSourcePlaylist = playlistTracker.getCuratedSourcePlaylist();
+            assertThat(previousSourcePlaylist).isNotNull();
+            HlsMediaPlaylist current = playlistTracker.parsePlaylistUpdate(currentSource);
+            assertThat(playlistTracker.getCuratedSourcePlaylist()).isNotNull();
+            assertThat(current.isUpdateValid(previous)).isTrue();
+            validatePlaylistCuration(previousSourcePlaylist, current);
         }
 
     }

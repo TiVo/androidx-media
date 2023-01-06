@@ -53,6 +53,12 @@ public class FrameCuratorPlaylistParser implements ParsingLoadable.Parser<HlsPla
         previousMediaPlaylist = null;
     }
 
+    @VisibleForTesting
+    @Nullable
+    HlsMediaPlaylist getSourceMediaPlaylist(@NonNull Uri uri) {
+        return previousSourcePlaylist.get(uri);
+    }
+
     @NonNull
     @Override
     public HlsPlaylist parse(@NonNull Uri uri, @NonNull InputStream inputStream) throws IOException {
