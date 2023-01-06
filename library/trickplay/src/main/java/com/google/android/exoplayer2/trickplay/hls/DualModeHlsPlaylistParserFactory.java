@@ -1,5 +1,6 @@
 package com.google.android.exoplayer2.trickplay.hls;
 
+import android.net.Uri;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import com.google.android.exoplayer2.source.hls.playlist.HlsMasterPlaylist;
@@ -7,11 +8,14 @@ import com.google.android.exoplayer2.source.hls.playlist.HlsMediaPlaylist;
 import com.google.android.exoplayer2.source.hls.playlist.HlsPlaylist;
 import com.google.android.exoplayer2.source.hls.playlist.HlsPlaylistParserFactory;
 import com.google.android.exoplayer2.upstream.ParsingLoadable;
+import java.util.HashMap;
+import java.util.Map;
 
 public class DualModeHlsPlaylistParserFactory implements HlsPlaylistParserFactory {
     private final int[] subsetTargets;
     private final HlsPlaylistParserFactory delegatePlaylistParserFactory;
     private final FrameRateAnalyzer frameRateAnalyzer;
+    private final Map<Uri, HlsMediaPlaylist> previousSourcePlaylists;
 
     /**
      * Create a dual-mode {@link HlsPlaylistParserFactory} implementation.
@@ -32,6 +36,7 @@ public class DualModeHlsPlaylistParserFactory implements HlsPlaylistParserFactor
         delegatePlaylistParserFactory = delegateFactory;
         subsetTargets = subsets;
         frameRateAnalyzer = new FrameRateAnalyzer();
+        previousSourcePlaylists = new HashMap<>();
     }
 
     /**
@@ -75,7 +80,7 @@ public class DualModeHlsPlaylistParserFactory implements HlsPlaylistParserFactor
         @NonNull HlsMasterPlaylist masterPlaylist,
         @Nullable HlsMediaPlaylist previousMediaPlaylist) {
         return new FrameCuratorPlaylistParser(delegatePlaylistParserFactory, frameRateAnalyzer, masterPlaylist,
-            previousMediaPlaylist);
+            previousSourcePlaylists, previousMediaPlaylist);
     }
 
 }
