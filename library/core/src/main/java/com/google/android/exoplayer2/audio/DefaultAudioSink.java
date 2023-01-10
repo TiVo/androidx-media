@@ -364,6 +364,7 @@ public final class DefaultAudioSink implements AudioSink {
   private int audioSessionId;
   private AuxEffectInfo auxEffectInfo;
   private boolean tunneling;
+  private long lastTunnelingAvSyncPresentationTimeUs;
   private long lastFeedElapsedRealtimeMs;
   private boolean offloadDisabledUntilNextConfiguration;
   private boolean isWaitingForOffloadEndOfStreamHandled;
@@ -900,6 +901,18 @@ public final class DefaultAudioSink implements AudioSink {
     offloadStreamEventCallbackV29.register(audioTrack);
   }
 
+  /**
+   * Repeatedly drains and feeds the {@link AudioProcessingPipeline} until {@link
+   * #writeBuffer(ByteBuffer, long)} is not accepting any more input or there is no more input to
+   * feed into the pipeline.
+   *
+   * <p>If the {@link AudioProcessingPipeline} is not {@linkplain
+   * AudioProcessingPipeline#isOperational() operational}, input buffers are passed straight to
+   * {@link #writeBuffer(ByteBuffer, long)}.
+   *
+   * @param avSyncPresentationTimeUs The tunneling AV sync presentation time for the current buffer,
+   *     or {@link C#TIME_END_OF_SOURCE} when draining remaining buffers at the end of the stream.
+   */
   private void processBuffers(long avSyncPresentationTimeUs) throws WriteException {
     int count = activeAudioProcessors.length;
     int index = count;
@@ -935,6 +948,13 @@ public final class DefaultAudioSink implements AudioSink {
   }
 
   @SuppressWarnings("ReferenceEquality")
+  /**
+   * Writes the provided buffer to the audio track.
+   *
+   * @param buffer The buffer to write.
+   * @param avSyncPresentationTimeUs The tunneling AV sync presentation time for the buffer, or
+   *     {@link C#TIME_END_OF_SOURCE} when draining remaining buffers at the end of the stream.
+   */
   private void writeBuffer(ByteBuffer buffer, long avSyncPresentationTimeUs) throws WriteException {
     if (!buffer.hasRemaining()) {
       return;
@@ -970,6 +990,14 @@ public final class DefaultAudioSink implements AudioSink {
       }
     } else if (tunneling) {
       Assertions.checkState(avSyncPresentationTimeUs != C.TIME_UNSET);
+      if (avSyncPresentationTimeUs == C.TIME_END_OF_SOURCE) {
+        // Audio processors during tunneling are required to produce buffers immediately when
+        // queuing, so we can assume the timestamp during draining at the end of the stream is the
+        // same as the timestamp of the last sample we processed.
+        avSyncPresentationTimeUs = lastTunnelingAvSyncPresentationTimeUs;
+      } else {
+        lastTunnelingAvSyncPresentationTimeUs = avSyncPresentationTimeUs;
+      }
       bytesWrittenOrError =
           writeNonBlockingWithAvSyncV21(
               audioTrack, buffer, bytesRemaining, avSyncPresentationTimeUs);
@@ -1069,7 +1097,7 @@ public final class DefaultAudioSink implements AudioSink {
       if (audioProcessorNeedsEndOfStream) {
         audioProcessor.queueEndOfStream();
       }
-      processBuffers(C.TIME_UNSET);
+      processBuffers(C.TIME_END_OF_SOURCE);
       if (!audioProcessor.isEnded()) {
         return false;
       }
@@ -1079,7 +1107,7 @@ public final class DefaultAudioSink implements AudioSink {
 
     // Finish writing any remaining output to the track.
     if (outputBuffer != null) {
-      writeBuffer(outputBuffer, C.TIME_UNSET);
+      writeBuffer(outputBuffer, C.TIME_END_OF_SOURCE);
       if (outputBuffer != null) {
         return false;
       }
