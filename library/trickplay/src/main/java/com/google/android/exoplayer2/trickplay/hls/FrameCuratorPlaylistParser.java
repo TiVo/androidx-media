@@ -1,16 +1,14 @@
 package com.google.android.exoplayer2.trickplay.hls;
 
 import android.net.Uri;
-import android.util.Pair;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.annotation.VisibleForTesting;
 
+import com.google.android.exoplayer2.source.hls.playlist.HlsPlaylistParser;
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 import com.google.android.exoplayer2.source.hls.playlist.DefaultHlsPlaylistParserFactory;
@@ -38,7 +36,7 @@ public class FrameCuratorPlaylistParser implements ParsingLoadable.Parser<HlsPla
     private final ParsingLoadable.Parser<HlsPlaylist> parserDelegate;
     private final Map<Uri, HlsMediaPlaylist> previousSourcePlaylists;
     @Nullable private final HlsMasterPlaylist masterPlaylist;
-    @Nullable private final HlsMediaPlaylist previousMediaPlaylist;
+    @Nullable private final HlsMediaPlaylist previousCuratedMediaPlaylist;
     @Nullable private final FrameRateAnalyzer frameRateAnalyzer;
 
     public FrameCuratorPlaylistParser(HlsPlaylistParserFactory hlsPlaylistParserFactory,
@@ -50,7 +48,7 @@ public class FrameCuratorPlaylistParser implements ParsingLoadable.Parser<HlsPla
         previousSourcePlaylists = lastLoadedSourcePlayists;
         frameRateAnalyzer = rateAnalyzer;
         masterPlaylist = hlsMasterPlaylist;
-        previousMediaPlaylist = previousHlsMediaPlaylist;
+        previousCuratedMediaPlaylist = previousHlsMediaPlaylist;
     }
 
     @VisibleForTesting
@@ -59,7 +57,7 @@ public class FrameCuratorPlaylistParser implements ParsingLoadable.Parser<HlsPla
         previousSourcePlaylists = new HashMap<>();
         frameRateAnalyzer = null;
         masterPlaylist = null;
-        previousMediaPlaylist = null;
+        previousCuratedMediaPlaylist = null;
     }
 
     @VisibleForTesting
@@ -74,46 +72,41 @@ public class FrameCuratorPlaylistParser implements ParsingLoadable.Parser<HlsPla
         HlsPlaylist playlist = parserDelegate.parse(uri, inputStream);
         if (playlist instanceof HlsMediaPlaylist && uri.getFragment() != null) {
             int subsetTarget = Integer.parseInt(uri.getFragment());
-            HlsMediaPlaylist sourcePlaylist = (HlsMediaPlaylist) playlist;
-
+            HlsMediaPlaylist currentSourcePlaylist = (HlsMediaPlaylist) playlist;
+            HlsMediaPlaylist previousSource = previousSourcePlaylists.get(uri);
             HlsMediaPlaylist curatedPlaylist;
-            if (previousMediaPlaylist == null) {
-                SmallestIFramesCurator smallestIFramesCurator = new SmallestIFramesCurator();
-                curatedPlaylist = smallestIFramesCurator.generateCuratedPlaylist(sourcePlaylist, subsetTarget, uri);
+            if (canUsePreviousPlaylist(currentSourcePlaylist, previousSource, previousCuratedMediaPlaylist)) {
+                SmallestIFramesCurator smallestIFramesCurator = new SmallestIFramesCurator(previousCuratedMediaPlaylist);
+                curatedPlaylist = smallestIFramesCurator.updateCurrentCurated(currentSourcePlaylist, previousSource, subsetTarget);
             } else {
-                SmallestIFramesCurator smallestIFramesCurator = new SmallestIFramesCurator(previousMediaPlaylist);
-                HlsMediaPlaylist previousSource = previousSourcePlaylists.get(uri);
-                curatedPlaylist = smallestIFramesCurator.updateCurrentCurated(sourcePlaylist, previousSource, subsetTarget);
+                SmallestIFramesCurator smallestIFramesCurator = new SmallestIFramesCurator();
+                curatedPlaylist = smallestIFramesCurator.generateCuratedPlaylist(currentSourcePlaylist, subsetTarget, uri);
             }
 
-            previousSourcePlaylists.put(uri, sourcePlaylist);
+            previousSourcePlaylists.put(uri, currentSourcePlaylist);
             playlist = curatedPlaylist;
         }
         if (playlist instanceof HlsMediaPlaylist && frameRateAnalyzer != null) {
             assert masterPlaylist != null;      // true because of constructor path
             HlsMediaPlaylist updatedMediaPlaylist = (HlsMediaPlaylist) playlist;
-            if (updatedMediaPlaylist.isUpdateValid(previousMediaPlaylist)) {
+            if (updatedMediaPlaylist.isUpdateValid(previousCuratedMediaPlaylist)) {
                 frameRateAnalyzer.playlistUpdated(masterPlaylist, updatedMediaPlaylist);
-            } else if (updatedMediaPlaylist.isNewerThan(previousMediaPlaylist)) {
+            } else if (updatedMediaPlaylist.isNewerThan(previousCuratedMediaPlaylist)) {
                 Log.w(TAG, "ignoring invalid playlist for frame rate analyze.");
             }
         }
         return playlist;
     }
 
-    static Pair<List<HlsMediaPlaylist.Segment>, List<HlsMediaPlaylist.Segment>> computeSegmentsDelta(
-        HlsMediaPlaylist updated, HlsMediaPlaylist previous) {
-        List<HlsMediaPlaylist.Segment> removed = new ArrayList<>();
-        List<HlsMediaPlaylist.Segment> added = new ArrayList<>();
-        if (updated.isUpdateValid(previous)) {
-            int mediaSequenceDelta = (int) (updated.mediaSequence - previous.mediaSequence);
-            removed.addAll(previous.segments.subList(0, mediaSequenceDelta));
-
-            int firstAdded = updated.segments.size() - mediaSequenceDelta;
-            added.addAll(updated.segments.subList(firstAdded, updated.segments.size()));
-        } else {
-            Log.w(TAG, "Warning, update is not valid so ignoring");
+    private boolean canUsePreviousPlaylist(
+        @NonNull HlsMediaPlaylist currentSourcePlaylist,
+        @Nullable  HlsMediaPlaylist previousSource,
+        @Nullable HlsMediaPlaylist previousCuratedMediaPlaylist) {
+        boolean canUse = previousCuratedMediaPlaylist != null && previousSource != null;
+        if (canUse) {
+            canUse = currentSourcePlaylist.isUpdateValid(previousSource);
         }
-        return new Pair<>(removed, added);
+        return canUse;
     }
+
 }

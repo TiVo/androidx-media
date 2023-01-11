@@ -4,10 +4,10 @@ import android.net.Uri;
 import androidx.test.core.app.ApplicationProvider;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 
+import com.google.android.exoplayer2.source.hls.playlist.HlsPlaylistParser;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
@@ -21,8 +21,8 @@ import com.google.android.exoplayer2.source.hls.playlist.HlsMediaPlaylist;
 import com.google.android.exoplayer2.source.hls.playlist.HlsPlaylist;
 import com.google.android.exoplayer2.testutil.TestUtil;
 import com.google.android.exoplayer2.upstream.ParsingLoadable;
-import static com.google.android.exoplayer2.trickplay.hls.HlsPlaylistUtils.createMockSegment;
 import static com.google.common.truth.Truth.assertThat;
+import static org.junit.Assert.assertThrows;
 
 @RunWith(AndroidJUnit4.class)
 public class SmallestIFrameCuratorTest {
@@ -103,7 +103,7 @@ public class SmallestIFrameCuratorTest {
 
 
   @Test
-  public void testComputePlaylistUpdates() {
+  public void testComputePlaylistUpdates() throws HlsPlaylistParser.DeltaUpdateException {
     SmallestIFramesCurator testee = new SmallestIFramesCurator(previousPlaylist1);
 
     SmallestIFramesCurator.PlaylistUpdates updates = testee.computePlaylistUpdates(currentPlaylist1, previousPlaylist1);
@@ -118,7 +118,8 @@ public class SmallestIFrameCuratorTest {
 
     // double check, also covered by FrameCuratorPlaylistParserTest.testCuratorParse
     assertThat(curated.durationUs).isEqualTo(previousPlaylist1.durationUs);
-    assertThat(curated.mediaSequence).isEqualTo(1);
+    // first segment is preserved always, so currated source should have same MSN as source playlist
+    assertThat(curated.mediaSequence).isEqualTo(previousPlaylist1.mediaSequence);
     assertThat(curated.hasDiscontinuitySequence).isEqualTo(false);
 
     // Now, using the curated playlist as the base
@@ -134,7 +135,7 @@ public class SmallestIFrameCuratorTest {
 
 
   @Test
-  public void testCloneAdjustedSegments() {
+  public void testCloneAdjustedSegments() throws HlsPlaylistParser.DeltaUpdateException {
 
     // Initial curation of first playlist
     HlsMediaPlaylist curated = new SmallestIFramesCurator().generateCuratedPlaylist(previousPlaylist2, 5, Uri.EMPTY);
@@ -168,12 +169,14 @@ public class SmallestIFrameCuratorTest {
   }
 
   /**
-   * Velocix origin produces iFrame playlists with no segments and no program date time, all we can
-   * do is ignore these and hope they will produce valid ones at some point (otherwise it will be a
-   * playlist stuck exception)
+   * With ExoPlayer 2.15.1 if the playlist update and previous playlist snapshot no longer match up
+   * (normally this would be a stale previous playlist, but could also be a bad playlist update from the
+   * origin).  In either case the curator throws and exception (that is handled in
+   * {@link com.google.android.exoplayer2.source.hls.playlist.DefaultHlsPlaylistTracker}
    */
   @Test
-  public void computePlaylistUpdates_ignoresInvalidUpdate() {
+  public void computePlaylistUpdates_ignoresInvalidUpdate()
+      throws HlsPlaylistParser.DeltaUpdateException {
     // Initial curation of first playlist
     HlsMediaPlaylist curated = new SmallestIFramesCurator().generateCuratedPlaylist(previousPlaylist2, 5, Uri.EMPTY);
 
@@ -187,13 +190,8 @@ public class SmallestIFrameCuratorTest {
         0,
         previousPlaylist2.mediaSequence + 3,
         0);
-    SmallestIFramesCurator.PlaylistUpdates update = testee.computePlaylistUpdates(emptyPlaylistUpdate, previousPlaylist2);
 
-    SmallestIFramesCurator.PlaylistUpdates emptyUpdate = new SmallestIFramesCurator.PlaylistUpdates();
-    assertThat(update.addedSegments).isEqualTo(emptyUpdate.addedSegments);
-    assertThat(update.removeCount).isEqualTo(emptyUpdate.removeCount);
-    assertThat(update.timeDeltaUs).isEqualTo(emptyUpdate.timeDeltaUs);
-    assertThat(update.discontinuityDelta).isEqualTo(emptyUpdate.discontinuityDelta);
+    assertThrows(HlsPlaylistParser.DeltaUpdateException.class, () -> testee.computePlaylistUpdates(emptyPlaylistUpdate, previousPlaylist2));
   }
 
   public static void dumpSegments(List<HlsMediaPlaylist.Segment> segments) {

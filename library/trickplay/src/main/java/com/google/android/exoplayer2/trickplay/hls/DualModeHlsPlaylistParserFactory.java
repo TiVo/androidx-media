@@ -71,6 +71,7 @@ public class DualModeHlsPlaylistParserFactory implements HlsPlaylistParserFactor
     @Override
     public ParsingLoadable.Parser<HlsPlaylist> createPlaylistParser() {
         frameRateAnalyzer.resetOnNewMasterPlaylist();
+        previousSourcePlaylists.clear();
         return new AugmentedPlaylistParser(delegatePlaylistParserFactory.createPlaylistParser(), subsetTargets);
     }
 

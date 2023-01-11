@@ -4,6 +4,7 @@ import android.net.Uri;
 import androidx.annotation.NonNull;
 import androidx.annotation.VisibleForTesting;
 
+import com.google.android.exoplayer2.source.hls.playlist.HlsPlaylistParser;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -50,7 +51,7 @@ public class SmallestIFramesCurator {
   HlsMediaPlaylist generateCuratedPlaylist(HlsMediaPlaylist sourcePlaylist, int subset, Uri curatedUri) {
     List<HlsMediaPlaylist.Segment> curated = curateSmallestIFrames(sourcePlaylist, subset);
     int newDiscontinuitySequence = sourcePlaylist.hasDiscontinuitySequence ? sourcePlaylist.discontinuitySequence : C.INDEX_UNSET;
-    return sourcePlaylist.copyWithUpdates(curated, curatedUri.toString(), sourcePlaylist.startTimeUs, 1, newDiscontinuitySequence);
+    return sourcePlaylist.copyWithUpdates(curated, curatedUri.toString(), sourcePlaylist.startTimeUs, sourcePlaylist.mediaSequence, newDiscontinuitySequence);
   }
 
   /**
@@ -70,7 +71,7 @@ public class SmallestIFramesCurator {
   @RequiresNonNull("previousCuratedPlaylist")
   HlsMediaPlaylist updateCurrentCurated(HlsMediaPlaylist latest,
                                         HlsMediaPlaylist previous,
-                                        int subset) {
+                                        int subset) throws HlsPlaylistParser.DeltaUpdateException {
     @NonNull HlsMediaPlaylist updatedPlaylist = previousCuratedPlaylist;
 
     PlaylistUpdates updates = computePlaylistUpdates(latest, previous);
@@ -221,13 +222,14 @@ public class SmallestIFramesCurator {
    */
   @RequiresNonNull("previousCuratedPlaylist")
   @VisibleForTesting
-  PlaylistUpdates computePlaylistUpdates(HlsMediaPlaylist latest, HlsMediaPlaylist previous) {
+  PlaylistUpdates computePlaylistUpdates(HlsMediaPlaylist latest, HlsMediaPlaylist previous)
+      throws HlsPlaylistParser.DeltaUpdateException {
     PlaylistUpdates updates = new PlaylistUpdates();
     assert previousCuratedPlaylist != null;
 
     if (latest.isNewerThan(previous)) {
       if (! latest.isUpdateValid(previous)) {
-        Log.w(TAG, "invalid update of " + latest.baseUri + " detected.");
+        throw new HlsPlaylistParser.DeltaUpdateException();
       } else {
         final int mediaSequenceDelta = (int) (latest.mediaSequence - previous.mediaSequence);
         List<HlsMediaPlaylist.Segment> removed = previous.segments.subList(0, mediaSequenceDelta);

@@ -131,24 +131,6 @@ public class FrameCuratorPlaylistParserTest {
     }
 
     @Test
-    public void testComputeSegmentsDelta() throws IOException {
-        HlsPlaylistParserFactory parserFactory = new DefaultHlsPlaylistParserFactory();
-        ParsingLoadable.Parser<HlsPlaylist> playlistParser = parserFactory.createPlaylistParser();
-
-        InputStream testPlaylistStream = TestUtil.getInputStream(ApplicationProvider.getApplicationContext(), "testplaylist_update_previous_1.m3u8");
-        HlsMediaPlaylist previous = (HlsMediaPlaylist) playlistParser.parse(Uri.EMPTY, testPlaylistStream);
-
-        testPlaylistStream = TestUtil.getInputStream(ApplicationProvider.getApplicationContext(), "testplaylist_update_current_1.m3u8");
-        HlsMediaPlaylist updated = (HlsMediaPlaylist) playlistParser.parse(Uri.EMPTY, testPlaylistStream);
-
-        Pair<List<HlsMediaPlaylist.Segment>, List<HlsMediaPlaylist.Segment>> pair
-            = FrameCuratorPlaylistParser.computeSegmentsDelta(updated, previous);
-
-        assertThat(pair.first.size()).isEqualTo(updated.mediaSequence - previous.mediaSequence);
-
-    }
-
-    @Test
     public void testCuratedPlaylistUpdate() throws IOException {
         String testMaster = "#EXTM3U\n" +
             "#EXT-X-VERSION:5\n" +
