@@ -177,6 +177,15 @@ public final class H265Reader implements ElementaryStreamReader {
     // Do nothing.
   }
 
+  @Override
+  public void endOfStream() {
+    if (sampleReader != null) {
+      if (sampleReader.endOfStream(hasOutputFormat, totalBytesWritten)) {
+        hasOutputFormat = false;  // don't write again till after next AUD read
+      }
+    }
+  }
+
   @RequiresNonNull("sampleReader")
   private void startNalUnit(long position, int offset, int nalUnitType, long pesTimeUs) {
     sampleReader.startNalUnit(position, offset, nalUnitType, pesTimeUs, hasOutputFormat);
@@ -518,6 +527,23 @@ public final class H265Reader implements ElementaryStreamReader {
           nalUnitBytesRead += limit - offset;
         }
       }
+    }
+
+    public boolean endOfStream(boolean hasOutputFormat, long totalBytesWritten) {
+      // If we're still holding on to the first iframe sample output it now.  This allows for an
+      // iFrame only segment that ends with a single VCL NUT that is complete (has format, prefix, and is
+      // a key frame
+      sampleIsKeyframe =  readingPrefix && isFirstSlice && nalUnitHasKeyframeData;
+      boolean shouldOutputSample = hasOutputFormat
+          && readingSample
+          && sampleIsKeyframe
+          && (samplePosition == 1); // it's the only sample in the stream
+      if (shouldOutputSample) {
+        output.sampleMetadata(sampleTimeUs, C.BUFFER_FLAG_KEY_FRAME, (int)totalBytesWritten, 0, null);
+        readingSample = false;
+      }
+      return shouldOutputSample;
+
     }
 
     public void endNalUnit(long position, int offset, boolean hasOutputFormat) {
