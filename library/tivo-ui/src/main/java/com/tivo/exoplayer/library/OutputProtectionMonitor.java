@@ -44,6 +44,9 @@ public class OutputProtectionMonitor extends Handler {
     public static final int HDCP_1X = 1;
     public static final int HDCP_2X = 2;
 
+    public static final int SKIP_HDCP_CHECK = 0;
+    public static final int FORCE_HDCP_CHECK = 1;
+
     private static final int MSG_UPDATE_HDCP_STATUS = 1;
     private static final String TAG = "OutputProtectionMonitor";
 
@@ -158,15 +161,27 @@ public class OutputProtectionMonitor extends Handler {
         this.removeCallbacksAndMessages(null);
     }
 
+    public void refreshState()
+    {
+        refreshState(this.requiredHdcpLevel, true);
+    }
+
     /**
      * Requests reevaluation of current protection status.
+     * @param requiredHdcpLevel HDCP level required to be reached
+     * @param checkImmediate if true the HDCP is level is checked immediately.
+     * Otherwise the HDCP is checked on next HDMI hotplug event
      */
-    public void refreshState()
+    public void refreshState(int requiredHdcpLevel, boolean checkImmediate)
     {
         Log.i(TAG, "Refresh");
         delayIdx = 0;
         isRefreshStateRequested = true;
-        drmHandler.obtainMessage(MSG_UPDATE_HDCP_STATUS).sendToTarget();
+        this.requiredHdcpLevel = requiredHdcpLevel;
+        // 1 == force check HDCP
+        // 0 == skip the HDCP check
+        int checkNow = checkImmediate? FORCE_HDCP_CHECK : SKIP_HDCP_CHECK;
+        drmHandler.obtainMessage(MSG_UPDATE_HDCP_STATUS, requiredHdcpLevel, checkNow).sendToTarget();
     }
 
     /**
@@ -174,7 +189,8 @@ public class OutputProtectionMonitor extends Handler {
      * @return
      */
     public boolean isOutputSecure() {
-        return isSecure;
+        // Output is secured either HDCP_1X or HDCP_2X is reached
+        return isSecure || isHdcpLevelV2_2;
     }
 
     /**
@@ -263,7 +279,7 @@ public class OutputProtectionMonitor extends Handler {
                 // Backoff algorithm is needed to mitigate a small memory leak that
                 // occurs every time Widevine MediaDrm is accessed
                 Log.w(TAG, String.format("HDCP is not secure, recheck in %ds", CHECK_DELAYS[delayIdx]));
-                drmHandler.sendMessageDelayed(drmHandler.obtainMessage(MSG_UPDATE_HDCP_STATUS), CHECK_DELAYS[delayIdx]*1000);
+                drmHandler.sendMessageDelayed(drmHandler.obtainMessage(MSG_UPDATE_HDCP_STATUS, requiredHdcpLevel, FORCE_HDCP_CHECK), CHECK_DELAYS[delayIdx]*1000);
                 if (delayIdx < CHECK_DELAYS.length - 1) {
                     delayIdx++;
                 }
@@ -319,6 +335,11 @@ public class OutputProtectionMonitor extends Handler {
             switch (msg.what) {
                 case MSG_UPDATE_HDCP_STATUS:
                     removeMessages(MSG_UPDATE_HDCP_STATUS);
+                    requiredHdcpLevel = msg.arg1;
+                    if (msg.arg2 == SKIP_HDCP_CHECK) {
+                        // Start the HDCP check only when its forced
+                        return;
+                    }
                     isSecure = checkHdcpStatus();
 
                     break;
@@ -424,8 +445,8 @@ public class OutputProtectionMonitor extends Handler {
                             Log.w(TAG, "Required HDCP level of HDCP1.x is met");
                             return true;
                         }
-                        else if (requiredHdcpLevel == HDCP_2X && hdcpLevel >= MediaDrm.HDCP_V2 ) {
-                            Log.w(TAG, "Required HDCP level of HDCP2.x is met");
+                        else if (requiredHdcpLevel == HDCP_2X && hdcpLevel >= MediaDrm.HDCP_V2_2 ) {
+                            Log.w(TAG, "Required HDCP level of HDCP2.2 is met");
                             return true;
                         }
                         else {
