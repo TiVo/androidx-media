@@ -102,6 +102,11 @@ public class SmallestIFramesCurator {
       );
     }
 
+    // Add playlist end-tag if it has been added to the source
+    if( ! previous.hasEndTag && latest.hasEndTag ) {
+        updatedPlaylist = previousCuratedPlaylist.copyWithEndTag();
+    }
+
     return updatedPlaylist;
   }
 

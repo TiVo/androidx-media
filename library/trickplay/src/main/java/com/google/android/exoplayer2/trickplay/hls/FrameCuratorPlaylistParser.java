@@ -39,6 +39,12 @@ public class FrameCuratorPlaylistParser implements ParsingLoadable.Parser<HlsPla
     @Nullable private final HlsMediaPlaylist previousCuratedMediaPlaylist;
     @Nullable private final FrameRateAnalyzer frameRateAnalyzer;
 
+    enum PlaylistUpdateAction {
+        NOTHING,
+        UPDATE,
+        CREATE
+    }
+
     public FrameCuratorPlaylistParser(HlsPlaylistParserFactory hlsPlaylistParserFactory,
         @Nullable FrameRateAnalyzer rateAnalyzer,
         @NonNull HlsMasterPlaylist hlsMasterPlaylist,
@@ -74,19 +80,39 @@ public class FrameCuratorPlaylistParser implements ParsingLoadable.Parser<HlsPla
             int subsetTarget = Integer.parseInt(uri.getFragment());
             HlsMediaPlaylist currentSourcePlaylist = (HlsMediaPlaylist) playlist;
             HlsMediaPlaylist previousSource = previousSourcePlaylists.get(uri);
-            HlsMediaPlaylist curatedPlaylist;
-            if (canUsePreviousPlaylist(currentSourcePlaylist, previousSource, previousCuratedMediaPlaylist)) {
-                SmallestIFramesCurator smallestIFramesCurator = new SmallestIFramesCurator(previousCuratedMediaPlaylist);
-                curatedPlaylist = smallestIFramesCurator.updateCurrentCurated(currentSourcePlaylist, previousSource, subsetTarget);
-            } else {
-                SmallestIFramesCurator smallestIFramesCurator = new SmallestIFramesCurator();
-                curatedPlaylist = smallestIFramesCurator.generateCuratedPlaylist(currentSourcePlaylist, subsetTarget, uri);
+
+            // 0 - do nothing, 1 - update playlist, 2 - generate new playlist
+            PlaylistUpdateAction playlistAction = PlaylistUpdateAction.CREATE;
+
+            if (previousSource != null && previousCuratedMediaPlaylist != null) {
+                if (!currentSourcePlaylist.isNewerThan(previousSource)) {
+                    playlistAction = PlaylistUpdateAction.NOTHING;
+                } else if (currentSourcePlaylist.isUpdateValid(previousSource)) {
+                    playlistAction = PlaylistUpdateAction.UPDATE;
+                }
             }
 
-            previousSourcePlaylists.put(uri, currentSourcePlaylist);
-            playlist = curatedPlaylist;
+            SmallestIFramesCurator smallestIFramesCurator;
+
+            switch (playlistAction) {
+                case NOTHING:
+                    playlist = previousCuratedMediaPlaylist;
+                    break;
+                case UPDATE:
+                    smallestIFramesCurator = new SmallestIFramesCurator(previousCuratedMediaPlaylist);
+                    playlist = (HlsPlaylist) smallestIFramesCurator.updateCurrentCurated(currentSourcePlaylist, previousSource, subsetTarget);
+                    previousSourcePlaylists.put(uri, currentSourcePlaylist);
+                    break;
+                case CREATE:
+                    smallestIFramesCurator = new SmallestIFramesCurator();
+                    playlist = (HlsPlaylist) smallestIFramesCurator.generateCuratedPlaylist(currentSourcePlaylist, subsetTarget, uri);
+                    previousSourcePlaylists.put(uri, currentSourcePlaylist);
+                    break;
+            }
+
         }
-        if (playlist instanceof HlsMediaPlaylist && frameRateAnalyzer != null) {
+
+        if (playlist instanceof HlsMediaPlaylist && frameRateAnalyzer != null && playlist != previousCuratedMediaPlaylist ) {
             assert masterPlaylist != null;      // true because of constructor path
             HlsMediaPlaylist updatedMediaPlaylist = (HlsMediaPlaylist) playlist;
             if (updatedMediaPlaylist.isUpdateValid(previousCuratedMediaPlaylist)) {
@@ -97,16 +123,4 @@ public class FrameCuratorPlaylistParser implements ParsingLoadable.Parser<HlsPla
         }
         return playlist;
     }
-
-    private boolean canUsePreviousPlaylist(
-        @NonNull HlsMediaPlaylist currentSourcePlaylist,
-        @Nullable  HlsMediaPlaylist previousSource,
-        @Nullable HlsMediaPlaylist previousCuratedMediaPlaylist) {
-        boolean canUse = previousCuratedMediaPlaylist != null && previousSource != null;
-        if (canUse) {
-            canUse = currentSourcePlaylist.isUpdateValid(previousSource);
-        }
-        return canUse;
-    }
-
 }
