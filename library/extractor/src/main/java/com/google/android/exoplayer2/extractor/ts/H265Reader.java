@@ -536,10 +536,16 @@ public final class H265Reader implements ElementaryStreamReader {
       sampleIsKeyframe =  readingPrefix && isFirstSlice && nalUnitHasKeyframeData;
       boolean shouldOutputSample = hasOutputFormat
           && readingSample
-          && sampleIsKeyframe
-          && (samplePosition == 1); // it's the only sample in the stream
+          && sampleIsKeyframe;
       if (shouldOutputSample) {
-        output.sampleMetadata(sampleTimeUs, C.BUFFER_FLAG_KEY_FRAME, (int)totalBytesWritten, 0, null);
+        // Add the 'trailing_zero_8bits' to the end of the access unit, as specified by
+        // ISO/IEC H.256 202108-1 Annex B.1.2) after the nal_unit data.  Here we are falling
+        // out of the "while( more_data_in_byte_stream( ) &&..." loop without seeing another NAL
+        // start
+        output.sampleData(new ParsableByteArray(new byte[] {0x00}), 1);   // zero_byte
+        totalBytesWritten++;
+        int accessUnitLength = (int) (totalBytesWritten - samplePosition);
+        output.sampleMetadata(sampleTimeUs, C.BUFFER_FLAG_KEY_FRAME, accessUnitLength, 0, null);
         readingSample = false;
       }
       return shouldOutputSample;
