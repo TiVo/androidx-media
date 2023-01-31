@@ -9,6 +9,8 @@ import android.content.IntentFilter;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.provider.Settings;
 import android.util.Log;
 import android.view.KeyEvent;
@@ -47,6 +49,7 @@ import com.google.android.exoplayer2.ui.PlayerControlView;
 import com.google.android.exoplayer2.ui.PlayerView;
 import com.google.android.exoplayer2.ui.SubtitleView;
 import com.google.android.exoplayer2.ui.TimeBar;
+import com.google.android.exoplayer2.util.Util;
 import com.streamingmediainsights.smiclientsdk.SMIClientSdk;
 import com.streamingmediainsights.smiclientsdk.SMIEventCallbackListener;
 import com.streamingmediainsights.smiclientsdk.SMISimpleExoPlayer;
@@ -61,12 +64,15 @@ import com.tivo.exoplayer.library.WidevineDrmInfo;
 import com.tivo.exoplayer.library.errorhandlers.PlaybackExceptionRecovery;
 import com.tivo.exoplayer.library.logging.ExtendedEventLogger;
 import com.tivo.exoplayer.library.metrics.ManagePlaybackMetrics;
+import com.tivo.exoplayer.library.metrics.PlaybackMetrics;
 import com.tivo.exoplayer.library.metrics.PlaybackMetricsManagerApi;
 import com.tivo.exoplayer.library.tracks.TrackInfo;
 import java.io.File;
 import java.io.IOException;
 import java.io.BufferedReader;
 import com.tivo.exoplayer.library.util.AccessibilityHelper;
+
+import org.json.JSONObject;
 
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -495,6 +501,7 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
    @Override
    public void onStop() {
      super.onStop();
+     mediaHealthMetricsTest(false);
      if (currentScrubHandler != null) {
        timeBar.removeListener(currentScrubHandler);
      }
@@ -518,6 +525,7 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
       if (currentState == Player.STATE_BUFFERING || currentState == Player.STATE_READY) {
         Log.d(TAG, "Stopping playback with player in state: " + currentState);
         currentPlayer.stop(true);   // stop and reset position and state to idle
+        mediaHealthMetricsTest(false);
       }
     }
   }
@@ -526,6 +534,7 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
   protected void onDestroy() {
     super.onDestroy();
     if (playerView != null) {
+      mediaHealthMetricsTest(false);
       playerView.setControllerVisibilityListener(null);
       playerView = null;
       exoPlayerFactory = null;
@@ -763,6 +772,7 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
     Log.d(TAG, "playUri() playUri: '" + uri + "' - chunkless: " + enableChunkless + " initialPos: " + seekTo + " playWhenReady: " + playWhenReady);
     try {
       exoPlayerFactory.playUrl(uri, drmInfo, seekTo, playWhenReady);
+      mediaHealthMetricsTest(true);
     } catch (UnrecognizedInputFormatException e) {
       showError("Can't play URI: " + uri, e);
     }
@@ -940,5 +950,29 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
   private void showToast(String message) {
     Toast.makeText(getApplicationContext(), message, Toast.LENGTH_LONG).show();
   }
+
+  private void mediaHealthMetricsTest(boolean enable) {
+    if (playerView != null && false) {    // Uncomment for metrics debug
+      if (enable) {
+        playerView.postDelayed(updatePlaybackMetricsAction, 1000);
+      } else {
+        playerView.removeCallbacks(updatePlaybackMetricsAction);
+      }
+    }
+  }
+
+  private void updatePlaybackMetrics(){
+    if (statsManager != null && playerView != null) {
+      PlaybackMetrics playbackMetrics = statsManager.createOrReturnCurrent();
+
+      // Update the PlaybackMetrics container object with latest running state
+      statsManager.updateFromCurrentStats(playbackMetrics);
+      Log.d(TAG, "updatePlaybackMetrics(): " + new JSONObject(playbackMetrics.getMetricsAsMap()));
+      playerView.postDelayed(updatePlaybackMetricsAction, 6000);
+    }
+  }
+
+  private final Runnable updatePlaybackMetricsAction = () -> updatePlaybackMetrics();
+
 
 }

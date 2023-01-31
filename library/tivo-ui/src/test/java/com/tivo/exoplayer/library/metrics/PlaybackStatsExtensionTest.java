@@ -123,6 +123,47 @@ public class PlaybackStatsExtensionTest {
 
     }
 
+    @Test
+    public void testGetTimeInFormat_PlayingStateChangeWithLastStatePlaying() {
+        Format formats[] = {
+                TEST_BASEVIDEO_FORMAT.buildUpon().setAverageBitrate(10).setPeakBitrate(10).build(), TEST_BASEVIDEO_FORMAT.buildUpon().setAverageBitrate(20).setPeakBitrate(20).build(), TEST_BASEVIDEO_FORMAT.buildUpon().setAverageBitrate(30).setPeakBitrate(30).build(),
+        };
+
+        /* This test case tests for, where the last state is Playing and teh format has changed in the playing state*/
+        PlaybackStatsListener playbackStatsListener = new PlaybackStatsListener(/* keepHistory= */ true, /* callback= */ null);
+
+        playbackStatsListener.onTimelineChanged(createEventTime(0), Player.TIMELINE_CHANGE_REASON_SOURCE_UPDATE);
+
+        playbackStatsListener.onDownstreamFormatChanged(createEventTime(0), createMediaLoad(formats[0]));
+        playbackStatsListener.onPlaybackStateChanged(createEventTime(2), Player.STATE_BUFFERING);
+        playbackStatsListener.onPlayWhenReadyChanged(createEventTime(5), true, Player.PLAY_WHEN_READY_CHANGE_REASON_USER_REQUEST);
+        playbackStatsListener.onPlaybackStateChanged(createEventTime(5), Player.STATE_READY);
+        playbackStatsListener.onDownstreamFormatChanged(createEventTime(30), createMediaLoad(formats[1]));
+
+        long[] expected = {
+                (30 - 5) ,
+                (50 - 30)
+        };
+
+        PlaybackStats stats = playbackStatsListener.getPlaybackStats();
+        assertThat(stats).isNotNull();
+
+        Map<Format, Long> results = PlaybackStatsExtension.getPlayingTimeInVideoFormat(stats, 50);
+
+        assertThat(results.keySet().size()).isEqualTo(expected.length);
+        long totalInFormats = 0L;
+        for (int i = 0; i < expected.length; i++) {
+            Long time = results.get(formats[i]);
+            assertWithMessage("Format at " + i + " should be in results")
+                    .that(time).isNotNull();
+            totalInFormats += time;
+            assertWithMessage("Format at " + i + " should have playback time " + expected[i])
+                    .that(time).isEqualTo(expected[i]);
+        }
+
+        assertThat(totalInFormats).isEqualTo(stats.getTotalPlayTimeMs());
+
+    }
 
     static MediaLoadData createMediaLoad(Format format) {
         int type = MimeTypes.getTrackType(format.sampleMimeType);

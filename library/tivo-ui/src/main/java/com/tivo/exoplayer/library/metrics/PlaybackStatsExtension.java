@@ -1,5 +1,6 @@
 package com.tivo.exoplayer.library.metrics;
 
+import android.util.Log;
 import java.util.HashMap;
 import java.util.ListIterator;
 import java.util.Map;
@@ -12,13 +13,15 @@ import static com.google.android.exoplayer2.analytics.PlaybackStats.PLAYBACK_STA
 import static com.google.android.exoplayer2.analytics.PlaybackStats.EventTimeAndFormat;
 import static com.google.android.exoplayer2.analytics.PlaybackStats.EventTimeAndPlaybackState;
 
+import org.json.JSONObject;
+
 /**
  * Add-ons to the ExoPlayer {@link PlaybackStats} class.
  *
  * TODO - make a pull request and incorporate these into dev-v2 Google ExoPlayer
  */
 public class PlaybackStatsExtension {
-
+    private static final String TAG = "PlaybackStatsExtension";
 
     /**
      * Using the video format history in the {@link PlaybackStats}, determine the total amount of time
@@ -83,8 +86,7 @@ public class PlaybackStatsExtension {
 
         while (currentFormat != null) {
             EventTimeAndFormat nextFormat = formats.hasNext() ? formats.next() : null;
-
-            // Loop state changes, each state in time range of currentFormat.  Assume at least end or error state after
+            // Loop state changes, each state in time range of currentFormat.  Assume at least end or error state afte
             // every format.
 
             boolean stateTimeInCurrentFormat = true;
@@ -111,8 +113,14 @@ public class PlaybackStatsExtension {
                 }
             }
 
-            // Add any remaining playing state in current format up to toEndTime if no more states left
-            if (toEndTime != C.TIME_UNSET && playbackStartTime != null && playbackStartTime.realtimeMs < toEndTime && ! states.hasNext()) {
+            /* If last state was playing, and there are no more state change events, add playing
+             * time distributed across the remaining formats.
+             */
+            boolean lastStateWasPlaying = !states.hasNext() && playbackStartTime != null;
+            if (lastStateWasPlaying && nextFormat != null) {
+                addPlayingTime(currentFormat.format, nextFormat.eventTime.realtimeMs - playbackStartTime.realtimeMs, timeInFormat);
+                playbackStartTime = nextFormat.eventTime;
+            } else if (lastStateWasPlaying && toEndTime != C.TIME_UNSET && playbackStartTime.realtimeMs < toEndTime) {
                 addPlayingTime(currentFormat.format, toEndTime - playbackStartTime.realtimeMs, timeInFormat);
             }
 

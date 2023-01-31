@@ -1,6 +1,7 @@
 # Release notes #
 ### 2.15.1-1.1-dev (not yet released)
 
+* Fix PlaybackMetrics snapshot `updateFromCurrentStats`, see [pull request #324](https://github.com/tivocorp/exoplayerprvt/pull/324)
 * Fix NPE in `ExtendedEventLogger` - BZSTREAM-10506
 * Update `ExtendedEventLogger` onDownstreamFormatChanged to be info
 
