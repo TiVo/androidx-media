@@ -144,6 +144,7 @@ public class FrameCuratorPlaylistParserTest {
             "testplaylist_update_previous.m3u8",
             "testplaylist_update_previous_1.m3u8",
             "testplaylist_update_previous_2.m3u8"
+
         };
         String currentSources[] = {
             "testplaylist_update_current.m3u8",
@@ -172,8 +173,72 @@ public class FrameCuratorPlaylistParserTest {
             assertThat(current.isUpdateValid(previous)).isTrue();
             validatePlaylistCuration(previousSourcePlaylist, current);
         }
-
     }
+
+    @Test
+    public void testNoUpdateReturnsSamePlaylist() throws IOException {
+        String testMaster = "#EXTM3U\n" +
+                "#EXT-X-VERSION:5\n" +
+                "#EXT-X-STREAM-INF:BANDWIDTH=2160000,CODECS=\"mp4a.40.2,avc1.64001f\",RESOLUTION=720x480\n" +
+                "dummy.m3u8\n" +
+                "#EXT-X-I-FRAME-STREAM-INF:BANDWIDTH=1373400,URI=\"test_playlist.m3u8\",CODECS=\"avc1.640020\",RESOLUTION=1280x720\n";
+
+        FakePlaylistTracker playlistTracker = new FakePlaylistTracker(testMaster);
+
+        String previousSource = "testplaylist_update_previous_3.m3u8";
+        String currentSource = "testplaylist_update_current_3.m3u8";
+
+        HlsMediaPlaylist previous = playlistTracker.parsePlaylistUpdate(previousSource);
+        assertThat(playlistTracker.getCuratedSourcePlaylist()).isNotNull();
+        validatePlaylistCuration(playlistTracker.getCuratedSourcePlaylist(), previous);
+
+        // load and parse update.
+        HlsMediaPlaylist previousSourcePlaylist = playlistTracker.getCuratedSourcePlaylist();
+        assertThat(previousSourcePlaylist).isNotNull();
+        HlsMediaPlaylist current = playlistTracker.parsePlaylistUpdate(currentSource);
+        assertThat(playlistTracker.getCuratedSourcePlaylist()).isNotNull();
+        assertThat(current.isUpdateValid(previous)).isTrue();
+        validatePlaylistCuration(previousSourcePlaylist, current);
+
+        // Source hasn't changed test case (repeat parsing for testplaylist_update_current_3.m3u8)
+        previous = current;
+        current = playlistTracker.parsePlaylistUpdate(currentSource);
+        assertThat( previous == current ).isTrue();
+    }
+
+    @Test
+    public void testEndedPlaylistUpdateReturnsEndedPlaylist() throws IOException {
+        String testMaster = "#EXTM3U\n" +
+                "#EXT-X-VERSION:5\n" +
+                "#EXT-X-STREAM-INF:BANDWIDTH=2160000,CODECS=\"mp4a.40.2,avc1.64001f\",RESOLUTION=720x480\n" +
+                "dummy.m3u8\n" +
+                "#EXT-X-I-FRAME-STREAM-INF:BANDWIDTH=1373400,URI=\"test_playlist.m3u8\",CODECS=\"avc1.640020\",RESOLUTION=1280x720\n";
+
+        FakePlaylistTracker playlistTracker = new FakePlaylistTracker(testMaster);
+
+        // Current and previous are the same except that current has #EXT-X-ENDLIST
+        String previousSource = "testplaylist_update_previous_4.m3u8";
+        String currentSource = "testplaylist_update_current_4.m3u8";
+
+        HlsMediaPlaylist previous = playlistTracker.parsePlaylistUpdate(previousSource);
+        assertThat(playlistTracker.getCuratedSourcePlaylist()).isNotNull();
+        validatePlaylistCuration(playlistTracker.getCuratedSourcePlaylist(), previous);
+
+        // load and parse update.
+        HlsMediaPlaylist previousSourcePlaylist = playlistTracker.getCuratedSourcePlaylist();
+        assertThat(previousSourcePlaylist).isNotNull();
+        HlsMediaPlaylist current = playlistTracker.parsePlaylistUpdate(currentSource);
+        assertThat(playlistTracker.getCuratedSourcePlaylist()).isNotNull();
+        assertThat(current.isUpdateValid(previous)).isTrue();
+        validatePlaylistCuration(previousSourcePlaylist, current);
+
+        assertThat( !previous.hasEndTag && current.hasEndTag ).isTrue();
+        assertThat( previous.startTimeUs == current.startTimeUs ).isTrue();
+        assertThat( previous.discontinuitySequence == current.discontinuitySequence ).isTrue();
+        assertThat( previous.segments.size() == current.segments.size() ).isTrue();
+        assertThat( previous.mediaSequence == current.mediaSequence ).isTrue();
+    }
+
 
     private void validatePlaylistCuration(HlsMediaPlaylist sourcePlaylist, HlsMediaPlaylist playlist) {
         Map<SegmentKey, Long> timesBySegment = new HashMap<>();
@@ -189,6 +254,4 @@ public class FrameCuratorPlaylistParserTest {
         }
 
     }
-
-
 }
