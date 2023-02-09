@@ -3,8 +3,6 @@ package com.tivo.exoplayer.library.logging;
 import android.os.SystemClock;
 import androidx.annotation.Nullable;
 
-import com.google.android.exoplayer2.LivePlaybackSpeedControl;
-import com.google.android.exoplayer2.MediaItem;
 import com.google.android.exoplayer2.Timeline;
 import java.io.IOException;
 
@@ -198,7 +196,6 @@ public class ExtendedEventLogger extends EventLogger {
                     long currentUnixTimeMs = window.getCurrentUnixTimeMs();
                     long windowEndLiveOffsetMs = currentUnixTimeMs - windowEndMs;
                     long liveOffsetMs = currentUnixTimeMs - window.windowStartTimeMs - eventTime.eventPlaybackPositionMs;
-                    long targetLiveOffset = window.liveConfiguration == null ? C.TIME_UNSET : window.liveConfiguration.targetOffsetMs;
                     long deltaLastMs = 0;
                     if (lastTimelineUpdateMs != C.TIME_UNSET) {
                         deltaLastMs = eventTime.realtimeMs - lastTimelineUpdateMs;
@@ -215,12 +212,11 @@ public class ExtendedEventLogger extends EventLogger {
                     if (!firstTimeLineUpdateSeen) {
                         firstTimeLineUpdateSeen = true;
                         if (window.isLive()) {
-                            formatter.format("Live - duration: %2$f, endTime: %3$tF %3$tT.%3$tL (%3$d), now-endTime: %4$3.2f, startOffset: %1$3.3f, targetLiveOffset: %5$3.2f",
+                            formatter.format("Live - duration: %2$f, endTime: %3$tF %3$tT.%3$tL (%3$d), now-endTime: %4$3.2f, startOffset: %1$3.3f",
                                 (window.durationUs - window.defaultPositionUs) / 1000000.0,
                                 window.getDurationMs() /1000.D,
                                 windowEndMs,
-                                windowEndLiveOffsetMs / 1000.0,
-                                targetLiveOffset / 1000.0
+                                windowEndLiveOffsetMs / 1000.0
                             );
                         } else if (window.windowStartTimeMs != C.TIME_UNSET) {
                             formatter.format("SOCU - duration: %1$f, startTime: %2$tF %2$tT.%2$tL (%2$d), endTime: %3$tF %3$tT.%3$tL (%3$d), defaultStartPosition: %4$3.3f",
@@ -234,15 +230,14 @@ public class ExtendedEventLogger extends EventLogger {
                         }
                     } else if (window.isLive()) {
                         assert window.liveConfiguration != null;        // isLive() checks this, quiet lint
-                        formatter.format("deltaLast: %1$3.2f, addedLast: %2$3.2f, duration: %3$f, endTime: %4$tF %4$tT.%4$tL (%4$d), now-endTime: %5$3.2f, endTime-position: %6$f, liveOffset: %7$3.2f, targetLiveOffset: %8$3.2f",
+                        formatter.format("deltaLast: %1$3.2f, addedLast: %2$3.2f, duration: %3$f, endTime: %4$tF %4$tT.%4$tL (%4$d), now-endTime: %5$3.2f, endTime-position: %6$f, liveOffset: %7$3.2f",
                             deltaLastMs / 1000.0,
                             deltaMediaTimeMs / 1000.0,
                             window.getDurationMs() / 1000.0,
                             windowEndMs,
                             windowEndLiveOffsetMs / 1000.0,
                             (window.getDurationMs() - eventTime.eventPlaybackPositionMs) / 1000.0,
-                            liveOffsetMs / 1000.0,
-                            window.liveConfiguration.targetOffsetMs / 1000.0
+                            liveOffsetMs / 1000.0
                         );
                     } else {
                         formatVodTimelineUpdate(window, formatter);
