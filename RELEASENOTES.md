@@ -1,6 +1,6 @@
 # Release notes #
 
-### 2.15.1-1.0-dev (pending release)
+### 2.15.1-1.0
 
 First merge of Google's 2.15.1 ExoPlayer release with our `release` branch.   This release skips forward from 2.12.3 accross three major Google .0 releases in order to bring key features post 2.12.3 including:
 
@@ -14,13 +14,48 @@ First merge of Google's 2.15.1 ExoPlayer release with our `release` branch.   Th
 
 The document [tivo-docs/exo_2.15.1/HANDLING_2.15.1_MERGE_CONFLICTS.md](https://github.com/tivocorp/exoplayerprvt/blob/release/tivo-docs/exo_2.15.1/HANDLING_2.15.1_MERGE_CONFLICTS.md) describes the exact mechanics of how the merge was executed.
 
-#### Known Issues
+#### Fixed Issues
 
-1. Cea708Decoder &mdash; requires fixups for open pull requests that conflicted
-2. analytics.PlaybackStatsListenerTest &mdash; Test cases broken by changes to `AnalyticsCollector` also affects trick play metrics
-3. Merge of changes to library-extractor for filler NALU is incomplete
-4. The API for enabling Async queuing has changed ([Async queuing on MultiLockAsyncMediaCodecAdapter](https://github.com/google/ExoPlayer/commit/bc02643df0a1b148df62387cd00ed6e25c1d93f2)) so need to update our call to this in ExoPlayerPlayer.  Until this is done there may be more frame dropping with widevine playback
-5. Our deprecated support for `setLiveOffset()` must be updated to use the new support from Low Latency
+Numerous issues were found and fixed during the testing period, some of these were also in prior releases of ExoPlayer code
+
+* [WSIPCL-15985 I-Frame rendering rate is very slow when doing rewind on HEVC channel](https://jira.xperi.com/browse/WSIPCL-15985).  Fixed by commits:
+
+  *  [Commits HLS iFrame segment key frame only segment on EOS](https://github.com/TiVo/ExoPlayer/commit//3a0717df70)  
+  *  and [683e493c12](https://github.com/TiVo/ExoPlayer/commit/683e493c12)
+
+* [WSIPCL-16050: Vtp FF1 occasionally jumps to the beginning of the live cache](https://github.com/TiVo/ExoPlayer/commit//64ad1dd4dd)  [Maciej Dobrzynski]
+
+* [WSIPCL-15765 Occasionally .. trickplay.. will cause a jump to the Live point.](https://jira.xperi.com/browse/WSIPCL-15765).  Fixed by [pull request 320](https://github.com/tivocorp/exoplayerprvt/pull/320)
+
+* 
+
+* [WSIPCL-15570 FFx1 frame rate is occasionally very slow - seen often on Insignia Fire TV](https://jira.xperi.com/browse/WSIPCL-15570) fixed by [pull request 315](https://github.com/tivocorp/exoplayerprvt/pull/315)
+
+* [WSIPCL-15563 FFx1 has delay of 3-4 seconds when initiated](https://jira.xperi.com/browse/WSIPCL-15563), fixed by [pull request 312](https://github.com/tivocorp/exoplayerprvt/pull/312)
+
+* [PARTDEFECT-8600 [Gap Tag] ExoPlayer is not able to continue .. significant gap ..](https://jira.xperi.com/browse/PARTDEFECT-8600), fixed by [pull request 311](https://github.com/tivocorp/exoplayerprvt/pull/311)
+
+* [WSIPCL-15602](https://jira.xperi.com/browse/WSIPCL-15602), [[WSIPCL-15683](https://jira.xperi.com/browse/WSIPCL-15683),[PARTDEFECT-15465](https://jira.xperi.com/browse/PARTDEFECT-15465), ... Freezes and bad performance of VTP for VOD playback.  This fix is also backported to streamer-1-17), fixed by [pull request 308](https://github.com/tivocorp/exoplayerprvt/pull/308)
+
+* Make seek based vtp flush skip work with key rotation.  From [pull request 294](https://github.com/tivocorp/exoplayerprvt/pull/294)
+
+* Fix for [PARTDEFECT-14175](https://jira.xperi.com/browse/PARTDEFECT-14175), added support for A11 devices.  From [pull request 272](https://github.com/tivocorp/exoplayerprvt/pull/272)
+
+#### Other Fixes
+
+* Getting HDCP level from API level 27 and earlier devices by @sneelavara with [pull request 309](https://github.com/tivocorp/exoplayerprvt/pull/309) in 
+
+* Add Live Offset Adjustment document and logging by @stevemayhew [pull request 304](https://github.com/tivocorp/exoplayerprvt/pull/304)
+
+* Update HLS Playlist Polling, including:
+  * HLS playlist load timer compliant with Pantos 6.3.4 by @stevemayhew [pull request 307](https://github.com/tivocorp/exoplayerprvt/pull/307)
+  * Reloads iFrame only playlist using TARGETDURATION only by @stevemayhew [pull request 313](https://github.com/tivocorp/exoplayerprvt/pull/313)
+  
+* GeekStats playback rate is correct by @stevemayhew in [pull request 314](https://github.com/tivocorp/exoplayerprvt/pull/314)
+
+* Trustreme integrationto tenfoot demo by @kasturikakatkar in [pull request 317](https://github.com/tivocorp/exoplayerprvt/pull/317) 
+
+  
 
 #### Our Internal Changes
 
@@ -32,6 +67,37 @@ Many of our pull requests have been merged, and only our post 2.15.1 cherry-pick
 4. Track selection allows trickplay tracks
 5. Track selection keeps tunneling on when audio track is disabled for broadcom devices that suppot this.
 6. Small fixes to AC-3 and AAC support
+
+##### Open Changes To Google Modules
+
+These changes to Google code remain open and different from stock 2.15.1 ExoPlayer and need to be managed going forward
+
+###### Core Library
+
+
+* 24490cdd56 2022-12-21 | [setPlaybackParameters() not overwriten by live adjusment](https://github.com/TiVo/ExoPlayer/commit//24490cdd56) [Steve Mayhew],  Covered by open [Google Issue 10882](https://github.com/google/ExoPlayer/issues/10882)
+* 3b2e79aebf 2022-12-07 | [Buffered duration includes only loaded samples](https://github.com/TiVo/ExoPlayer/commit//3b2e79aebf) [Steve Mayhew], Covered by open [Google Issue 8959](https://github.com/google/ExoPlayer/issues/8959), and [Pull request 9050](https://github.com/google/ExoPlayer/pull/9050)
+* 4f0ff90c99 2022-10-28 | [Increases PCM buffer size by 4 times.](https://github.com/TiVo/ExoPlayer/commit//4f0ff90c99) [Jeff Ricards], Later versions allow this to be a configuration
+* 11db07660a 2022-10-27 | [Make seek based vtp flush skip work with key rotation.](https://github.com/TiVo/ExoPlayer/commit//11db07660a) [mbolaris]
+* b6241412ff 2020-12-16 | [CEA-708 Decoder fixes for issue #1807.](https://github.com/TiVo/ExoPlayer/commit//b6241412ff) [sneelavara], Covered by [Pull request 8356](https://github.com/google/ExoPlayer/pull/8356) 
+
+###### Extractor Library
+
+These changes will be combined into a single pull request for the post 2.18 AndroidX Media version of ExoPlayer along with trickplay integration:
+
+* 683e493c12 2023-01-30 | [Bounds of EOS sampleMetadata() commit are correct](https://github.com/TiVo/ExoPlayer/commit//683e493c12) (HEAD -> t-release-2.15.1-1.0, tivo-pvt/release, tivo-pvt/HEAD, release) [Steve Mayhew]
+* 3a0717df70 2023-01-24 | [Commits HLS iFrame segment key frame only segment on EOS](https://github.com/TiVo/ExoPlayer/commit//3a0717df70) [Steve Mayhew]
+* c07100b50f 2022-11-02 | [Commits sample on end of single non-IDR iframe stream](https://github.com/TiVo/ExoPlayer/commit//c07100b50f) [mbolaris]
+* 87390fc77b 2022-10-10 | [Commits IDR sample on end of single IDR stream](https://github.com/TiVo/ExoPlayer/commit//87390fc77b) [mbolaris]
+* 902f720296 2021-11-02 | [Commits IDR NALU on end of stream](https://github.com/TiVo/ExoPlayer/commit//902f720296) [Steve Mayhew]
+
+###### Common Library
+
+These changes will be handled post 2.18 from AndroidX Media
+
+* b15abf9e7d 2022-11-04 | [Fix for PARTDEFECT-14175, added support for A11 devices (#272)](https://github.com/TiVo/ExoPlayer/commit//b15abf9e7d) [jericards]
+* 64d09cbb77 2022-10-18 | [Added test coverage for audio AC-3 workaround](https://github.com/TiVo/ExoPlayer/commit//64d09cbb77) [Pryush Sharma]
+
 
 #### Highlights From Google Release Notes
 
