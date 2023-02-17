@@ -1,6 +1,10 @@
 # Release notes #
+### 2.15.1-1.1-dev (not yet released)
 
-### 2.15.1-1.0
+* Fix NPE in `ExtendedEventLogger` - BZSTREAM-10506
+* Update `ExtendedEventLogger` onDownstreamFormatChanged to be info
+
+### 2.15.1-1.0 (2023-02-16)
 
 First merge of Google's 2.15.1 ExoPlayer release with our `release` branch.   This release skips forward from 2.12.3 accross three major Google .0 releases in order to bring key features post 2.12.3 including:
 
@@ -53,9 +57,7 @@ Numerous issues were found and fixed during the testing period, some of these we
   
 * GeekStats playback rate is correct by @stevemayhew in [pull request 314](https://github.com/tivocorp/exoplayerprvt/pull/314)
 
-* Trustreme integrationto tenfoot demo by @kasturikakatkar in [pull request 317](https://github.com/tivocorp/exoplayerprvt/pull/317) 
-
-  
+* Trustreme integration to tenfoot demo by @kasturikakatkar in [pull request 317](https://github.com/tivocorp/exoplayerprvt/pull/317)
 
 #### Our Internal Changes
 

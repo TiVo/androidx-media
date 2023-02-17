@@ -66,9 +66,9 @@ public class ExtendedEventLogger extends EventLogger {
         super.onDownstreamFormatChanged(eventTime, mediaLoadData);
         if (mediaLoadData.trackType == C.TRACK_TYPE_VIDEO || mediaLoadData.trackType == C.TRACK_TYPE_DEFAULT) {
             if (currentPlayingVideoFormat == null) {
-                logd(eventTime, "videoFormatInitial", LoggingUtils.getVideoLevelStr(mediaLoadData.trackFormat));
+                logi(eventTime, "videoFormatInitial", LoggingUtils.getVideoLevelStr(mediaLoadData.trackFormat));
             } else {
-                logd(eventTime, "videoFormatChanged",
+                logi(eventTime, "videoFormatChanged",
                         "Old: " + LoggingUtils.getVideoLevelStr(currentPlayingVideoFormat) + " New: " + LoggingUtils.getVideoLevelStr(mediaLoadData.trackFormat));
             }
             currentPlayingVideoFormat = mediaLoadData.trackFormat;
@@ -230,14 +230,10 @@ public class ExtendedEventLogger extends EventLogger {
                                 window.defaultPositionUs / 1000000.0
                             );
                         } else {
-                            formatter.format("VOD - duration: %1$f,  startPosition: %2$3.3f",
-                                window.getDurationMs() / 1000.D,
-                                window.defaultPositionUs / 1000000.0
-                            );
+                            formatVodTimelineUpdate(window, formatter);
                         }
-                    } else {
-                        // isLive() must be true for more then one timeline update.
-                        assert window.liveConfiguration != null;
+                    } else if (window.isLive()) {
+                        assert window.liveConfiguration != null;        // isLive() checks this, quiet lint
                         formatter.format("deltaLast: %1$3.2f, addedLast: %2$3.2f, duration: %3$f, endTime: %4$tF %4$tT.%4$tL (%4$d), now-endTime: %5$3.2f, endTime-position: %6$f, liveOffset: %7$3.2f, targetLiveOffset: %8$3.2f",
                             deltaLastMs / 1000.0,
                             deltaMediaTimeMs / 1000.0,
@@ -248,11 +244,20 @@ public class ExtendedEventLogger extends EventLogger {
                             liveOffsetMs / 1000.0,
                             window.liveConfiguration.targetOffsetMs / 1000.0
                         );
+                    } else {
+                        formatVodTimelineUpdate(window, formatter);
                     }
                     logd(eventTime, eventName, logString.toString());
                 }
                 break;
         }
+    }
+
+    private void formatVodTimelineUpdate(Timeline.Window window, Formatter formatter) {
+        formatter.format("VOD - duration: %1$f,  startPosition: %2$3.3f",
+            window.getDurationMs() / 1000.D,
+            window.defaultPositionUs / 1000000.0
+        );
     }
 
     protected void logi(EventTime eventTime, String eventName, @Nullable String eventDescription) {
