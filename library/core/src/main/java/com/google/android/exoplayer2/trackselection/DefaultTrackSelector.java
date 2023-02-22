@@ -2014,40 +2014,6 @@ public class DefaultTrackSelector extends MappingTrackSelector {
         : new ExoTrackSelection.Definition(selectedGroup, selectedTrackIndex);
   }
 
-  // Utility methods.
-
-  /**
-   * Compare two device "." or "-" separated version numbers to see which is later.
-   * WARNING TiVo specific Utility methods not integrated in core ExoPlayer.
-   *
-   * @return 0 if versions are equal, -1 if version2 is later and 1 if version1 is later.
-   */
-  private static int compareVersions(String version1, String version2) {
-    String[] string1Vals = version1.split("\\.|-");
-    String[] string2Vals = version2.split("\\.|-");
-    int length = Math.max(string1Vals.length, string2Vals.length);
-    for (int i = 0; i < length; i++) {
-      try {
-        Integer v1 = 0;
-        Integer v2 = 0;
-        v1 = (i < string1Vals.length) ? Integer.parseInt(string1Vals[i]) : 0;
-        v2 = (i < string2Vals.length) ? Integer.parseInt(string2Vals[i]) : 0;
-        //Making sure Version1 bigger than version2
-        if (v1 > v2) {
-          return 1;
-        }
-        //Making sure Version1 smaller than version2
-        else if (v1 < v2) {
-          return -1;
-        }
-      } catch (NumberFormatException n) {
-        // ... Do nothing.
-      }
-    }
-    //Both are equal
-    return 0;
-  }
-
   /**
    * Returns true if the device firmware is known to support visual trick play in tunneling mode.
    * WARNING TiVo specific Utility methods not integrated in core ExoPlayer.
@@ -2055,18 +2021,20 @@ public class DefaultTrackSelector extends MappingTrackSelector {
    * @return Whether the device supports tunneling VTP.
    */
   private static boolean platformSupportsTunnelingTrickPlay() {
-    return ((Build.MANUFACTURER.equals("Technicolor") &&
-                    // Jade 21
-                    (Build.DEVICE.equals("jade21") ||
-                    // Ruby Millicom
-                    (Build.DEVICE.equals("uiw4059mil") && compareVersions(Build.VERSION.INCREMENTAL, "1.1-220218") >= 0) ||
-                    // Jade Millicom
-                    (Build.DEVICE.equals("uiw4054mil") && compareVersions(Build.VERSION.INCREMENTAL, "9.0-220225") >= 0) ||
-                    // Jade Hotwire
-                    (Build.DEVICE.equals("uiw4054hwc") && compareVersions(Build.VERSION.INCREMENTAL, "5.3.1") >= 0))) ||
-            (Build.MANUFACTURER.equals("ARRIS") &&
-                    // Comscope VIP6102W
-                    (Build.DEVICE.equals("vip6102w") && compareVersions(Build.VERSION.INCREMENTAL, "10.01.04.03.36") >= 0)));
+    if (Build.MANUFACTURER.equals("Technicolor")) {
+      // Check for Technicolor devices that support tunneling trick play
+      return (Build.DEVICE.equals("jade21") ||
+          Build.DEVICE.startsWith("uiw4060") ||
+          Build.DEVICE.startsWith("uiw4059") ||
+          Build.DEVICE.startsWith("uiw4054"));
+    } else if (Build.MANUFACTURER.equals("ARRIS")) {
+      // Check for ARRIS devices that support tunneling trick play
+      return (Build.DEVICE.equals("vip6102w") &&
+          (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q));
+    } else {
+      // For all other devices, assume that tunneling trick play is not supported
+      return false;
+    }
   }
 
 
