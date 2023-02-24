@@ -1,9 +1,15 @@
 package com.tivo.exoplayer.library.metrics;
 
-import android.os.SystemClock;
+import static com.google.android.exoplayer2.Player.DISCONTINUITY_REASON_SEEK;
+import static com.google.android.exoplayer2.Player.EVENT_PLAYBACK_STATE_CHANGED;
+import static com.google.android.exoplayer2.analytics.AnalyticsListener.EVENT_PLAY_WHEN_READY_CHANGED;
+import static com.google.android.exoplayer2.analytics.AnalyticsListener.EVENT_POSITION_DISCONTINUITY;
+import static com.tivo.exoplayer.library.metrics.TrickPlayMetricsHelper.createEventsAtSameEventTime;
+
 import android.util.Log;
 import androidx.annotation.VisibleForTesting;
 
+import com.google.android.exoplayer2.C;
 import java.util.Map;
 
 import com.google.android.exoplayer2.Player;
@@ -15,7 +21,6 @@ import com.google.android.exoplayer2.analytics.AnalyticsListener;
 import com.google.android.exoplayer2.analytics.DefaultPlaybackSessionManager;
 import com.google.android.exoplayer2.analytics.PlaybackStats;
 import com.google.android.exoplayer2.analytics.PlaybackStatsListener;
-import com.google.android.exoplayer2.source.hls.HlsManifest;
 import com.google.android.exoplayer2.trickplay.TrickPlayControl;
 import com.google.android.exoplayer2.util.Clock;
 
@@ -82,8 +87,17 @@ public class ManagePlaybackMetrics implements PlaybackMetricsManagerApi {
         }
     }
 
+    /**
+     * During Trick-play the regular playback metrics listener (the outer class
+     * {@link #playbackStatsListener}) is "disconnected" from the player so events are only
+     * directed to the trick-play stats listener.  At the end of Trick-play we report
+     * the entire trick-play session as a position discontinuity to the regular playback metrics
+     * listener.
+     *
+     */
     private class TrickPlayMetricsHelperListener implements MetricsEventListener {
         long lastTrickPlayStartTimeMs;
+        private Player.PositionInfo lastTrickPlayStartPosition;
         private final MetricsEventListener parentListener;
 
         private TrickPlayMetricsHelperListener(MetricsEventListener parentListener) {
@@ -104,21 +118,38 @@ public class ManagePlaybackMetrics implements PlaybackMetricsManagerApi {
         public void enteringTrickPlayMeasurement() {
             currentPlayer.removeAnalyticsListener(playbackStatsListener);
             lastTrickPlayStartTimeMs = clock.elapsedRealtime();
+            lastTrickPlayStartPosition = getCurrentPositionInfo();
 
-            // Mark time period in regular playback as PAUSED during the VTP operation, TODO - perhaps background is better?
-            playbackStatsListener.onPlayWhenReadyChanged(createEventTime(lastTrickPlayStartTimeMs), false, Player.PLAY_WHEN_READY_CHANGE_REASON_END_OF_MEDIA_ITEM);
+            // TODO - Creating a separate tracker/session with MetricsPlaybackSessionManager for VTP is a better
+            //        solution to hacking at the PlaybackStatsListener.  Now we have to fake state in the player to
+            //        cause the tracker to show the time as seeking
+
+            // Fake like trick play is start of a seek operation
+            AnalyticsListener.EventTime eventTime = createEventTime(lastTrickPlayStartTimeMs);
+            Player stateMask = new StateMaskingPlayerFacade(currentPlayer, Player.STATE_BUFFERING);
+            playbackStatsListener.onPositionDiscontinuity(eventTime, lastTrickPlayStartPosition, getCurrentPositionInfo(), DISCONTINUITY_REASON_SEEK);
+            playbackStatsListener.onEvents(stateMask, createEventsAtSameEventTime(eventTime, EVENT_POSITION_DISCONTINUITY, EVENT_PLAYBACK_STATE_CHANGED));
+
             parentListener.enteringTrickPlayMeasurement();
-
         }
 
+        /**
+         * Mark the time while in trick-play the create a discontinuity event (seek) to represent the position change
+         */
         @Override
         public void exitingTrickPlayMeasurement() {
             long stoppedTrickPlayAt = clock.elapsedRealtime();
             long trickPlayTime = stoppedTrickPlayAt - lastTrickPlayStartTimeMs;
             createOrReturnCurrent().addTrickPlayTime(trickPlayTime);
 
-            // Once VTP ends, end the virtual "PAUSED" state and restore the regular playback stats listener
-            playbackStatsListener.onPlayWhenReadyChanged(createEventTime(stoppedTrickPlayAt), true, Player.PLAY_WHEN_READY_CHANGE_REASON_END_OF_MEDIA_ITEM);
+            // TODO  - see the TODO in enteringTrickPlayMeasurement()
+
+            // Exit the VTP operation in the main playback event listener, since it is the end of a long seek, any time the player is
+            // buffering after this call is treated as buffering after a seek (so not rebuffering or stalling)
+            //
+            AnalyticsListener.EventTime eventTime = createEventTime(stoppedTrickPlayAt);
+            playbackStatsListener.onPositionDiscontinuity(eventTime, lastTrickPlayStartPosition, getCurrentPositionInfo(), DISCONTINUITY_REASON_SEEK);
+            playbackStatsListener.onEvents(currentPlayer, createEventsAtSameEventTime(eventTime, EVENT_POSITION_DISCONTINUITY));
             currentPlayer.addAnalyticsListener(playbackStatsListener);
             parentListener.exitingTrickPlayMeasurement();
         }
@@ -150,6 +181,24 @@ public class ManagePlaybackMetrics implements PlaybackMetricsManagerApi {
                 /* currentMediaPeriodId= */ null,
                 /* currentPlaybackPositionMs= */ position,
                 /* totalBufferedDurationMs= */ 0);
+    }
+
+    /**
+     * Return a PositionInfo useable for {@link PlaybackStatsListener} recording position
+     * changes.
+     *
+     * @return PositionInfo for the current position, only supports single period timeline
+     */
+    private Player.PositionInfo getCurrentPositionInfo() {
+        return new Player.PositionInfo(
+                null,
+                0,
+                null,
+                0,
+                currentPlayer.getCurrentPosition(),
+                currentPlayer.getContentPosition(),
+                C.INDEX_UNSET,
+                C.INDEX_UNSET);
     }
 
     @Override

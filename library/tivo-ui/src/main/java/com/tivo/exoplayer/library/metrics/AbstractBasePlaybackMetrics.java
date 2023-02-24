@@ -3,6 +3,10 @@ package com.tivo.exoplayer.library.metrics;
 import android.annotation.SuppressLint;
 import androidx.annotation.Nullable;
 
+import com.google.android.exoplayer2.Player;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -10,6 +14,8 @@ import com.google.android.exoplayer2.C;
 import com.google.android.exoplayer2.ExoPlaybackException;
 import com.google.android.exoplayer2.Format;
 import com.google.android.exoplayer2.analytics.PlaybackStats;
+import com.google.android.exoplayer2.analytics.PlaybackStats.EventTimeAndException;
+import com.google.android.exoplayer2.analytics.PlaybackStats.EventTimeAndFormat;
 import com.google.android.exoplayer2.analytics.PlaybackStats.EventTimeAndPlaybackState;
 import com.google.android.exoplayer2.util.Clock;
 import com.google.android.exoplayer2.util.Log;
@@ -47,6 +53,7 @@ public abstract class AbstractBasePlaybackMetrics {
     private long initialPlaybackStartDelay;
     private Exception endedWithError;
     protected CurrentState currentState = CurrentState.UNKNOWN;
+    private long totalSeekTime;
 
     /**
      * Called by the {@link ManagePlaybackMetrics} to initialize a new set of PlaybackMetrics.
@@ -87,6 +94,7 @@ public abstract class AbstractBasePlaybackMetrics {
         totalRebufferingTime = playbackStats.getTotalRebufferTimeMs();
         rebufferCount = playbackStats.getMeanRebufferCount();
         initialPlaybackStartDelay = playbackStats.totalValidJoinTimeMs;
+        totalSeekTime = playbackStats.getPlaybackStateDurationMs(PLAYBACK_STATE_SEEKING);
 
         if (playbackStats.fatalErrorHistory.size() > 0) {
             endedWithError = playbackStats.fatalErrorHistory.get(0).exception;
@@ -141,14 +149,6 @@ public abstract class AbstractBasePlaybackMetrics {
         return playbackStateAtTime;
     }
 
-    // Debug method
-    private void dumpStateHistory(PlaybackStats playbackStats) {
-        for (EventTimeAndPlaybackState timeAndPlaybackState : playbackStats.playbackStateHistory) {
-            android.util.Log.d(TAG, "event: " + ManagePlaybackMetrics.eventDebug(timeAndPlaybackState.eventTime)
-                    + " state: " + timeAndPlaybackState.playbackState);
-        }
-    }
-
     private float bpsToMbps(int meanBitrate) {
         return (float) ((float) meanBitrate / 1_000_000.0);
     }
@@ -158,6 +158,7 @@ public abstract class AbstractBasePlaybackMetrics {
         loggedStats.put("initialPlaybackStartDelay", getInitialPlaybackStartDelay());
         loggedStats.put("totalElapsedTimeMs", getTotalElapsedTimeMs());
         loggedStats.put("rebufferCount", getRebufferCount());
+        loggedStats.put("totalSeekTime", getTotalSeekTime());
         loggedStats.put("profileShiftCount", getProfileShiftCount());
         loggedStats.put("avgVideoBitrate", getAvgVideoBitrate());
         loggedStats.put("avgAudioBitrate", getAvgAudioBitrate());
@@ -258,14 +259,36 @@ public abstract class AbstractBasePlaybackMetrics {
 
     /**
      * Total time (in ms) spent rebuffering.  That is buffering when it is not for initial join times, times after a
-     * seek and buffering while paused.  See {@link #getRebufferCount()}
+     * seek and buffering while paused.  See {@link #getRebufferCount()}.
      * <p>
-     * This total / rebuffingCount would give you the average rebuffering time
+     * This is equivalent to QoE spec metric called "videoStallingTime".
+     * </p>
+     * <p>
+     * This total / rebuffingCount would give you the average re-buffering time
      *
      * @return total re-buffering time in ms
      */
     public long getTotalRebufferingTime() {
         return totalRebufferingTime;
+    }
+
+    /**
+     * Contrast this with re-buffering (aka "stalling" in QoE spec), this value gives the total time the
+     * player is in {@link Player#STATE_BUFFERING} that:
+     * <ul>
+     *   <li>Directly following a position change (discontinuity), either seek or trickplay</li>
+     *   <li>Not directly following playback startup (channel change, play new asset)</li>
+     * </ul>
+     *
+     * Use this value to derive the QoE <em>videoBufferingTime</em> value, e.g.
+     *   videoBufferingTime = totalSeekTime + initialPlaybackStartDelay
+     *
+     * {@link #getInitialPlaybackStartDelay()}
+     *
+     * @return total time (in ms) spent buffering following a seek, trickplay or other user induced position change
+     */
+    public long getTotalSeekTime() {
+        return totalSeekTime;
     }
 
     /**

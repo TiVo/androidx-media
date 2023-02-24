@@ -3,6 +3,8 @@ package com.tivo.exoplayer.library.metrics;
 import android.os.SystemClock;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 
+import com.google.android.exoplayer2.PlaybackException;
+import com.google.android.exoplayer2.PlaybackParameters;
 import java.util.Map;
 import java.util.Set;
 
@@ -15,6 +17,13 @@ import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 import org.mockito.stubbing.Answer;
 
+import static com.google.android.exoplayer2.analytics.AnalyticsListener.EVENT_BANDWIDTH_ESTIMATE;
+import static com.google.android.exoplayer2.analytics.AnalyticsListener.EVENT_DOWNSTREAM_FORMAT_CHANGED;
+import static com.google.android.exoplayer2.analytics.AnalyticsListener.EVENT_PLAYBACK_STATE_CHANGED;
+import static com.google.android.exoplayer2.analytics.AnalyticsListener.EVENT_PLAYER_ERROR;
+import static com.google.android.exoplayer2.analytics.AnalyticsListener.EVENT_PLAY_WHEN_READY_CHANGED;
+import static com.google.android.exoplayer2.analytics.AnalyticsListener.EVENT_TIMELINE_CHANGED;
+import static com.google.android.exoplayer2.analytics.AnalyticsListener.EVENT_TRACKS_CHANGED;
 import static com.google.common.truth.Truth.assertThat;
 import static com.google.common.truth.Truth.assertWithMessage;
 import static com.tivo.exoplayer.library.metrics.PlaybackStatsExtensionTest.TEST_BASEAUDIO_FORMAT;
@@ -22,6 +31,7 @@ import static com.tivo.exoplayer.library.metrics.PlaybackStatsExtensionTest.TEST
 import static com.tivo.exoplayer.library.metrics.PlaybackStatsExtensionTest.TEST_TIMELINE;
 import static com.tivo.exoplayer.library.metrics.PlaybackStatsExtensionTest.createEventTime;
 import static com.tivo.exoplayer.library.metrics.PlaybackStatsExtensionTest.createMediaLoad;
+import static com.tivo.exoplayer.library.metrics.TrickPlayMetricsHelper.createEventsAtSameEventTime;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.verify;
@@ -32,20 +42,42 @@ import com.google.android.exoplayer2.Format;
 import com.google.android.exoplayer2.Player;
 import com.google.android.exoplayer2.SimpleExoPlayer;
 import com.google.android.exoplayer2.analytics.AnalyticsListener;
-import com.google.android.exoplayer2.source.TrackGroupArray;
 import com.google.android.exoplayer2.trackselection.TrackSelectionArray;
 import com.google.android.exoplayer2.trickplay.TrickPlayControl;
 import com.google.android.exoplayer2.trickplay.TrickPlayEventListener;
 import com.google.android.exoplayer2.util.Clock;
 
-@Ignore("need another approach then calling AnalyticsListner methods")
+/**
+ * Test the {@link PlaybackMetricsManagerApi} that manages {@link com.google.android.exoplayer2.analytics.PlaybackStats} collection
+ * for trick play and regular playback.
+ *
+ * The strategy is to Mock the {@link SimpleExoPlayer} and call {@link AnalyticsListener} methods to simulate
+ * playback execution paths.
+ *
+ * Note since our 2.15.1 ExoPlayer version update the {@link AnalyticsListener} API methods used by playback stats changed
+ * with the introduction of {@link AnalyticsListener#onEvents(Player, AnalyticsListener.Events)}.  The vast majoroity of
+ * state changes now come from this onEvents method call and calling the associated Player.   Only these {@link AnalyticsListener}
+ * methods are still overridden:
+ *  onPositionDiscontinuity
+ *  onDroppedVideoFrames
+ *  onLoadError
+ *  onDrmSessionManagerError
+ *  onBandwidthEstimate
+ *  onDownstreamFormatChanged
+ *  onVideoSizeChanged
+ *
+ */
 @RunWith(AndroidJUnit4.class)
 public class ManagePlaybackMetricsTest {
 
     // Object being tested.
     private PlaybackMetricsManagerApi manageMetrics;
 
-    // Mock player to capture the current analytics listener
+    /**
+     * The {@link com.google.android.exoplayer2.analytics.PlaybackStatsListener} and associated
+     * classes  uses the {@link com.google.android.exoplayer2.analytics.PlaybackStatsListener} events and methods
+     * on the {@link SimpleExoPlayer} to determine the playback history.
+     */
     @Mock
     private SimpleExoPlayer playerMock;
 
@@ -71,12 +103,16 @@ public class ManagePlaybackMetricsTest {
 
     @Before
     public void setupMocksAndTestee() {
-        MockitoAnnotations.initMocks(this);
+        MockitoAnnotations.openMocks(this);
 
         ArgumentCaptor<TrickPlayEventListener> trickPlayListenerCaptor = ArgumentCaptor.forClass(TrickPlayEventListener.class);
         analyticsListenerArgumentCaptor = ArgumentCaptor.forClass(AnalyticsListener.class);
 
         when(playerMock.getCurrentTimeline()).thenReturn(TEST_TIMELINE);
+        when(playerMock.getPlaybackParameters()).thenReturn(PlaybackParameters.DEFAULT);
+        when(playerMock.getPlaybackState()).thenReturn(Player.STATE_IDLE);
+        when(playerMock.getPlayWhenReady()).thenReturn(true);
+        when(playerMock.getCurrentTrackSelections()).thenReturn(new TrackSelectionArray());
 
         when(metricsEventListener.createEmptyPlaybackMetrics()).thenCallRealMethod();
         when(metricsEventListener.createEmptyTrickPlayMetrics(any(), any())).thenCallRealMethod();
@@ -96,17 +132,22 @@ public class ManagePlaybackMetricsTest {
     @Test
     public void testNullFormatHandled() {
         AnalyticsListener.EventTime initialTime = createEventTime(200);
+        MockTrackSelection mockTrackSelection = MockTrackSelection.buildFrom(TEST_BASEVIDEO_FORMAT);
+        when(playerMock.getCurrentTrackSelections()).thenReturn(new TrackSelectionArray(mockTrackSelection));
+        when(playerMock.getPlaybackState()).thenReturn(Player.STATE_READY);
+        when(playerMock.getPlayWhenReady()).thenReturn(true);
         analyticsListener.onDownstreamFormatChanged(initialTime, createMediaLoad(TEST_BASEVIDEO_FORMAT));
-        analyticsListener.onTimelineChanged(initialTime, Player.TIMELINE_CHANGE_REASON_SOURCE_UPDATE);
-        analyticsListener.onPlaybackStateChanged(initialTime, Player.STATE_READY);
-        analyticsListener.onPlayWhenReadyChanged(initialTime, true, Player.PLAY_WHEN_READY_CHANGE_REASON_USER_REQUEST);
-
+        AnalyticsListener.Events events = createEventsAtSameEventTime(initialTime,
+            EVENT_DOWNSTREAM_FORMAT_CHANGED, EVENT_TIMELINE_CHANGED, EVENT_PLAYBACK_STATE_CHANGED, EVENT_PLAY_WHEN_READY_CHANGED);
+        analyticsListener.onEvents(playerMock, events);
 
         // TrackSelection that disables video (our mute for example) can cause a null video format period,
         // that is the last 40ms (210 - 250) of playback
-        TrackGroupArray testGroups = new TrackGroupArray();
         TrackSelectionArray testSelection = new TrackSelectionArray();
-        analyticsListener.onTracksChanged(createEventTime(210), testGroups, testSelection);
+        when(playerMock.getCurrentTrackSelections()).thenReturn(testSelection);
+        AnalyticsListener.EventTime eventTime = createEventTime(210);
+        events = createEventsAtSameEventTime(eventTime, EVENT_TRACKS_CHANGED);
+        analyticsListener.onEvents(playerMock, events);
 
         SystemClock.setCurrentTimeMillis(250);
         manageMetrics.endAllSessions();
@@ -128,7 +169,6 @@ public class ManagePlaybackMetricsTest {
                 assertThat(entry.getValue()).isEqualTo(10);
                 assertThat(entry.getKey()).isEqualTo(TEST_BASEVIDEO_FORMAT);
             }
-
         }
     }
 
@@ -138,9 +178,16 @@ public class ManagePlaybackMetricsTest {
         when(metricsEventListener.createEmptyTrickPlayMetrics(any(), any())).thenAnswer(
                 (Answer<TrickPlayMetrics>) invocation -> new MyTrickPlayMetrics(invocation.getArgument(0), invocation.getArgument(1)));
 
-        analyticsListener.onDownstreamFormatChanged(createEventTime(100), createMediaLoad(TEST_BASEVIDEO_FORMAT));
-        analyticsListener.onTimelineChanged(createEventTime(200), Player.TIMELINE_CHANGE_REASON_SOURCE_UPDATE);
-        analyticsListener.onPlaybackStateChanged(createEventTime(200), Player.STATE_READY);
+        MockTrackSelection mockTrackSelection = MockTrackSelection.buildFrom(TEST_BASEVIDEO_FORMAT);
+        when(playerMock.getCurrentTrackSelections()).thenReturn(new TrackSelectionArray(mockTrackSelection));
+        AnalyticsListener.EventTime eventTime = createEventTime(100);
+        analyticsListener.onDownstreamFormatChanged(eventTime, createMediaLoad(TEST_BASEVIDEO_FORMAT));
+        AnalyticsListener.Events events = createEventsAtSameEventTime(eventTime, EVENT_DOWNSTREAM_FORMAT_CHANGED);
+        analyticsListener.onEvents(playerMock, events);
+
+        eventTime = createEventTime(200);
+        events = createEventsAtSameEventTime(eventTime, EVENT_TIMELINE_CHANGED, EVENT_PLAYBACK_STATE_CHANGED);
+        analyticsListener.onEvents(playerMock, events);
 
         // Switch into trickplay mode, generate some trickplay events, then switch out.
         SystemClock.setCurrentTimeMillis(225);
@@ -167,12 +214,25 @@ public class ManagePlaybackMetricsTest {
                 TEST_BASEVIDEO_FORMAT.buildUpon().setAverageBitrate(10).setPeakBitrate(10).build(), TEST_BASEVIDEO_FORMAT.buildUpon().setAverageBitrate(20).setPeakBitrate(20).build()
         };
 
+        MockTrackSelection mockTrackSelection = MockTrackSelection.buildFrom(formats);
+        when(playerMock.getCurrentTrackSelections()).thenReturn(new TrackSelectionArray(mockTrackSelection));
+
+        // Loading starts for the initial format (formats[0]) in buffering state, this is the initial join time
+        AnalyticsListener.EventTime eventTime = createEventTime(100);
+        analyticsListener.onDownstreamFormatChanged(eventTime, createMediaLoad(formats[0]));
+        AnalyticsListener.Events events = createEventsAtSameEventTime(eventTime, EVENT_DOWNSTREAM_FORMAT_CHANGED, EVENT_PLAYBACK_STATE_CHANGED);
+        when(playerMock.getPlaybackState()).thenReturn(Player.STATE_BUFFERING);
+        analyticsListener.onEvents(playerMock, events);
+
         // Format 0 plays from 200 to 500, but trickplay is active from 225 to 300
-        analyticsListener.onDownstreamFormatChanged(createEventTime(100), createMediaLoad(formats[0]));
+        int playbackTimePlusTrickPlayTime = 500 - 200;
+        int expectedTrickPlayTime = 300 - 225;
+
         AnalyticsListener.EventTime eventTime200 = createEventTime(200);
-        analyticsListener.onTimelineChanged(eventTime200, Player.TIMELINE_CHANGE_REASON_SOURCE_UPDATE);
-        analyticsListener.onPlaybackStateChanged(eventTime200, Player.STATE_READY);
-        analyticsListener.onPlayWhenReadyChanged(eventTime200, true, Player.PLAY_WHEN_READY_CHANGE_REASON_USER_REQUEST);
+        when(playerMock.getPlaybackState()).thenReturn(Player.STATE_READY);
+        when(playerMock.getPlayWhenReady()).thenReturn(true);
+        events = createEventsAtSameEventTime(eventTime200, EVENT_TIMELINE_CHANGED, EVENT_PLAYBACK_STATE_CHANGED, EVENT_PLAY_WHEN_READY_CHANGED);
+        analyticsListener.onEvents(playerMock, events);
 
         // Switch into trickplay mode and generate some metrics that should be ingored
         SystemClock.setCurrentTimeMillis(225);
@@ -183,9 +243,18 @@ public class ManagePlaybackMetricsTest {
         AnalyticsListener underTrickPlayListener = analyticsListenerArgumentCaptor.getValue();
         assertThat(analyticsListener).isNotEqualTo(underTrickPlayListener);
 
-        underTrickPlayListener.onPlaybackStateChanged(createEventTime(230), Player.STATE_BUFFERING);
-        underTrickPlayListener.onDownstreamFormatChanged(createEventTime(230), createMediaLoad(formats[1]));
-        underTrickPlayListener.onPlaybackStateChanged(createEventTime(240), Player.STATE_READY);
+        // Buffering events in trickplay are not part of playback metrics
+        mockTrackSelection.setSelectedIndex(1);
+        AnalyticsListener.EventTime eventTime230 = createEventTime(230);
+        when(playerMock.getPlaybackState()).thenReturn(Player.STATE_BUFFERING);
+        underTrickPlayListener.onDownstreamFormatChanged(eventTime230, createMediaLoad(formats[1]));
+        events = createEventsAtSameEventTime(eventTime230, EVENT_PLAYBACK_STATE_CHANGED, EVENT_DOWNSTREAM_FORMAT_CHANGED);
+        underTrickPlayListener.onEvents(playerMock, events);
+
+        AnalyticsListener.EventTime eventTime240 = createEventTime(240);
+        when(playerMock.getPlaybackState()).thenReturn(Player.STATE_READY);
+        events = createEventsAtSameEventTime(eventTime240, EVENT_PLAYBACK_STATE_CHANGED);
+        underTrickPlayListener.onEvents(playerMock, events);
 
         // Changing back to NORMAL exits trickplay and restores normal playback analytics capture
         SystemClock.setCurrentTimeMillis(300);
@@ -193,23 +262,30 @@ public class ManagePlaybackMetricsTest {
         verify(playerMock, atLeastOnce()).addAnalyticsListener(analyticsListenerArgumentCaptor.capture());
         AnalyticsListener savedHandler = analyticsListenerArgumentCaptor.getValue();
         assertThat(analyticsListener).isSameInstanceAs(savedHandler);
-        analyticsListener.onPlaybackStateChanged(createEventTime(400), Player.STATE_READY);
+        when(playerMock.getPlaybackState()).thenReturn(Player.STATE_READY);
+        events = createEventsAtSameEventTime(createEventTime(400), EVENT_PLAYBACK_STATE_CHANGED);
+        analyticsListener.onEvents(playerMock, events);
+
         SystemClock.setCurrentTimeMillis(500);
 
         PlaybackMetrics metrics = manageMetrics.createOrReturnCurrent();
         manageMetrics.updateFromCurrentStats(metrics);
-        assertThat(metrics.getTotalTrickPlayTime()).isEqualTo(300 - 225);
+        assertThat(metrics.getTotalTrickPlayTime()).isEqualTo(expectedTrickPlayTime);
+
+        // Trickplay is counted as a seek (buffering)
         assertThat(metrics.getTrickPlayCount()).isEqualTo(1);
+        assertThat(metrics.getTotalSeekTime()).isEqualTo(expectedTrickPlayTime);
 
         Map<Format, Long> results = metrics.getTimeInVideoFormat();
         assertThat(metrics.getTotalRebufferingTime()).isEqualTo(0);
         assertThat(results.keySet().size()).isEqualTo(1);
         assertThat(results.get(formats[0])).isNotNull();
-        assertThat(results.get(formats[0])).isEqualTo((500 - 200) - (300 - 225) );
+        assertThat(results.get(formats[0])).isEqualTo(playbackTimePlusTrickPlayTime - expectedTrickPlayTime);
 
         assertThat(metrics.getProfileShiftCount()).isEqualTo(1);
     }
 
+    @Ignore("needs analytics listener onEvent")
     @Test
     public void testMultiplePlaybackMetrics_GetTimeInVideoFormat() {
         Format formats[] = {
@@ -269,6 +345,7 @@ public class ManagePlaybackMetricsTest {
         assertThat(metrics.getEndReason()).isEqualTo(PlaybackMetrics.EndReason.END_OF_CONTENT);
     }
 
+    @Ignore("needs analytics listener onEvent")
     @Test
     public void testMultiplePlaybackMetrics_GetTimeInAudioOnlyFormat() {
         Format formats[] = {
@@ -337,17 +414,46 @@ public class ManagePlaybackMetricsTest {
                 TEST_BASEVIDEO_FORMAT.buildUpon().setAverageBitrate(20_000_000).setPeakBitrate(20_000_000).build()
         };
 
-        // first format plays from 400 - 700, minus 100ms of buffering so 200 ms
+        MockTrackSelection mockTrackSelection = MockTrackSelection.buildFrom(formats);
+        when(playerMock.getCurrentTrackSelections()).thenReturn(new TrackSelectionArray(mockTrackSelection));
+
+        // Loading starts for the initial format (formats[0]) in buffering state, this is the initial join time
+        AnalyticsListener.EventTime eventTime100 = createEventTime(100);
+        analyticsListener.onDownstreamFormatChanged(eventTime100, createMediaLoad(formats[0]));
+
+
+        // first format plays from 400 - 700, minus 100ms of buffering so 200 ms actual playing time
         SystemClock.setCurrentTimeMillis(200);
-        analyticsListener.onDownstreamFormatChanged(createEventTime(300), createMediaLoad(formats[0]));
-        analyticsListener.onPlayWhenReadyChanged(createEventTime(400), true, Player.PLAY_WHEN_READY_CHANGE_REASON_USER_REQUEST);
-        analyticsListener.onPlaybackStateChanged(createEventTime(400), Player.STATE_READY);
-        analyticsListener.onPlaybackStateChanged(createEventTime(500), Player.STATE_BUFFERING);
-        analyticsListener.onPlaybackStateChanged(createEventTime(600), Player.STATE_READY);
+        AnalyticsListener.EventTime eventTime300 = createEventTime(300);
+        analyticsListener.onDownstreamFormatChanged(eventTime300, createMediaLoad(formats[0]));
+        when(playerMock.getPlaybackState()).thenReturn(Player.STATE_BUFFERING);
+        AnalyticsListener.Events events = createEventsAtSameEventTime(eventTime300, EVENT_DOWNSTREAM_FORMAT_CHANGED, EVENT_PLAYBACK_STATE_CHANGED);
+        analyticsListener.onEvents(playerMock, events);
+
+        AnalyticsListener.EventTime eventTime400 = createEventTime(400);
+        when(playerMock.getPlaybackState()).thenReturn(Player.STATE_READY);
+        when(playerMock.getPlayWhenReady()).thenReturn(true);
+        events = createEventsAtSameEventTime(eventTime400, EVENT_PLAY_WHEN_READY_CHANGED, EVENT_PLAYBACK_STATE_CHANGED);
+        analyticsListener.onEvents(playerMock, events);
+
+        AnalyticsListener.EventTime eventTime500 = createEventTime(500);
+        when(playerMock.getPlaybackState()).thenReturn(Player.STATE_BUFFERING);
+        events = createEventsAtSameEventTime(eventTime500, EVENT_PLAYBACK_STATE_CHANGED);
+        analyticsListener.onEvents(playerMock, events);
+
+        AnalyticsListener.EventTime eventTime600 = createEventTime(600);
+        when(playerMock.getPlaybackState()).thenReturn(Player.STATE_READY);
+        events = createEventsAtSameEventTime(eventTime600, EVENT_PLAYBACK_STATE_CHANGED);
+        analyticsListener.onEvents(playerMock, events);
+
         SystemClock.setCurrentTimeMillis(700);
 
         // second format 700 to 1000, with 100ms of trick-play  so 200 ms
-        analyticsListener.onDownstreamFormatChanged(createEventTime(700), createMediaLoad(formats[1]));
+        AnalyticsListener.EventTime eventTime700 = createEventTime(700);
+        analyticsListener.onDownstreamFormatChanged(eventTime700, createMediaLoad(formats[1]));
+        mockTrackSelection.setSelectedIndex(1);
+        events = createEventsAtSameEventTime(eventTime700, EVENT_DOWNSTREAM_FORMAT_CHANGED);
+        analyticsListener.onEvents(playerMock, events);
 
         SystemClock.setCurrentTimeMillis(800);
         trickPlayEventListener.trickPlayModeChanged(TrickPlayControl.TrickMode.FF1, TrickPlayControl.TrickMode.NORMAL);
@@ -355,7 +461,11 @@ public class ManagePlaybackMetricsTest {
         trickPlayEventListener.trickPlayModeChanged(TrickPlayControl.TrickMode.NORMAL, TrickPlayControl.TrickMode.FF1);
 
         SystemClock.setCurrentTimeMillis(1000);
-        analyticsListener.onPlaybackStateChanged(createEventTime(1000), Player.STATE_ENDED);
+        AnalyticsListener.EventTime eventTime1000 = createEventTime(1000);
+        when(playerMock.getPlaybackState()).thenReturn(Player.STATE_ENDED);
+        events = createEventsAtSameEventTime(eventTime1000, EVENT_PLAYBACK_STATE_CHANGED);
+        analyticsListener.onEvents(playerMock, events);
+
         PlaybackMetrics metrics = manageMetrics.createOrReturnCurrent();
         manageMetrics.updateFromCurrentStats(metrics);
 
@@ -365,6 +475,7 @@ public class ManagePlaybackMetricsTest {
         assertThat(metrics.getAvgVideoBitrate()).isEqualTo(expected);
     }
 
+    @Ignore("this was a copy of test_getAvgVideoBitrate_metric_excludesTrickplay, so copy it again ;-)")
     @Test
     public void test_getAvgAudioBitrate_metric_excludesTrickplay() {
 
@@ -404,13 +515,28 @@ public class ManagePlaybackMetricsTest {
 
     @Test
     public void test_getAvgNetworkBandwidth_metric() {
-
         SystemClock.setCurrentTimeMillis(200);
-        analyticsListener.onPlaybackStateChanged(createEventTime(200), Player.STATE_READY);
-        analyticsListener.onBandwidthEstimate(createEventTime(250), 200, 1_000_000, 0);
-        analyticsListener.onBandwidthEstimate(createEventTime(260), 400, 1_000_000, 0);
+        AnalyticsListener.EventTime eventTime200 = createEventTime(200);
+        when(playerMock.getPlaybackState()).thenReturn(Player.STATE_READY);
+        AnalyticsListener.Events events = createEventsAtSameEventTime(eventTime200, EVENT_PLAYBACK_STATE_CHANGED);
+        analyticsListener.onEvents(playerMock, events);
+
+        AnalyticsListener.EventTime eventTime250 = createEventTime(250);
+        analyticsListener.onBandwidthEstimate(eventTime250, 200, 1_000_000, 0);
+        events = createEventsAtSameEventTime(eventTime250, EVENT_BANDWIDTH_ESTIMATE);
+        analyticsListener.onEvents(playerMock, events);
+
+        AnalyticsListener.EventTime eventTime260 = createEventTime(260);
+        analyticsListener.onBandwidthEstimate(eventTime260, 400, 1_000_000, 0);
+        events = createEventsAtSameEventTime(eventTime260, EVENT_BANDWIDTH_ESTIMATE);
+        analyticsListener.onEvents(playerMock, events);
+
         SystemClock.setCurrentTimeMillis(660);
-        analyticsListener.onPlaybackStateChanged(createEventTime(660), Player.STATE_ENDED);
+
+        AnalyticsListener.EventTime eventTime660 = createEventTime(660);
+        when(playerMock.getPlaybackState()).thenReturn(Player.STATE_ENDED);
+        events = createEventsAtSameEventTime(eventTime660, EVENT_PLAYBACK_STATE_CHANGED);
+        analyticsListener.onEvents(playerMock, events);
 
         PlaybackMetrics metrics = new PlaybackMetrics();
         manageMetrics.updateFromCurrentStats(metrics);
@@ -426,10 +552,17 @@ public class ManagePlaybackMetricsTest {
 
         ArgumentCaptor<PlaybackMetrics> metricsArgumentCaptor = ArgumentCaptor.forClass(PlaybackMetrics.class);
 
-        analyticsListener.onPlaybackStateChanged(createEventTime(200), Player.STATE_READY);
+        AnalyticsListener.EventTime eventTime200 = createEventTime(200);
+        when(playerMock.getPlaybackState()).thenReturn(Player.STATE_READY);
+        AnalyticsListener.Events events = createEventsAtSameEventTime(eventTime200, EVENT_PLAYBACK_STATE_CHANGED);
+        analyticsListener.onEvents(playerMock, events);
+
         SystemClock.setCurrentTimeMillis(225);
-        ExoPlaybackException error = ExoPlaybackException.createForUnexpected(new RuntimeException("test"));
-        analyticsListener.onPlayerError(createEventTime(225), error);
+        ExoPlaybackException error = ExoPlaybackException.createForUnexpected(new RuntimeException("test"), PlaybackException.ERROR_CODE_UNSPECIFIED);
+        AnalyticsListener.EventTime eventTime225 = createEventTime(225);
+        when(playerMock.getPlayerError()).thenReturn(error);
+        events = createEventsAtSameEventTime(eventTime225, EVENT_PLAYER_ERROR);
+        analyticsListener.onEvents(playerMock, events);
 
         manageMetrics.endAllSessions();
 

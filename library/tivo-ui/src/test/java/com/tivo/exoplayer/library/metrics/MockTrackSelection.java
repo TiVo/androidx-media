@@ -16,7 +16,7 @@ class MockTrackSelection extends BaseTrackSelection {
 
   private int selectedIndex;
 
-  public static MockTrackSelection buildFrom(Format[] formats) {
+  public static MockTrackSelection buildFrom(Format... formats) {
     TrackGroup group = new TrackGroup(formats);
     int[] tracks = new int[formats.length];
     for (int i = 0; i < tracks.length; i++) {

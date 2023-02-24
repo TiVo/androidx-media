@@ -1,9 +1,15 @@
 package com.tivo.exoplayer.library.metrics;
 
+import static com.google.android.exoplayer2.analytics.AnalyticsListener.EVENT_DOWNSTREAM_FORMAT_CHANGED;
+import static com.google.android.exoplayer2.analytics.AnalyticsListener.EVENT_PLAYBACK_STATE_CHANGED;
+import static com.google.android.exoplayer2.analytics.AnalyticsListener.EVENT_PLAY_WHEN_READY_CHANGED;
+
+import android.util.SparseArray;
 import androidx.annotation.VisibleForTesting;
 
 import com.google.android.exoplayer2.source.LoadEventInfo;
 import com.google.android.exoplayer2.source.MediaLoadData;
+import com.google.android.exoplayer2.util.FlagSet;
 import org.json.JSONObject;
 
 import com.google.android.exoplayer2.C;
@@ -163,7 +169,9 @@ class TrickPlayMetricsHelper implements TrickPlayEventListener, PlaybackStatsLis
             currentPlayer.removeAnalyticsListener(trickPlayStatsListener);
             currentPlayer.removeAnalyticsListener(trickPlayMetricsAnalyticsListener);
 
-            trickPlayStatsListener.onPlaybackStateChanged(createEventTimeNow(), Player.STATE_IDLE);
+            AnalyticsListener.EventTime eventTimeNow = createEventTimeNow();
+            trickPlayStatsListener.onPlaybackStateChanged(eventTimeNow, Player.STATE_IDLE);
+            trickPlayStatsListener.onEvents(currentPlayer, createEventsAtSameEventTime(eventTimeNow, EVENT_PLAYBACK_STATE_CHANGED));
 
             // If the session has not already ended, end it
             if (currentTrickPlayMetrics != null) {
@@ -201,33 +209,38 @@ class TrickPlayMetricsHelper implements TrickPlayEventListener, PlaybackStatsLis
                 trickPlayStatsListener.onPlaybackStateChanged(eventTimeNow, Player.STATE_READY);
                 trickPlayStatsListener.onPlayWhenReadyChanged(eventTimeNow, true, Player.PLAY_WHEN_READY_CHANGE_REASON_USER_REQUEST);
                 trickPlayStatsListener.onDownstreamFormatChanged(eventTimeNow, createMediaLoad(current));
+                trickPlayStatsListener.onEvents(currentPlayer, createEventsAtSameEventTime(eventTimeNow,
+                    EVENT_PLAYBACK_STATE_CHANGED,
+                    EVENT_PLAY_WHEN_READY_CHANGED,
+                    EVENT_DOWNSTREAM_FORMAT_CHANGED));
             }
         } else {
 
             // Reverse playback is a special case, we never enter a playing state.  So at least start
-            // in "playing" so first downstream format is recorded.  For forward, look like starting in buffering
+            // in "playing" so first downstream format is recorded.  For forward, look we start in buffering
             // to record the first transition to ready as initial startup time
             //
             AnalyticsListener.EventTime eventTimeNow = createEventTimeNow();
-            switch (TrickPlayControl.directionForMode(newMode)) {
-                case FORWARD:
-                    trickPlayStatsListener.onPlaybackStateChanged(eventTimeNow, Player.STATE_BUFFERING);
-                    trickPlayStatsListener.onPlayWhenReadyChanged(eventTimeNow, true, Player.PLAY_WHEN_READY_CHANGE_REASON_USER_REQUEST);
-                    break;
-
-                case NONE:
-                    throw new IllegalStateException("code error - unreachable");
-
-                case SCRUB:
-                    trickPlayStatsListener.onPlaybackStateChanged(eventTimeNow, Player.STATE_READY);
-                    trickPlayStatsListener.onPlayWhenReadyChanged(eventTimeNow, false, Player.PLAY_WHEN_READY_CHANGE_REASON_USER_REQUEST);
-                    break;
-
-                case REVERSE:
-                    trickPlayStatsListener.onPlaybackStateChanged(eventTimeNow, Player.STATE_READY);
-                    trickPlayStatsListener.onPlayWhenReadyChanged(eventTimeNow, true, Player.PLAY_WHEN_READY_CHANGE_REASON_USER_REQUEST);
-                    break;
-            }
+            trickPlayStatsListener.onEvents(currentPlayer, createEventsAtSameEventTime(eventTimeNow, EVENT_PLAYBACK_STATE_CHANGED));
+//            switch (TrickPlayControl.directionForMode(newMode)) {
+//                case FORWARD:
+//                    trickPlayStatsListener.onPlaybackStateChanged(eventTimeNow, Player.STATE_BUFFERING);
+//                    trickPlayStatsListener.onPlayWhenReadyChanged(eventTimeNow, true, Player.PLAY_WHEN_READY_CHANGE_REASON_USER_REQUEST);
+//                    break;
+//
+//                case NONE:
+//                    throw new IllegalStateException("code error - unreachable");
+//
+//                case SCRUB:
+//                    trickPlayStatsListener.onPlaybackStateChanged(eventTimeNow, Player.STATE_READY);
+//                    trickPlayStatsListener.onPlayWhenReadyChanged(eventTimeNow, false, Player.PLAY_WHEN_READY_CHANGE_REASON_USER_REQUEST);
+//                    break;
+//
+//                case REVERSE:
+//                    trickPlayStatsListener.onPlaybackStateChanged(eventTimeNow, Player.STATE_READY);
+//                    trickPlayStatsListener.onPlayWhenReadyChanged(eventTimeNow, true, Player.PLAY_WHEN_READY_CHANGE_REASON_USER_REQUEST);
+//                    break;
+//            }
         }
         currentPlayer.addAnalyticsListener(trickPlayStatsListener);
         currentPlayer.addAnalyticsListener(trickPlayMetricsAnalyticsListener);
@@ -237,11 +250,11 @@ class TrickPlayMetricsHelper implements TrickPlayEventListener, PlaybackStatsLis
     AnalyticsListener.EventTime createEventTimeNow() {
         return new AnalyticsListener.EventTime(
                 clock.elapsedRealtime(),
-                Timeline.EMPTY,
+                currentPlayer.getCurrentTimeline(),
                 /* windowIndex= */ currentPlayer.getCurrentWindowIndex(),
                 /* mediaPeriodId= */ null,
                 /* eventPlaybackPositionMs= */ currentPlayer.getCurrentPosition(),
-                Timeline.EMPTY,
+                currentPlayer.getCurrentTimeline(),
                 /* currentWindowIndex= */ currentPlayer.getCurrentWindowIndex(),
                 /* currentMediaPeriodId= */ null,
                 /* currentPlaybackPositionMs= */ currentPlayer.getCurrentPosition(),
@@ -253,4 +266,21 @@ class TrickPlayMetricsHelper implements TrickPlayEventListener, PlaybackStatsLis
         return new MediaLoadData(0, C.TRACK_TYPE_VIDEO, format, 0, null, 0, 0);
     }
 
+    /**
+     * Helper method for posting {@link AnalyticsListener#onEvents(Player, AnalyticsListener.Events)} calls that
+     * 'deliver' a set of callbacks to post that occur at the same time.  This was a change to how AnalyticsListener
+     * events are delivered starting in ExoPlayer 2.15, calls are batched up and the set of events occuring at
+     * the same {@link AnalyticsListener.EventTime} are followed by a call to onEvents().
+     *
+     * @param eventTime - time all the event[s] occur at
+     * @param flags - the event type[s]
+     * @return Object to pass to onEvents()
+     */
+    static AnalyticsListener.Events createEventsAtSameEventTime(AnalyticsListener.EventTime eventTime, int... flags) {
+        SparseArray<AnalyticsListener.EventTime> eventTimes = new SparseArray<>();
+        for (int eventFlag : flags) {
+            eventTimes.put(eventFlag, eventTime);
+        }
+        return new AnalyticsListener.Events(new FlagSet.Builder().addAll(flags).build(), eventTimes);
+    }
 }

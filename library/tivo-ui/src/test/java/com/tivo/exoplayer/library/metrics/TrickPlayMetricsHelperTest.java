@@ -2,12 +2,15 @@ package com.tivo.exoplayer.library.metrics;
 
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 
+import com.google.android.exoplayer2.PlaybackParameters;
+import com.google.android.exoplayer2.Player;
+import com.google.android.exoplayer2.testutil.FakeTimeline;
+import com.google.android.exoplayer2.trackselection.TrackSelectionArray;
 import java.util.List;
 
 import com.google.android.exoplayer2.source.LoadEventInfo;
 import com.google.android.exoplayer2.source.MediaLoadData;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
@@ -23,6 +26,8 @@ import com.google.android.exoplayer2.testutil.FakeClock;
 import com.google.android.exoplayer2.trickplay.TrickPlayControl;
 import com.google.android.exoplayer2.util.Clock;
 import com.google.android.exoplayer2.util.MimeTypes;
+
+import static com.google.android.exoplayer2.analytics.AnalyticsListener.EVENT_DOWNSTREAM_FORMAT_CHANGED;
 import static com.google.common.truth.Truth.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.atLeastOnce;
@@ -31,27 +36,21 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-@Ignore("need another approach then calling AnalyticsListner methods")
 @RunWith(AndroidJUnit4.class)
 public class TrickPlayMetricsHelperTest {
-    static final Format TEST_BASEVIDEO_FORMAT = Format.createVideoSampleFormat(null,
-            MimeTypes.VIDEO_H264, null, Format.NO_VALUE, Format.NO_VALUE, 1280, 720, Format.NO_VALUE,
-            null, null);
+    static final Format TEST_BASEVIDEO_FORMAT = new Format.Builder()
+        .setSampleMimeType(MimeTypes.VIDEO_H264)
+        .setContainerMimeType(MimeTypes.VIDEO_H264)
+        .setWidth(1280)
+        .setHeight(720)
+        .setFrameRate((float) Format.NO_VALUE)
+        .build();
 
-    static final Format TEST_IFRAME_FORMAT = new Format.Builder()
-            .setId(null)
-            .setLabel(null)
+    static final Format TEST_IFRAME_FORMAT = TEST_BASEVIDEO_FORMAT.buildUpon()
             .setSelectionFlags(0)
             .setRoleFlags(C.ROLE_FLAG_TRICK_PLAY)
             .setAverageBitrate(1000)
             .setPeakBitrate(1000)
-            .setCodecs(null)
-            .setMetadata(null)
-            .setContainerMimeType(MimeTypes.VIDEO_H264)
-            .setSampleMimeType(MimeTypes.VIDEO_H264)
-            .setInitializationData(null)
-            .setWidth(1280)
-            .setHeight(720)
             .setFrameRate(0.1f)
             .build();
 
@@ -69,6 +68,7 @@ public class TrickPlayMetricsHelperTest {
     private MetricsEventListener metricsEventListener;
 
     private final Clock clock = new FakeClock(100);
+    private MockTrackSelection mockTrackSelection;
 
     @Before
     public void setupMocks() {
@@ -76,6 +76,15 @@ public class TrickPlayMetricsHelperTest {
 
         when(metricsEventListener.createEmptyTrickPlayMetrics(any(), any())).thenCallRealMethod();
         when(metricsEventListener.createEmptyPlaybackMetrics()).thenCallRealMethod();
+
+        // setup Mock player to return a mock timeline
+        when(playerMock.getCurrentTimeline()).thenReturn(new FakeTimeline(1));
+        when(playerMock.getPlaybackState()).thenReturn(Player.STATE_READY);
+
+        // set a default track selection
+        mockTrackSelection = MockTrackSelection.buildFrom(TEST_BASEVIDEO_FORMAT);
+        TrackSelectionArray trackSelectionArray = new TrackSelectionArray(mockTrackSelection);
+        when(playerMock.getCurrentTrackSelections()).thenReturn(trackSelectionArray);
     }
 
     @Test
@@ -110,7 +119,9 @@ public class TrickPlayMetricsHelperTest {
         createFastForwardPlayback(TrickPlayControl.TrickMode.FF1);
         List<AnalyticsListener> listeners = currentListeners();
         for (AnalyticsListener listener : listeners) {
-            listener.onDownstreamFormatChanged(testee.createEventTimeNow(), TrickPlayMetricsHelper.createMediaLoad(TEST_BASEVIDEO_FORMAT));
+            AnalyticsListener.EventTime eventTimeNow = testee.createEventTimeNow();
+            listener.onDownstreamFormatChanged(eventTimeNow, TrickPlayMetricsHelper.createMediaLoad(TEST_BASEVIDEO_FORMAT));
+            listener.onEvents(playerMock, TrickPlayMetricsHelper.createEventsAtSameEventTime(eventTimeNow, EVENT_DOWNSTREAM_FORMAT_CHANGED));
         }
 
         // Intra-mode change
@@ -213,6 +224,7 @@ public class TrickPlayMetricsHelperTest {
     private void setTrickPlayControlMockToMockMode(TrickPlayControl.TrickMode mode) {
         when(controlMock.getCurrentTrickDirection()).thenReturn(TrickPlayControl.TrickPlayDirection.FORWARD);
         when(controlMock.getCurrentTrickMode()).thenReturn(mode);
+        when(playerMock.getPlaybackParameters()).thenReturn(new PlaybackParameters(15.0f));
         when(controlMock.getSpeedFor(mode)).thenReturn(15.0f);  // fine for test purposes if all are same
     }
 
