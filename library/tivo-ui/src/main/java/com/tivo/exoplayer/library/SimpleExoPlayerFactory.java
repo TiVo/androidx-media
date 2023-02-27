@@ -719,8 +719,12 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
      */
     builder.setSelectUndeterminedTextLanguage(enable);
 
-    /* TrackSelection will weigth this language to the top if it is seen */
-    builder.setPreferredTextLanguage(preferLanguage);
+    /* TrackSelection will weight this language to the top if it is seen */
+    if (enable) {
+      builder.setPreferredTextLanguage(preferLanguage);
+    } else {
+      builder.setPreferredTextLanguage(C.LANGUAGE_UNDETERMINED);
+    }
 
     /* Lastly, disable the track by 'masking' the selection attribute flags.  Otherwise we
      * turn on select default, autoselect and force.  These flags
