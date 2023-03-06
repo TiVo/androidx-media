@@ -38,8 +38,6 @@ public class TrickPlayMetrics extends AbstractBasePlaybackMetrics {
     private final TrickPlayControl.TrickMode prevMode;
     private float observedPlaybackSpeed;
     private float expectedPlaybackSpeed;
-    private long totalSeekTimeMs;
-    private int totalSeekCount;
     private final List<IframeLoadEvent> loadEventList;
     private int totalCanceledLoads;
     private float arithmeticMeanFrameLoadTime;
@@ -157,29 +155,6 @@ public class TrickPlayMetrics extends AbstractBasePlaybackMetrics {
     }
 
     /**
-     * Total time spent on "seek" operations.  Reverse VTP and non-visual trick-play both use repeated seek
-     * operations followed by waiting for a short amount of time for a rendered frame.
-     *
-     * @return time in milli-seconds
-     */
-    public long getTotalSeekTimeMs() {
-        return totalSeekTimeMs;
-    }
-
-    /**
-     * Total number of "seek" operations issued.  Seeks move reverse VTP in the reverse direction, a
-     * seek is productive if it results in a frame render.  So the ratio of {@link #getRenderedFramesCount()} /
-     * {@link #getTotalSeekCount()} is the productivity of the "visual" aspect of reverse VTP.
-     *
-     * For forward VTP this number is only non-zero if the advance key is used to jump.
-     *
-     * @return number of seek operations
-     */
-    public int getTotalSeekCount() {
-        return totalSeekCount;
-    }
-
-    /**
      * The trick-play mode this set of metrics cover.
      *
      * @return the current mode for this set of metrics
@@ -259,8 +234,6 @@ public class TrickPlayMetrics extends AbstractBasePlaybackMetrics {
         trickplayMetrics.put("currentMode", currentMode.toString());
         trickplayMetrics.put("expectedTrickPlaySpeed", getExpectedPlaybackSpeed());
         trickplayMetrics.put("observedTrickPlaySpeed", getObservedPlaybackSpeed());
-        trickplayMetrics.put("totalSeekTimeMs", getTotalSeekTimeMs());
-        trickplayMetrics.put("totalSeekCount", getTotalSeekCount());
         trickplayMetrics.put("arithmeticMeanFrameLoadTime", getArithmeticMeanFrameLoadTime());
         trickplayMetrics.put("medianFrameLoadTime", getMedianFrameLoadTime());
         trickplayMetrics.put("avgFramesPerSecond", getAvgFramesPerSecond());
@@ -326,8 +299,6 @@ public class TrickPlayMetrics extends AbstractBasePlaybackMetrics {
 
     void updateOnSessionEnd(PlaybackStats playbackStats, AnalyticsListener.EventTime startEventTime, AnalyticsListener.EventTime endEventTime) {
         super.updateValuesFromStats(playbackStats, startEventTime.realtimeMs);
-        totalSeekTimeMs = playbackStats.getTotalSeekTimeMs();
-        totalSeekCount = playbackStats.totalSeekCount;
 
         lastPlayedFormat = playbackStats.videoFormatHistory.size() > 0
                 ? playbackStats.videoFormatHistory.get(playbackStats.videoFormatHistory.size() - 1).format : null;

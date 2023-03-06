@@ -274,7 +274,7 @@ public class ManagePlaybackMetricsTest {
 
         // Trickplay is counted as a seek (buffering)
         assertThat(metrics.getTrickPlayCount()).isEqualTo(1);
-        assertThat(metrics.getTotalSeekTime()).isEqualTo(expectedTrickPlayTime);
+        assertThat(metrics.getTotalSeekTimeMs()).isEqualTo(expectedTrickPlayTime);
 
         Map<Format, Long> results = metrics.getTimeInVideoFormat();
         assertThat(metrics.getTotalRebufferingTime()).isEqualTo(0);

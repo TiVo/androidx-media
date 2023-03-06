@@ -2,6 +2,7 @@ package com.tivo.exoplayer.library.metrics;
 
 import androidx.annotation.Nullable;
 
+import com.google.android.exoplayer2.util.Log;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -21,10 +22,10 @@ public class PlaybackMetrics extends AbstractBasePlaybackMetrics {
     private long totalTrickPlayTime;
     private int trickPlayCount;
     private EndReason endReason = EndReason.NONE;
-  private Map<Format, Long> timeInAudioOnlyFormat;
+    private Map<Format, Long> timeInAudioOnlyFormat;
 
 
-  // Internal methods
+    // Internal methods
 
     void addTrickPlayTime(long trickPlayTime) {
         trickPlayCount++;
@@ -44,6 +45,7 @@ public class PlaybackMetrics extends AbstractBasePlaybackMetrics {
         loggedStats.put("totalPlayingTimeMs", getTotalPlaybackTimeMs());
         loggedStats.put("totalRebufferingTimeMs", getTotalRebufferingTime());
         loggedStats.put("totalTrickPlayTimeMs", getTotalTrickPlayTime());
+        loggedStats.put("totalElapsedTimeMs", getTotalElapsedTimeMs());
         loggedStats.put("endedFor", getEndReason().toString());
 
         return loggedStats;

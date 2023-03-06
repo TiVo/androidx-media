@@ -53,6 +53,7 @@ public abstract class AbstractBasePlaybackMetrics {
     private long initialPlaybackStartDelay;
     private Exception endedWithError;
     protected CurrentState currentState = CurrentState.UNKNOWN;
+    private int totalSeekCount;
     private long totalSeekTime;
 
     /**
@@ -94,7 +95,8 @@ public abstract class AbstractBasePlaybackMetrics {
         totalRebufferingTime = playbackStats.getTotalRebufferTimeMs();
         rebufferCount = playbackStats.getMeanRebufferCount();
         initialPlaybackStartDelay = playbackStats.totalValidJoinTimeMs;
-        totalSeekTime = playbackStats.getPlaybackStateDurationMs(PLAYBACK_STATE_SEEKING);
+        totalSeekTime = playbackStats.getTotalSeekTimeMs();
+        totalSeekCount = playbackStats.totalSeekCount;
 
         if (playbackStats.fatalErrorHistory.size() > 0) {
             endedWithError = playbackStats.fatalErrorHistory.get(0).exception;
@@ -158,7 +160,8 @@ public abstract class AbstractBasePlaybackMetrics {
         loggedStats.put("initialPlaybackStartDelay", getInitialPlaybackStartDelay());
         loggedStats.put("totalElapsedTimeMs", getTotalElapsedTimeMs());
         loggedStats.put("rebufferCount", getRebufferCount());
-        loggedStats.put("totalSeekTime", getTotalSeekTime());
+        loggedStats.put("totalSeekTime", getTotalSeekTimeMs());
+        loggedStats.put("totalSeekCount", getTotalSeekCount());
         loggedStats.put("profileShiftCount", getProfileShiftCount());
         loggedStats.put("avgVideoBitrate", getAvgVideoBitrate());
         loggedStats.put("avgAudioBitrate", getAvgAudioBitrate());
@@ -273,6 +276,21 @@ public abstract class AbstractBasePlaybackMetrics {
     }
 
     /**
+     * Total number of "seek" operations issued.
+     *
+     * Note for VTP reverse this is the seeks used to move in the reverse direction, a
+     * seek is productive if it results in a frame render.  So the ratio of {@link TrickPlayMetrics#getRenderedFramesCount()} /
+     * {@link #getTotalSeekCount()} is the productivity of the "visual" aspect of reverse VTP.
+     *
+     * For forward VTP this number is only non-zero if the advance key is used to jump.
+     *
+     * @return number of seek operations
+     */
+    public int getTotalSeekCount() {
+        return totalSeekCount;
+    }
+
+    /**
      * Contrast this with re-buffering (aka "stalling" in QoE spec), this value gives the total time the
      * player is in {@link Player#STATE_BUFFERING} that:
      * <ul>
@@ -285,9 +303,12 @@ public abstract class AbstractBasePlaybackMetrics {
      *
      * {@link #getInitialPlaybackStartDelay()}
      *
+     * Note for the {@link TrickPlayMetrics} subclass this value includes the buffering for the
+     * repeated seek operations followed by waiting for a short amount of time for a rendered frame.
+     *
      * @return total time (in ms) spent buffering following a seek, trickplay or other user induced position change
      */
-    public long getTotalSeekTime() {
+    public long getTotalSeekTimeMs() {
         return totalSeekTime;
     }
 
