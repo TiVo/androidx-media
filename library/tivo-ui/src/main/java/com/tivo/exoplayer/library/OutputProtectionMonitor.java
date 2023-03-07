@@ -362,7 +362,13 @@ public class OutputProtectionMonitor extends Handler {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                 try {
                     MediaDrm widevineDrm = new MediaDrm(C.WIDEVINE_UUID);
-                    hdcpLevel = widevineDrm.getConnectedHdcpLevel();
+                    if (evaluateValidityWidevineKey(widevineDrm)) {
+                        hdcpLevel = widevineDrm.getConnectedHdcpLevel();
+                    }
+                    else {
+                        // Widevine key is not valid, default HDCP to 1_x
+                        hdcpLevel = MediaDrm.HDCP_V1;
+                    }
                     widevineDrm.close();
                     isErrorGettingHdcpLevel = false;
                 } catch (UnsupportedSchemeException e) {
@@ -407,6 +413,25 @@ public class OutputProtectionMonitor extends Handler {
                     Log.e(TAG, "Widevine UUID is not supported on this version: " + Build.VERSION.RELEASE);
                 }
             } 
+        }
+
+        private boolean evaluateValidityWidevineKey(MediaDrm widevineDrm) {
+            boolean valid = true;
+            if ("SEI Robotics".equals(Build.MANUFACTURER)) {
+                // SEI Robotics is the only device having a problem where the Widevine Keys are
+                // invalid. For all other platforms its considered valid by default
+                String systemId = widevineDrm.getPropertyString("systemId");
+                String securityLevel = widevineDrm.getPropertyString("securityLevel");
+
+                if ((systemId != null) && securityLevel.equals("L1")) {
+                    Log.d(TAG, "Widevine Key is valid on systemId " + systemId + " " + securityLevel);
+                    valid = true;
+                } else {
+                    Log.e(TAG, "Widevine Key is Invalid");
+                    valid = false;
+                }
+            }
+            return valid;
         }
 
         private boolean checkHdcpStatus() {
