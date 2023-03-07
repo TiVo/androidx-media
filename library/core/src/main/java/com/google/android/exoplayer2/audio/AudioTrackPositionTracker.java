@@ -417,7 +417,8 @@ import java.lang.reflect.Method;
    * @return Whether the audio track has any pending data to play out.
    */
   public boolean hasPendingData(long writtenFrames) {
-    return writtenFrames > getPlaybackHeadPosition() || forceHasPendingData();
+    return writtenFrames > durationUsToFrames(getCurrentPositionUs(/* sourceEnded= */ false))
+        || forceHasPendingData();
   }
 
   public boolean hasPendingTunneledData(long writtenFrames) {
@@ -548,6 +549,10 @@ import java.lang.reflect.Method;
     return (frameCount * C.MICROS_PER_SECOND) / outputSampleRate;
   }
 
+  private long durationUsToFrames(long durationUs) {
+    return (durationUs * outputSampleRate) / C.MICROS_PER_SECOND;
+  }
+
   private void resetSyncParams() {
     smoothedPlayheadOffsetUs = 0;
     playheadOffsetCount = 0;
@@ -597,7 +602,7 @@ import java.lang.reflect.Method;
       long elapsedTimeSinceStopUs = (currentTimeMs * 1000) - stopTimestampUs;
       long mediaTimeSinceStopUs =
           Util.getMediaDurationForPlayoutDuration(elapsedTimeSinceStopUs, audioTrackPlaybackSpeed);
-      long framesSinceStop = (mediaTimeSinceStopUs * outputSampleRate) / C.MICROS_PER_SECOND;
+      long framesSinceStop = durationUsToFrames(mediaTimeSinceStopUs);
       return min(endPlaybackHeadPosition, stopPlaybackHeadPosition + framesSinceStop);
     }
     if (currentTimeMs - lastRawPlaybackHeadPositionSampleTimeMs
