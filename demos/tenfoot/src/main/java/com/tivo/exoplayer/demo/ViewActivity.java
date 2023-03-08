@@ -9,8 +9,6 @@ import android.content.IntentFilter;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
-import android.os.Handler;
-import android.os.Looper;
 import android.provider.Settings;
 import android.util.Log;
 import android.view.KeyEvent;
@@ -49,7 +47,6 @@ import com.google.android.exoplayer2.ui.PlayerControlView;
 import com.google.android.exoplayer2.ui.PlayerView;
 import com.google.android.exoplayer2.ui.SubtitleView;
 import com.google.android.exoplayer2.ui.TimeBar;
-import com.google.android.exoplayer2.util.Util;
 import com.streamingmediainsights.smiclientsdk.SMIClientSdk;
 import com.streamingmediainsights.smiclientsdk.SMIEventCallbackListener;
 import com.streamingmediainsights.smiclientsdk.SMISimpleExoPlayer;
@@ -116,6 +113,7 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
   public static final String ENABLE_ASYNC_RENDER = "enable_async_renderer";
   public static final String INITIAL_SEEK = "start_at";
   public static final String SEEK_TO = "seek_to";
+  public static final String SEEK_UNSAFE = "seek_unsafe";
   public static final String SEEK_NEAREST_SYNC = "seek_nearest";
   public static final String START_PLAYING = "start_playing";
   public static final String SHOW_GEEK_STATS = "show_geek";
@@ -424,12 +422,17 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
         } else {
           TrickPlayControl trickPlayControl = exoPlayerFactory.getCurrentTrickPlayControl();
           SimpleExoPlayer player = exoPlayerFactory.getCurrentPlayer();
+          assert player != null;
           SeekParameters savedParams = null;
           if (nearestSync) {
             savedParams = player.getSeekParameters();
             player.setSeekParameters(SeekParameters.CLOSEST_SYNC);
           }
-          boundedSeekTo(player, trickPlayControl, seekTo);
+          if (intent.getBooleanExtra(SEEK_UNSAFE, false)) {
+            player.seekTo(seekTo);
+          } else {
+            boundedSeekTo(player, trickPlayControl, seekTo);
+          }
           if (savedParams != null) {
             player.setSeekParameters(savedParams);
           }
