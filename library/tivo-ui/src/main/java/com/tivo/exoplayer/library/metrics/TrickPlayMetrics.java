@@ -4,6 +4,7 @@ import androidx.annotation.Nullable;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
@@ -45,6 +46,7 @@ public class TrickPlayMetrics extends AbstractBasePlaybackMetrics {
     private Format lastPlayedFormat;
     private long firstFrameRender = C.TIME_UNSET;
     private float avgFramesPerSecond;
+    private long initialTrickPlayStartDelay;
 
     /**
      * Reason for trick play ending, either USER_ENDED or an ERROR are the only possible reasons
@@ -98,29 +100,7 @@ public class TrickPlayMetrics extends AbstractBasePlaybackMetrics {
      */
     @Override
     public long getInitialPlaybackStartDelay() {
-        long startDelay = C.TIME_UNSET;
-        if (isIntraTrickPlayModeChange()) {
-            startDelay = 0;
-        } else {
-            switch (TrickPlayControl.directionForMode(currentMode)) {
-                case FORWARD:
-                case NONE:
-                    startDelay = super.getInitialPlaybackStartDelay();
-                    break; 
-                    
-                case SCRUB:
-                    break;
-                    
-                case REVERSE:
-                    startDelay = firstFrameRender == C.TIME_UNSET ? C.TIME_UNSET :
-                            firstFrameRender - startingTimestamp;
-                    break;
-                default:
-                    throw new IllegalStateException("Unexpected value: " + TrickPlayControl.directionForMode(currentMode));
-            }
-            
-        }
-        return startDelay;
+        return initialTrickPlayStartDelay;
     }
 
     /**
@@ -297,11 +277,68 @@ public class TrickPlayMetrics extends AbstractBasePlaybackMetrics {
         return metricsAsMap;
     }
 
+    /**
+     * On session end calculate the value for {@link #getInitialPlaybackStartDelay()}
+     *
+     * For reverse we just use time to first frame, for forward we use the initial buffering
+     * event time.  Since the {@link com.google.android.exoplayer2.analytics.PlaybackStatsListener} for
+     * trickplay essentially starts in PLAYBACK_STATE_PLAYING the super.getInitialPlaybackStartDelay() is not valid as
+     * a startup delay. So we use the time from the initial PLAYBACK_STATE_BUFFERING (will follow from the track selection)
+     * to the next non-buffering state (PLAYBACK_STATE_PLAYING) as initial startup delay
+     *
+     * Value is always 0 on intra-trick play mode transitions, any rebuffering is still recorded as {@link #getTotalRebufferingTime()}
+     * and as slower then expected playback speed realized (for forward)
+     *
+     * @param playbackStats - stats to examine for state events
+     * @param endEventTime - time trickplay ended.
+     * @return value to set.
+     */
+    private long calculateTrickPlayStartDelay(PlaybackStats playbackStats, AnalyticsListener.EventTime endEventTime) {
+        long startDelay = C.TIME_UNSET;
+        if (isIntraTrickPlayModeChange()) {
+            startDelay = 0;
+        } else {
+            switch (TrickPlayControl.directionForMode(currentMode)) {
+                case FORWARD:
+                case NONE:
+                    startDelay = super.getInitialPlaybackStartDelay();
+                    List<PlaybackStats.EventTimeAndPlaybackState> stateHistory = playbackStats.playbackStateHistory;
+                    if (startDelay == 0 || startDelay == C.TIME_UNSET) {
+                        PlaybackStats.EventTimeAndPlaybackState firstBuffering = null;
+                        Iterator<PlaybackStats.EventTimeAndPlaybackState> it = stateHistory.iterator();
+                        while (it.hasNext() && firstBuffering == null) {
+                            PlaybackStats.EventTimeAndPlaybackState timeAndState =  it.next();
+                            if (timeAndState.playbackState == PlaybackStats.PLAYBACK_STATE_BUFFERING) {
+                                firstBuffering = timeAndState;
+                            }
+                        }
+                        if (firstBuffering != null) {
+                            startDelay = (it.hasNext() ? it.next().eventTime.realtimeMs : endEventTime.realtimeMs) - firstBuffering.eventTime.realtimeMs;
+                        }
+                    }
+                    break;
+
+                case SCRUB:
+                    break;
+
+                case REVERSE:
+                    startDelay = firstFrameRender == C.TIME_UNSET ? C.TIME_UNSET :
+                        firstFrameRender - startingTimestamp;
+                    break;
+                default:
+                    throw new IllegalStateException("Unexpected value: " + TrickPlayControl.directionForMode(currentMode));
+            }
+
+        }
+        return startDelay;
+    }
+
     void updateOnSessionEnd(PlaybackStats playbackStats, AnalyticsListener.EventTime startEventTime, AnalyticsListener.EventTime endEventTime) {
         super.updateValuesFromStats(playbackStats, startEventTime.realtimeMs);
 
         lastPlayedFormat = playbackStats.videoFormatHistory.size() > 0
                 ? playbackStats.videoFormatHistory.get(playbackStats.videoFormatHistory.size() - 1).format : null;
+        initialTrickPlayStartDelay = calculateTrickPlayStartDelay(playbackStats, endEventTime);
 
         long positionDeltaMs = endEventTime.currentPlaybackPositionMs - startEventTime.currentPlaybackPositionMs;
         observedPlaybackSpeed = (float) positionDeltaMs / (float) getTotalElapsedTimeMs();

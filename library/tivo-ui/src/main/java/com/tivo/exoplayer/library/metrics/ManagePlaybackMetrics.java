@@ -2,7 +2,6 @@ package com.tivo.exoplayer.library.metrics;
 
 import static com.google.android.exoplayer2.Player.DISCONTINUITY_REASON_SEEK;
 import static com.google.android.exoplayer2.Player.EVENT_PLAYBACK_STATE_CHANGED;
-import static com.google.android.exoplayer2.analytics.AnalyticsListener.EVENT_PLAY_WHEN_READY_CHANGED;
 import static com.google.android.exoplayer2.analytics.AnalyticsListener.EVENT_POSITION_DISCONTINUITY;
 import static com.tivo.exoplayer.library.metrics.TrickPlayMetricsHelper.createEventsAtSameEventTime;
 
@@ -114,6 +113,12 @@ public class ManagePlaybackMetrics implements PlaybackMetricsManagerApi {
             parentListener.trickPlayMetricsAvailable(metrics, stats);
         }
 
+        /**
+         * Entering trick-play suspends the main PlaybackMetrics collection (by removing
+         * it's {@link AnalyticsListener}) then posting events to the removed listener to
+         * make the trick-play period appear as a seek operation (Player reports STATE_BUFFERING and
+         * a discontinuity matching the trick-play position change is recorded).
+         */
         @Override
         public void enteringTrickPlayMeasurement() {
             currentPlayer.removeAnalyticsListener(playbackStatsListener);
@@ -248,8 +253,6 @@ public class ManagePlaybackMetrics implements PlaybackMetricsManagerApi {
                 sessionManager.getSessionInformationFor(sessionStartTime.realtimeMs);
 
         Map<String, Object> loggedStats = playbackMetrics.getMetricsAsMap();
-
-        loggedStats.put("totalTimeMs", stats.getTotalElapsedTimeMs());
 
 
         JSONObject jsonObject = new JSONObject(loggedStats);
