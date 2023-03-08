@@ -15,6 +15,7 @@
  */
 package com.google.android.exoplayer2.audio;
 
+import static com.google.android.exoplayer2.audio.AudioCapabilities.DEFAULT_AUDIO_CAPABILITIES;
 import static java.lang.Math.max;
 import static java.lang.Math.min;
 
@@ -307,7 +308,6 @@ public final class DefaultAudioSink implements AudioSink {
    */
   public static boolean failOnSpuriousAudioTimestamp = false;
 
-  @Nullable private final AudioCapabilities audioCapabilities;
   private final AudioProcessorChain audioProcessorChain;
   private final boolean enableFloatOutput;
   private final ChannelMappingAudioProcessor channelMappingAudioProcessor;
@@ -328,6 +328,7 @@ public final class DefaultAudioSink implements AudioSink {
   @Nullable private Configuration pendingConfiguration;
   @MonotonicNonNull private Configuration configuration;
   @Nullable private AudioTrack audioTrack;
+  private AudioCapabilities audioCapabilities;
 
   private AudioAttributes audioAttributes;
   @Nullable private MediaPositionParameters afterDrainParameters;
@@ -962,6 +963,8 @@ public final class DefaultAudioSink implements AudioSink {
         listener.onAudioSinkError(e);
       }
       if (e.isRecoverable) {
+        // Change to the audio capabilities supported by all the devices during the error recovery.
+        audioCapabilities = DEFAULT_AUDIO_CAPABILITIES;
         throw e; // Do not delay the exception if it can be recovered at higher level.
       }
       writeExceptionPendingExceptionHolder.throwExceptionIfDeadlineIsReached(e);
