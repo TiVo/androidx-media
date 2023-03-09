@@ -1219,29 +1219,14 @@ import java.util.concurrent.atomic.AtomicBoolean;
                 /* forceBufferingState= */ playbackInfo.playbackState == Player.STATE_ENDED);
         seekPositionAdjusted |= periodPositionUs != newPeriodPositionUs;
         periodPositionUs = newPeriodPositionUs;
-        if (periodId.equals(playbackInfo.periodId)) {
-          if (shouldUseLivePlaybackSpeedControl(playbackInfo.timeline, periodId)) {
-            int windowIndex = playbackInfo.timeline.getPeriodByUid(periodId.periodUid, period).windowIndex;
-            playbackInfo.timeline.getWindow(windowIndex, window);
-            if (requestedContentPositionUs != C.TIME_UNSET) {
-              livePlaybackSpeedControl.setTargetLiveOffsetOverrideUs(
-                  getLiveOffsetUs(playbackInfo.timeline, periodId.periodUid, requestedContentPositionUs));
-            } else {
-              if (!playbackInfo.timeline.isEmpty()) {
-                // Seek resolved to window.getDefaultPositionMs(), so just remove the override.
-                livePlaybackSpeedControl.setTargetLiveOffsetOverrideUs(C.TIME_UNSET);
-              }
-            }
-          }
-        } else {
-          updateLivePlaybackSpeedControl(
-              /* newTimeline= */ playbackInfo.timeline,
-              /* newPeriodId= */ periodId,
-              /* oldTimeline= */ playbackInfo.timeline,
-              /* oldPeriodId= */ playbackInfo.periodId,
-              /* positionForTargetOffsetOverrideUs= */ requestedContentPositionUs);
+        updatePlaybackSpeedSettingsForNewPeriod(
+            /* newTimeline= */ playbackInfo.timeline,
+            /* newPeriodId= */ periodId,
+            /* oldTimeline= */ playbackInfo.timeline,
+            /* oldPeriodId= */ playbackInfo.periodId,
+            /* positionForTargetOffsetOverrideUs= */ requestedContentPositionUs,
+            /* positionRequestedBySeek */true);
 
-        }
       }
     } finally {
       playbackInfo =
@@ -1873,14 +1858,15 @@ import java.util.concurrent.atomic.AtomicBoolean;
         newPositionUs = seekToPeriodPosition(newPeriodId, newPositionUs, forceBufferingState);
       }
     } finally {
-      updateLivePlaybackSpeedControl(
+      updatePlaybackSpeedSettingsForNewPeriod(
           /* newTimeline= */ timeline,
           newPeriodId,
           /* oldTimeline= */ playbackInfo.timeline,
           /* oldPeriodId= */ playbackInfo.periodId,
           /* positionForTargetOffsetOverrideUs */ positionUpdate.setTargetLiveOffset
               ? newPositionUs
-              : C.TIME_UNSET);
+              : C.TIME_UNSET,
+          /* positionRequestedBySeek */false);
       if (periodPositionChanged
           || newRequestedContentPositionUs != playbackInfo.requestedContentPositionUs) {
         Object oldPeriodUid = playbackInfo.periodId.periodUid;
@@ -1913,12 +1899,14 @@ import java.util.concurrent.atomic.AtomicBoolean;
     }
   }
 
-  private void updateLivePlaybackSpeedControl(
+  private void updatePlaybackSpeedSettingsForNewPeriod(
       Timeline newTimeline,
       MediaPeriodId newPeriodId,
       Timeline oldTimeline,
       MediaPeriodId oldPeriodId,
-      long positionForTargetOffsetOverrideUs) {
+      long positionForTargetOffsetOverrideUs,
+      boolean positionRequestedBySeek)
+      throws ExoPlaybackException {
     if (newTimeline.isEmpty() || !shouldUseLivePlaybackSpeedControl(newTimeline, newPeriodId)) {
       // Live playback speed control is unused for the current period, reset speed if adjusted.
       if (mediaClock.getPlaybackParameters().speed != playbackInfo.playbackParameters.speed) {
@@ -1939,8 +1927,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
         int oldWindowIndex = oldTimeline.getPeriodByUid(oldPeriodId.periodUid, period).windowIndex;
         oldWindowUid = oldTimeline.getWindow(oldWindowIndex, window).uid;
       }
-      if (!Util.areEqual(oldWindowUid, windowUid)) {
-        // Reset overridden target live offset to media values if window changes.
+      if (!Util.areEqual(oldWindowUid, windowUid) || positionRequestedBySeek) {
+        // Reset overridden target live offset to media values if window changes or if seekTo
+        // default live position.
         livePlaybackSpeedControl.setTargetLiveOffsetOverrideUs(C.TIME_UNSET);
       }
     }
@@ -2151,12 +2140,13 @@ import java.util.concurrent.atomic.AtomicBoolean;
               /* discontinuityStartPositionUs= */ newPlayingPeriodHolder.info.startPositionUs,
               /* reportDiscontinuity= */ true,
               Player.DISCONTINUITY_REASON_AUTO_TRANSITION);
-      updateLivePlaybackSpeedControl(
+      updatePlaybackSpeedSettingsForNewPeriod(
           /* newTimeline= */ playbackInfo.timeline,
           /* newPeriodId= */ newPlayingPeriodHolder.info.id,
           /* oldTimeline= */ playbackInfo.timeline,
           /* oldPeriodId= */ oldPlayingPeriodHolder.info.id,
-          /* positionForTargetOffsetOverrideUs= */ C.TIME_UNSET);
+          /* positionForTargetOffsetOverrideUs= */ C.TIME_UNSET,
+          /* positionReqeuestedBySeek */ false);
       resetPendingPauseAtEndOfPeriod();
       updatePlaybackPositions();
       advancedPlayingPeriod = true;
