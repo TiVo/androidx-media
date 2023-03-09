@@ -1219,12 +1219,29 @@ import java.util.concurrent.atomic.AtomicBoolean;
                 /* forceBufferingState= */ playbackInfo.playbackState == Player.STATE_ENDED);
         seekPositionAdjusted |= periodPositionUs != newPeriodPositionUs;
         periodPositionUs = newPeriodPositionUs;
-        updateLivePlaybackSpeedControl(
-            /* newTimeline= */ playbackInfo.timeline,
-            /* newPeriodId= */ periodId,
-            /* oldTimeline= */ playbackInfo.timeline,
-            /* oldPeriodId= */ playbackInfo.periodId,
-            /* positionForTargetOffsetOverrideUs= */ requestedContentPositionUs);
+        if (periodId.equals(playbackInfo.periodId)) {
+          if (shouldUseLivePlaybackSpeedControl(playbackInfo.timeline, periodId)) {
+            int windowIndex = playbackInfo.timeline.getPeriodByUid(periodId.periodUid, period).windowIndex;
+            playbackInfo.timeline.getWindow(windowIndex, window);
+            if (requestedContentPositionUs != C.TIME_UNSET) {
+              livePlaybackSpeedControl.setTargetLiveOffsetOverrideUs(
+                  getLiveOffsetUs(playbackInfo.timeline, periodId.periodUid, requestedContentPositionUs));
+            } else {
+              if (!playbackInfo.timeline.isEmpty()) {
+                // Seek resolved to window.getDefaultPositionMs(), so just remove the override.
+                livePlaybackSpeedControl.setTargetLiveOffsetOverrideUs(C.TIME_UNSET);
+              }
+            }
+          }
+        } else {
+          updateLivePlaybackSpeedControl(
+              /* newTimeline= */ playbackInfo.timeline,
+              /* newPeriodId= */ periodId,
+              /* oldTimeline= */ playbackInfo.timeline,
+              /* oldPeriodId= */ playbackInfo.periodId,
+              /* positionForTargetOffsetOverrideUs= */ requestedContentPositionUs);
+
+        }
       }
     } finally {
       playbackInfo =
