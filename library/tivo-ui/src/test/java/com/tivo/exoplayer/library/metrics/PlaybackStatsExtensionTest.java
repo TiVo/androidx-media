@@ -1,5 +1,6 @@
 package com.tivo.exoplayer.library.metrics;
 
+import android.util.Log;
 import android.util.SparseArray;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 
@@ -14,12 +15,16 @@ import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
+import static com.google.android.exoplayer2.Player.DISCONTINUITY_REASON_SEEK;
 import static com.google.android.exoplayer2.analytics.AnalyticsListener.EVENT_DOWNSTREAM_FORMAT_CHANGED;
 import static com.google.android.exoplayer2.analytics.AnalyticsListener.EVENT_PLAYBACK_STATE_CHANGED;
 import static com.google.android.exoplayer2.analytics.AnalyticsListener.EVENT_PLAY_WHEN_READY_CHANGED;
+import static com.google.android.exoplayer2.analytics.AnalyticsListener.EVENT_POSITION_DISCONTINUITY;
 import static com.google.android.exoplayer2.analytics.AnalyticsListener.EVENT_TIMELINE_CHANGED;
 import static com.google.common.truth.Truth.assertThat;
 import static com.google.common.truth.Truth.assertWithMessage;
+import static com.tivo.exoplayer.library.metrics.TrickPlayMetricsHelper.createEventsAtSameEventTime;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
 import com.google.android.exoplayer2.C;
@@ -119,27 +124,53 @@ public class PlaybackStatsExtensionTest {
         assertThat(totalInFormats).isEqualTo(stats.getTotalPlayTimeMs());
     }
 
-    @Ignore
     @Test
     public void testGetTimeInFormat_PlayingStateChange() {
         Format formats[] = {
                 TEST_BASEVIDEO_FORMAT.buildUpon().setAverageBitrate(10).setPeakBitrate(10).build(), TEST_BASEVIDEO_FORMAT.buildUpon().setAverageBitrate(20).setPeakBitrate(20).build(), TEST_BASEVIDEO_FORMAT.buildUpon().setAverageBitrate(30).setPeakBitrate(30).build(),
         };
 
+        MockTrackSelection trackSelection = MockTrackSelection.buildFrom(formats);
+        TrackSelectionArray trackSelectionArray = new TrackSelectionArray(trackSelection);
+        when(playerMock.getCurrentTrackSelections()).thenReturn(trackSelectionArray);
+
         PlaybackStatsListener playbackStatsListener = new PlaybackStatsListener(/* keepHistory= */ true, /* callback= */ null);
 
-        playbackStatsListener.onTimelineChanged(createEventTime(0), Player.TIMELINE_CHANGE_REASON_SOURCE_UPDATE);
+        AnalyticsListener.EventTime eventTime = createEventTime(0);
+        playbackStatsListener.onTimelineChanged(eventTime, Player.TIMELINE_CHANGE_REASON_SOURCE_UPDATE);
+        playbackStatsListener.onDownstreamFormatChanged(eventTime, createMediaLoad(formats[0]));
+        when(playerMock.getPlayerError()).thenReturn(null);
+        playbackStatsListener.onEvents(playerMock, createEventsAtSameEventTime(eventTime, EVENT_TIMELINE_CHANGED, EVENT_DOWNSTREAM_FORMAT_CHANGED));
 
-        playbackStatsListener.onDownstreamFormatChanged(createEventTime(0), createMediaLoad(formats[0]));
-        playbackStatsListener.onPlaybackStateChanged(createEventTime(5), Player.STATE_READY);
-        playbackStatsListener.onPlayWhenReadyChanged(createEventTime(5), true, Player.PLAY_WHEN_READY_CHANGE_REASON_USER_REQUEST);
-        playbackStatsListener.onDownstreamFormatChanged(createEventTime(30), createMediaLoad(formats[1]));
-        playbackStatsListener.onPlaybackStateChanged(createEventTime(40), Player.STATE_BUFFERING);
-        playbackStatsListener.onPlaybackStateChanged(createEventTime(80), Player.STATE_READY);
-        playbackStatsListener.onDownstreamFormatChanged(createEventTime(100), createMediaLoad(formats[2]));
-        playbackStatsListener.onDownstreamFormatChanged(createEventTime(160), createMediaLoad(formats[0]));
-        playbackStatsListener.onDownstreamFormatChanged(createEventTime(200), createMediaLoad(formats[1]));
-        playbackStatsListener.onPlaybackStateChanged(createEventTime(400), Player.STATE_ENDED);
+        when(playerMock.getPlayWhenReady()).thenReturn(true);
+        when(playerMock.getPlaybackState()).thenReturn(Player.STATE_READY);
+        eventTime = createEventTime(5);
+        playbackStatsListener.onPlaybackStateChanged(eventTime, Player.STATE_READY);
+        playbackStatsListener.onPlayWhenReadyChanged(eventTime, true, Player.PLAY_WHEN_READY_CHANGE_REASON_USER_REQUEST);
+        playbackStatsListener.onEvents(playerMock, createEventsAtSameEventTime(eventTime, EVENT_PLAY_WHEN_READY_CHANGED, EVENT_PLAYBACK_STATE_CHANGED));
+
+        trackSelection.setSelectedIndex(1); postDownStreamFormatChange(playbackStatsListener, formats[1], createEventTime(30));
+
+        eventTime = createEventTime(40);
+        when(playerMock.getPlaybackState()).thenReturn(Player.STATE_BUFFERING);
+        playbackStatsListener.onEvents(playerMock, createEventsAtSameEventTime(eventTime, EVENT_DOWNSTREAM_FORMAT_CHANGED, EVENT_PLAYBACK_STATE_CHANGED));
+
+        eventTime = createEventTime(80);
+        when(playerMock.getPlaybackState()).thenReturn(Player.STATE_READY);
+        when(playerMock.getPlayWhenReady()).thenReturn(true);
+        playbackStatsListener.onEvents(playerMock, createEventsAtSameEventTime(eventTime, EVENT_PLAY_WHEN_READY_CHANGED, EVENT_PLAYBACK_STATE_CHANGED));
+
+        trackSelection.setSelectedIndex(2); postDownStreamFormatChange(playbackStatsListener, formats[2], createEventTime(100));
+        trackSelection.setSelectedIndex(0); postDownStreamFormatChange(playbackStatsListener, formats[0], createEventTime(160));
+        trackSelection.setSelectedIndex(1); postDownStreamFormatChange(playbackStatsListener, formats[1], createEventTime(200));
+
+        when(playerMock.getPlayWhenReady()).thenReturn(false);
+        when(playerMock.getPlaybackState()).thenReturn(Player.STATE_ENDED);
+        eventTime = createEventTime(400);
+        playbackStatsListener.onPlaybackStateChanged(eventTime, Player.STATE_ENDED);
+        playbackStatsListener.onPlayWhenReadyChanged(eventTime, false, Player.PLAY_WHEN_READY_CHANGE_REASON_USER_REQUEST);
+        playbackStatsListener.onEvents(playerMock, createEventsAtSameEventTime(eventTime, EVENT_PLAY_WHEN_READY_CHANGED, EVENT_PLAYBACK_STATE_CHANGED));
+
         long[] expected = {
                 (30 - 5) + (200 - 160),
                 ((100 - 30) - (80 - 40)) + (400 - 200),
@@ -166,33 +197,43 @@ public class PlaybackStatsExtensionTest {
 
     }
 
-    @Ignore
     @Test
     public void testGetTimeInFormat_PlayingStateChangeWithLastStatePlaying() {
-        Format formats[] = {
-                TEST_BASEVIDEO_FORMAT.buildUpon().setAverageBitrate(10).setPeakBitrate(10).build(), TEST_BASEVIDEO_FORMAT.buildUpon().setAverageBitrate(20).setPeakBitrate(20).build(), TEST_BASEVIDEO_FORMAT.buildUpon().setAverageBitrate(30).setPeakBitrate(30).build(),
+        Format[] formats = {
+                TEST_BASEVIDEO_FORMAT.buildUpon().setAverageBitrate(10).setPeakBitrate(10).build(),
+                TEST_BASEVIDEO_FORMAT.buildUpon().setAverageBitrate(20).setPeakBitrate(20).build(),
         };
 
-        /* This test case tests for, where the last state is Playing and teh format has changed in the playing state*/
+        MockTrackSelection trackSelection = MockTrackSelection.buildFrom(formats);
+        TrackSelectionArray trackSelectionArray = new TrackSelectionArray(trackSelection);
+        when(playerMock.getCurrentTrackSelections()).thenReturn(trackSelectionArray);
+
         PlaybackStatsListener playbackStatsListener = new PlaybackStatsListener(/* keepHistory= */ true, /* callback= */ null);
 
-        playbackStatsListener.onTimelineChanged(createEventTime(0), Player.TIMELINE_CHANGE_REASON_SOURCE_UPDATE);
+        AnalyticsListener.EventTime eventTime = createEventTime(0);
+        playbackStatsListener.onTimelineChanged(eventTime, Player.TIMELINE_CHANGE_REASON_SOURCE_UPDATE);
+        playbackStatsListener.onDownstreamFormatChanged(eventTime, createMediaLoad(formats[0]));
+        when(playerMock.getPlayerError()).thenReturn(null);
+        playbackStatsListener.onEvents(playerMock, createEventsAtSameEventTime(eventTime, EVENT_TIMELINE_CHANGED, EVENT_DOWNSTREAM_FORMAT_CHANGED));
 
-        playbackStatsListener.onDownstreamFormatChanged(createEventTime(0), createMediaLoad(formats[0]));
-        playbackStatsListener.onPlaybackStateChanged(createEventTime(2), Player.STATE_BUFFERING);
-        playbackStatsListener.onPlayWhenReadyChanged(createEventTime(5), true, Player.PLAY_WHEN_READY_CHANGE_REASON_USER_REQUEST);
-        playbackStatsListener.onPlaybackStateChanged(createEventTime(5), Player.STATE_READY);
-        playbackStatsListener.onDownstreamFormatChanged(createEventTime(30), createMediaLoad(formats[1]));
+        when(playerMock.getPlayWhenReady()).thenReturn(true);
+        when(playerMock.getPlaybackState()).thenReturn(Player.STATE_READY);
+        eventTime = createEventTime(5);
+        playbackStatsListener.onPlaybackStateChanged(eventTime, Player.STATE_READY);
+        playbackStatsListener.onPlayWhenReadyChanged(eventTime, true, Player.PLAY_WHEN_READY_CHANGE_REASON_USER_REQUEST);
+        playbackStatsListener.onEvents(playerMock, createEventsAtSameEventTime(eventTime, EVENT_PLAY_WHEN_READY_CHANGED, EVENT_PLAYBACK_STATE_CHANGED));
+
+        trackSelection.setSelectedIndex(1); postDownStreamFormatChange(playbackStatsListener, formats[1], createEventTime(30));
 
         long[] expected = {
                 (30 - 5) ,
-                (50 - 30)
+                (100 - 30)
         };
 
         PlaybackStats stats = playbackStatsListener.getPlaybackStats();
         assertThat(stats).isNotNull();
 
-        Map<Format, Long> results = PlaybackStatsExtension.getPlayingTimeInVideoFormat(stats, 50);
+        Map<Format, Long> results = PlaybackStatsExtension.getPlayingTimeInVideoFormat(stats, 100);
 
         assertThat(results.keySet().size()).isEqualTo(expected.length);
         long totalInFormats = 0L;
