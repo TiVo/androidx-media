@@ -16,17 +16,14 @@ import com.google.android.exoplayer2.C;
 import com.google.android.exoplayer2.Format;
 import com.google.android.exoplayer2.Player;
 import com.google.android.exoplayer2.SimpleExoPlayer;
-import com.google.android.exoplayer2.Timeline;
 import com.google.android.exoplayer2.analytics.AnalyticsListener;
 import com.google.android.exoplayer2.analytics.PlaybackSessionManager;
 import com.google.android.exoplayer2.analytics.PlaybackStats;
 import com.google.android.exoplayer2.analytics.PlaybackStatsListener;
-import com.google.android.exoplayer2.source.MediaSourceEventListener;
 import com.google.android.exoplayer2.trickplay.TrickPlayControl;
 import com.google.android.exoplayer2.trickplay.TrickPlayEventListener;
 import com.google.android.exoplayer2.util.Clock;
 import com.google.android.exoplayer2.util.Log;
-import com.google.android.exoplayer2.util.MimeTypes;
 
 class TrickPlayMetricsHelper implements TrickPlayEventListener, PlaybackStatsListener.Callback {
     private static final String TAG = "TrickPlayMetricsHelper";
@@ -206,8 +203,6 @@ class TrickPlayMetricsHelper implements TrickPlayEventListener, PlaybackStatsLis
             if (current != null) {
                 // initially we are already playing and playing the current video format.
                 AnalyticsListener.EventTime eventTimeNow = createEventTimeNow();
-                trickPlayStatsListener.onPlaybackStateChanged(eventTimeNow, Player.STATE_READY);
-                trickPlayStatsListener.onPlayWhenReadyChanged(eventTimeNow, true, Player.PLAY_WHEN_READY_CHANGE_REASON_USER_REQUEST);
                 trickPlayStatsListener.onDownstreamFormatChanged(eventTimeNow, createMediaLoad(current));
                 trickPlayStatsListener.onEvents(currentPlayer, createEventsAtSameEventTime(eventTimeNow,
                     EVENT_PLAYBACK_STATE_CHANGED,
@@ -222,25 +217,6 @@ class TrickPlayMetricsHelper implements TrickPlayEventListener, PlaybackStatsLis
             //
             AnalyticsListener.EventTime eventTimeNow = createEventTimeNow();
             trickPlayStatsListener.onEvents(currentPlayer, createEventsAtSameEventTime(eventTimeNow, EVENT_PLAYBACK_STATE_CHANGED));
-//            switch (TrickPlayControl.directionForMode(newMode)) {
-//                case FORWARD:
-//                    trickPlayStatsListener.onPlaybackStateChanged(eventTimeNow, Player.STATE_BUFFERING);
-//                    trickPlayStatsListener.onPlayWhenReadyChanged(eventTimeNow, true, Player.PLAY_WHEN_READY_CHANGE_REASON_USER_REQUEST);
-//                    break;
-//
-//                case NONE:
-//                    throw new IllegalStateException("code error - unreachable");
-//
-//                case SCRUB:
-//                    trickPlayStatsListener.onPlaybackStateChanged(eventTimeNow, Player.STATE_READY);
-//                    trickPlayStatsListener.onPlayWhenReadyChanged(eventTimeNow, false, Player.PLAY_WHEN_READY_CHANGE_REASON_USER_REQUEST);
-//                    break;
-//
-//                case REVERSE:
-//                    trickPlayStatsListener.onPlaybackStateChanged(eventTimeNow, Player.STATE_READY);
-//                    trickPlayStatsListener.onPlayWhenReadyChanged(eventTimeNow, true, Player.PLAY_WHEN_READY_CHANGE_REASON_USER_REQUEST);
-//                    break;
-//            }
         }
         currentPlayer.addAnalyticsListener(trickPlayStatsListener);
         currentPlayer.addAnalyticsListener(trickPlayMetricsAnalyticsListener);
