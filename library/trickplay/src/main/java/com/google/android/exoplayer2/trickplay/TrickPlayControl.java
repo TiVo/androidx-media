@@ -163,7 +163,9 @@ public interface TrickPlayControl {
      *
      * @param frameNumber frame number (0 is most recent, &gt;0 goes back up to N frames)
      * @return true if the seek was possible (saved frames, and at least frameNumber frames were saved)
+     * DEPRECATED - this is being done by the internal logic on trickplay exit
      */
+    @Deprecated
     boolean seekToNthPlayedTrickFrame(int frameNumber);
 
     /**

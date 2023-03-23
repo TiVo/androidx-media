@@ -142,11 +142,6 @@ public class AdaptiveLoadControl implements LoadControl, TrickPlayEventListener 
         defaultShouldStart = true;    // TODO probably does not matter as we are paused
         break;
     }
-    if (!defaultShouldStart) {
-      Log.d(TAG, "shouldStartPlayback() delaying for buffering - buffered(ms): " + C.usToMs(bufferedDurationUs)
-          + ", rebuffering: " + rebuffering
-          + ", speed: " + playbackSpeed);
-    }
     return defaultShouldStart;
   }
 }

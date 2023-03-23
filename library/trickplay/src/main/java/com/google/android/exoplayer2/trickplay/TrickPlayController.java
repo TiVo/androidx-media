@@ -12,6 +12,7 @@ import com.google.android.exoplayer2.DefaultRenderersFactory;
 import com.google.android.exoplayer2.Format;
 import com.google.android.exoplayer2.LoadControl;
 import com.google.android.exoplayer2.Player;
+import com.google.android.exoplayer2.SeekParameters;
 import com.google.android.exoplayer2.Timeline;
 import com.google.android.exoplayer2.source.TrackGroup;
 import com.google.android.exoplayer2.source.hls.playlist.DefaultHlsPlaylistParserFactory;
@@ -50,6 +51,8 @@ class TrickPlayController implements TrickPlayControlInternal {
 
     private static final String TAG = "TrickPlayController";
 
+    private static final int REACTION_TIME_FOR_OVERSHOOT = 250;       // ms jump for FR/FF reaction time correction
+
     private @MonotonicNonNull SimpleExoPlayer player;
     private final DefaultTrackSelector trackSelector;
     private DefaultTrackSelector.Parameters savedParameters;
@@ -85,6 +88,8 @@ class TrickPlayController implements TrickPlayControlInternal {
     /** Created by the DualModeHlsPlaylistParserFactory, used to resolve the frame rate for an iFrame variant
      */
     @Nullable private FrameRateAnalyzer frameRateAnalyzer;
+
+    private TrickMode exitingTrickMode;
 
     TrickPlayController(DefaultTrackSelector trackSelector) {
         this.trackSelector = trackSelector;
@@ -320,6 +325,8 @@ class TrickPlayController implements TrickPlayControlInternal {
                 lastSelectedAudioTrack = i;
               }
             }
+
+            seekOnTrickPlayExitToLastRenderedFrameN();
         }
 
         /**
@@ -331,11 +338,17 @@ class TrickPlayController implements TrickPlayControlInternal {
          * will fill the list again.  (See Jira issue BZSTREAM-5732)
          *
          * @param eventTime The event time.
-         * @param reason discontinuity reason, we only care about seeks.
+         * @param oldPosition The position before the discontinuity.
+         * @param newPosition The position after the discontinuity.
+         * @param reason The reason for the position discontinuity.
          */
         @Override
-        public void onPositionDiscontinuity(EventTime eventTime, int reason) {
-            if (currentTrickMode != TrickMode.NORMAL && reason == Player.DISCONTINUITY_REASON_SEEK) {
+        public void onPositionDiscontinuity(
+            @NonNull EventTime eventTime,
+            @NonNull Player.PositionInfo oldPosition,
+            @NonNull Player.PositionInfo newPosition,
+            int reason) {
+            if (usePlaybackSpeedTrickPlay(getCurrentTrickMode())) {
                 lastRenderPositions.empty();
             }
         }
@@ -548,12 +561,21 @@ class TrickPlayController implements TrickPlayControlInternal {
             }
         }
 
+        /**
+         * Check if it's our seek (we set the lastIssuedSeekTimeMs for each one we source).  Otherwise this
+         * seek was user pressed 'advance' or some other jump button.
+         * @param eventTime The event time.
+         * @param oldPosition The position before the discontinuity.
+         * @param newPosition The position after the discontinuity.
+         * @param reason The reason for the position discontinuity.
+         */
         @Override
-        public void onPositionDiscontinuity(EventTime eventTime, int reason) {
+        public void onPositionDiscontinuity(
+            @NonNull EventTime eventTime,
+            @NonNull Player.PositionInfo oldPosition,
+            @NonNull Player.PositionInfo newPosition,
+            int reason) {
 
-            // Check if it's our seek (we set the lastIssuedSeekTimeMs for each one we source).  Otherwise
-            // user pressed 'advance' or some other jump button.
-            //
             if (reason == Player.DISCONTINUITY_REASON_SEEK) {
                 TrickMode currentTrickMode = trickPlayController.getCurrentTrickMode();
                 if (eventTime.currentPlaybackPositionMs == lastIssuedSeekTimeMs) {
@@ -701,12 +723,7 @@ class TrickPlayController implements TrickPlayControlInternal {
 
     @Override
     public boolean seekToNthPlayedTrickFrame(int frameNumber) {
-        List<Long> renderPositions = lastRenderPositions.lastNPositions();
-        boolean success = frameNumber < renderPositions.size();
-        if (success) {
-            player.seekTo(renderPositions.get(frameNumber));
-        }
-        return success;
+        return false;
     }
 
     @Override
@@ -827,27 +844,62 @@ class TrickPlayController implements TrickPlayControlInternal {
         setTrackSelectionForTrickPlay(TrickMode.NORMAL, previousMode);
         player.setPlayWhenReady(true);
 
-        if (isSmoothPlayAvailable()) {
-            List<Long> lastRenders = lastRenderPositions.lastNPositions();
-            Log.d(TAG, "Last rendered frame positions " + lastRenders);
-            lastRendersCount = lastRenders.size();
-
-            if (lastRendersCount > 0) {
-                long positionMs = lastRenders.get(0);
-                long positionDeltaMs = currentPosition - positionMs;
-                if (Math.abs(positionDeltaMs) > 2_000) {
-                    Log.d(TAG, "Not seeking to render, delta: " + positionDeltaMs + "ms is greater than 2 seconds");
-                } else {
-                    Log.d(TAG, "Seek to last rendered frame, delta position: " + positionDeltaMs + "ms");
-                    player.seekTo(positionMs);
-                }
-            }
-        }
+        exitingTrickMode = previousMode;
         Log.d(TAG, "Trickplay stopped - media time: " + currentPosition + " parameters: " + player.getPlaybackParameters().speed + " prev mode: "+ previousMode);
 
         dispatchTrickModeChanged(TrickMode.NORMAL, previousMode);
 
         return lastRendersCount;
+    }
+
+
+    /**
+     * On exit from trickplay we seek to the Nth frame from the last rendered frame.
+     * This allows for overshoot correction at higher speeds.
+     *
+     * This is called after the track selection on exit from trickplay so th seek uses
+     * the regular playlist to target the seek point.  The seek is EXACT so it will find
+     * a frame intra-segment, by definition the seek target should be an iFrame.
+     *
+     * This is executed *after* trickplay exit is signaled in order to charge the seek operation
+     * to regular playback metrics.
+     *
+     * Note also, if seek would be a nop (position is equal to the seek point) a small 5 ms
+     * offset is added to the position to make sure a discontinuity event is signalled, this
+     * allows ExoPlayer to reset the Live Offset target to the current position.
+     */
+    private void seekOnTrickPlayExitToLastRenderedFrameN() {
+        if (exitingTrickMode != null && exitingTrickMode != TrickMode.SCRUB) {
+            long positionMs = player.getCurrentPosition();
+            List<Long> lastRenders = lastRenderPositions.lastNPositions();
+            Log.d(TAG, "Last rendered frame positions " + lastRenders);
+            int lastRendersCount = lastRenders.size();
+
+            if (lastRendersCount > 0) {
+                float frameRate = getTargetFrameRateForPlaybackSpeed(getSpeedFor(exitingTrickMode));
+                // Forward jumpback for forward is ms reaction time / ms for one frame.  Reverse is just last rendered frame
+                int jumpBack = TrickPlayControl.directionForMode(exitingTrickMode) == TrickPlayDirection.FORWARD
+                    ? Math.min(Math.round(REACTION_TIME_FOR_OVERSHOOT / (1000.0f / frameRate)), lastRendersCount - 1)
+                    : 0;
+                positionMs = lastRenders.get(jumpBack);
+                long positionDeltaMs = positionMs - player.getCurrentPosition();
+                if (positionDeltaMs != 0) {
+                    Log.d(TAG, "Seek to " + positionMs + ", " + jumpBack + " frames back from last rendered, delta: " + positionDeltaMs + "ms");
+                    SeekParameters save = player.getSeekParameters();
+                    player.setSeekParameters(SeekParameters.EXACT);
+                    player.seekTo(positionMs);
+                    player.setSeekParameters(save);
+                    positionMs = C.POSITION_UNSET;      // indicate a seek was issued.
+                }
+                lastRenderPositions.empty();
+            }
+
+            if (positionMs != C.POSITION_UNSET) {
+                Log.d(TAG, "Forcing small noop seek to generate a discontinuity event");
+                player.seekTo(positionMs + 5);
+            }
+            exitingTrickMode = null;
+        }
     }
 
     /**
@@ -915,7 +967,7 @@ class TrickPlayController implements TrickPlayControlInternal {
      * @return playback speed to set for the mode
      */
     private static Float getDefaultSpeedForMode(TrickMode mode, boolean isIFramesAvailable) {
-        Float speed = 0.0f;
+        float speed = 0.0f;
 
         switch (mode) {
             case FF1:
