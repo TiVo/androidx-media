@@ -46,6 +46,7 @@ import com.tivo.exoplayer.library.errorhandlers.PlaybackExceptionRecovery;
 import com.tivo.exoplayer.library.errorhandlers.PlayerErrorHandlerListener;
 import com.tivo.exoplayer.library.errorhandlers.PlayerErrorRecoverable;
 import com.tivo.exoplayer.library.errorhandlers.StuckPlaylistErrorRecovery;
+import com.tivo.exoplayer.library.liveplayback.AugmentedLivePlaybackSpeedControl;
 import com.tivo.exoplayer.library.logging.ExtendedEventLogger;
 import com.tivo.exoplayer.library.logging.LoggingLivePlaybackSpeedControl;
 import com.tivo.exoplayer.library.tracks.TrackInfo;
@@ -533,8 +534,10 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
 
     // Wrap default with our own version that logs useful bits, TODO factory method for default
     LivePlaybackSpeedControl livePlaybackSpeedControl =
-        new LoggingLivePlaybackSpeedControl(new DefaultLivePlaybackSpeedControl.Builder().build());
-
+        new AugmentedLivePlaybackSpeedControl(
+            new LoggingLivePlaybackSpeedControl(
+                new DefaultLivePlaybackSpeedControl.Builder().build())
+        );
     if (alternatePlayerFactory != null) {
       player = alternatePlayerFactory.buildSimpleExoPlayer(
           renderersFactory,
