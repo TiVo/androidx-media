@@ -89,7 +89,11 @@ class TrickPlayController implements TrickPlayControlInternal {
      */
     @Nullable private FrameRateAnalyzer frameRateAnalyzer;
 
-    private TrickMode exitingTrickMode;
+    /**
+     * On exit from any {@link TrickMode} to {@link TrickMode#NORMAL} this contains the mode we are
+     * exiting. After exit completes it is set to NORMAL, implies no exit in progress
+     */
+    private @NonNull TrickMode exitingTrickMode = TrickMode.NORMAL;
 
     TrickPlayController(DefaultTrackSelector trackSelector) {
         this.trackSelector = trackSelector;
@@ -347,8 +351,8 @@ class TrickPlayController implements TrickPlayControlInternal {
             @NonNull EventTime eventTime,
             @NonNull Player.PositionInfo oldPosition,
             @NonNull Player.PositionInfo newPosition,
-            int reason) {
-            if (usePlaybackSpeedTrickPlay(getCurrentTrickMode())) {
+            @Player.DiscontinuityReason int reason) {
+            if (currentTrickMode != TrickMode.NORMAL && reason == Player.DISCONTINUITY_REASON_SEEK) {
                 lastRenderPositions.empty();
             }
         }
@@ -857,7 +861,7 @@ class TrickPlayController implements TrickPlayControlInternal {
      * On exit from trickplay we seek to the Nth frame from the last rendered frame.
      * This allows for overshoot correction at higher speeds.
      *
-     * This is called after the track selection on exit from trickplay so th seek uses
+     * This is called after the track selection on exit from trickplay so the seek uses
      * the regular playlist to target the seek point.  The seek is EXACT so it will find
      * a frame intra-segment, by definition the seek target should be an iFrame.
      *
@@ -869,7 +873,7 @@ class TrickPlayController implements TrickPlayControlInternal {
      * allows ExoPlayer to reset the Live Offset target to the current position.
      */
     private void seekOnTrickPlayExitToLastRenderedFrameN() {
-        if (exitingTrickMode != null && exitingTrickMode != TrickMode.SCRUB) {
+        if (exitingTrickMode != TrickMode.SCRUB) {
             long positionMs = player.getCurrentPosition();
             List<Long> lastRenders = lastRenderPositions.lastNPositions();
             Log.d(TAG, "Last rendered frame positions " + lastRenders);
@@ -895,10 +899,15 @@ class TrickPlayController implements TrickPlayControlInternal {
             }
 
             if (positionMs != C.POSITION_UNSET) {
+                // Work-around Vecima issue with pre 5.1 origin versions that leaves the Milliseconds off the PDT for
+                // iFrame only playlists.  This can result in a slightly negative position on exit which will not resolve
+                // in the normal playlist.  Simple hack is to normalize it to >= 0.
+                positionMs = Math.max(positionMs, 0);
+
                 Log.d(TAG, "Forcing small noop seek to generate a discontinuity event");
                 player.seekTo(positionMs + 5);
             }
-            exitingTrickMode = null;
+            exitingTrickMode = TrickMode.NORMAL;        // indicate exit is completed
         }
     }
 
