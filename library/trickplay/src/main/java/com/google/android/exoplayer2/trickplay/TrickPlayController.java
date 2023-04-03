@@ -848,7 +848,8 @@ class TrickPlayController implements TrickPlayControlInternal {
         setTrackSelectionForTrickPlay(TrickMode.NORMAL, previousMode);
         player.setPlayWhenReady(true);
 
-        exitingTrickMode = previousMode;
+        // Only trigger exit logic for non-SCRUB mode exit
+        exitingTrickMode = previousMode == TrickMode.SCRUB ? TrickMode.NORMAL : previousMode;
         Log.d(TAG, "Trickplay stopped - media time: " + currentPosition + " parameters: " + player.getPlaybackParameters().speed + " prev mode: "+ previousMode);
 
         dispatchTrickModeChanged(TrickMode.NORMAL, previousMode);
@@ -873,7 +874,7 @@ class TrickPlayController implements TrickPlayControlInternal {
      * allows ExoPlayer to reset the Live Offset target to the current position.
      */
     private void seekOnTrickPlayExitToLastRenderedFrameN() {
-        if (exitingTrickMode != TrickMode.SCRUB) {
+        if (exitingTrickMode != TrickMode.NORMAL) {
             long positionMs = player.getCurrentPosition();
             List<Long> lastRenders = lastRenderPositions.lastNPositions();
             Log.d(TAG, "Last rendered frame positions " + lastRenders);
