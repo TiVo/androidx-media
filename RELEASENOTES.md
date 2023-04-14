@@ -1,4 +1,9 @@
 # Release notes #
+### 2.15.1-1.2-dev (not yet released)
+
+* Update our event logging (`ExtendedEventLogger`) to properly log load types, also updated releted info 
+  in the [Field Triage of Player Issues](https://github.com/tivocorp/exoplayerprvt/blob/release/Field%20Triage%20of%20Player%20Issues.md) doc.
+
 ### 2.15.1-1.1 (2023-04-14)
 
 #### Trick-play
@@ -11,7 +16,7 @@
 * Fix PlaybackMetrics snapshot `updateFromCurrentStats`, ([WSIPCL-15964 - Verify the profilePlayingTime calculations ...](https://jira.xperi.com/browse/WSIPCL-15964)) see [pull request #324](https://github.com/tivocorp/exoplayerprvt/pull/324)
 * Fix NPE in `ExtendedEventLogger` - [BZSTREAM-10506 - Hydra app crashed during FTUX](https://jira.xperi.com/browse/BZSTREAM-10506)
 * Captions disabled correctly when AUTOSELECT is not specified by @stevemayhew in [pull request #332](https://github.com/tivocorp/exoplayerprvt/pull/332)
-* Handling Invalid Widevine key before checking HDCP level from OutputProtection[PARTDEFECT-16065 - [Force 1] DRM Failure Displayed as HDMI Not Permitted in UI](https://jira.xperi.com/browse/PARTDEFECT-16065)
+* Handling Invalid Widevine key before checking HDCP level from OutputProtection,  [PARTDEFECT-16065 - [Force 1] DRM Failure Displayed as HDMI Not Permitted in UI](https://jira.xperi.com/browse/PARTDEFECT-16065)
   by @sneelavara in [pull request #334](https://github.com/tivocorp/exoplayerprvt/pull/334)
 
 #### Other Changes

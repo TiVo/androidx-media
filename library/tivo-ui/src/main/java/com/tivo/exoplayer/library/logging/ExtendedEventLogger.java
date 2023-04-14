@@ -83,16 +83,12 @@ public class ExtendedEventLogger extends EventLogger {
             str.append(" range(o/l): ");
             str.append(loadEventInfo.dataSpec.position); str.append("/"); str.append(loadEventInfo.dataSpec.length);
         }
-        boolean isPlaylistLoad = mediaLoadData.mediaStartTimeMs == C.TIME_UNSET;
-        if (! isPlaylistLoad) {
+        if (mediaLoadData.mediaStartTimeMs != C.TIME_UNSET) {
             str.append(" timeMs(s/end): " + mediaLoadData.mediaStartTimeMs); str.append("/"); str.append(mediaLoadData.mediaEndTimeMs);
         }
         str.append(" uri: "); str.append(loadEventInfo.uri);
-        if (isPlaylistLoad) {
-            logd(eventTime,"loadStartedPlaylist", str.toString());
-        } else {
-            logd(eventTime,"loadStartedMedia", str.toString());
-        }
+        String loadType = getLoadType(mediaLoadData);
+        logd(eventTime,"loadStarted" + loadType, str.toString());
 
         if (isVideoTrack(mediaLoadData)) {
             if (currentLoadingVideoFormat == null) {
@@ -133,7 +129,8 @@ public class ExtendedEventLogger extends EventLogger {
     @Override
     public void onLoadCanceled(
             EventTime eventTime, LoadEventInfo loadEventInfo, MediaLoadData mediaLoadData) {
-        logd(eventTime,"loadCanceled", loadEventInfo.toString());
+        String loadType = getLoadType(mediaLoadData);
+        logd(eventTime,"loadCanceled" + loadType, loadEventInfo.toString());
     }
 
     @Override
@@ -142,23 +139,24 @@ public class ExtendedEventLogger extends EventLogger {
         StringBuilder str = new StringBuilder();
 
         if (mediaLoadData.trackFormat != null) {
-            long duration = mediaLoadData.mediaEndTimeMs - mediaLoadData.mediaStartTimeMs;
             str.append("trackId: "); str.append(mediaLoadData.trackFormat.id);
             str.append(" load-duration: "); str.append(loadEventInfo.loadDurationMs); str.append("ms");
             str.append(" codecs: "); str.append(mediaLoadData.trackFormat.codecs);
-            str.append(" start(dur): "); str.append(mediaLoadData.mediaStartTimeMs);str.append("/");str.append(duration);
+            if (mediaLoadData.mediaStartTimeMs != C.TIME_UNSET) {
+                long duration = mediaLoadData.mediaEndTimeMs - mediaLoadData.mediaStartTimeMs;
+                str.append(" start(dur): "); str.append(mediaLoadData.mediaStartTimeMs);str.append("/");str.append(duration);
+            }
             if (loadEventInfo.dataSpec.length != C.LENGTH_UNSET) {
                 str.append(" offset/len: ");
                 str.append(loadEventInfo.dataSpec.position); str.append("/"); str.append(loadEventInfo.dataSpec.length);
             }
             str.append(" uri: "); str.append(loadEventInfo.uri);
-
-            logd(eventTime, "loadCompletedMedia", str.toString());
         } else {
             str.append(" load-duration: "); str.append(loadEventInfo.loadDurationMs); str.append("ms");
             str.append(" uri: "); str.append(loadEventInfo.uri);
-            logd(eventTime, "loadCompletedPlaylist", str.toString());
         }
+
+        logd(eventTime, "loadCompleted" + getLoadType(mediaLoadData), str.toString());
     }
 
     @Override
@@ -253,6 +251,34 @@ public class ExtendedEventLogger extends EventLogger {
             window.getDurationMs() / 1000.D,
             window.defaultPositionUs / 1000000.0
         );
+    }
+
+    private String getLoadType(MediaLoadData mediaLoadData) {
+        String loadType = "Other";
+        switch (mediaLoadData.dataType) {
+            case C.DATA_TYPE_AD:
+                break;
+            case C.DATA_TYPE_DRM:
+                loadType = "DRM";
+                break;
+            case C.DATA_TYPE_MANIFEST:
+                loadType = "Playlist";
+                break;
+            case C.DATA_TYPE_MEDIA:
+                loadType = "Media";
+                break;
+            case C.DATA_TYPE_MEDIA_INITIALIZATION:
+                loadType = "MediaInitSegment";
+                break;
+            case C.DATA_TYPE_MEDIA_PROGRESSIVE_LIVE:
+                break;
+            case C.DATA_TYPE_TIME_SYNCHRONIZATION:
+                loadType = "TimeSync";
+                break;
+            case C.DATA_TYPE_UNKNOWN:
+                break;
+        }
+        return loadType;
     }
 
     protected void logi(EventTime eventTime, String eventName, @Nullable String eventDescription) {

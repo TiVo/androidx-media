@@ -166,14 +166,22 @@ The *\<additional description\>* text show the play/pause state (true is playing
 
 <div id="segment-and-playlist-loading"/>
 
-#### Segment and Playlist Loading ####
+#### Segment, Playlist, Etc. Loading ####
 
-ExoPlayer logs commencement and completion events for loading playlists and segments.
+ExoPlayer logs commencement and completion events for loading playlists, segments, init segments, etc.  The load types are as follows:
+
+* **DRM** &mdash; Widevine DRM license request 
+* **Playlist** &mdash; Master Playlist, DASH MPD, Or HLS sub playlist 
+* **Media** &mdash; Segment containing playable media
+* **MediaInitSegment** &mdash; Initialization segment (DASH)
+* **TImeSync** &mdash; Load for DASH *UTCTiming* element for clock sync
+
+The three load event type, *loadStarted*, *loadCompleted* and *loadCancled* each include one of the above postfix values to indicate the purpose of the load.
 
 The start of the segment load operation is logged by the *loadStarted* event, an example is:
 
 ````
-EventLogger: loadStarted [..., uri: http://edge2.md.vod.rcn.net/ccur-session/02_353693272/LINEAR/rolling-buffer/cnnhd/cnnhd/transmux/CCURStream_cnnhd0-10_265736767.tsa]
+EventLogger: loadStartedMedia [..., uri: http://edge2.md.vod.rcn.net/ccur-session/02_353693272/LINEAR/rolling-buffer/cnnhd/cnnhd/transmux/CCURStream_cnnhd0-10_265736767.tsa]
 ````
 
 The specific *\<additional description\>* simply contains the uri, allowing you to match up to the completion event.
