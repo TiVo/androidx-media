@@ -1,9 +1,22 @@
 # Release notes #
-### 2.15.1-1.1-dev (not yet released)
+### 2.15.1-1.1 (2023-04-14)
 
-* Fix PlaybackMetrics snapshot `updateFromCurrentStats`, see [pull request #324](https://github.com/tivocorp/exoplayerprvt/pull/324)
-* Fix NPE in `ExtendedEventLogger` - BZSTREAM-10506
+#### Trick-play
+* Enable tunneling mode VTP for jade21 AKA uiw4060 by @mbolaris in [pull request #330](https://github.com/tivocorp/exoplayerprvt/pull/330)
+* Reports `initialPlaybackStartDelay` correctly for trickplay (pull request [#336](https://github.com/tivocorp/exoplayerprvt/pull/336))
+* Always issues `seekTo()` after trickplay exit (pull request [#337](https://github.com/tivocorp/exoplayerprvt/pull/337))
+* Fix bug in `exitingTrickMode` logic (pull request [339](https://github.com/tivocorp/exoplayerprvt/pull/339))
+
+#### Fixed Issues
+* Fix PlaybackMetrics snapshot `updateFromCurrentStats`, ([WSIPCL-15964 - Verify the profilePlayingTime calculations ...](https://jira.xperi.com/browse/WSIPCL-15964)) see [pull request #324](https://github.com/tivocorp/exoplayerprvt/pull/324)
+* Fix NPE in `ExtendedEventLogger` - [BZSTREAM-10506 - Hydra app crashed during FTUX](https://jira.xperi.com/browse/BZSTREAM-10506)
+* Captions disabled correctly when AUTOSELECT is not specified by @stevemayhew in [pull request #332](https://github.com/tivocorp/exoplayerprvt/pull/332)
+* Handling Invalid Widevine key before checking HDCP level from OutputProtection[PARTDEFECT-16065 - [Force 1] DRM Failure Displayed as HDMI Not Permitted in UI](https://jira.xperi.com/browse/PARTDEFECT-16065)
+  by @sneelavara in [pull request #334](https://github.com/tivocorp/exoplayerprvt/pull/334)
+
+#### Other Changes
 * Update `ExtendedEventLogger` onDownstreamFormatChanged to be info
+* Update Live Speed Control to optimal logging, including updated docs (pull reqeuest [#326](https://github.com/tivocorp/exoplayerprvt/pull/326))
 
 ### 2.15.1-1.0 (2023-02-16)
 
