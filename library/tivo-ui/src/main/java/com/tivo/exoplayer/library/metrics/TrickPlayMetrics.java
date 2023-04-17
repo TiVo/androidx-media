@@ -356,6 +356,6 @@ public class TrickPlayMetrics extends AbstractBasePlaybackMetrics {
 
         arithmeticMeanFrameLoadTime =  loadEventList.size() > 0 ? totalTime / loadEventList.size() : Float.MAX_VALUE;
 
-        avgFramesPerSecond = (totalRenderedFrames * 1000.0f) / getTotalElapsedTimeMs();
+        avgFramesPerSecond = ((float)totalRenderedFrames * 1000.0f) / (float)getTotalElapsedTimeMs();
     }
 }
