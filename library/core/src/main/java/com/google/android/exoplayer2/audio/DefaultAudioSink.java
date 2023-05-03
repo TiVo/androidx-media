@@ -22,6 +22,7 @@ import android.media.AudioFormat;
 import android.media.AudioManager;
 import android.media.AudioTrack;
 import android.media.PlaybackParams;
+import android.os.Build;
 import android.os.ConditionVariable;
 import android.os.Handler;
 import android.os.SystemClock;
@@ -2147,8 +2148,16 @@ public final class DefaultAudioSink implements AudioSink {
         bufferSize = Math.round(bufferSize * maxAudioTrackPlaybackSpeed);
       }
       // TIVO_CHANGE_BEGIN
-      bufferSize *= 4;
-      Log.w(TAG, "getPcmDefaultBufferSize is now " + bufferSize);
+      boolean shouldIncreaseBufferSize = (("Technicolor".equalsIgnoreCase(Build.MANUFACTURER) ||
+              ("ARRIS".equalsIgnoreCase(Build.MANUFACTURER) && "vip6102w".equalsIgnoreCase(Build.MODEL))) &&
+              inputFormat.channelCount <= 2);
+
+      if (shouldIncreaseBufferSize) {
+        bufferSize *= 4;
+        Log.i(TAG, "getPcmDefaultBufferSize increased to " + bufferSize);
+      } else {
+        Log.i(TAG, "getPcmDefaultBufferSize unchanged at " + bufferSize);
+      }
       // TIVO_CHANGE_END
       return bufferSize;
     }
