@@ -1,7 +1,8 @@
 # Release notes #
 ### 2.15.1-1.2-dev (not yet released)
 
-* Update our event logging (`ExtendedEventLogger`) to properly log load types, also updated releted info 
+* Workaround Vecima DASH schema issue (missing `schemeIdUri` on AudioChannelConfiguration).  Workaround defaults to unknown channel count.  This is a change to ExoPlayer base library-dash, so will revert after Vecima fix is available
+* Update our event logging (`ExtendedEventLogger`) to properly log load types, also updated related info 
   in the [Field Triage of Player Issues](https://github.com/tivocorp/exoplayerprvt/blob/release/Field%20Triage%20of%20Player%20Issues.md) doc.
 
 ### 2.15.1-1.1 (2023-04-14)

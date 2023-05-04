@@ -1423,7 +1423,7 @@ public class DashManifestParser extends DefaultHandler
 
   protected int parseAudioChannelConfiguration(XmlPullParser xpp)
       throws XmlPullParserException, IOException {
-    String schemeIdUri = parseString(xpp, "schemeIdUri", null);
+    String schemeIdUri = parseString(xpp, "schemeIdUri", "urn:mpeg:dash:23003:3:audio_channel_configuration:2011");
     int audioChannels;
     switch (schemeIdUri) {
       case "urn:mpeg:dash:23003:3:audio_channel_configuration:2011":
