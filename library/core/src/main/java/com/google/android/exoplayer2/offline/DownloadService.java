@@ -233,21 +233,6 @@ public abstract class DownloadService extends Service {
         /* channelDescriptionResourceId= */ 0);
   }
 
-  /** @deprecated Use {@link #DownloadService(int, long, String, int, int)}. */
-  @Deprecated
-  protected DownloadService(
-      int foregroundNotificationId,
-      long foregroundNotificationUpdateInterval,
-      @Nullable String channelId,
-      @StringRes int channelNameResourceId) {
-    this(
-        foregroundNotificationId,
-        foregroundNotificationUpdateInterval,
-        channelId,
-        channelNameResourceId,
-        /* channelDescriptionResourceId= */ 0);
-  }
-
   /**
    * Creates a DownloadService.
    *
@@ -576,6 +561,17 @@ public abstract class DownloadService extends Service {
   public static void startForeground(Context context, Class<? extends DownloadService> clazz) {
     Intent intent = getIntent(context, clazz, ACTION_INIT, true);
     Util.startForegroundService(context, intent);
+  }
+
+  /**
+   * Clear all {@linkplain DownloadManagerHelper download manager helpers} before restarting the
+   * service.
+   *
+   * <p>Calling this method is normally only required if an app supports downloading content for
+   * multiple users for which different download directories should be used.
+   */
+  public static void clearDownloadManagerHelpers() {
+    downloadManagerHelpers.clear();
   }
 
   @Override
