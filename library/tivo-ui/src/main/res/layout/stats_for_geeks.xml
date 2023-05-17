@@ -94,6 +94,14 @@
                  android:text="Playback Rate:"/>
                <TextView style="@style/GeekStatsMetricText"
                  android:id="@+id/playback_rate"
+                 android:layout_width="120dp"
+                 android:layout_height="wrap_content"/>
+               <TextView style="@style/GeekStatsMetricLabel"
+                 android:layout_height="wrap_content"
+                 android:layout_width="wrap_content"
+                 android:text="Buffering Count:"/>
+               <TextView style="@style/GeekStatsMetricText"
+                 android:id="@+id/buffering_count"
                  android:layout_width="wrap_content"
                  android:layout_height="wrap_content"/>
             </LinearLayout>

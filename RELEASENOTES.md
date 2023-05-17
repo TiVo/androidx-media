@@ -1,5 +1,5 @@
 # Release notes #
-### 2.15.1-1-5-dev (Not Yet Release)
+### 2.15.1-1.5-dev (Not Yet Release)
 
 #### Xperi Code Base
 
@@ -12,6 +12,9 @@
 * Added UI dialog to tenfoot demo to allow retry on errors, this is being used to test fixes for 
   [PARTDEFECT-17601](https://jira.xperi.com/browse/PARTDEFECT-17601)
 
+* Added "Buffering Count" display to demo GeekStatsOverlay, this displays the count of all transtions to
+  buffering state, stall or otherwise.   This is useful for debugging Live Offset, each buffering event causes resync
+
 #### Google Module Changes
 
 Section documents our cherry-picks or other unshared changes to Google libraries (core, dash, HLS, extractor, etc)
@@ -20,7 +23,14 @@ Section documents our cherry-picks or other unshared changes to Google libraries
 
 
 
-### 2.15.1-1-4 (2023-08-02)
+### 2.15.1-1.5-dev (not yet released)
+
+#### Xperi Code Base
+    
+* Added "Buffering Count" display to demo GeekStatsOverlay, this displays the count of all transtions to
+  buffering state, stall or otherwise.   This is useful for debugging Live Offset, each buffering event causes resync      
+
+### 2.15.1-1.4 (2023-08-02)
 
 #### Google Module Changes
 
@@ -31,7 +41,7 @@ Section documents our cherry-picks or other unshared changes to Google libraries
 * From 2.19.0 
   * Cherry-pick commit [bcaadf434](https://github.com/google/ExoPlayer/commit/bcaadf434f9824433135e6ba693670a482a2d098), the Google bug is [#9392](https://github.com/google/ExoPlayer/issues/9392), this should fix our [BZSTREAM-11343](https://jira.xperi.com/browse/BZSTREAM-11343)
 
-### 2.15.1-1-3 (2023-08-01)
+### 2.15.1-1.3 (2023-08-01)
 
 #### Google Module Changes
 

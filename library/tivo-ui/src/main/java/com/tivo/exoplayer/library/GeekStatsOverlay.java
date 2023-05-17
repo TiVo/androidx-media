@@ -63,6 +63,7 @@ public class GeekStatsOverlay implements AnalyticsListener, Runnable {
   private final TextView currentAudioTrack;
   private TextView loadingLevel;
   private final TextView playbackRate;
+  private final TextView bufferingCountDisplay;
 
   private final int updateInterval;
 
@@ -73,6 +74,7 @@ public class GeekStatsOverlay implements AnalyticsListener, Runnable {
   // Statistic counters, reset on url change
   private long lastTimeUpdate;
   private int levelSwitchCount = 0;
+  private int bufferingCount = 0;   // counts "buffering" for any reason (initial playback, seek, or "stalling")
   private int lastPlayState = Player.STATE_IDLE;
   private float lastVideoDownloadbps;
   private float minBandwidth = Float.MIN_VALUE;
@@ -87,7 +89,7 @@ public class GeekStatsOverlay implements AnalyticsListener, Runnable {
     stateView = view.findViewById(R.id.current_state);
     currentTimeView = view.findViewById(R.id.current_time);
     playbackRate = view.findViewById(R.id.playback_rate);
-
+    bufferingCountDisplay = view.findViewById(R.id.buffering_count);
     bufferingGraph = view.findViewById(R.id.buffering_graph);
 
     int traceColor = containingView.getResources().getColor(R.color.colorBuffered);
@@ -165,6 +167,7 @@ public class GeekStatsOverlay implements AnalyticsListener, Runnable {
     currentVideoTrack.setText(getPlayingVideoTrack());
     currentAudioTrack.setText(getPlayingAudioTrack());
     playbackRate.setText(getPlaybackRateString());
+    bufferingCountDisplay.setText(String.valueOf(bufferingCount));
 
     float buffered = getBufferedSeconds();
     bufferingGraph.addDataPoint(buffered, 0);
@@ -184,6 +187,7 @@ public class GeekStatsOverlay implements AnalyticsListener, Runnable {
 
   private void resetStats() {
     levelSwitchCount = 0;
+    bufferingCount = 0;
     lastVideoDownloadbps = 0.0f;
     lastTimeUpdate = C.TIME_UNSET;
     minBandwidth = Float.MIN_VALUE;
@@ -430,10 +434,13 @@ public class GeekStatsOverlay implements AnalyticsListener, Runnable {
   // Implement AnalyticsListener
 
   @Override
-  public void onPlayerStateChanged(EventTime eventTime, boolean playWhenReady, int playbackState) {
+  public void onPlaybackStateChanged(EventTime eventTime, int state) {
     if (player != null) {
       int currentState = player.getPlaybackState();
 
+      if (currentState == Player.STATE_BUFFERING) {
+        bufferingCount++;
+      }
       if (lastPlayState != Player.STATE_IDLE && currentState == Player.STATE_IDLE) {
         resetStats();
       }
