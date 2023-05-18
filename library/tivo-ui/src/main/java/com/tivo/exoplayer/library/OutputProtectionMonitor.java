@@ -375,6 +375,8 @@ public class OutputProtectionMonitor extends Handler {
                     Log.e(TAG, "Widevine UUID is not supported on this version: " + Build.VERSION.RELEASE);
                 } catch (@SuppressLint({"NewApi", "LocalSuppress"}) MediaDrmResetException e) {
                     Log.e(TAG, "MediaDrmResetException" + Build.VERSION.RELEASE);
+                } catch (Exception e) {
+                    Log.e(TAG, "Generic error :"+e.toString());
                 }
             }
         }
