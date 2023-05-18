@@ -376,7 +376,7 @@ public class OutputProtectionMonitor extends Handler {
                 } catch (@SuppressLint({"NewApi", "LocalSuppress"}) MediaDrmResetException e) {
                     Log.e(TAG, "MediaDrmResetException" + Build.VERSION.RELEASE);
                 } catch (Exception e) {
-                    Log.e(TAG, "Generic error :"+e.toString());
+                    Log.e(TAG, "Unhandled exception :"+e.toString());
                 }
             }
         }
