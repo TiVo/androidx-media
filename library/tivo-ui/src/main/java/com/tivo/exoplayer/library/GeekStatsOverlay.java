@@ -68,7 +68,6 @@ public class GeekStatsOverlay implements AnalyticsListener, Runnable {
 
   private Format lastLoadedVideoFormat;
   private Format lastDownstreamVideoFormat;
-  private Format lastDownstreamAudioFormat;
   private long lastPositionReport;
 
   // Statistic counters, reset on url change
@@ -219,11 +218,8 @@ public class GeekStatsOverlay implements AnalyticsListener, Runnable {
     if (player == null) {
       trackInfo += "<unknown>";
     } else {
-      Format format = lastDownstreamVideoFormat
-          == null ? player.getVideoFormat() : lastDownstreamVideoFormat;
-
+      Format format = player.getVideoFormat();
       trackInfo += getFormatString(format);
-
       trackInfo += getDecoderCountersString(player.getVideoDecoderCounters());
     }
 
@@ -237,8 +233,7 @@ public class GeekStatsOverlay implements AnalyticsListener, Runnable {
     if (player == null) {
       trackInfo += "<unknown>";
     } else {
-      Format format =
-          lastDownstreamAudioFormat == null ? player.getAudioFormat() : lastDownstreamAudioFormat;
+      Format format = player.getAudioFormat();
       DecoderCounters decoderCounters = player.getAudioDecoderCounters();
 
       trackInfo += getFormatString(format) + " " + getDecoderCountersString(decoderCounters);
@@ -452,8 +447,6 @@ public class GeekStatsOverlay implements AnalyticsListener, Runnable {
   public void onDownstreamFormatChanged(EventTime eventTime, MediaLoadData mediaLoadData) {
     if (isVideoTrack(mediaLoadData)) {
       lastDownstreamVideoFormat = mediaLoadData.trackFormat;
-    } else if (isAudioOnlyTrack(mediaLoadData)) {
-      lastDownstreamAudioFormat = mediaLoadData.trackFormat;
     }
   }
 

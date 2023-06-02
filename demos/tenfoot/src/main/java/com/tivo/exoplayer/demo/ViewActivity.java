@@ -692,7 +692,6 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
 //            exoPlayerFactory.setRendererState(C.TRACK_TYPE_AUDIO, ! isAudioRenderOn);
 //            isAudioRenderOn = ! isAudioRenderOn;
 
-            geekStats.toggleVisible();
             List<TrackInfo> audioTracks = exoPlayerFactory.getAvailableAudioTracks();
             if (audioTracks.size() > 0) {
               DialogFragment dialog =
