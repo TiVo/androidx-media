@@ -116,8 +116,6 @@ public class FrameRateAnalyzer {
               + Format.toLogString(matched.format) + " playlist URI: " + mediaPlaylist.baseUri);
         }
       }
-    } else {
-      Log.w(TAG, "playlist URI " + targetUri + " not matched in master playlist variants.");
     }
 
     return matched != null;
