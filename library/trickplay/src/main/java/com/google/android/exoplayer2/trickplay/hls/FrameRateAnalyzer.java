@@ -185,6 +185,17 @@ public class FrameRateAnalyzer {
   }
 
   /**
+   * True if the master playlist was parsed at least once and a source iFrame only playlist
+   * identified
+   *
+   * @return true if the analyzer is initialized
+   */
+  public boolean isAnalyzerInitialized() {
+    return iFrameOnlySourceFormat != null;
+  }
+
+
+  /**
    * Return the ratio to the source iFrame only format, or 1.0f if the input format
    * is a source iFrame only playlist
    *

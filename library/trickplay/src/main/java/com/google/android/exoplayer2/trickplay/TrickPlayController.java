@@ -766,8 +766,10 @@ class TrickPlayController implements TrickPlayControlInternal {
     @Override
     public synchronized float getFrameRateForFormat(Format format) {
         float frameRate = 1.0f;
-        if (frameRateAnalyzer != null) {
+        if (frameRateAnalyzer != null && frameRateAnalyzer.isAnalyzerInitialized()) {
             frameRate = frameRateAnalyzer.getFrameRateFor(format);
+        } else if (format.frameRate != Format.NO_VALUE) {
+            frameRate = format.frameRate;
         }
         return frameRate;
     }
