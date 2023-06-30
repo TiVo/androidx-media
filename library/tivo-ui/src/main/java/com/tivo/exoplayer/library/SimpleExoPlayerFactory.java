@@ -212,7 +212,7 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
    * Preferred mechanism for creating the {@link SimpleExoPlayerFactory}.  Basic builder pattern,
    * e.g. to get all the default simply:
    *
-   *   SimpleExo
+   *   SimpleExoPlayerFactory factory = new SimpleExoPlayerFactory.Builder().build();
    */
   public static class Builder {
     private final Context context;
@@ -289,6 +289,7 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
      *
      * @param prefix prefix string for user agent.
      * @return this builder for chaining
+     * @deprecated use {@link Builder#setSourceFactoriesCreatedCallback(SourceFactoriesCreated)} and listen for upstreamDataSourceFactoryCreated
      */
     public Builder setUserAgentPrefix(String prefix) {
       userAgentPrefix = prefix;

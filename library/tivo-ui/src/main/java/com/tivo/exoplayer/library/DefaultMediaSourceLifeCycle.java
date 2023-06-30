@@ -25,7 +25,7 @@ import com.google.android.exoplayer2.source.hls.HlsMediaSource;
 import com.google.android.exoplayer2.source.hls.playlist.HlsPlaylistParserFactory;
 import com.google.android.exoplayer2.upstream.DataSource;
 import com.google.android.exoplayer2.upstream.DefaultDataSourceFactory;
-import com.google.android.exoplayer2.upstream.DefaultHttpDataSourceFactory;
+import com.google.android.exoplayer2.upstream.DefaultHttpDataSource;
 import com.google.android.exoplayer2.upstream.HttpDataSource;
 import com.google.android.exoplayer2.util.Log;
 
@@ -142,7 +142,7 @@ public class DefaultMediaSourceLifeCycle implements MediaSourceLifeCycle, Player
    * @return factory to produce DataSource objects.
    */
   protected DataSource.Factory buildDataSourceFactory(DrmInfo drmInfo) {
-    HttpDataSource.Factory upstreamFactory = new DefaultHttpDataSourceFactory(getUserAgent());
+    HttpDataSource.Factory upstreamFactory = createUpstreamDataSourceFactory();
 
     // Currently Verimatrix ViewRight CAS is plugged in at the DataSource level,
     // If the library can provide the decrypting key then decryption can be done at
@@ -154,6 +154,25 @@ public class DefaultMediaSourceLifeCycle implements MediaSourceLifeCycle, Player
     }
 
     return new DefaultDataSourceFactory(context, upstreamFactory);
+  }
+
+  /**
+   * The {@link DataSource} objects are linked in a delegate chain, allowing the downstream DataSource
+   * objects to modify data from or URL's passed to the ultimate upstream DataSource (which, in our
+   * use case is always some HttpDataSource fetching contents for a URL).
+   *
+   * This method creates that furthest upstream {@link HttpDataSource.Factory} and calls the
+   * {@link SourceFactoriesCreated#upstreamDataSourceFactoryCreated(DataSource.Factory)} method
+   * to allow clients to call methods on it.
+   *
+   * @return an HttpDataSource.Factory that will be used at the base of the chain of DataSource's
+   */
+  private HttpDataSource.Factory createUpstreamDataSourceFactory() {
+    HttpDataSource.Factory upstreamFactory =
+        new DefaultHttpDataSource.Factory()
+            .setUserAgent(userAgentPrefix + " - [" + SimpleExoPlayerFactory.VERSION_INFO + "]");
+    factoriesCreated.upstreamDataSourceFactoryCreated(upstreamFactory);
+    return upstreamFactory;
   }
 
   private DataSource.Factory buildTivoCryptDataSourceFactory(TivoCryptDrmInfo drmInfo, HttpDataSource.Factory upstreamFactory) {
@@ -215,21 +234,6 @@ public class DefaultMediaSourceLifeCycle implements MediaSourceLifeCycle, Player
     return null;
   }
 
-  /**
-   * Subclass can override this to add an application specific UserAgent prefix.
-   *
-   * Deprecated, use {@link SimpleExoPlayerFactory.Builder#setUserAgentPrefix(String)}
-   * @return useragent string, version of ExoPlayer library postfix to this.
-   */
-  @Deprecated
-  protected String getUserAgentPrefix() {
-    return "TiVoExoPlayer";
-  }
-  
-  private String getUserAgent() {
-    return userAgentPrefix + " - [" + SimpleExoPlayerFactory.VERSION_INFO + "]";
-  }
-  
 
   /**
    * Built the MediaSource for the Uri (assumed for now to be HLS)
@@ -283,7 +287,11 @@ public class DefaultMediaSourceLifeCycle implements MediaSourceLifeCycle, Player
                         .setUuidAndExoMediaDrmProvider(C.WIDEVINE_UUID, FrameworkMediaDrm.DEFAULT_PROVIDER)
                         .setMultiSession(wDrmInfo.isMultiSessionEnabled())
                         .build(mediaDrmCallback);
-        factory.setDrmSessionManager(drmSessionManager);
+
+        // TODO - the path ExoPlayer is going (that deprecates setDrmSessionManager()) is the MediaItem tells
+        // TODO - what DRM to use, that ultimately renders this whole class obsolete.  For now, we build the MediaSourceFactory
+        // TODO - each time so every mediaItem needs Widevine DRM
+        factory.setDrmSessionManagerProvider(mediaItem -> drmSessionManager);
         itemBuilder.setDrmUuid(C.WIDEVINE_UUID);
         itemBuilder.setDrmLicenseUri(wDrmInfo.getProxyUrl());
 
@@ -298,8 +306,7 @@ public class DefaultMediaSourceLifeCycle implements MediaSourceLifeCycle, Player
 
   private HttpMediaDrmCallback createMediaDrmCallback(
           String licenseUrl, Map<String, String> keyRequestProperties) {
-    HttpDataSource.Factory licenseDataSourceFactory =
-            new DefaultHttpDataSourceFactory(getUserAgent());
+    HttpDataSource.Factory licenseDataSourceFactory = createUpstreamDataSourceFactory();
     HttpMediaDrmCallback drmCallback =
             new HttpMediaDrmCallback(licenseUrl, licenseDataSourceFactory);
     for( Map.Entry<String,String> entry : keyRequestProperties.entrySet() ) {

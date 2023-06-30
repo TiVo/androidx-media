@@ -5,6 +5,7 @@ import com.google.android.exoplayer2.MediaItem;
 import com.google.android.exoplayer2.source.MediaSource;
 import com.google.android.exoplayer2.source.MediaSourceFactory;
 import com.google.android.exoplayer2.source.hls.HlsMediaSource;
+import com.google.android.exoplayer2.upstream.HttpDataSource;
 
 /**
  * Callback interface can optionally be passed to the {@link SimpleExoPlayerFactory.Builder} in order
@@ -32,4 +33,25 @@ public interface SourceFactoriesCreated {
    *                be an {@link HlsMediaSource.Factory}
    */
   default void factoriesCreated(@C.ContentType int type, MediaItem.Builder itemBuilder, MediaSourceFactory factory) {}
+
+  /**
+   * Called just after the most upstream {@link HttpDataSource.Factory} is created and properties
+   * are set, this happens on playback startup.
+   *
+   * Implementors of this interface can modify the factory, for example to set the User-Agent used (available only
+   * on some subclasses), use:
+   *
+   * <pre>
+   *     .setSourceFactoriesCreatedCallback(new SourceFactoriesCreated() {
+   *         @Override
+   *         public void upstreamDataSourceFactoryCreated(HttpDataSource.Factory upstreamFactory) {
+   *             if (upstreamFactory instanceof DefaultHttpDataSource.Factory) {
+   *                   ((DefaultHttpDataSource.Factory) upstreamFactory).setUserAgent("MyApp - [" + SimpleExoPlayerFactory.VERSION_INFO + "]");
+   *             }
+   *         }
+   * </pre>
+   *
+   * @param upstreamFactory HttpDataSource.Factory that creates the closest to the source factory
+   */
+  default void upstreamDataSourceFactoryCreated(HttpDataSource.Factory upstreamFactory) {}
 }

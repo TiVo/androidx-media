@@ -47,6 +47,8 @@ import com.google.android.exoplayer2.ui.PlayerControlView;
 import com.google.android.exoplayer2.ui.PlayerView;
 import com.google.android.exoplayer2.ui.SubtitleView;
 import com.google.android.exoplayer2.ui.TimeBar;
+import com.google.android.exoplayer2.upstream.DefaultHttpDataSource;
+import com.google.android.exoplayer2.upstream.HttpDataSource;
 import com.streamingmediainsights.smiclientsdk.SMIClientSdk;
 import com.streamingmediainsights.smiclientsdk.SMIEventCallbackListener;
 import com.streamingmediainsights.smiclientsdk.SMISimpleExoPlayer;
@@ -105,6 +107,7 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
   public static final String ACTION_GEEK_STATS = "com.tivo.exoplayer.action.GEEK_STATS";
   public static final String ACTION_STOP = "com.tivo.exoplayer.action.STOP_PLAYBACK";
   public static final String ACTION_SEEK = "com.tivo.exoplayer.action.SEEK_TO";
+  public static final String ACTION_HEADERS = "com.tivo.exoplayer.action.SET_HEADERS";
 
   // Intent data
   public static final String ENABLE_TUNNELED_PLAYBACK = "enable_tunneled_playback";
@@ -177,6 +180,11 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
   private static boolean isSMIPlayer;
   private static boolean isSmiClientInitialized = false;
   private static SimpleExoPlayer player;
+
+  /**
+   * Allows injecting HTTP Headers into all the requests made by the player
+   */
+  private @Nullable HttpDataSource.Factory httpDataSourceFactory;
 
   private void initSmiClientIfNeeded(Context context) throws IOException {
     if (isSmiClientInitialized == true) {
@@ -328,8 +336,16 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
                     ;
 
               }
-            })
-            .setUserAgentPrefix("TenFootDemo");
+
+              @Override
+              public void upstreamDataSourceFactoryCreated(HttpDataSource.Factory upstreamFactory) {
+                // TODO other factories then the default
+                if (upstreamFactory instanceof DefaultHttpDataSource.Factory) {
+                  ((DefaultHttpDataSource.Factory) upstreamFactory).setUserAgent("TenFootDemo - [" + SimpleExoPlayerFactory.VERSION_INFO + "]");
+                }
+                ViewActivity.this.httpDataSourceFactory = upstreamFactory;
+              }
+            });
 
     if (isSMIPlayer) {
       builder.setAlternatePlayerFactory(new SimpleExoPlayerFactory.AlternatePlayerFactory() {
@@ -436,6 +452,17 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
           if (savedParams != null) {
             player.setSeekParameters(savedParams);
           }
+        }
+        break;
+
+      case ACTION_HEADERS:
+        Bundle newHeaders = intent.getExtras();
+        HashMap<String, String> headerSet = new HashMap<>();
+        for (String key : newHeaders.keySet()) {
+          headerSet.put(key, intent.getStringExtra(key));
+        }
+        if (httpDataSourceFactory != null) {
+          httpDataSourceFactory.setDefaultRequestProperties(headerSet);
         }
         break;
 
