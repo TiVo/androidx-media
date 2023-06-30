@@ -1,8 +1,8 @@
 package com.tivo.exoplayer.library;
 
-import android.content.Context;
 import android.view.View;
 import android.widget.TextView;
+import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import com.google.android.exoplayer2.C;
 import com.google.android.exoplayer2.Format;
@@ -14,14 +14,14 @@ import com.google.android.exoplayer2.decoder.DecoderCounters;
 import com.google.android.exoplayer2.source.LoadEventInfo;
 import com.google.android.exoplayer2.source.MediaLoadData;
 import com.google.android.exoplayer2.source.MediaSource;
-import com.google.android.exoplayer2.source.MediaSourceEventListener;
 import com.google.android.exoplayer2.trickplay.TrickPlayControl;
+import com.google.android.exoplayer2.upstream.Loader;
 import com.google.android.exoplayer2.util.Log;
 import com.google.android.exoplayer2.util.MimeTypes;
+import com.google.android.exoplayer2.util.SntpClient;
 import com.google.android.exoplayer2.util.Util;
-import java.text.DateFormat;
+import java.io.IOException;
 import java.text.SimpleDateFormat;
-import java.util.Date;
 import java.util.Formatter;
 import java.util.Locale;
 
@@ -57,11 +57,11 @@ public class GeekStatsOverlay implements AnalyticsListener, Runnable {
   @Nullable
   private TrickPlayControl trickPlayControl;
 
-  private TextView stateView;
-  private TextView currentTimeView;
-  private TextView currentVideoTrack;
+  private final TextView stateView;
+  private final TextView currentTimeView;
+  private final TextView currentVideoTrack;
   private final TextView currentAudioTrack;
-  private TextView loadingLevel;
+  private final TextView loadingLevel;
   private final TextView playbackRate;
   private final TextView bufferingCountDisplay;
 
@@ -76,12 +76,15 @@ public class GeekStatsOverlay implements AnalyticsListener, Runnable {
   private int levelSwitchCount = 0;
   private int bufferingCount = 0;   // counts "buffering" for any reason (initial playback, seek, or "stalling")
   private int lastPlayState = Player.STATE_IDLE;
-  private float lastVideoDownloadbps;
   private float minBandwidth = Float.MIN_VALUE;
   private float maxBandwidth = Float.MAX_VALUE;
+  private Loader timeLoader;
+
+  // Very chatty logging for debugging live offset, disabled by default
+  private boolean enableLiveOffsetLogging;
 
 
-  public GeekStatsOverlay(View view, Context context, int updateInterval) {
+  public GeekStatsOverlay(View view, int updateInterval) {
     containingView = view;
     currentVideoTrack = view.findViewById(R.id.video_track);
     currentAudioTrack = view.findViewById(R.id.audio_track);
@@ -113,10 +116,11 @@ public class GeekStatsOverlay implements AnalyticsListener, Runnable {
 
     manifestUrl = view.findViewById(R.id.manifest_url);
     this.updateInterval = updateInterval;
+    enableLiveOffsetLogging = false;
   }
 
-  public GeekStatsOverlay(View view, Context context) {
-    this(view, context,1000);
+  public GeekStatsOverlay(View view) {
+    this(view, 1000);
   }
 
   /**
@@ -147,10 +151,40 @@ public class GeekStatsOverlay implements AnalyticsListener, Runnable {
     }
   }
 
+  public void setEnableLiveOffsetLogging(boolean enableLiveOffsetLogging) {
+    this.enableLiveOffsetLogging = enableLiveOffsetLogging;
+  }
+
   private void start() {
     if (player != null) {
       player.addAnalyticsListener(this);
-      timedTextUpdate();
+      long currentTime = System.currentTimeMillis();
+      long nextTargetTime = (currentTime + updateInterval) - currentTime % updateInterval;
+      postNextUpdateTimer(nextTargetTime - currentTime);
+
+      timeLoader = new Loader("GeekStatsTimeLoader");
+
+      SntpClient.initialize(timeLoader, new SntpClient.InitializationCallback() {
+        @Override
+        public void onInitialized() {
+          StringBuilder logString = new StringBuilder();
+          Formatter formatter = new Formatter(logString);
+          long currentTimeMillis = System.currentTimeMillis();
+          long ntpTimeMillis = Util.getNowUnixTimeMs(SntpClient.getElapsedRealtimeOffsetMs());
+          formatter.format("SntpClient init - System.currentTimeMillis(): %1$tFT%1$tT.%1$tL (%1$d), NTP Time: %2$tFT%2$tT.%2$tL (%2$d), delta %3$d",
+              currentTimeMillis,
+              ntpTimeMillis,
+              currentTimeMillis - ntpTimeMillis
+          );
+
+          Log.d("LivePosition", logString.toString());
+        }
+
+        @Override
+        public void onInitializationFailed(IOException error) {
+
+        }
+      });
     }
   }
 
@@ -158,11 +192,67 @@ public class GeekStatsOverlay implements AnalyticsListener, Runnable {
     if (player != null) {
       player.removeAnalyticsListener(this);
     }
+    if (timeLoader != null) {
+      timeLoader.release();
+      timeLoader = null;
+    }
     containingView.removeCallbacks(this);
     resetStats();
   }
 
   private void timedTextUpdate() {
+    long currentTime = System.currentTimeMillis();
+    if (player != null && enableLiveOffsetLogging) {
+      logDebugPositionForLiveOffset(player);
+    }
+    updateChildViews();
+    long nextTargetTime = (currentTime + updateInterval) - currentTime % updateInterval;
+    postNextUpdateTimer(nextTargetTime - currentTime);
+  }
+
+  private void postNextUpdateTimer(long delayMillis) {
+    containingView.removeCallbacks(this);
+    containingView.postDelayed(this, delayMillis);
+  }
+
+  private static void logDebugPositionForLiveOffset(@NonNull SimpleExoPlayer player) {
+    long position = player.getCurrentPosition();
+    StringBuilder logString = new StringBuilder();
+    Formatter formatter = new Formatter(logString);
+    Timeline timeline = player.getCurrentTimeline();
+    if (!timeline.isEmpty()) {
+      int windowIndex = player.getCurrentWindowIndex();
+      Timeline.Window window = timeline.getWindow(windowIndex, new Timeline.Window());
+      long liveOffsetMs = player.getCurrentLiveOffset();
+
+      if (window.presentationStartTimeMs != C.TIME_UNSET) {
+        // Presentation Start Time, PST (ms), Now (time), Now (ms), Window Start, Window Start Time(ms), Position (time), Position in Window, Duration (ms), Live Offset (ms)
+        formatter.format(
+            "%1$tFT%1$tT.%1$tL, %1$d, %2$tFT%2$tT.%2tL, %2$d, %3tFT%3$tT.%3$tL, %3$d, %4$tFT%4$tT.%4$tL, %5$d, %6$3.2f",
+            window.presentationStartTimeMs,
+            window.getCurrentUnixTimeMs(),
+            window.windowStartTimeMs,
+            window.windowStartTimeMs + position,
+            position,
+            liveOffsetMs / 1000.0
+        );
+      } else {
+        // Now (time), Now (ms), Window Start, Window Start Time(ms), Position (time), Position in Window, Duration (ms), Live Offset (ms)
+        formatter.format(
+            "%1$tFT%1$tT.%1$tL, %1$d, %2$tFT%2$tT.%2tL, %2$d, %3tFT%3$tT.%3$tL, %3$d, %4$d, %5$3.2f",
+            window.getCurrentUnixTimeMs(),
+            window.windowStartTimeMs,
+            window.windowStartTimeMs + position,
+            position,
+            liveOffsetMs / 1000.0
+        );
+      }
+
+      Log.d("LivePosition", logString.toString());
+    }
+  }
+
+  private void updateChildViews() {
     currentTimeView.setText(getPositionString());
     currentVideoTrack.setText(getPlayingVideoTrack());
     currentAudioTrack.setText(getPlayingAudioTrack());
@@ -172,8 +262,6 @@ public class GeekStatsOverlay implements AnalyticsListener, Runnable {
     float buffered = getBufferedSeconds();
     bufferingGraph.addDataPoint(buffered, 0);
     bufferingLevel.setText(String.format(Locale.getDefault(), "%.2fs", buffered));
-    containingView.removeCallbacks(this);
-    containingView.postDelayed(this, updateInterval);
   }
 
   private float getBufferedSeconds() {
@@ -188,7 +276,6 @@ public class GeekStatsOverlay implements AnalyticsListener, Runnable {
   private void resetStats() {
     levelSwitchCount = 0;
     bufferingCount = 0;
-    lastVideoDownloadbps = 0.0f;
     lastTimeUpdate = C.TIME_UNSET;
     minBandwidth = Float.MIN_VALUE;
     maxBandwidth = Float.MAX_VALUE;
@@ -446,7 +533,7 @@ public class GeekStatsOverlay implements AnalyticsListener, Runnable {
       }
       lastPlayState = currentState;
       stateView.setText(getPlayerState());
-      timedTextUpdate();
+      updateChildViews();
     }
   }
 
@@ -487,7 +574,7 @@ public class GeekStatsOverlay implements AnalyticsListener, Runnable {
       maxBandwidth = Math.max(maxBandwidth, avgMbps);
     }
 
-    bandwidthStats.setText(String.format(Locale.getDefault(), "%.2f / %.2f / %.2f Mbps", avgMbps, minBandwidth, maxBandwidth));
+    bandwidthStats.setText(String.format(Locale.getDefault(), "%.3f / %.3f / %.3f Mbps", avgMbps, minBandwidth, maxBandwidth));
 
     bandwidthGraph.addDataPoint(avgMbps, bandwidthTraceNum);
 
@@ -513,7 +600,6 @@ public class GeekStatsOverlay implements AnalyticsListener, Runnable {
 
     Format format = mediaLoadData.trackFormat;
     if (isVideoTrack(mediaLoadData)) {
-      lastVideoDownloadbps = (loadEventInfo.bytesLoaded * 8_000.0f) / loadEventInfo.loadDurationMs;
 
       levelSwitchCount += format.equals(lastLoadedVideoFormat) ? 0 : 1;
       lastLoadedVideoFormat = format;

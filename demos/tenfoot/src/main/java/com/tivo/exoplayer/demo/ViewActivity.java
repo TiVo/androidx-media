@@ -371,7 +371,7 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
     activityView.addView(debugView);
 
     View debugContainer = debugView.findViewById(R.id.geek_stats);
-    geekStats = new GeekStatsOverlay(debugContainer, context);
+    geekStats = new GeekStatsOverlay(debugContainer);
 
     playerView = findViewById(R.id.player_view);
     playerView.setControllerVisibilityListener(this);
