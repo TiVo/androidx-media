@@ -24,7 +24,7 @@ The DASH ISO Standard ([ISO / IEC 23009 Spec](https://www.iso.org/standard/79329
 
 The DASH-IOP introduces an [MPD timeline](https://dashif-documents.azurewebsites.net/Guidelines-TimingModel/master/Guidelines-TimingModel.html#mpd-timeline) and describes how to map it to the [sample timeline](https://dashif-documents.azurewebsites.net/DASH-IF-IOP/master/DASH-IF-IOP.html#sample-timeline) in order to achieve the first function.   
 
-The *MPD timeline* is mapped to wall-clock time by the `MPD@availabilityStartTime` attribute, which simply put maps zero on the *MPD timeline* to wall-clock time (for live operation).  Wall-clock on the client is synchronized with the origin server using the schema in the `UTCTiming` element. MPD Time to wall-clock time is only done for live playback by simply adding the `MPD@availabilityStartTime`
+The *MPD timeline* is mapped to wall-clock time by the `MPD@availabilityStartTime` attribute, which simply maps zero on the *MPD timeline* to wall-clock time (for live operation).  Wall-clock on the client is synchronized with the origin server using the schema in the `UTCTiming` element. MPD Time to wall-clock time is only done for live playback by simply adding the `MPD@availabilityStartTime`
 
 For ExoPlayer MPD Time is kept internally as a tuple of the current `Period` (both playing and loading) and `periodPositionUs` which is microseconds relative to the current `Period`.  In ExoPlayer, periods map directly to a DASH *Period*.  So ExoPlayer *position* maps to the [MPD timeline](https://dashif-documents.azurewebsites.net/Guidelines-TimingModel/master/Guidelines-TimingModel.html#mpd-timeline) quite simply as:
 
@@ -52,7 +52,7 @@ periodPosition = (sampleTime - @presentationTimeOffset) / @timescale
 
 **Note well** `@presentationTimeOffset` and `@timescale` are in the context of a **Representation**.   They are defined in *SegmentBaseType* (MPD Schema) and may be inherited from any level up to and including the **Period**.
 
-The DASH-IOP section [5.3 Segment addressing modes](https://dashif-documents.azurewebsites.net/DASH-IF-IOP/master/DASH-IF-IOP.html#addressing) is relatively clear and absolutely correct in how the `S@t` (Explicit addressing) and correspondingly the `(S@startNumber - segmentIndex) * S@duration)` are in *Sample time* and map directly to the **SegmentTemplate**  variables *$Time$* and *$Number$*.   The ISO 230009 standards are less clear, in *Table 20 Identifiers for URL templates* calls it the "MPD start time",  [DASH-IF Issue #36](https://github.com/Dash-Industry-Forum/MPEG/issues/36#issuecomment-1503834456) references this confusion.
+The DASH-IOP section [5.3 Segment addressing modes](https://dashif-documents.azurewebsites.net/DASH-IF-IOP/master/DASH-IF-IOP.html#addressing) is relatively clear and absolutely correct in how the `S@t` (Explicit addressing) and correspondingly the `(segmentIndex - S@startNumber) * S@duration)` are in *Sample time* and map directly to the **SegmentTemplate**  variables *$Time$* and *$Number$*.   The ISO 230009 standards are less clear, in *Table 20 Identifiers for URL templates* calls it the "MPD start time",  [DASH-IF Issue #36](https://github.com/Dash-Industry-Forum/MPEG/issues/36#issuecomment-1503834456) references this confusion.
 
 The `S@t` attribute is the `$Time$` value and also the `sidx.earliest_presentation_time` in the Segment's MPEG container.
 
@@ -68,7 +68,7 @@ It is critical to synchronize the clocks of the client with the clock of origin 
 
 > The time indicated by the [wall clock](https://dashif-documents.azurewebsites.net/Guidelines-TimingModel/master/Guidelines-TimingModel.html#wall-clock) does not necessarily need to match some universal standard as long as the DASH client and service are mutually synchronized.
 
-Xperi recommends using an explicit **UTCTiming** element with ine of the following methods:
+Xperi recommends using an explicit **UTCTiming** element with one of the following methods:
 
 1.  `direct` schema &mdash; encoding the time in the *@value* attribute as described in ISO 23009-1 section 5.8.5.7 DASH UTC Timing Schemes, essentially ISO-8601 extended format.  This method avoids an extra network request to a time server, however the MPD request must not be cached in the Edge servers
 2. `http-iso` or `http-xsdate` schema &mdash;  With this method a separate URL that is never cached returns the date in the respective format
@@ -543,9 +543,9 @@ and recommends:
 1. Multiple lower frame rate **Representation** to enable higher speed playback
 2.  The **Representation**  used to generate the trick mode **Representation**[s] should be:
 
-   1. Be selectable by the video resolution
-   2. Match the resolution and codec of one of the regular video variants (the Source Variant)
-   3. be chosen from a resolution that balances providing adequate display resolution for a pleasant user experience.
+   - Be selectable by the video resolution
+   - Match the resolution and codec of one of the regular video variants (the Source Variant)
+   - be chosen from a resolution that balances providing adequate display resolution for a pleasant user experience.
 
 ##### CMAF Encoding
 
