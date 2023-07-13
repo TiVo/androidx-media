@@ -1,9 +1,44 @@
 # Release notes #
-### 2.15.1-1.2-dev (not yet released)
+### 2.15.1-1.2 (2023-07-14)
 
-* Workaround Vecima DASH schema issue (missing `schemeIdUri` on AudioChannelConfiguration).  Workaround defaults to unknown channel count.  This is a change to ExoPlayer base library-dash, so will revert after Vecima fix is available
+#### Xperi Code Base
+
+##### Bug Fixes
+
+* [Removes vacuous log on playlist update](https://github.com/tivocorp/exoplayerprvt/commit/7753baf251) - fixes issue [PARTDEFECT-17632](https://jira.xperi.com/browse/PARTDEFECT-17632)
+* [Crash fix for catching unhandled exception by MediaDrm](https://github.com/tivocorp/exoplayerprvt/pull/348/files) - fix for issue [BZSTREAM-10646](https://jira.xperi.com/browse/BZSTREAM-10646)
+
+##### Other Changes
+
+* Disable live adjustment on seek way before live, commit [c3a363d238](https://github.com/tivocorp/exoplayerprvt/commit/c3a363d238), this prevents live adjustment speed changes when not watching at live point.
+* Fix for accuracy of trick-play metrics,  [Preserve fractional part in avgFramesPerSecond calculation](https://github.com/tivocorp/exoplayerprvt/pull/343/commits/d68b422e76ffc8ff557014035428d9c96e681146)
+* Demo Player fix, [GeekStats shows correct playing audio format](https://github.com/tivocorp/exoplayerprvt/commit/749966ccc3)
+* Support adding custom header for Xperi session id in requests, see pull request [352](https://github.com/tivocorp/exoplayerprvt/pull/352)  *Add callback when `DataSource.Factory`*
+* Only increase PCM buffer for 2-channel audio on Broadcom hw, see pull request [347](https://github.com/tivocorp/exoplayerprvt/pull/347)
+
+##### DASH Support
+
+
+* FrameRateAnalyzer supports DASH Trick-play, see pull [351](https://github.com/tivocorp/exoplayerprvt/pull/351)
 * Update our event logging (`ExtendedEventLogger`) to properly log load types, also updated related info 
-  in the [Field Triage of Player Issues](https://github.com/tivocorp/exoplayerprvt/blob/release/Field%20Triage%20of%20Player%20Issues.md) doc.
+  in the [Field Triage of Player Issues](https://github.com/tivocorp/exoplayerprvt/blob/release/Field%20Triage%20of%20Player%20Issues.md) doc, commit [6a2c93ef41 -- DASH playback load events logs correctly](https://github.com/tivocorp/exoplayerprvt/commit/6a2c93ef41)
+* Added DASH Encoding Guidelines, see pull [344](https://github.com/tivocorp/exoplayerprvt/pull/344)
+
+#### Google Module Changes
+
+Section documents our cherry-picks or other unshared changes to Google libraries (core, dash, HLS, extractor, etc)
+
+##### DASH (library-dash)
+
+* Workaround Vecima DASH schema issue (missing `schemeIdUri` on AudioChannelConfiguration).  Workaround defaults to unknown channel count.  This is a change to ExoPlayer base library-dash, so will revert after Vecima fix is available,  pull request [346](https://github.com/tivocorp/exoplayerprvt/pull/346)
+
+
+##### Cherry-pick and Back-port
+
+* From 2.19.0 
+  * Cherry-pick Google's [bb9ac21434](https://github.com/google/ExoPlayer/commit/bb9ac21434),  [Handle dead object error during writing buffer to AudioTrack](https://github.com/tivocorp/exoplayerprvt/commit/2195f5f3da) - see pull request [354](https://github.com/tivocorp/exoplayerprvt/pull/354), this should fix PARTDEFECT-17258 and many V558 errors by reseting the audio capabilities before restarting on error.
+
+
 
 ### 2.15.1-1.1 (2023-04-14)
 
