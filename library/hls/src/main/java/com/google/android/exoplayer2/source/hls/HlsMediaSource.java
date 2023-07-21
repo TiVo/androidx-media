@@ -57,6 +57,7 @@ import com.google.android.exoplayer2.upstream.LoadErrorHandlingPolicy;
 import com.google.android.exoplayer2.upstream.TransferListener;
 import com.google.android.exoplayer2.util.Log;
 import com.google.android.exoplayer2.util.MimeTypes;
+import com.google.android.exoplayer2.util.SntpClient;
 import com.google.android.exoplayer2.util.Util;
 import java.io.IOException;
 import java.lang.annotation.Documented;
@@ -611,7 +612,7 @@ public final class HlsMediaSource extends BaseMediaSource
     return new SinglePeriodTimeline(
         presentationStartTimeMs,
         windowStartTimeMs,
-        /* elapsedRealtimeEpochOffsetMs= */ C.TIME_UNSET,
+        SntpClient.getElapsedRealtimeOffsetMs(),
         periodDurationUs,
         /* windowDurationUs= */ playlist.durationUs,
         /* windowPositionInPeriodUs= */ offsetFromInitialStartTimeUs,

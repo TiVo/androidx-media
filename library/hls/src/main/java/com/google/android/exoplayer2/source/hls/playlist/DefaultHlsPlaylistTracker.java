@@ -42,9 +42,11 @@ import com.google.android.exoplayer2.upstream.Loader.LoadErrorAction;
 import com.google.android.exoplayer2.upstream.ParsingLoadable;
 import com.google.android.exoplayer2.util.Assertions;
 import com.google.android.exoplayer2.util.Log;
+import com.google.android.exoplayer2.util.SntpClient;
 import com.google.android.exoplayer2.util.Util;
 import com.google.common.collect.Iterables;
 import java.io.IOException;
+import java.util.Formatter;
 import java.util.HashMap;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -141,6 +143,20 @@ public final class DefaultHlsPlaylistTracker
             playlistParserFactory.createPlaylistParser());
     Assertions.checkState(initialPlaylistLoader == null);
     initialPlaylistLoader = new Loader("DefaultHlsPlaylistTracker:MasterPlaylist");
+    syncWithSntpBeforeLoad(initialPlaylistLoader, new SntpClient.InitializationCallback() {
+      @Override
+      public void onInitialized() {
+        requestMasterPlaylist(eventDispatcher, masterPlaylistLoadable);
+      }
+
+      @Override
+      public void onInitializationFailed(IOException error) {
+        requestMasterPlaylist(eventDispatcher, masterPlaylistLoadable);
+      }
+    });
+  }
+
+  private void requestMasterPlaylist(EventDispatcher eventDispatcher, ParsingLoadable<HlsPlaylist> masterPlaylistLoadable) {
     long elapsedRealtime =
         initialPlaylistLoader.startLoading(
             masterPlaylistLoadable,
@@ -327,6 +343,35 @@ public final class DefaultHlsPlaylistTracker
   }
 
   // Internal methods.
+
+  private static void syncWithSntpBeforeLoad(Loader loader, SntpClient.InitializationCallback callback) {
+    boolean logUpdated = !SntpClient.isInitialized();
+    SntpClient.initialize(loader, new SntpClient.InitializationCallback() {
+      @Override
+      public void onInitialized() {
+        if (logUpdated) {
+          StringBuilder logString = new StringBuilder();
+          Formatter formatter = new Formatter(logString);
+          long currentTimeMillis = System.currentTimeMillis();
+          long ntpTimeMillis = Util.getNowUnixTimeMs(SntpClient.getElapsedRealtimeOffsetMs());
+          formatter.format(
+              "SntpClient init - System.currentTimeMillis(): %1$tFT%1$tT.%1$tL (%1$d), NTP Time: %2$tFT%2$tT.%2$tL (%2$d), delta %3$d",
+              currentTimeMillis,
+              ntpTimeMillis,
+              currentTimeMillis - ntpTimeMillis
+          );
+          Log.d(TAG, logString.toString());
+        }
+        callback.onInitialized();
+      }
+
+      @Override
+      public void onInitializationFailed(IOException error) {
+        Log.w(TAG, "NTP time init failed, use default system time", error);
+        callback.onInitializationFailed(error);
+      }
+    });
+  }
 
   private boolean maybeSelectNewPrimaryUrl() {
     List<Variant> variants = masterPlaylist.variants;
@@ -688,6 +733,24 @@ public final class DefaultHlsPlaylistTracker
     }
 
     private void loadPlaylistImmediately(Uri playlistRequestUri) {
+      if (primaryMediaPlaylistUrl == null || playlistRequestUri.equals(primaryMediaPlaylistUrl)) {
+        DefaultHlsPlaylistTracker.syncWithSntpBeforeLoad(mediaPlaylistLoader, new SntpClient.InitializationCallback() {
+          @Override
+          public void onInitialized() {
+            loadAfterTimeSync(playlistRequestUri);
+          }
+
+          @Override
+          public void onInitializationFailed(IOException error) {
+            loadAfterTimeSync(playlistRequestUri);
+          }
+        });
+      } else {
+        loadAfterTimeSync(playlistRequestUri);
+      }
+    }
+
+    private void loadAfterTimeSync(Uri playlistRequestUri) {
       ParsingLoadable.Parser<HlsPlaylist> mediaPlaylistParser =
           playlistParserFactory.createPlaylistParser(masterPlaylist, playlistSnapshot);
       ParsingLoadable<HlsPlaylist> mediaPlaylistLoadable =
