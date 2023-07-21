@@ -1,4 +1,25 @@
 # Release notes #
+### 2.15.1-1-5-dev (Not Yet Release)
+
+#### Xperi Code Base
+
+##### Bug Fixes
+
+<placeholder>
+
+##### Other Changes
+
+* Added UI dialog to tenfoot demo to allow retry on errors, this is being used to test fixes for 
+  [PARTDEFECT-17601](https://jira.xperi.com/browse/PARTDEFECT-17601)
+
+#### Google Module Changes
+
+Section documents our cherry-picks or other unshared changes to Google libraries (core, dash, HLS, extractor, etc)
+
+<placeholder>
+
+
+
 ### 2.15.1-1-4 (2023-08-02)
 
 #### Google Module Changes

@@ -288,18 +288,12 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
                     ViewActivity.this.showError("No supported video tracks, " + reason, error);
 
                   } else {
-                    ViewActivity.this.showError("Un-excpected playback error", error);
-                  }
-                  if (statsManager != null) {
-                    statsManager.endAllSessions();
+                    showErrorDialogWithRecoveryOption(error, "Un-excpected playback error");
                   }
                   break;
 
                 case FAILED:
-                  ViewActivity.this.showError("Un-recovered Playback Error", error);
-                  if (statsManager != null) {
-                    statsManager.endAllSessions();
-                  }
+                  showErrorDialogWithRecoveryOption(error, "Playback Failed");
                   break;
               }
             })
@@ -973,6 +967,30 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
     }
     alertDialog.setMessage(message);
     alertDialog.setButton(AlertDialog.BUTTON_NEUTRAL, "OK", (dialog, which) -> dialog.dismiss());
+    alertDialog.show();
+  }
+
+
+  private void showErrorDialogWithRecoveryOption(PlaybackException error, String title) {
+    title += " - " + error.getLocalizedMessage();
+
+    AlertDialog alertDialog = new AlertDialog.Builder(this)
+        .setTitle("Error - " + error.errorCode)
+        .setMessage(title)
+        .setPositiveButton("Retry", (dialog, which) -> {
+          player.seekToDefaultPosition();
+          player.prepare();   // Attempt recovery with simple re-prepare using current MediaItem
+          dialog.dismiss();
+        })
+        .setNegativeButton("Ok", (dialog, which) -> {
+          if (statsManager != null) {
+            statsManager.endAllSessions();
+          }
+          player.stop();
+          player.clearMediaItems();
+          dialog.dismiss();
+        })
+        .create();
     alertDialog.show();
   }
 
