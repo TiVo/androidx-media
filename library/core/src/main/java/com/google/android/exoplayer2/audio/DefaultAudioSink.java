@@ -2156,7 +2156,7 @@ public final class DefaultAudioSink implements AudioSink {
               inputFormat.channelCount <= 2);
 
       if (shouldIncreaseBufferSize) {
-        bufferSize *= 4;
+        bufferSize *= 2;
         Log.i(TAG, "getPcmDefaultBufferSize increased to " + bufferSize);
       } else {
         Log.i(TAG, "getPcmDefaultBufferSize unchanged at " + bufferSize);
