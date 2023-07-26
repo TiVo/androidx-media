@@ -859,6 +859,8 @@ public final class DefaultAudioSink implements AudioSink {
       if (listener != null) {
         listener.onAudioSinkError(e);
       }
+      // Change to the audio capabilities supported by all the devices during the error recovery.
+      audioCapabilities = DEFAULT_AUDIO_CAPABILITIES;
       throw e;
     }
   }
