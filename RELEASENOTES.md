@@ -1,4 +1,21 @@
 # Release notes #
+# Release notes #
+### 2.15.1-1-3 (2023-08-01)
+
+#### Google Module Changes
+
+Section documents our cherry-picks or other unshared changes to Google libraries (core, dash, HLS, extractor, 
+
+##### HLS (library-hls)
+
+* Proprietary (not shared with Google) change to implement a client-side way to do the same thing as EXT-X-START.  This returns the MSO APK override of start position setting to the same behaivor as streamer-1-17 (with the matching client-core changes).   Note the `MediaItem.targetLiveOffset` setting will override and deprecate this in streamer-1-19, so this change is temporary.
+
+##### CORE (library-core)
+
+* Fix for [PARTDEFECT-17258](https://jira.xperi.com/browse/PARTDEFECT-17258),  reset audio capabilities on recovery of audiotrack init failure.  This fixes instances of v557,  pull [#359](https://github.com/tivocorp/exoplayerprvt/pull/359)
+* Limit PCM audio buffer size increase to avoid OOM errors [PARTDEFECT-16933](https://jira.xperi.com/browse/PARTDEFECT-16933), pull [#358](https://github.com/tivocorp/exoplayerprvt/pull/358)
+
+
 ### 2.15.1-1.2 (2023-07-14)
 
 #### Xperi Code Base
