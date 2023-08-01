@@ -37,16 +37,19 @@ import com.google.android.exoplayer2.analytics.AnalyticsListener;
 import com.google.android.exoplayer2.audio.AudioAttributes;
 import com.google.android.exoplayer2.demo.TrackSelectionDialog;
 import com.google.android.exoplayer2.source.MediaSourceFactory;
+import com.google.android.exoplayer2.source.TrackGroupArray;
 import com.google.android.exoplayer2.source.UnrecognizedInputFormatException;
 import com.google.android.exoplayer2.source.hls.HlsMediaSource;
 import com.google.android.exoplayer2.trackselection.DefaultTrackSelector;
 import com.google.android.exoplayer2.trackselection.MappingTrackSelector;
+import com.google.android.exoplayer2.trackselection.TrackSelectionArray;
 import com.google.android.exoplayer2.trickplay.TrickPlayControl;
 import com.google.android.exoplayer2.trickplay.TrickPlayEventListener;
 import com.google.android.exoplayer2.ui.PlayerControlView;
 import com.google.android.exoplayer2.ui.PlayerView;
 import com.google.android.exoplayer2.ui.SubtitleView;
 import com.google.android.exoplayer2.ui.TimeBar;
+import com.google.android.exoplayer2.util.MimeTypes;
 import com.google.android.exoplayer2.upstream.DefaultHttpDataSource;
 import com.google.android.exoplayer2.upstream.HttpDataSource;
 import com.streamingmediainsights.smiclientsdk.SMIClientSdk;
@@ -125,6 +128,8 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
   public static final String DRM_VCAS_ADDR = "vcas_addr";
   public static final String DRM_WV_PROXY = "wv_proxy";
   public static final String DRM_VCAS_VUID = "vcas_vuid";
+  public static final String LIVE_OFFSET = "live_offset";
+  public static final String FAST_RESYNC = "fast_resync";
 
   public static final String DRM_SCHEME_VCAS = "vcas";
   public static final String DRM_SCHEME_WIDEVINE = "widevine";
@@ -309,8 +314,14 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
                 switch (type) {
 
                   case C.TYPE_DASH:
+                    // For DASH, let target come from MPD
                     break;
                   case C.TYPE_HLS:
+                    // For HLS, either a property or default to 33 seconds
+
+                    int liveTargetOffsetMs = (int) (getIntent().getFloatExtra(LIVE_OFFSET,33.0f) * 1000);
+                    itemBuilder
+                        .setLiveTargetOffsetMs(liveTargetOffsetMs);
                     HlsMediaSource.Factory hlsFactory = (HlsMediaSource.Factory) factory;
                     boolean allowChunkless = getIntent().getBooleanExtra(CHUNKLESS_PREPARE, false);
                     hlsFactory.setAllowChunklessPreparation(allowChunkless);
@@ -321,14 +332,14 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
                     break;
                 }
 
-                // Configure Live Offset
-                itemBuilder.setLiveTargetOffsetMs(30_000)
-//                        .setLiveMinPlaybackSpeed(1.0f)
-//                        .setLiveMaxPlaybackSpeed(1.0f)
-//                        .setLiveMaxOffsetMs(50_000)
-//                        .setLiveMinOffsetMs(20_000)
-                    ;
+                if (getIntent().hasExtra(FAST_RESYNC)) {
+                  float resyncPercentChange = getIntent().getFloatExtra(FAST_RESYNC, 0.0f) / 100.0f;
 
+                  itemBuilder
+                      .setLiveMinPlaybackSpeed(1.0f - resyncPercentChange)
+                      .setLiveMaxPlaybackSpeed(1.0f + resyncPercentChange);
+
+                }
               }
 
               @Override
@@ -485,6 +496,46 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
     currentScrubHandler = new ScrubHandler(trickPlayControl);
     timeBar.addListener(currentScrubHandler);
 
+    // If request is for FAST_RECYNC, Force player to PCM audio track if available and turn on logging in GeekStats
+    //
+    if (getIntent().hasExtra(FAST_RESYNC)) {
+      geekStats.setEnableLiveOffsetLogging(true);
+      player.addListener(new Player.Listener() {
+        @Override
+        public void onTracksChanged(TrackGroupArray trackGroups, TrackSelectionArray trackSelections) {
+          List<TrackInfo> audioTracks = exoPlayerFactory.getAvailableAudioTracks();
+          if (audioTracks.size() > 0) {
+            TrackInfo pcmAudio = null;
+            int pcmAudioCount = 0;
+            for (TrackInfo info : audioTracks) {
+              if (MimeTypes.AUDIO_MP4.equals(info.format.sampleMimeType) || MimeTypes.AUDIO_AAC.equals(info.format.sampleMimeType)) {
+                pcmAudioCount++;
+                if (info.isSelected) {
+                  pcmAudio = info;
+                }
+              }
+            }
+            if (pcmAudioCount == 0) {
+              String message = "Cannot play channel in live sync mode, no PCM audio tracks";
+              Log.e(TAG, message);
+              throw new RuntimeException(message);
+            } else if (pcmAudio == null) {
+              Log.w(TAG, "PCM audio track not selected by default, need to track switch");
+              for (TrackInfo info : audioTracks) {
+                if (MimeTypes.AUDIO_MP4.equals(info.format.sampleMimeType) || MimeTypes.AUDIO_AAC.equals(info.format.sampleMimeType)) {
+                  exoPlayerFactory.selectTrack(info);
+                }
+              }
+            }
+          } else {
+            Log.d(TAG, "ignoring tracksChanged event until initial audio track selection");
+          }
+        }
+      });
+    } else {
+      geekStats.setEnableLiveOffsetLogging(false);
+    }
+    
     trickPlayControl.addEventListener(new TrickPlayEventListener() {
       @Override
       public void playlistMetadataValid(boolean isMetadataValid) {
