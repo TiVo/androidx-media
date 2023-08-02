@@ -1,5 +1,5 @@
 # Release notes #
-### 2.15.1-1-4-dev (not yet released)
+### 2.15.1-1-4 (2023-08-02)
 
 #### Google Module Changes
 
