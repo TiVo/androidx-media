@@ -1,5 +1,6 @@
 package com.tivo.exoplayer.library;
 
+import android.os.SystemClock;
 import android.view.View;
 import android.widget.TextView;
 import androidx.annotation.NonNull;
@@ -224,30 +225,15 @@ public class GeekStatsOverlay implements AnalyticsListener, Runnable {
       int windowIndex = player.getCurrentWindowIndex();
       Timeline.Window window = timeline.getWindow(windowIndex, new Timeline.Window());
       long liveOffsetMs = player.getCurrentLiveOffset();
-
-      if (window.presentationStartTimeMs != C.TIME_UNSET) {
-        // Presentation Start Time, PST (ms), Now (time), Now (ms), Window Start, Window Start Time(ms), Position (time), Position in Window, Duration (ms), Live Offset (ms)
-        formatter.format(
-            "%1$tFT%1$tT.%1$tL, %1$d, %2$tFT%2$tT.%2tL, %2$d, %3tFT%3$tT.%3$tL, %3$d, %4$tFT%4$tT.%4$tL, %5$d, %6$3.2f",
-            window.presentationStartTimeMs,
-            window.getCurrentUnixTimeMs(),
-            window.windowStartTimeMs,
-            window.windowStartTimeMs + position,
-            position,
-            liveOffsetMs / 1000.0
-        );
-      } else {
-        // Now (time), Now (ms), Window Start, Window Start Time(ms), Position (time), Position in Window, Duration (ms), Live Offset (ms)
-        formatter.format(
-            "%1$tFT%1$tT.%1$tL, %1$d, %2$tFT%2$tT.%2tL, %2$d, %3tFT%3$tT.%3$tL, %3$d, %4$d, %5$3.2f",
-            window.getCurrentUnixTimeMs(),
-            window.windowStartTimeMs,
-            window.windowStartTimeMs + position,
-            position,
-            liveOffsetMs / 1000.0
-        );
-      }
-
+      // Now (time), Now (ms), Window Start, Window Start Time(ms), Position (time), Position in Window, Duration (ms), Live Offset (ms)
+      formatter.format(
+          "%1$tFT%1$tT.%1$tL, %1$d, %2$tFT%2$tT.%2tL, %2$d, %3tFT%3$tT.%3$tL, %3$d, %4$d, %5$3.2f",
+          window.getCurrentUnixTimeMs(),
+          window.windowStartTimeMs,
+          window.windowStartTimeMs + position,
+          position,
+          liveOffsetMs / 1000.0
+      );
       Log.d("LivePosition", logString.toString());
     }
   }
@@ -453,18 +439,17 @@ public class GeekStatsOverlay implements AnalyticsListener, Runnable {
  }
 
   protected String getPlaybackRateString() {
-    float playbackRate = 0.0f;
     String rateString = "";
-
+    long latestElapsedRealtime = SystemClock.elapsedRealtime();
     if (lastTimeUpdate == C.TIME_UNSET) {
-        lastTimeUpdate = System.currentTimeMillis();
+        lastTimeUpdate = latestElapsedRealtime;
     } else if (player != null && trickPlayControl != null) {
         long currentPosition = getPeriodPosition();
         long positionChange = Math.abs(lastPositionReport - currentPosition);
-        long timeChange = System.currentTimeMillis() - lastTimeUpdate;
-        lastTimeUpdate = System.currentTimeMillis();
+        long timeChange = latestElapsedRealtime - lastTimeUpdate;
+        lastTimeUpdate = latestElapsedRealtime;
         lastPositionReport = currentPosition;
-        playbackRate = (float)positionChange / (float)timeChange;
+        float playbackRate = (float)positionChange / (float)timeChange;
         float trickSpeed = trickPlayControl.getSpeedFor(trickPlayControl.getCurrentTrickMode());
         rateString = String.format("%.3f (%.3f)", trickSpeed, playbackRate);
     }

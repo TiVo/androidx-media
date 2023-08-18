@@ -311,25 +311,10 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
             .setSourceFactoriesCreatedCallback(new SourceFactoriesCreated() {
               @Override
               public void factoriesCreated(@C.ContentType int type, MediaItem.Builder itemBuilder, MediaSourceFactory factory) {
-                switch (type) {
-
-                  case C.TYPE_DASH:
-                    // For DASH, let target come from MPD
-                    break;
-                  case C.TYPE_HLS:
-                    // For HLS, either a property or default to 33 seconds
-
-                    int liveTargetOffsetMs = (int) (getIntent().getFloatExtra(LIVE_OFFSET,33.0f) * 1000);
-                    itemBuilder
-                        .setLiveTargetOffsetMs(liveTargetOffsetMs);
-                    HlsMediaSource.Factory hlsFactory = (HlsMediaSource.Factory) factory;
-                    boolean allowChunkless = getIntent().getBooleanExtra(CHUNKLESS_PREPARE, false);
-                    hlsFactory.setAllowChunklessPreparation(allowChunkless);
-                    break;
-                  case C.TYPE_OTHER:
-                    break;
-                  case C.TYPE_SS:
-                    break;
+                if (type == C.TYPE_HLS) {
+                  HlsMediaSource.Factory hlsFactory = (HlsMediaSource.Factory) factory;
+                  boolean allowChunkless = getIntent().getBooleanExtra(CHUNKLESS_PREPARE, false);
+                  hlsFactory.setAllowChunklessPreparation(allowChunkless);
                 }
 
                 if (getIntent().hasExtra(FAST_RESYNC)) {
@@ -339,6 +324,12 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
                       .setLiveMinPlaybackSpeed(1.0f - resyncPercentChange)
                       .setLiveMaxPlaybackSpeed(1.0f + resyncPercentChange);
 
+                }
+
+                if (getIntent().hasExtra(LIVE_OFFSET)) {
+                  int liveTargetOffsetMs = (int) (getIntent().getFloatExtra(LIVE_OFFSET,30.0f) * 1000);
+                  itemBuilder
+                      .setLiveTargetOffsetMs(liveTargetOffsetMs);
                 }
               }
 
