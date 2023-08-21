@@ -317,7 +317,8 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
                   hlsFactory.setAllowChunklessPreparation(allowChunkless);
                 }
 
-                if (getIntent().hasExtra(FAST_RESYNC)) {
+                boolean fast_resync = getIntent().hasExtra(FAST_RESYNC);
+                if (fast_resync) {
                   float resyncPercentChange = getIntent().getFloatExtra(FAST_RESYNC, 0.0f) / 100.0f;
 
                   itemBuilder
@@ -330,6 +331,11 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
                   int liveTargetOffsetMs = (int) (getIntent().getFloatExtra(LIVE_OFFSET,30.0f) * 1000);
                   itemBuilder
                       .setLiveTargetOffsetMs(liveTargetOffsetMs);
+                  if (fast_resync) {
+                    itemBuilder
+                        .setLiveMinOffsetMs(liveTargetOffsetMs)
+                        .setLiveMaxOffsetMs(liveTargetOffsetMs);
+                  }
                 }
               }
 
