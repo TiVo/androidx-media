@@ -41,6 +41,7 @@ import com.google.android.exoplayer2.source.TrackGroupArray;
 import com.google.android.exoplayer2.source.UnrecognizedInputFormatException;
 import com.google.android.exoplayer2.source.hls.HlsMediaSource;
 import com.google.android.exoplayer2.trackselection.DefaultTrackSelector;
+import com.google.android.exoplayer2.trackselection.ExoTrackSelection;
 import com.google.android.exoplayer2.trackselection.MappingTrackSelector;
 import com.google.android.exoplayer2.trackselection.TrackSelectionArray;
 import com.google.android.exoplayer2.trickplay.TrickPlayControl;
@@ -68,6 +69,7 @@ import com.tivo.exoplayer.library.logging.ExtendedEventLogger;
 import com.tivo.exoplayer.library.metrics.ManagePlaybackMetrics;
 import com.tivo.exoplayer.library.metrics.PlaybackMetrics;
 import com.tivo.exoplayer.library.metrics.PlaybackMetricsManagerApi;
+import com.tivo.exoplayer.library.tracks.SyncVideoTrackSelector;
 import com.tivo.exoplayer.library.tracks.TrackInfo;
 import java.io.File;
 import java.io.IOException;
@@ -347,7 +349,16 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
                 }
                 ViewActivity.this.httpDataSourceFactory = upstreamFactory;
               }
-            });
+            })
+           .setTrackSelectorFactory(new SimpleExoPlayerFactory.TrackSelectorFactory() {
+             @Override
+             public DefaultTrackSelector createTrackSelector(Context context, ExoTrackSelection.Factory trackSelectionFactory) {
+               return getIntent().hasExtra(FAST_RESYNC)
+                ? new SyncVideoTrackSelector(context, trackSelectionFactory)
+                : SimpleExoPlayerFactory.TrackSelectorFactory.super.createTrackSelector(context, trackSelectionFactory);
+             }
+           })
+        ;
 
     if (isSMIPlayer) {
       builder.setAlternatePlayerFactory(new SimpleExoPlayerFactory.AlternatePlayerFactory() {
@@ -493,46 +504,8 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
     currentScrubHandler = new ScrubHandler(trickPlayControl);
     timeBar.addListener(currentScrubHandler);
 
-    // If request is for FAST_RECYNC, Force player to PCM audio track if available and turn on logging in GeekStats
-    //
-    if (getIntent().hasExtra(FAST_RESYNC)) {
-      geekStats.setEnableLiveOffsetLogging(true);
-      player.addListener(new Player.Listener() {
-        @Override
-        public void onTracksChanged(TrackGroupArray trackGroups, TrackSelectionArray trackSelections) {
-          List<TrackInfo> audioTracks = exoPlayerFactory.getAvailableAudioTracks();
-          if (audioTracks.size() > 0) {
-            TrackInfo pcmAudio = null;
-            int pcmAudioCount = 0;
-            for (TrackInfo info : audioTracks) {
-              if (MimeTypes.AUDIO_MP4.equals(info.format.sampleMimeType) || MimeTypes.AUDIO_AAC.equals(info.format.sampleMimeType)) {
-                pcmAudioCount++;
-                if (info.isSelected) {
-                  pcmAudio = info;
-                }
-              }
-            }
-            if (pcmAudioCount == 0) {
-              String message = "Cannot play channel in live sync mode, no PCM audio tracks";
-              Log.e(TAG, message);
-              throw new RuntimeException(message);
-            } else if (pcmAudio == null) {
-              Log.w(TAG, "PCM audio track not selected by default, need to track switch");
-              for (TrackInfo info : audioTracks) {
-                if (MimeTypes.AUDIO_MP4.equals(info.format.sampleMimeType) || MimeTypes.AUDIO_AAC.equals(info.format.sampleMimeType)) {
-                  exoPlayerFactory.selectTrack(info);
-                }
-              }
-            }
-          } else {
-            Log.d(TAG, "ignoring tracksChanged event until initial audio track selection");
-          }
-        }
-      });
-    } else {
-      geekStats.setEnableLiveOffsetLogging(false);
-    }
-    
+    // If request is for FAST_RECYNC, turn on debug logging in GeekStats
+    geekStats.setEnableLiveOffsetLogging(getIntent().hasExtra(FAST_RESYNC));
     trickPlayControl.addEventListener(new TrickPlayEventListener() {
       @Override
       public void playlistMetadataValid(boolean isMetadataValid) {

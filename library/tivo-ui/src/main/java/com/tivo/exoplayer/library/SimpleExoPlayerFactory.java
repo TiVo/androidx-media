@@ -159,6 +159,7 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
   private boolean nonDefaultMediaCodecOperationMode;
   private boolean mediaCodecAsyncMode;
   private AlternatePlayerFactory alternatePlayerFactory;
+  private TrackSelectorFactory trackSelectorFactory;
 
   /**
    * Simple callback to produce an AnalyticsListener for logging purposes.
@@ -210,6 +211,18 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
   }
 
   /**
+   * Callback to allow creation of a sub-class of {@link DefaultTrackSelector}.
+   *
+   * It is strongly recommended the callee should not retain a reference to the created object,
+   * as it will leak a reference to a {@link Player} object.
+   */
+  public interface TrackSelectorFactory {
+    default DefaultTrackSelector createTrackSelector(Context context, ExoTrackSelection.Factory trackSelectionFactory) {
+      return new DefaultTrackSelector(context, trackSelectionFactory);
+    }
+  }
+
+  /**
    * Preferred mechanism for creating the {@link SimpleExoPlayerFactory}.  Basic builder pattern,
    * e.g. to get all the default simply:
    *
@@ -224,6 +237,7 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
     private boolean mediaCodecAsyncMode;
     private boolean nonDefaultMediaCodecOperationMode = false;
     private AlternatePlayerFactory alternatePlayerFactory = null;
+    private TrackSelectorFactory trackSelectorFactory;
 
     public Builder(Context context) {
       this.context = context;
@@ -281,6 +295,16 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
     }
 
     /**
+     * Allows the client to create a sub-class of {@link DefaultTrackSelector}
+     * @param trackSelectorFactory - call back interface.
+     * @return this builder for chaining
+     */
+    public Builder setTrackSelectorFactory(TrackSelectorFactory trackSelectorFactory) {
+      this.trackSelectorFactory = trackSelectorFactory;
+      return this;
+    }
+
+    /**
      * Allows the client to specify their own portion of the user-agent header presented for
      * HTTP requests (playlists, segments, etc.).  The generate user-agent will include ExoPlayer
      * version info.  For example, with a prefix "MyApp" the user-agent will be:
@@ -319,6 +343,7 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
       simpleExoPlayerFactory.userAgentPrefix = userAgentPrefix;
       simpleExoPlayerFactory.nonDefaultMediaCodecOperationMode = nonDefaultMediaCodecOperationMode;
       simpleExoPlayerFactory.mediaCodecAsyncMode = mediaCodecAsyncMode;
+      simpleExoPlayerFactory.trackSelectorFactory = trackSelectorFactory;
       return simpleExoPlayerFactory;
     }
   }
@@ -1156,7 +1181,7 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
     boolean usingSavedParameters =
         ! currentParameters.equals(new DefaultTrackSelector.ParametersBuilder(context).build());
 
-    DefaultTrackSelector trackSelector = new DefaultTrackSelector(context, trackSelectionFactory);
+    DefaultTrackSelector trackSelector = this.trackSelectorFactory.createTrackSelector(context, trackSelectionFactory);
     DefaultTrackSelector.ParametersBuilder builder = currentParameters.buildUpon();
 
     builder.setTunnelingEnabled(enableTunneling);
