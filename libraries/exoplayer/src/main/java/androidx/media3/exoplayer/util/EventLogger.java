@@ -455,6 +455,13 @@ public class EventLogger implements AnalyticsListener {
   @Override
   public void onLoadStarted(
       EventTime eventTime, LoadEventInfo loadEventInfo, MediaLoadData mediaLoadData) {
+    if (mediaLoadData.dataType == C.DATA_TYPE_MEDIA || mediaLoadData.dataType == C.DATA_TYPE_MEDIA_INITIALIZATION) {
+      logd(eventTime, "loadStarted",
+          "url: " + loadEventInfo.uri
+              + " trackType: " + mediaLoadData.trackType
+              + " format: " + Format.toLogString(mediaLoadData.trackFormat)
+      );
+    }
     // Do nothing.
   }
 
