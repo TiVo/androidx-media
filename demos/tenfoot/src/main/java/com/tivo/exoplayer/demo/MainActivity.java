@@ -48,12 +48,13 @@ import org.json.JSONObject;
 public class MainActivity extends FragmentActivity {
 
   private Spinner urlSpinner;
-  private Spinner encryptionSpinner;
   EditText editUrl;
   Switch tunnelingSwitch;
   Switch chunklessSwitch;
   Switch geekStatsSwitch;
   Switch asyncRenderSwitch;
+  Switch fastSyncSwitch;
+  EditText liveOffset;
   protected ArrayAdapter<CharSequence> urlAdapter;
 
   private List<String> urlList;
@@ -64,7 +65,6 @@ public class MainActivity extends FragmentActivity {
     super.onCreate(savedInstanceState);
     setContentView(R.layout.main_activity);
     urlSpinner = (Spinner) findViewById(R.id.url_spinner);
-    encryptionSpinner = (Spinner) findViewById(R.id.encrypt_spinner);
 
     urlAdapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item);
 
@@ -108,11 +108,9 @@ public class MainActivity extends FragmentActivity {
     tunnelingSwitch = (Switch) findViewById(R.id.enable_tunneling);
     geekStatsSwitch = (Switch) findViewById(R.id.geek_stats_switch);
     asyncRenderSwitch = (Switch) findViewById(R.id.async_render_mode);
+    fastSyncSwitch = (Switch) findViewById(R.id.fast_sync_enable);
+    liveOffset = (EditText) findViewById(R.id.live_offset);
     chunklessSwitch = (Switch) findViewById(R.id.enable_chunkless_prepare);
-    ArrayAdapter<CharSequence> encryptAdapter = ArrayAdapter.createFromResource(this,
-        R.array.encryption_type, android.R.layout.simple_spinner_item);
-    encryptAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
-    encryptionSpinner.setAdapter(encryptAdapter);
 
     Button playButton = (Button) findViewById(R.id.play_button);
     playButton.setOnClickListener(new View.OnClickListener() {
@@ -187,6 +185,11 @@ public class MainActivity extends FragmentActivity {
     startVideoIntent.putExtra(ViewActivity.SHOW_GEEK_STATS, geekStatsSwitch.isChecked());
     startVideoIntent.putExtra(ViewActivity.ENABLE_ASYNC_RENDER, asyncRenderSwitch.isChecked());
     startVideoIntent.putExtra(ViewActivity.ENABLE_TUNNELED_PLAYBACK, tunnelingSwitch.isChecked());
+
+    if (fastSyncSwitch.isChecked()) {
+      startVideoIntent.putExtra(ViewActivity.FAST_RESYNC, 30.0f);
+      startVideoIntent.putExtra(ViewActivity.LIVE_OFFSET, Float.valueOf(liveOffset.getText().toString()));
+    }
     startActivity(startVideoIntent);
   }
 

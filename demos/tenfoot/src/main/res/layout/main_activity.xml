@@ -47,21 +47,6 @@
         app:layout_constraintTop_toTopOf="parent" />
   </androidx.constraintlayout.widget.ConstraintLayout>
 
-  <LinearLayout
-    android:id="@+id/encryption_setting"
-    android:layout_width="match_parent"
-    android:layout_height="wrap_content"
-    android:orientation="horizontal"
-    android:visibility="gone">
-    <TextView
-      android:layout_width="wrap_content"
-      android:layout_height="wrap_content"
-      android:text="Encryption type:"/>
-    <Spinner
-      android:id="@+id/encrypt_spinner"
-      android:layout_width="match_parent"
-      android:layout_height="wrap_content"/>
-  </LinearLayout>
   <Switch
     android:id="@+id/enable_tunneling"
     android:layout_width="wrap_content"
@@ -98,6 +83,51 @@
           app:switchPadding="8dp"
           android:layout_marginBottom="10dp"
           android:checked="false"/>
+
+
+  <androidx.constraintlayout.widget.ConstraintLayout
+    android:layout_width="match_parent"
+    android:layout_height="48dp"
+    android:layout_marginBottom="30dp">
+    <!--    <EditText-->
+    <!--      android:id="@+id/max_speed"-->
+    <!--      android:layout_width="48dp"-->
+    <!--      android:layout_height="wrap_content"-->
+    <!--      android:layout_marginStart="30dp"-->
+    <!--      android:inputType="numberDecimal"-->
+    <!--      app:layout_constraintLeft_toRightOf="@+id/fast_sync_enable"-->
+    <!--      android:text="25.0"-->
+    <!--      app:layout_constraintTop_toTopOf="parent" />-->
+
+    <EditText
+      android:id="@+id/live_offset"
+      android:layout_width="wrap_content"
+      android:layout_height="wrap_content"
+      android:inputType="numberDecimal"
+      android:text="35.0"
+      app:layout_constraintLeft_toRightOf="@+id/offset_instructions"
+      app:layout_constraintTop_toTopOf="parent" />
+    <Switch
+      android:id="@+id/fast_sync_enable"
+      android:layout_width="wrap_content"
+      android:layout_height="16dp"
+      android:checked="true"
+      android:layoutDirection="rtl"
+      android:text="Fast Sync"
+      app:layout_constraintStart_toStartOf="parent"
+      app:layout_constraintTop_toTopOf="parent"
+      app:switchPadding="10dp" />
+
+    <TextView
+      android:id="@+id/offset_instructions"
+      android:layout_width="wrap_content"
+      android:layout_height="17dp"
+      android:layout_marginTop="16dp"
+      android:layout_marginLeft="16dp"
+      android:text="Live Offset:"
+      app:layout_constraintLeft_toRightOf="@+id/fast_sync_enable"
+      app:layout_constraintTop_toTopOf="parent" />
+  </androidx.constraintlayout.widget.ConstraintLayout>
 
   <androidx.constraintlayout.widget.ConstraintLayout
       android:layout_width="match_parent"
