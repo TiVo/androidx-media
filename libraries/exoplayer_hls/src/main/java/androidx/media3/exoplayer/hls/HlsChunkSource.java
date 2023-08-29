@@ -23,6 +23,7 @@ import android.net.Uri;
 import android.os.SystemClock;
 import android.util.Pair;
 import androidx.annotation.IntDef;
+import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.annotation.VisibleForTesting;
 import androidx.media3.common.C;
@@ -1063,5 +1064,11 @@ import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
       long segmentStartTimeInPeriodUs = startOfPlaylistInPeriodUs + segmentBase.relativeStartTimeUs;
       return segmentStartTimeInPeriodUs + segmentBase.durationUs;
     }
+  }
+
+  @NonNull
+  @Override
+  public String toString() {
+    return super.toString() + " playlistUrl: " + playlistUrls[0];
   }
 }

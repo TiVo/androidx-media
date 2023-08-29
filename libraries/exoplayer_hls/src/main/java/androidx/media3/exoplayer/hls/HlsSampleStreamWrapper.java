@@ -24,6 +24,7 @@ import static java.lang.Math.min;
 import android.net.Uri;
 import android.os.Handler;
 import android.util.SparseIntArray;
+import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.media3.common.C;
 import androidx.media3.common.DataReader;
@@ -1894,5 +1895,11 @@ import org.checkerframework.checker.nullness.qual.RequiresNonNull;
       bufferPosition = offset;
       return sample;
     }
+  }
+
+  @NonNull
+  @Override
+  public String toString() {
+    return super.toString() + " uid: " + uid + " chunkSource: " + chunkSource;
   }
 }

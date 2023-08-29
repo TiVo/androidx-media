@@ -26,6 +26,7 @@ import androidx.media3.common.MimeTypes;
 import androidx.media3.common.StreamKey;
 import androidx.media3.common.TrackGroup;
 import androidx.media3.common.util.Assertions;
+import androidx.media3.common.util.Log;
 import androidx.media3.common.util.UnstableApi;
 import androidx.media3.common.util.Util;
 import androidx.media3.datasource.DataSource;
@@ -65,6 +66,7 @@ import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
 /** A {@link MediaPeriod} that loads an HLS stream. */
 @UnstableApi
 public final class HlsMediaPeriod implements MediaPeriod, HlsPlaylistTracker.PlaylistEventListener {
+  public static final String TAG = "HlsMediaPeriod";
 
   private final HlsExtractorFactory extractorFactory;
   private final HlsPlaylistTracker playlistTracker;
@@ -303,6 +305,12 @@ public final class HlsMediaPeriod implements MediaPeriod, HlsPlaylistTracker.Pla
             break;
           }
         }
+        Log.d(TAG, "selection index: " + i
+            + " groupId: " + trackGroup.id
+            + " formats: " + trackGroup.length
+            + " format[0]: " + (trackGroup.length > 0 ? Format.toLogString(trackGroup.getFormat(0)) : "none")
+            + " selectionChild[]: " + selectionChildIndices[i]
+        );
       }
     }
 
@@ -372,6 +380,12 @@ public final class HlsMediaPeriod implements MediaPeriod, HlsPlaylistTracker.Pla
     // Update the local state.
     enabledSampleStreamWrappers =
         Util.nullSafeArrayCopy(newEnabledSampleStreamWrappers, newEnabledSampleStreamWrapperCount);
+    for (int i=0; i < enabledSampleStreamWrappers.length; i++) {
+      HlsSampleStreamWrapper wrapper = enabledSampleStreamWrappers[i];
+      if (wrapper != null) {
+        Log.d(TAG, "enabled wrapper " + i + " wrapper: " + wrapper);
+      }
+    }
     compositeSequenceableLoader =
         compositeSequenceableLoaderFactory.createCompositeSequenceableLoader(
             enabledSampleStreamWrappers);
