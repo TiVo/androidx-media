@@ -33,6 +33,17 @@ The figure from the Live Streaming document is helpful to visualize these variab
 
 - **Player.getCurrentLiveOffset()** &mdash; the difference between playback posistion converted to time since the Unix epoch and Current real-time
 
+The table below summarizes how the two parameters, *Default Start Position* and *Target Live Offset*, interact depending if they are specified explicity (server or user configuration) or defaulted.
+
+| Start Position | Target Live Offset | Description                                                  |
+| -------------- | ------------------ | ------------------------------------------------------------ |
+| specified      | specified          | **Both** values are used, if they are incongruent adjustment will work to<br />move position to the specifed *Target Live Offset*. |
+| specified      | defaulted          | *Target Live Offset* is derived from explicit start position |
+| defaulted      | specified          | Start position is derived from *Target Live Offset*:<br /> `Start = Target Live Offset - Playlist Live Edge Offset` |
+| defaulted      | defaulted          | *Target Live Offset* is derived from *implicit* start position (`3 * targetDuration`) |
+
+The following two sections go into greater detail on the steps to arrive at the final two values.
+
 #### Playlist Live Edge Offset
 
 This value is simply measured, it is **entirely** the result of the Origin / Edge server video encode latency plus playlist load network latency, there is nothing the client can do to affect this. 
