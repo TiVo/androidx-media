@@ -37,8 +37,8 @@ public final class DefaultTsPayloadReaderFactory implements TsPayloadReader.Fact
    * Flags controlling elementary stream readers' behavior. Possible flag values are {@link
    * #FLAG_ALLOW_NON_IDR_KEYFRAMES}, {@link #FLAG_IGNORE_AAC_STREAM}, {@link
    * #FLAG_IGNORE_H264_STREAM}, {@link #FLAG_DETECT_ACCESS_UNITS}, {@link
-   * #FLAG_IGNORE_SPLICE_INFO_STREAM}, {@link #FLAG_OVERRIDE_CAPTION_DESCRIPTORS} and {@link
-   * #FLAG_ENABLE_HDMV_DTS_AUDIO_STREAMS}.
+   * #FLAG_IGNORE_SPLICE_INFO_STREAM}, {@link #FLAG_OVERRIDE_CAPTION_DESCRIPTORS},
+   * {@link #FLAG_IGNORE_DEFAULT_ID3_TRACK}, and {@link #FLAG_ENABLE_HDMV_DTS_AUDIO_STREAMS}.
    */
   @Documented
   @Retention(RetentionPolicy.SOURCE)
@@ -51,6 +51,7 @@ public final class DefaultTsPayloadReaderFactory implements TsPayloadReader.Fact
         FLAG_DETECT_ACCESS_UNITS,
         FLAG_IGNORE_SPLICE_INFO_STREAM,
         FLAG_OVERRIDE_CAPTION_DESCRIPTORS,
+        FLAG_IGNORE_DEFAULT_ID3_TRACK,
         FLAG_ENABLE_HDMV_DTS_AUDIO_STREAMS
       })
   public @interface Flags {}
@@ -95,6 +96,11 @@ public final class DefaultTsPayloadReaderFactory implements TsPayloadReader.Fact
    * not be detected, as they share the same elementary stream type as HDMV DTS.
    */
   public static final int FLAG_ENABLE_HDMV_DTS_AUDIO_STREAMS = 1 << 6;
+
+  /**
+   * Prevents creation of default ID3 track for HLS stream
+   */
+  public static final int FLAG_IGNORE_DEFAULT_ID3_TRACK = 1 << 7;
 
   private static final int DESCRIPTOR_TAG_CAPTION_SERVICE = 0x86;
 
@@ -179,7 +185,9 @@ public final class DefaultTsPayloadReaderFactory implements TsPayloadReader.Fact
             ? null
             : new SectionReader(new PassthroughSectionPayloadReader(MimeTypes.APPLICATION_SCTE35));
       case TsExtractor.TS_STREAM_TYPE_ID3:
-        return new PesReader(new Id3Reader());
+        return isSet(FLAG_IGNORE_DEFAULT_ID3_TRACK)
+            ? null
+            : new PesReader(new Id3Reader());
       case TsExtractor.TS_STREAM_TYPE_DVBSUBS:
         return new PesReader(new DvbSubtitleReader(esInfo.dvbSubtitleInfos));
       case TsExtractor.TS_STREAM_TYPE_AIT:

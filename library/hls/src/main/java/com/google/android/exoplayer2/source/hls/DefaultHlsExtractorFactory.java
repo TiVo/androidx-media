@@ -213,6 +213,8 @@ public final class DefaultHlsExtractorFactory implements HlsExtractorFactory {
         payloadReaderFactoryFlags |= DefaultTsPayloadReaderFactory.FLAG_IGNORE_H264_STREAM;
       }
     }
+    // Force TsExtractor not to create defaut ID3 track
+    payloadReaderFactoryFlags |= DefaultTsPayloadReaderFactory.FLAG_IGNORE_DEFAULT_ID3_TRACK;
 
     return new TsExtractor(
         TsExtractor.MODE_HLS,
@@ -242,8 +244,11 @@ public final class DefaultHlsExtractorFactory implements HlsExtractorFactory {
     }
     // Only enable the EMSG TrackOutput if this is the 'variant' track (i.e. the main one) to avoid
     // creating a separate EMSG track for every audio track in a video stream.
+
+    // XXX: TiVo Change. Not enabling EMSG TrackOutput. Enabling EMSG downloads video segment even
+    // after disabling them
     return new FragmentedMp4Extractor(
-        /* flags= */ isFmp4Variant(format) ? FragmentedMp4Extractor.FLAG_ENABLE_EMSG_TRACK : 0,
+        /* flags= */ 0,
         timestampAdjuster,
         /* sideloadedTrack= */ null,
         muxedCaptionFormats != null ? muxedCaptionFormats : Collections.emptyList());
