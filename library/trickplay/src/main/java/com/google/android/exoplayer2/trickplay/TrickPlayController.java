@@ -52,6 +52,7 @@ class TrickPlayController implements TrickPlayControlInternal {
     private static final String TAG = "TrickPlayController";
 
     private static final int REACTION_TIME_FOR_OVERSHOOT = 250;       // ms jump for FR/FF reaction time correction
+    private static final int TUNNELING_MODE_SAFE_OFFSET_MS = 6000;
 
     private @MonotonicNonNull SimpleExoPlayer player;
     private final DefaultTrackSelector trackSelector;
@@ -716,13 +717,28 @@ class TrickPlayController implements TrickPlayControlInternal {
     @Override
     public long getLargestSafeSeekPositionMs() {
         Timeline timeline = player == null ? Timeline.EMPTY : player.getCurrentTimeline();
-        long duration = C.TIME_UNSET;
+        long largestSafeSeekPosition = C.TIME_UNSET;
+
+        // Last seekable is either the duration (VOD) or the start of the valid live edge,
+        // callee must make sure the timeline is valid and duration has been determined for the
+        // current window (after mediasouce is prepared).
+        //
         if (! timeline.isEmpty()) {
             Timeline.Window window = new Timeline.Window();
+            DefaultTrackSelector.Parameters trackSelectorParameters = trackSelector.getParameters();
             timeline.getWindow(player.getCurrentWindowIndex(), window);
-            duration = C.usToMs(window.isDynamic ? window.defaultPositionUs : window.durationUs);
+            largestSafeSeekPosition = C.usToMs(window.isDynamic ? window.defaultPositionUs : window.durationUs);
+
+            // In tunneling mode dont allow trick play till the end. Starting play
+            // back at end of video segment with misaligned or no audio segment in
+            // tunneling mode cause video decoder get stuck forever. Not allowing
+            // forward trick play in the last segment fixes this issue. The segment
+            // length is assumed to be 6 seconds.
+            if (trackSelectorParameters.tunnelingEnabled) {
+                largestSafeSeekPosition = (largestSafeSeekPosition > TUNNELING_MODE_SAFE_OFFSET_MS) ? largestSafeSeekPosition - TUNNELING_MODE_SAFE_OFFSET_MS : largestSafeSeekPosition;
+            }
         }
-        return duration;
+        return largestSafeSeekPosition;
     }
 
     @Override
@@ -1082,24 +1098,7 @@ class TrickPlayController implements TrickPlayControlInternal {
         long playbackPositionMs,
         TrickMode requestedMode) {
         boolean isPossible = true;
-
-        // Last seekable is either the duration (VOD) or the start of the valid live edge,
-        // callee must make sure the timeline is valid and duration has been determined for the
-        // current window (after mediasouce is prepared.
-        //
-        long lastSeekablePosition =
-            currentWindow.isDynamic ? C.usToMs(currentWindow.defaultPositionUs)
-                : C.usToMs(currentWindow.durationUs);
-
-        // In tunneling mode dont allow trick play till the end. Starting play
-        // back at end of video segment with misaligned or no audio segment in
-        // tunneling mode cause video decoder get stuck forever. Not allowing
-        // forward trick play in the last segment fixes this issue. The segment
-        // length is assumed to be 6 seconds.
-        DefaultTrackSelector.Parameters trackSelectorParameters = trackSelector.getParameters();
-        if (trackSelectorParameters.tunnelingEnabled) {
-            lastSeekablePosition = (lastSeekablePosition > 6000)?lastSeekablePosition - 6000:lastSeekablePosition;
-        }
+        long lastSeekablePosition = getLargestSafeSeekPositionMs();
 
         // TODO - trickplay reverse, as well as being behind the live window can leave the
         // TODO - current position negative, the code below works as expected in this case, but note well.
@@ -1116,7 +1115,6 @@ class TrickPlayController implements TrickPlayControlInternal {
                 isPossible = playbackPositionMs >= 1000;
                 break;
         }
-
         return isPossible;
     }
 
