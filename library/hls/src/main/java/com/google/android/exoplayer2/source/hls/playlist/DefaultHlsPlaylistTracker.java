@@ -59,6 +59,9 @@ public final class DefaultHlsPlaylistTracker
   public static final Factory FACTORY = DefaultHlsPlaylistTracker::new;
   private static final String TAG = "DefaultHlsPlaylistTracker";
 
+  public static boolean ENABLE_SNTP_TIME_SYNC = false;
+  public static boolean ENABLE_SNTP_TIME_SYNC_LOGGING = false;
+
   /**
    * Default coefficient applied on the target duration of a playlist to determine the amount of
    * time after which an unchanging playlist is considered stuck.
@@ -345,32 +348,36 @@ public final class DefaultHlsPlaylistTracker
   // Internal methods.
 
   private static void syncWithSntpBeforeLoad(Loader loader, SntpClient.InitializationCallback callback) {
-    boolean logUpdated = !SntpClient.isInitialized();
-    SntpClient.initialize(loader, new SntpClient.InitializationCallback() {
-      @Override
-      public void onInitialized() {
-        if (logUpdated) {
-          StringBuilder logString = new StringBuilder();
-          Formatter formatter = new Formatter(logString);
-          long currentTimeMillis = System.currentTimeMillis();
-          long ntpTimeMillis = Util.getNowUnixTimeMs(SntpClient.getElapsedRealtimeOffsetMs());
-          formatter.format(
-              "SntpClient init - System.currentTimeMillis(): %1$tFT%1$tT.%1$tL (%1$d), NTP Time: %2$tFT%2$tT.%2$tL (%2$d), delta %3$d",
-              currentTimeMillis,
-              ntpTimeMillis,
-              currentTimeMillis - ntpTimeMillis
-          );
-          Log.d(TAG, logString.toString());
+    if (ENABLE_SNTP_TIME_SYNC) {
+      boolean logUpdated = !SntpClient.isInitialized() && ENABLE_SNTP_TIME_SYNC_LOGGING;
+      SntpClient.initialize(loader, new SntpClient.InitializationCallback() {
+        @Override
+        public void onInitialized() {
+          if (logUpdated) {
+            StringBuilder logString = new StringBuilder();
+            Formatter formatter = new Formatter(logString);
+            long currentTimeMillis = System.currentTimeMillis();
+            long ntpTimeMillis = Util.getNowUnixTimeMs(SntpClient.getElapsedRealtimeOffsetMs());
+            formatter.format(
+                "SntpClient init - System.currentTimeMillis(): %1$tFT%1$tT.%1$tL (%1$d), NTP Time: %2$tFT%2$tT.%2$tL (%2$d), delta %3$d",
+                currentTimeMillis,
+                ntpTimeMillis,
+                currentTimeMillis - ntpTimeMillis
+            );
+            Log.d(TAG, logString.toString());
+          }
+          callback.onInitialized();
         }
-        callback.onInitialized();
-      }
 
-      @Override
-      public void onInitializationFailed(IOException error) {
-        Log.w(TAG, "NTP time init failed, use default system time", error);
-        callback.onInitializationFailed(error);
-      }
-    });
+        @Override
+        public void onInitializationFailed(IOException error) {
+          Log.w(TAG, "NTP time init failed, use default system time", error);
+          callback.onInitializationFailed(error);
+        }
+      });
+    } else {
+      callback.onInitialized();
+    }
   }
 
   private boolean maybeSelectNewPrimaryUrl() {

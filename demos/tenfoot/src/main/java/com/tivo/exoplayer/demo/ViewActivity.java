@@ -40,6 +40,7 @@ import com.google.android.exoplayer2.source.MediaSourceFactory;
 import com.google.android.exoplayer2.source.TrackGroupArray;
 import com.google.android.exoplayer2.source.UnrecognizedInputFormatException;
 import com.google.android.exoplayer2.source.hls.HlsMediaSource;
+import com.google.android.exoplayer2.source.hls.playlist.DefaultHlsPlaylistTracker;
 import com.google.android.exoplayer2.trackselection.DefaultTrackSelector;
 import com.google.android.exoplayer2.trackselection.ExoTrackSelection;
 import com.google.android.exoplayer2.trackselection.MappingTrackSelector;
@@ -321,6 +322,8 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
 
                 boolean fast_resync = getIntent().hasExtra(FAST_RESYNC);
                 if (fast_resync) {
+                  DefaultHlsPlaylistTracker.ENABLE_SNTP_TIME_SYNC = true;
+                  DefaultHlsPlaylistTracker.ENABLE_SNTP_TIME_SYNC_LOGGING = true;
                   float resyncPercentChange = getIntent().getFloatExtra(FAST_RESYNC, 0.0f) / 100.0f;
 
                   itemBuilder
