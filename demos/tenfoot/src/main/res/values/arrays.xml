@@ -1,14 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
   <string-array name="video_urls">
+    <item>http://alviso.hqhe.speedtest.tivo.com/kpix-clean-vtp/index.m3u8</item>    <!-- Golden TrickPlay asset -->
+    <item>http://frumos01.tivo.com/rolling-buffer/kqedplus/kqedplus/transmux/index.m3u8</item>
     <item>http://live1.nokia.tivo.com/kqedplus/vxfmt=dp/playlist.m3u8?device_profile=hlsclr</item>
     <item>http://frumos.tivo.com/rolling-buffer/media/kqed/kqed/transmux/index.m3u8</item>
     <item>http://frumos.tivo.com/rolling-buffer/media/ktvu/ktvu/transmux/index.m3u8</item>
     <!-- DASH Test URLS -->
-    <item>http://live2.nokia.tivo.com/live2_ktvu/vxfmt=dp/Manifest.mpd?device_profile=dashclr</item>
-    <item>http://frumos.tivo.com/rolling-buffer/media/ktvu/ktvu/transmux/index.mpd</item>
-    <item>http://frumos.tivo.com/rolling-buffer/media/kntv/kntv/transmux/index.mpd</item>
-    <item>https://cmafref.akamaized.net/cmaf/live-ull/2006350/akambr/out.mpd</item>
+<!--    <item>http://live2.nokia.tivo.com/live2_ktvu/vxfmt=dp/Manifest.mpd?device_profile=dashclr</item>-->
+<!--    <item>http://frumos.tivo.com/rolling-buffer/media/ktvu/ktvu/transmux/index.mpd</item>-->
+<!--    <item>http://frumos.tivo.com/rolling-buffer/media/kntv/kntv/transmux/index.mpd</item>-->
+<!--    <item>https://cmafref.akamaized.net/cmaf/live-ull/2006350/akambr/out.mpd</item>-->
   </string-array>
   <string-array name="encryption_type">
     <item>none</item>

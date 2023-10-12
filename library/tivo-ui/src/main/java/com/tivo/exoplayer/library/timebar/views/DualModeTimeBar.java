@@ -1,4 +1,4 @@
-package com.tivo.exoplayer.demo;
+package com.tivo.exoplayer.library.timebar.views;
 
 import android.content.Context;
 import android.content.res.Resources;
@@ -6,9 +6,9 @@ import android.graphics.drawable.Drawable;
 import android.os.Build;
 import android.util.AttributeSet;
 import android.view.KeyEvent;
-import android.widget.Checkable;
 import androidx.annotation.Nullable;
 
+import com.tivo.exoplayer.library.R;
 import java.util.concurrent.CopyOnWriteArraySet;
 
 import com.google.android.exoplayer2.C;
@@ -19,15 +19,35 @@ public class DualModeTimeBar extends DefaultTimeBar {
     private static final String TAG = "DualModeTimebar";
     private static final boolean REVERSE_LONG_PRESS_TRIGGER_ENABLED = true;
     private KeyEvent lastDownKeyEvent = null;
-    private long longPressThreshold = C.TIME_UNSET;
-    private final CopyOnWriteArraySet<PressEventHandler> listeners = new CopyOnWriteArraySet<>();
-    private static final int[] CHECKED_STATE_SET = { android.R.attr.state_checked };
-    private boolean checked;        // Used to store play/pause state.
+    private long longPressThreshold = Long.MAX_VALUE;
+    private final CopyOnWriteArraySet<KeyEventHandler> listeners = new CopyOnWriteArraySet<>();
 
-    interface PressEventHandler {
-        default boolean handlePress(DualModeTimeBar timeBar, KeyEvent event) { return false; }
-        default boolean handleLongPress(DualModeTimeBar timeBar, KeyEvent event) { return false; }
-        void longPressEnded(DualModeTimeBar timeBar);
+    /**
+     * Call-backs to handle KeyEvent's when the DefaultTimeBar has focus.
+     */
+    public interface KeyEventHandler {
+
+        /**
+         * Called for all {@link KeyEvent#ACTION_DOWN} events when the timebar is enabled
+         * and the event is not determined to be a long press that is a navigation key
+         *
+         * @param timeBar active timebar
+         * @param event the keyevent
+         * @return true if the event was handled and {@link DefaultTimeBar#onKeyDown(int, KeyEvent)} should
+         *         <b>not</b> be called.
+         */
+        boolean handlePress(DualModeTimeBar timeBar, KeyEvent event);
+
+        /**
+         * Override this method to respond to the long press, this method is called if the key
+         * is held passed the value set to {@link DualModeTimeBar#setLongPressThreshold(long)}.
+         * If the time value is not set this method is never called.
+         *
+         * @param timeBar the focused {@link DualModeTimeBar} that received the event
+         * @param event the event received
+         */
+        default void handleLongPress(DualModeTimeBar timeBar, KeyEvent event) {};
+        default void longPressEnded(DualModeTimeBar timeBar) {}
     }
     public DualModeTimeBar(Context context) {
         this(context, null);
@@ -86,6 +106,11 @@ public class DualModeTimeBar extends DefaultTimeBar {
         return isHorizontal && isHoldTimeThresholdHit;
     }
 
+    /**
+     * Set key down hold time required to trigger long press, default is infinite (no long press)
+     *
+     * @param timeMs if hold time is greater than this value it is a long press
+     */
     public void setLongPressThreshold(long timeMs) {
         longPressThreshold = timeMs;
     }
@@ -98,12 +123,25 @@ public class DualModeTimeBar extends DefaultTimeBar {
         return lastDownKeyEvent;
     }
 
-    public void addLongPressListener(PressEventHandler listener) {
+    public void addPressListener(KeyEventHandler listener) {
         listeners.add(listener);
     }
 
-    public void removeLongPressListener(PressEventHandler listener) {
+    public void removePressListener(KeyEventHandler listener) {
         listeners.remove(listener);
+    }
+
+    /**
+     * The {@link DefaultTimeBar#stopScrubbing(boolean)} method triggers undesirable behavior
+     * in the {@link com.google.android.exoplayer2.ui.PlayerControlView} where it seeks to
+     * the current displayed scubber position rather than honoring the current displayed frame.
+     * Setting cancled to true disables this rouge behavior.
+     *
+     * @param canceled - ignored
+     */
+    @Override
+    protected void stopScrubbing(boolean canceled) {
+        super.stopScrubbing(true);
     }
 
     @Override
@@ -116,12 +154,12 @@ public class DualModeTimeBar extends DefaultTimeBar {
                 if (scrubbing) {
                     stopScrubbing(true);
                 }
-                for (PressEventHandler listener : listeners) {
+                for (KeyEventHandler listener : listeners) {
                     listener.handleLongPress(this, lastDownKeyEvent);
                 }
                 handled = true;
-            } else if (! scrubbing) {
-                for (PressEventHandler listener : listeners) {
+            } else {
+                for (KeyEventHandler listener : listeners) {
                     handled |= listener.handlePress(this, event);
                 }
             }
@@ -142,7 +180,7 @@ public class DualModeTimeBar extends DefaultTimeBar {
 
     private boolean resetLongPress() {
         lastDownKeyEvent = null;
-        for (PressEventHandler listener : listeners) {
+        for (KeyEventHandler listener : listeners) {
             listener.longPressEnded(this);
         }
         return true;

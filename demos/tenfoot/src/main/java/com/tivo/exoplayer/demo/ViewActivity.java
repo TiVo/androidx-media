@@ -6,6 +6,7 @@ import android.app.AlertDialog;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.content.res.Resources;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
@@ -56,6 +57,12 @@ import com.streamingmediainsights.smiclientsdk.SMIClientSdk;
 import com.streamingmediainsights.smiclientsdk.SMIEventCallbackListener;
 import com.streamingmediainsights.smiclientsdk.SMISimpleExoPlayer;
 import com.tivo.android.utils.SystemUtils;
+import com.tivo.exoplayer.library.timebar.controllers.BaseTimeBarViewHandler;
+import com.tivo.exoplayer.library.timebar.controllers.DPadToTransportBaseTimeBarViewHandler;
+import com.tivo.exoplayer.library.timebar.controllers.HoldTimeChangesSpeedTimeBarViewHandler;
+import com.tivo.exoplayer.library.timebar.controllers.ScrubOnlyTimeBarViewHandler;
+import com.tivo.exoplayer.library.timebar.controllers.TransportControlHandler;
+import com.tivo.exoplayer.library.timebar.views.DualModeTimeBar;
 import com.tivo.exoplayer.library.DrmInfo;
 import com.tivo.exoplayer.library.GeekStatsOverlay;
 import com.tivo.exoplayer.library.OutputProtectionMonitor;
@@ -94,10 +101,9 @@ import java.util.HashMap;
  * The activity plays either a single URL (intent data is simply a string with the URL) or a list of URL's
  * (intent data "uri_list" is a list of URL's).  Switching URL's is via the channel up/down buttons (
  */
-public class ViewActivity extends AppCompatActivity implements PlayerControlView.VisibilityListener {
+public class ViewActivity extends AppCompatActivity {
 
   public static final String TAG = "ExoDemo";
-  private static final boolean USE_DEFAULTS_SCRUB_BEHAVIOR = false;
   private PlayerView playerView;
 
   private boolean isShowingTrackSelectionDialog;
@@ -139,6 +145,11 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
 
   public static final String ENABLE_TRUSTREME_LOGGING = "enable_trustreme_logging";
 
+  private static final String SCRUB_BEHAVIOR = "scrub_behavior";
+  public static final String BEHAVIOR_SCRUB_ONLY = "scrub_only";
+  public static final String BEHAVIOR_SCRUB_LP_VTP = "scrub_lp_vtp";
+  public static final String BEHAVIOR_SCRUB_DPAD_MORPH = "scrub_dpad_morph";
+
   protected Uri[] uris;
 
   private int currentChannel;
@@ -150,32 +161,7 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
   private PlaybackMetricsManagerApi statsManager;
   private Toast errorRecoveryToast;
 
-
-  private class ScrubHandler implements TimeBar.OnScrubListener {
-
-    private final TrickPlayControl control;
-
-    ScrubHandler(TrickPlayControl control) {
-      this.control = control;
-    }
-
-    @Override
-    public void onScrubStart(TimeBar timeBar, long position) {
-      control.setTrickMode(TrickPlayControl.TrickMode.SCRUB);
-    }
-
-    @Override
-    public void onScrubMove(TimeBar timeBar, long position) {
-      control.scrubSeek(position);
-    }
-
-    @Override
-    public void onScrubStop(TimeBar timeBar, long position, boolean canceled) {
-      control.setTrickMode(TrickPlayControl.TrickMode.NORMAL);
-    }
-  }
-
-  private @Nullable TimeBar.OnScrubListener currentScrubHandler;
+  private @Nullable BaseTimeBarViewHandler timeBarViewHandler;
 
   private OutputProtectionMonitor outputProtectionMonitor;
 
@@ -393,10 +379,9 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
     geekStats = new GeekStatsOverlay(debugContainer);
 
     playerView = findViewById(R.id.player_view);
-    playerView.setControllerVisibilityListener(this);
     playerView.setShowBuffering(PlayerView.SHOW_BUFFERING_WHEN_PLAYING);
     timeBar = playerView.findViewById(R.id.exo_progress);
-    timeBar.setKeyTimeIncrement(1_000);
+    timeBar.setKeyTimeIncrement(2_000);
     playerView.setControllerAutoShow(false);
     playerView.setControllerShowTimeoutMs(-1);
 
@@ -416,7 +401,7 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
       });
     }
 
-    transportControlHandler = new TransportControlHandler(playerView, context);
+    transportControlHandler = new TransportControlHandler(playerView, context, false);
 
     // Subtitle view.
     // set "defaults", which it fetches CaptioningManager
@@ -443,6 +428,13 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
             Log.i(TAG, "Output protection is: " + (isSecure ? "ON" : "OFF"));
 
     outputProtectionMonitor = new OutputProtectionMonitor(context, OutputProtectionMonitor.HDCP_1X, opmStateCallback);
+
+    View v = getCurrentFocus();
+    if (v != null) {
+      String viewName = getResources().getResourceEntryName(v.getId());
+      Log.d(TAG, "View " + viewName + " has initial focus");
+    }
+    setFocusChangeListeners(activityView);
   }
 
   @Override
@@ -476,7 +468,12 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
           if (intent.getBooleanExtra(SEEK_UNSAFE, false)) {
             player.seekTo(seekTo);
           } else {
-            boundedSeekTo(player, trickPlayControl, seekTo);
+            long targetPositionMs = seekTo;
+            if (targetPositionMs != C.TIME_UNSET) {
+              targetPositionMs = Math.min(targetPositionMs, trickPlayControl.getLargestSafeSeekPositionMs());
+            }
+            targetPositionMs = Math.max(targetPositionMs, 0);
+            player.seekTo(targetPositionMs);
           }
           if (savedParams != null) {
             player.setSeekParameters(savedParams);
@@ -517,16 +514,29 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
     player.setAudioAttributes(AudioAttributes.DEFAULT,true);
     TrickPlayControl trickPlayControl = exoPlayerFactory.getCurrentTrickPlayControl();
 
-    if (USE_DEFAULTS_SCRUB_BEHAVIOR) {
-      currentScrubHandler = new ScrubHandler(trickPlayControl);
-    } else {
-      TimeBarViewHandler timeBarViewHandler = new TimeBarViewHandler(trickPlayControl, playerView);
-      player.addListener(timeBarViewHandler);
-      timeBarViewHandler.setPlayer(player);
+    String scrubBehavior = getIntent().getStringExtra(SCRUB_BEHAVIOR);
+    scrubBehavior = scrubBehavior == null ? "" : scrubBehavior;
+
+    if (timeBar instanceof DualModeTimeBar) {
+      DualModeTimeBar dualModeTimeBar = (DualModeTimeBar) timeBar;
+      switch (scrubBehavior) {
+        case BEHAVIOR_SCRUB_ONLY:
+          timeBarViewHandler = new ScrubOnlyTimeBarViewHandler(trickPlayControl, playerView, dualModeTimeBar, player);
+          break;
+
+        case BEHAVIOR_SCRUB_LP_VTP:
+          timeBarViewHandler = new HoldTimeChangesSpeedTimeBarViewHandler(trickPlayControl, playerView, dualModeTimeBar, player);
+          break;
+
+        default:
+        case BEHAVIOR_SCRUB_DPAD_MORPH:
+          timeBarViewHandler = new DPadToTransportBaseTimeBarViewHandler(trickPlayControl, playerView, dualModeTimeBar, player, 2_000);
+          break;
+      }
       playerControlView.setProgressUpdateListener(timeBarViewHandler);
-      currentScrubHandler = timeBarViewHandler;
+    } else {
+      Log.d(TAG, "ignore scrub behvior for non-dual mode timebar");
     }
-    timeBar.addListener(currentScrubHandler);
 
     // If request is for FAST_RECYNC, turn on debug logging in GeekStats
     geekStats.setEnableLiveOffsetLogging(getIntent().hasExtra(FAST_RESYNC));
@@ -582,10 +592,10 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
        playerView.onPause();
      }
 
-     if (currentScrubHandler != null) {
-       timeBar.removeListener(currentScrubHandler);
+     if (timeBarViewHandler != null) {
+      timeBarViewHandler.playerDestroyed();
      }
-     currentScrubHandler = null;
+     timeBarViewHandler = null;
      playerControlView.setProgressUpdateListener(null);
      transportControlHandler.playerDestroyed();
 
@@ -625,16 +635,7 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
     }
   }
 
-// PlayerView listener
-
-  @Override
-  public void onVisibilityChange(int visibility) {
-    isTrickPlaybarShowing = visibility == View.VISIBLE;
-  }
-
-  // Internal
-
-  private boolean boundedSeekTo(SimpleExoPlayer player,
+  public static boolean boundedSeekTo(SimpleExoPlayer player,
       TrickPlayControl trickPlayControl,
       long targetPositionMs) {
     if (targetPositionMs != C.TIME_UNSET) {
@@ -648,22 +649,45 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
 
   // UI
 
+  /**
+   * Handle keys at the activity level. before they are dispatched to the Window
+   * (and thus any focused View children thereof.
+   *
+   * Here global keys (transport control, back, channel up/down) are handled, if they
+   * are handled here returns true to stop dipatch to the child views.
+   *
+   * @param event The key event.
+   *
+   * @return true or call super to dispatch to child views.
+   */
   @Override
   public boolean dispatchKeyEvent(KeyEvent event) {
     boolean handled = false;
-    if (playerView != null) {
+    if (playerView != null && timeBarViewHandler != null) {
+      boolean isTrickPlaybarShowing = playerView.isControllerVisible();
+      Log.d(TAG, "dispatchKeyEvent() - isTrickPlaybarShowing: " + isTrickPlaybarShowing + " event: " + event + " focus: " + getCurrentFocus());
       if (exoPlayerFactory.getCurrentPlayer() != null) {
-        handled = handled || transportControlHandler.handleFunctionKeys(event);
-        handled = handled || processViewKey(event);
+        handled = transportControlHandler.handleFunctionKeys(event);
+        handled = handled || processActivityGlobalKey(event);
 
+
+        // Events not handled by the transport control handler or the other activity level global keys handled below.
+        // Initial event with trickplay bar not showing, shows it and pauses playback with bar focused.
+        // DPAD up when trickplay bar is focused is essentially the "exit" (there is no focusable component above the bar, so
+        // hide control.
+        //
         if (! handled && event.getAction() == KeyEvent.ACTION_DOWN) {
-          if (event.getKeyCode() == KeyEvent.KEYCODE_BACK && isTrickPlaybarShowing) {
-            playerView.hideController();
-            exoPlayerFactory.getCurrentPlayer().setPlayWhenReady(true);
+          if (event.getKeyCode() == KeyEvent.KEYCODE_BACK) {
+            if (isTrickPlaybarShowing) {
+              playerView.hideController();
+              handled = true;
+            }
+          } else if (!isTrickPlaybarShowing && timeBarViewHandler.showForEvent(event)) {
+            playerView.showController();
+            playerControlView.requestFocus();
             handled = true;
-          } else if (! isTrickPlaybarShowing) {
-            focusAndShowControls();
           }
+
         }
       }
     }
@@ -673,12 +697,7 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
     return handled;
   }
 
-  private void focusAndShowControls() {
-    playerView.showController();
-    playerControlView.requestFocus();
-  }
-
-  public boolean processViewKey(KeyEvent event) {
+  private boolean processActivityGlobalKey(KeyEvent event) {
     boolean handled = false;
     Uri nextChannel = null;
 
@@ -691,8 +710,10 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
       switch (keyCode) {
 
         case KeyEvent.KEYCODE_INFO:
-          toggleTrickPlayBar();
-          handled = true;
+          if (timeBarViewHandler != null) {
+            timeBarViewHandler.toggleTrickPlayBar();
+            handled = true;
+          }
           break;
 
         case KeyEvent.KEYCODE_0:
@@ -715,49 +736,20 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
           handled = true;
           break;
 
-          case KeyEvent.KEYCODE_3:
-            trickPlayControl.setTrickMode(TrickPlayControl.TrickMode.FF1);
-            handled = true;
-            break;
-
-          case KeyEvent.KEYCODE_1:
-            trickPlayControl.setTrickMode(TrickPlayControl.TrickMode.FR1);
-            handled = true;
-            break;
-
-          case KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE:
-          case KeyEvent.KEYCODE_2:
-            if (trickPlayControl.getCurrentTrickMode() != TrickPlayControl.TrickMode.NORMAL) {
-              trickPlayControl.setTrickMode(TrickPlayControl.TrickMode.NORMAL);
-              handled = true;
-            }
-            break;
-
-          case KeyEvent.KEYCODE_6:
-            trickPlayControl.setTrickMode(TrickPlayControl.TrickMode.FF2);
-            handled = true;
-            break;
-
-          case KeyEvent.KEYCODE_4:
-            trickPlayControl.setTrickMode(TrickPlayControl.TrickMode.FR2);
-            handled = true;
-            break;
-
-          case KeyEvent.KEYCODE_5:
+        case KeyEvent.KEYCODE_5:
 //            exoPlayerFactory.setRendererState(C.TRACK_TYPE_AUDIO, ! isAudioRenderOn);
 //            isAudioRenderOn = ! isAudioRenderOn;
 
             List<TrackInfo> allAudioTracks = exoPlayerFactory.getAvailableAudioTracks();
-            List<TrackInfo> audioTracks = allAudioTracks;
-            if (trackSelector instanceof SyncVideoTrackSelector) {
-              SyncVideoTrackSelector syncVideoTrackSelector = (SyncVideoTrackSelector) trackSelector;
-              audioTracks = new ArrayList<>();
-              for (TrackInfo info : allAudioTracks) {
-                if (!syncVideoTrackSelector.getEnableTrackFiltering() || SyncVideoTrackSelector.isSupportedAudioFormatForSyncVideo(info.format)) {
-                  audioTracks.add(info);
+              List<TrackInfo> audioTracks = allAudioTracks;
+              if (trackSelector instanceof SyncVideoTrackSelector) {
+                SyncVideoTrackSelector syncVideoTrackSelector = (SyncVideoTrackSelector) trackSelector;audioTracks = new ArrayList<>();
+                for (TrackInfo info : allAudioTracks) {
+                  if (!syncVideoTrackSelector.getEnableTrackFiltering() ||SyncVideoTrackSelector.isSupportedAudioFormatForSyncVideo(info.format)) {
+                    audioTracks.add(info);
+                  }
                 }
               }
-            }
             if (audioTracks.size() > 0) {
               DialogFragment dialog =
                   TrackInfoSelectionDialog
@@ -767,58 +759,53 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
             handled = true;
             break;
 
-          case KeyEvent.KEYCODE_8:
-            List<TrackInfo> textTracks = exoPlayerFactory.getAvailableTextTracks();
-            if (textTracks.size() > 0) {
-              DialogFragment dialog =
-                  TrackInfoSelectionDialog
-                      .createForChoices("Select Text", textTracks, exoPlayerFactory);
-              dialog.show(getSupportFragmentManager(), null);
-            }
-            handled = true;
-            break;
+        case KeyEvent.KEYCODE_8:
+          List<TrackInfo> textTracks = exoPlayerFactory.getAvailableTextTracks();
+          if (textTracks.size() > 0) {
+            DialogFragment dialog =
+                TrackInfoSelectionDialog
+                    .createForChoices("Select Text", textTracks, exoPlayerFactory);
+            dialog.show(getSupportFragmentManager(), null);
+          }
+          handled = true;
+          break;
 
-          case KeyEvent.KEYCODE_9:
-            trickPlayControl.setTrickMode(TrickPlayControl.TrickMode.FF3);
-            handled = true;
-            break;
+        case KeyEvent.KEYCODE_CHANNEL_DOWN:
+          if (channelUris != null) {
+            currentChannel = (currentChannel + (channelUris.length - 1)) % channelUris.length;
+            nextChannel = channelUris[currentChannel];
+            Log.d(TAG, "Channel change down to: " + nextChannel);
+          }
+          handled = true;
+          break;
+        case KeyEvent.KEYCODE_CHANNEL_UP:
+          if (channelUris != null) {
+            currentChannel = (currentChannel + 1) % channelUris.length;
+            nextChannel = channelUris[currentChannel];
+            Log.d(TAG, "Channel change up to: " + nextChannel);
+          }
+          handled = true;
+          break;
 
-          case KeyEvent.KEYCODE_7:
-            trickPlayControl.setTrickMode(TrickPlayControl.TrickMode.FR3);
-            handled = true;
-            break;
-
-          case KeyEvent.KEYCODE_CHANNEL_DOWN:
-            if (channelUris != null) {
-              currentChannel = (currentChannel + (channelUris.length - 1)) % channelUris.length;
-              nextChannel = channelUris[currentChannel];
-              Log.d(TAG, "Channel change down to: " + nextChannel);
-            }
-            handled = true;
-            break;
-          case KeyEvent.KEYCODE_CHANNEL_UP:
-            if (channelUris != null) {
-              currentChannel = (currentChannel + 1) % channelUris.length;
-              nextChannel = channelUris[currentChannel];
-              Log.d(TAG, "Channel change up to: " + nextChannel);
-            }
-            handled = true;
-            break;
-
-          case KeyEvent.KEYCODE_LAST_CHANNEL:
-              Timeline timeline = player.getCurrentTimeline();
-              if (! timeline.isEmpty()) {
-                Timeline.Window window = timeline.getWindow(player.getCurrentWindowIndex(), new Timeline.Window());
-                boundedSeekTo(player, trickPlayControl , trickPlayControl.getLargestSafeSeekPositionMs() - 3000);
+        case KeyEvent.KEYCODE_LAST_CHANNEL:
+            Timeline timeline = player.getCurrentTimeline();
+            if (! timeline.isEmpty()) {
+              Timeline.Window window = timeline.getWindow(player.getCurrentWindowIndex(), new Timeline.Window());
+              long targetPositionMs = trickPlayControl.getLargestSafeSeekPositionMs() - 3000;
+              if (targetPositionMs != C.TIME_UNSET) {
+                targetPositionMs = Math.min(targetPositionMs, trickPlayControl.getLargestSafeSeekPositionMs());
               }
-              handled = true;
-              break;
-
-          default:
+              targetPositionMs = Math.max(targetPositionMs, 0);
+              player.seekTo(targetPositionMs);
+            }
+            handled = true;
             break;
-        }
 
-        if (nextChannel != null) {
+        default:
+          break;
+      }
+
+      if (nextChannel != null) {
           playUri(nextChannel);
       }
     }
@@ -863,13 +850,6 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
     }
   }
 
-  private void toggleTrickPlayBar() {
-    if (isTrickPlaybarShowing) {
-      playerView.hideController();
-    } else {
-      playerView.showController();
-    }
-  }
 
   @Override
   public boolean onKeyLongPress(int keyCode, KeyEvent event) {
@@ -941,6 +921,25 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
 
 
   // Internal methods
+
+
+  private void setFocusChangeListeners(View view) {
+    view.setOnFocusChangeListener((v, hasFocus) -> {
+      String viewId;
+      try {
+        viewId = getResources().getResourceEntryName(v.getId());
+      } catch (Resources.NotFoundException e) {
+        viewId = v.toString();
+      }
+      Log.d(TAG, "View " + viewId + " has focus: " + hasFocus);
+    });
+    if (view instanceof ViewGroup) {
+      ViewGroup viewGroup = (ViewGroup) view;
+      for (int i = 0; i < viewGroup.getChildCount(); i++) {
+        setFocusChangeListeners(viewGroup.getChildAt(i));
+      }
+    }
+  }
 
   private void processIntent(Intent intent) {
     String action = intent.getAction();

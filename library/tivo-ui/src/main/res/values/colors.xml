@@ -4,4 +4,10 @@
     <color name="colorBandwidth">#FF9dd6f9</color>
     <color name="colorLevel">#FFff7373</color>
     <color name="colorBuffered">#FF00ffff</color>
+
+    <!-- trickplay bar colors -->
+    <color name="tpUnplayedColor">#9A191717</color>
+    <color name="tpScrubberColor">#CE787C73</color>
+    <color name="tpPlayedColor">#00B8D4</color>
+    <color name="tpBufferedColor">#00BFA5</color>
 </resources>

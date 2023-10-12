@@ -26,6 +26,7 @@ android {
     defaultConfig {
         buildConfigField "String", "BUILD_NUMBER", "\"${buildNumber}\""
         buildConfigField "String", "GIT_HASH", "\"${gitCommitHash}\""
+        vectorDrawables.useSupportLibrary = "true"
     }
 
     lintOptions {

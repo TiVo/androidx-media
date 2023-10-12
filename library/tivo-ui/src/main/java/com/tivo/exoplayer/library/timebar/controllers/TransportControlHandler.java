@@ -1,4 +1,4 @@
-package com.tivo.exoplayer.demo;
+package com.tivo.exoplayer.library.timebar.controllers;
 
 import android.content.Context;
 import android.graphics.drawable.AnimatedVectorDrawable;
@@ -13,7 +13,9 @@ import com.google.android.exoplayer2.trickplay.TrickPlayControl;
 import com.google.android.exoplayer2.trickplay.TrickPlayEventListener;
 import com.google.android.exoplayer2.ui.PlayerControlView;
 import com.google.android.exoplayer2.util.Log;
-import com.tivo.exoplayer.demo.views.PlaybackStateImageView;
+import com.google.android.exoplayer2.util.Util;
+import com.tivo.exoplayer.library.R;
+import com.tivo.exoplayer.library.timebar.views.PlaybackStateImageView;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -22,7 +24,7 @@ import java.util.Map;
  * Manages the View state for the Trick-Play control buttons, transport (Play/Pause) focus
  * and scrub bar, and transport buttons
  */
-public class TransportControlHandler implements TrickPlayEventListener, Player.EventListener {
+public class TransportControlHandler implements TrickPlayEventListener, Player.Listener {
     private static final String TAG = "TransportControlHandler";
     private final View timeBar;
     private final ImageButton ffButton;
@@ -30,7 +32,6 @@ public class TransportControlHandler implements TrickPlayEventListener, Player.E
     private final Map<TrickPlayControl.TrickMode, Drawable> trickPlayButtonImages;
     private TrickPlayControl trickPlayControl;
     private SimpleExoPlayer player;
-    private ButtonListener handler;
     private final PlaybackStateImageView playbackStateView;
 
     private class ButtonListener implements View.OnClickListener {
@@ -39,21 +40,67 @@ public class TransportControlHandler implements TrickPlayEventListener, Player.E
         public void onClick(View v) {
             if (player != null) {
                 if (v == ffButton) {
-                    handleFastForward();
+                    switch (trickPlayControl.getCurrentTrickMode()) {
+                        case FF1:
+                            trickPlayControl.setTrickMode(TrickPlayControl.TrickMode.FF2);
+                            break;
+
+                        case FF2:
+                            trickPlayControl.setTrickMode(TrickPlayControl.TrickMode.FF3);
+                            break;
+
+                        case FF3:
+                            trickPlayControl.setTrickMode(TrickPlayControl.TrickMode.SCRUB);
+                            break;
+
+                        default:
+                            trickPlayControl.setTrickMode(TrickPlayControl.TrickMode.FF1);
+                            break;
+                    }
+                    if (trickPlayControl.getCurrentTrickDirection() == TrickPlayControl.TrickPlayDirection.SCRUB) {
+                        timeBar.requestFocus();
+                    }
                 } else if (v == rwdButton) {
-                    handleRewind();
+                    switch (trickPlayControl.getCurrentTrickMode()) {
+                        case FR1:
+                            trickPlayControl.setTrickMode(TrickPlayControl.TrickMode.FR2);
+                            break;
+
+                        case FR2:
+                            trickPlayControl.setTrickMode(TrickPlayControl.TrickMode.FR3);
+                            break;
+
+                        case FR3:
+                            trickPlayControl.setTrickMode(TrickPlayControl.TrickMode.SCRUB);
+                            break;
+
+                        default:
+                            trickPlayControl.setTrickMode(TrickPlayControl.TrickMode.FR1);
+                            break;
+                    }
+                    if (trickPlayControl.getCurrentTrickDirection() == TrickPlayControl.TrickPlayDirection.SCRUB) {
+                        timeBar.requestFocus();
+                    }
                 }
             }
         }
     }
 
-    public TransportControlHandler(View playerView, Context context) {
+    public TransportControlHandler(View playerView, Context context, boolean includeFastPlayButtons) {
         ffButton = playerView.findViewById(R.id.fast_forward);
         rwdButton = playerView.findViewById(R.id.rewind);
 
-        handler = new ButtonListener();
-        ffButton.setOnClickListener(handler);
-        rwdButton.setOnClickListener(handler);
+        if (includeFastPlayButtons) {
+            ButtonListener handler = new ButtonListener();
+            ffButton.setOnClickListener(handler);
+            rwdButton.setOnClickListener(handler);
+        } else {
+            ffButton.setVisibility(View.GONE);
+            ffButton.setEnabled(false);
+            rwdButton.setVisibility(View.GONE);
+            rwdButton.setEnabled(false);
+        }
+
         trickPlayButtonImages = new HashMap<>();
 
         trickPlayButtonImages.put(TrickPlayControl.TrickMode.FF1, context.getDrawable(R.drawable.ic_fwd_1_x));
@@ -79,49 +126,6 @@ public class TransportControlHandler implements TrickPlayEventListener, Player.E
         player.removeListener(this);
         player = null;
         trickPlayControl = null;
-    }
-
-
-    private void handleRewind() {
-        switch (trickPlayControl.getCurrentTrickMode()) {
-            case FR1:
-                trickPlayControl.setTrickMode(TrickPlayControl.TrickMode.FR2);
-                break;
-
-            case FR2:
-                trickPlayControl.setTrickMode(TrickPlayControl.TrickMode.FR3);
-                break;
-
-            case FR3:
-                trickPlayControl.setTrickMode(TrickPlayControl.TrickMode.NORMAL);
-                timeBar.requestFocus();
-                break;
-
-            default:
-                trickPlayControl.setTrickMode(TrickPlayControl.TrickMode.FR1);
-                break;
-        }
-    }
-
-    private void handleFastForward() {
-        switch (trickPlayControl.getCurrentTrickMode()) {
-            case FF1:
-                trickPlayControl.setTrickMode(TrickPlayControl.TrickMode.FF2);
-                break;
-
-            case FF2:
-                trickPlayControl.setTrickMode(TrickPlayControl.TrickMode.FF3);
-                break;
-
-            case FF3:
-                trickPlayControl.setTrickMode(TrickPlayControl.TrickMode.NORMAL);
-                timeBar.requestFocus();
-                break;
-
-            default:
-                trickPlayControl.setTrickMode(TrickPlayControl.TrickMode.FF1);
-                break;
-        }
     }
 
     // TrickplayEventHandler
@@ -173,45 +177,19 @@ public class TransportControlHandler implements TrickPlayEventListener, Player.E
     public boolean handleFunctionKeys(KeyEvent event) {
         boolean handled = false;
 
-        if (trickPlayControl == null || player == null) {
-            handled = false;
-        } else {
+        if (trickPlayControl != null && player != null) {
 
             if (event.getAction() == KeyEvent.ACTION_UP) {
                 int keyCode = event.getKeyCode();
 
                 switch (keyCode) {
                     case KeyEvent.KEYCODE_MEDIA_STEP_FORWARD:
-
-                        long targetPositionMs = player.getCurrentPosition();
-
-                        int currentPositionMinutes = (int) Math.floor(player.getCurrentPosition() / 60_000);
-                        int minutesIntoPeriod = currentPositionMinutes % 15;
-                        switch (trickPlayControl.getCurrentTrickDirection()) {
-                            case FORWARD:
-                                targetPositionMs = (currentPositionMinutes + (15 - minutesIntoPeriod)) * 60_000;
-                                break;
-
-                            case REVERSE:
-                                targetPositionMs = (currentPositionMinutes - (15 - minutesIntoPeriod)) * 60_000;
-                                break;
-
-                            case NONE:
-                                targetPositionMs = player.getCurrentPosition() + 20_000;
-                                break;
-                        }
-
-                        ViewActivity.boundedSeekTo(player, trickPlayControl, targetPositionMs);
-
-                        handled = true;
-
+                    case KeyEvent.KEYCODE_MEDIA_SKIP_FORWARD:
+                        handled = skipBySeconds(player, trickPlayControl, 30);
                         break;
 
                     case KeyEvent.KEYCODE_MEDIA_STEP_BACKWARD:
-                        if (trickPlayControl.getCurrentTrickMode() == TrickPlayControl.TrickMode.NORMAL) {
-                            ViewActivity.boundedSeekTo(player, trickPlayControl, player.getContentPosition() - 20_000);
-                        }
-                        handled = true;
+                        handled = skipBySeconds(player, trickPlayControl, -15);
                         break;
 
                     case KeyEvent.KEYCODE_MEDIA_FAST_FORWARD:
@@ -260,22 +238,18 @@ public class TransportControlHandler implements TrickPlayEventListener, Player.E
         return handled;
     }
 
-    // Player.EventListener
+    // Player.Listener
+
 
     @Override
-    public void onPlayerStateChanged(boolean playWhenReady, int playbackState) {
-//        updatePlaybackStateDisplay();
-    }
-
-    @Override
-    public void onIsPlayingChanged(boolean isPlaying) {
-        Log.d(TAG, "onIsPlayingChanged(" + isPlaying + ") - state: " + player.getPlaybackState()
-                + " mode: " + trickPlayControl.getCurrentTrickMode() + " playWhenReady: " + player.getPlayWhenReady());
+    public void onPlayWhenReadyChanged(boolean playWhenReady, int reason) {
+        Log.d(TAG, "onPlayWhenReadyChanged(" + playWhenReady + ", " + reason + ") - state: " + player.getPlaybackState()
+                + " mode: " + trickPlayControl.getCurrentTrickMode());
 
         switch (trickPlayControl.getCurrentTrickDirection()) {
             case NONE:
             case SCRUB:
-                if (isPlayOrPause() && player.getPlayWhenReady()) {
+                if (isPlayOrPause() && playWhenReady) {
                     playbackStateView.showPlayState();
                 } else if (isPaused()) {
                     playbackStateView.showPausedState();
@@ -305,8 +279,8 @@ public class TransportControlHandler implements TrickPlayEventListener, Player.E
      * @param keyCode - key event with indicated direction
      * @return next TrickMode to set
      */
-    private static TrickPlayControl.TrickMode nextTrickMode(TrickPlayControl.TrickMode currentMode, int keyCode) {
-        TrickPlayControl.TrickMode value;
+    static TrickPlayControl.TrickMode nextTrickMode(TrickPlayControl.TrickMode currentMode, int keyCode) {
+        TrickPlayControl.TrickMode value = currentMode;
 
         switch (keyCode) {
             case KeyEvent.KEYCODE_MEDIA_FAST_FORWARD:
@@ -318,12 +292,17 @@ public class TransportControlHandler implements TrickPlayEventListener, Player.E
                         value = TrickPlayControl.TrickMode.FF2;
                         break;
                     case FF2:
-                        value = TrickPlayControl.TrickMode.FF3;
-                        break;
                     case FF3:    // FF3 keeps going in FF3
                         value = TrickPlayControl.TrickMode.FF3;
                         break;
-                    default:    // FR mode with FF keypress goes back to normal
+
+                    case FR3:   // Forwards in reverse mode slow the FR mode down one speed
+                        value = TrickPlayControl.TrickMode.FR2;
+                        break;
+                    case FR2:
+                        value = TrickPlayControl.TrickMode.FR1;
+                        break;
+                    case FR1:    // Forward at lowest FR speed exits to normal
                         value = TrickPlayControl.TrickMode.NORMAL;
                         break;
                 }
@@ -338,12 +317,17 @@ public class TransportControlHandler implements TrickPlayEventListener, Player.E
                         value = TrickPlayControl.TrickMode.FR2;
                         break;
                     case FR2:
-                        value = TrickPlayControl.TrickMode.FR3;
-                        break;
                     case FR3:    // FR3 keeps going in FR3
                         value = TrickPlayControl.TrickMode.FR3;
                         break;
-                    default:    // FF mode with REW keypress goes back to normal
+
+                    case FF3:   // Rewind in Forward mode slows down one speed
+                        value = TrickPlayControl.TrickMode.FF2;
+                        break;
+                    case FF2:
+                        value = TrickPlayControl.TrickMode.FF1;
+                        break;
+                    case FF1:   // Rewind at FF1 cancels back to normal playback
                         value = TrickPlayControl.TrickMode.NORMAL;
                         break;
                 }
@@ -356,6 +340,30 @@ public class TransportControlHandler implements TrickPlayEventListener, Player.E
         Log.d(TAG, "Trickplay in currentMode: " + currentMode + ", next is: " + value);
 
         return value;
+    }
+
+    public static boolean skipBySeconds(SimpleExoPlayer player, TrickPlayControl trickPlayControl, long skipBySeconds) {
+        long targetPositionMs = player.getCurrentPosition();
+        long currentPositionMinutes = player.getCurrentPosition() / 60_000L;
+        long minutesIntoPeriod = currentPositionMinutes % 15;
+        TrickPlayControl.TrickPlayDirection currentTrickDirection = trickPlayControl.getCurrentTrickDirection();
+        switch (currentTrickDirection) {
+            case FORWARD:
+                targetPositionMs = (currentPositionMinutes + (15 - minutesIntoPeriod)) * 60_000;
+                break;
+
+            case REVERSE:
+                targetPositionMs = (currentPositionMinutes - (15 - minutesIntoPeriod)) * 60_000;
+                break;
+
+            case NONE:
+            case SCRUB:
+                targetPositionMs = player.getCurrentPosition() + skipBySeconds * 1_000;
+                break;
+        }
+        targetPositionMs = Util.constrainValue(targetPositionMs, 0, trickPlayControl.getLargestSafeSeekPositionMs());
+        player.seekTo(targetPositionMs);
+        return true;
     }
 
     private void updateTPButtonsDefault() {

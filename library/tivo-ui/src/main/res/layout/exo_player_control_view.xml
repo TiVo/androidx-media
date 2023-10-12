@@ -29,7 +29,7 @@
             android:layout_marginLeft="4dp"
             android:gravity="center_vertical"
             android:orientation="horizontal">
-        <com.tivo.exoplayer.demo.DualModeTimeBar
+        <com.tivo.exoplayer.library.timebar.views.DualModeTimeBar
             android:id="@id/exo_progress"
             android:layout_width="0dp"
             android:layout_height="26dp"
@@ -51,48 +51,53 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:gravity="left"
+        android:background="@drawable/time_holder_boarder"
         android:orientation="horizontal">
 
         <ImageButton
+            android:id="@+id/goto_start"
+            android:tooltipText="Goto Live"
             android:layout_width="match_parent"
             android:layout_height="18dp"
             android:layout_marginStart="5dp"
             android:layout_marginEnd="5dp"
             android:background="@drawable/state_focus_no_press_background"
-            android:src="@drawable/ic_replay_10_18dp" />
+            android:src="@drawable/ic_goto_start" />
 
         <TextView
-            android:id="@id/exo_position"
-            android:layout_width="wrap_content"
-            android:layout_height="match_parent"
-            android:layout_gravity="center_vertical"
-            android:includeFontPadding="false"
-            android:paddingTop="2dp"
-            android:paddingLeft="4dp"
-            android:textColor="#FFBEBEBE"
-            android:textSize="14sp"
-            android:textStyle="bold"
-            android:text="Test 1"
-            android:layout_marginRight="5dp"
-            tools:ignore="ObsoleteLayoutParam" />
+          android:id="@id/exo_position"
+          android:textStyle="bold"
+          android:layout_width="wrap_content"
+          android:layout_height="match_parent"
+          android:layout_marginRight="5dp"
+          android:layout_gravity="center_vertical"
+          android:paddingTop="1.5dp"
+          android:paddingLeft="4dp"
+          android:includeFontPadding="false"
+          android:text="Test 1"
+          android:textColor="#FFBEBEBE"
+          android:textSize="14sp"
+          tools:ignore="ObsoleteLayoutParam" />
 
-        <com.tivo.exoplayer.demo.views.PlaybackStateImageView
+        <com.tivo.exoplayer.library.timebar.views.PlaybackStateImageView
             android:id="@+id/playback_state_view"
             android:paddingTop="2dp"
             android:layout_width="@dimen/playback_state_width"
             android:layout_height="@dimen/playback_state_height"
             android:background="@android:color/transparent" />
         <ImageButton
+            android:id="@+id/goto_live"
+            android:tooltipText="Goto Live"
             android:layout_width="match_parent"
             android:layout_height="18dp"
-            android:src="@drawable/ic_forward_30_18dp"
+            android:src="@drawable/ic_goto_live"
             android:background="@drawable/state_focus_no_press_background"
             android:layout_marginEnd="10dp"/>
 
     </LinearLayout>
     <RelativeLayout
             android:layout_width="match_parent"
-            android:layout_height="48dp"
+            android:layout_height="wrap_content"
             android:orientation="horizontal">
 
         <LinearLayout
@@ -123,8 +128,8 @@
                 android:layout_width="wrap_content"
                 android:src="@drawable/ic_round_bug_report_24" />
             <ImageButton
-                android:layout_gravity="right"
                 android:id="@+id/close_captions"
+                android:layout_gravity="right"
                 style="@style/ExoMediaButton"
                 android:src="@drawable/ic_button_closed_captioning"
                 android:contentDescription="Close Captions" />

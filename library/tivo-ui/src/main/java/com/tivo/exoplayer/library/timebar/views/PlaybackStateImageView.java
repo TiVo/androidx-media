@@ -1,4 +1,4 @@
-package com.tivo.exoplayer.demo.views;
+package com.tivo.exoplayer.library.timebar.views;
 
 import android.annotation.SuppressLint;
 import android.content.Context;
@@ -13,7 +13,7 @@ import java.util.Map;
 
 import com.google.android.exoplayer2.trickplay.TrickPlayControl;
 import com.google.android.exoplayer2.util.Log;
-import com.tivo.exoplayer.demo.R;
+import com.tivo.exoplayer.library.R;
 
 @SuppressLint("AppCompatCustomView")
 public class PlaybackStateImageView extends ImageView {
@@ -24,7 +24,6 @@ public class PlaybackStateImageView extends ImageView {
     private final Drawable play;
     private final Drawable pause;
     private final Drawable playToPause;
-    private TrickPlayControl.TrickMode currentMode;
 
     public PlaybackStateImageView(Context context) {
         this(context, null);
@@ -67,8 +66,8 @@ public class PlaybackStateImageView extends ImageView {
         Drawable previousDrawable = getDrawable();
         setImageDrawable(drawable);
         if (previousDrawable != drawable) {
-            Log.d(TAG, "updatingIcon - old: " + previousDrawable + " new: " + drawable);
-            if (previousDrawable != null && previousDrawable instanceof AnimatedVectorDrawable) {
+            Log.d(TAG, "updatingIcon - old: " + drawableName(previousDrawable) + " new: " + drawableName(drawable));
+            if (previousDrawable instanceof AnimatedVectorDrawable) {
                 ((AnimatedVectorDrawable) previousDrawable).stop();
             }
             if (drawable instanceof AnimatedVectorDrawable) {
@@ -80,13 +79,13 @@ public class PlaybackStateImageView extends ImageView {
     public void trickPlayStateChanged(TrickPlayControl.TrickMode oldMode, TrickPlayControl.TrickMode newMode) {
         Drawable drawable = null;
         Log.d(TAG, "trickPlayStateChanged - from: " + oldMode + " to: " + newMode);
-        currentMode = newMode;
-
 
         TrickPlayControl.TrickPlayDirection newDirection = TrickPlayControl.directionForMode(newMode);
         TrickPlayControl.TrickPlayDirection oldDirection = TrickPlayControl.directionForMode(oldMode);
         boolean exitingTp = newDirection == TrickPlayControl.TrickPlayDirection.NONE &&
                 (oldDirection == TrickPlayControl.TrickPlayDirection.FORWARD || oldDirection == TrickPlayControl.TrickPlayDirection.REVERSE);
+
+        Log.d(TAG, "trickPlayStateChanged - direction from old: " + oldDirection + " to: " + newDirection + " exiting: " + exitingTp);
 
         if (exitingTp) {
             drawable = exitFastPlayIcons.get(oldMode);
@@ -113,5 +112,31 @@ public class PlaybackStateImageView extends ImageView {
         } else {
             updateDrawable(pauseToPlay);
         }
+    }
+
+    private String drawableName(Drawable drawable) {
+        if (drawable == null) {
+            return "null";
+        } else if (drawable == pauseToPlay) {
+            return "pauseToPlay";
+        } else if (drawable == pause) {
+            return "pause";
+        } else if (drawable == play) {
+            return "play";
+        } else if (drawable == playToPause) {
+            return "playToPause";
+        } else {
+            for ( Map.Entry<TrickPlayControl.TrickMode, Drawable> entry : enterFastPlayIcons.entrySet()) {
+                if (entry.getValue() == drawable) {
+                    return "enter " + entry.getKey().toString();
+                }
+            }
+            for ( Map.Entry<TrickPlayControl.TrickMode, Drawable> entry : exitFastPlayIcons.entrySet()) {
+                if (entry.getValue() == drawable) {
+                    return "exit " + entry.getKey().toString();
+                }
+            }
+        }
+        return "unknown";
     }
 }
