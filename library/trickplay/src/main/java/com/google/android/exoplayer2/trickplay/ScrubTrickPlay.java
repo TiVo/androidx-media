@@ -52,7 +52,7 @@ import com.google.android.exoplayer2.util.SystemClock;
  *
  * The demo-tenfoot UI has a sample that does just this.
  */
-public class ScrubTrickPlay implements TrickPlayEventListener, Player.EventListener {
+public class ScrubTrickPlay implements TrickPlayEventListener, Player.Listener {
 
   private static final String TAG = "ScrubTrickPlay";
   private final SimpleExoPlayer player;
@@ -104,7 +104,7 @@ public class ScrubTrickPlay implements TrickPlayEventListener, Player.EventListe
    * to {@link SeekParameters#CLOSEST_SYNC} and prepares for calls to {@link #scrubSeek(long, boolean)})
    */
   void scrubStart() {
-    Log.d(TAG, "scrubStart()");
+    Log.d(TAG, "scrubStart() - current position: " + player.getContentPosition());
     savedPlayWhenReadyState = player.getPlayWhenReady();
     player.setPlayWhenReady(false);
     renderPending = false;
@@ -142,9 +142,9 @@ public class ScrubTrickPlay implements TrickPlayEventListener, Player.EventListe
 
   private void executeSeek(long positionMs) {
     long currentPositionMs = player.getCurrentPosition();
-    Log.d(TAG, "executeSeek() - issue seek, to positionMs: " + positionMs + " currentPositionMs: " + currentPositionMs);
     renderPending = true;
     long delta = positionMs - currentPositionMs;
+    Log.d(TAG, "executeSeek() - issue seek, to positionMs: " + positionMs + " currentPositionMs: " + currentPositionMs + " deltaMs: " + delta);
     if (delta < 0) {
       player.setSeekParameters(SeekParameters.PREVIOUS_SYNC);
     } else {
@@ -173,21 +173,19 @@ public class ScrubTrickPlay implements TrickPlayEventListener, Player.EventListe
     renderPending = false;
   }
 
-  // Player.EventListener
-
+  // Player.Listener
 
   @Override
   public void onPositionDiscontinuity(Player.PositionInfo oldPosition,
       Player.PositionInfo newPosition,  @Player.DiscontinuityReason int reason) {
-    long positionMs = oldPosition.positionMs;
-    Log.d(TAG, "onPositionDiscontinuity() - reason: " + reason + " position: " + positionMs
-        + " lastPosition: " + lastPosition + " delta: " + (positionMs - lastPosition) + " renderPending: " + renderPending);
+    Log.d(TAG, "onPositionDiscontinuity() - reason: " + reason + " newPosition: " + newPosition.positionMs + " oldPosition: " + oldPosition.positionMs
+        + " lastPosition: " + lastPosition + " delta: " + (newPosition.positionMs  - lastPosition) + " renderPending: " + renderPending);
 
     switch (reason) {
 
       case Player.DISCONTINUITY_REASON_SEEK:
       case Player.DISCONTINUITY_REASON_SEEK_ADJUSTMENT:
-        lastPosition = positionMs;
+        lastPosition = newPosition.positionMs;
         break;
 
       case Player.DISCONTINUITY_REASON_AUTO_TRANSITION:

@@ -255,9 +255,7 @@ class TrickPlayRendererFactory extends DefaultRenderersFactory {
       lastRenderTimeUs = System.nanoTime() / 1000;
       long positionDeltaUs = presentationTimeUs - lastRenderPositionUs;
 
-      if (!skipFlush && trickPlay.isSmoothPlayAvailable() &&
-              (trickPlay.getCurrentTrickDirection() == TrickPlayControl.TrickPlayDirection.FORWARD ||
-                      trickPlay.getCurrentTrickDirection() == TrickPlayControl.TrickPlayDirection.SCRUB )) {
+      if (trickPlay.isSmoothPlayAvailable() && trickPlay.getCurrentTrickDirection() != TrickPlayControl.TrickPlayDirection.NONE) {
         Log.d(TAG, "renderOutputBufferV21() in trickplay - timestamp: " + C.usToMs(presentationTimeUs) + " delta(us): " + positionDeltaUs + " releaseTimeUs: " + (releaseTimeNs / 1000) + " index:" + index + " timeSinceLastUs: " + timeSinceLastRender);
         trickPlay.dispatchTrickFrameRender(presentationTimeUs);
       }

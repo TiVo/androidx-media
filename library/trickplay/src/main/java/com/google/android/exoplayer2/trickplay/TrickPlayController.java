@@ -826,13 +826,11 @@ class TrickPlayController implements TrickPlayControlInternal {
             Log.d(TAG, "Start i-frame trickplay " + newMode + " at media time " + player.getCurrentPosition());
             stopSeekBasedTrickplay();
             setTrackSelectionForTrickPlay(newMode, previousMode);
-            player.setPlayWhenReady(true);
+            player.setPlayWhenReady(newMode != TrickMode.SCRUB);        // SCRUB mode is always paused
             player.setPlaybackParameters(new PlaybackParameters(getSpeedFor(newMode)));
         } else {
             Log.d(TAG, "Start seek-based trickplay " + newMode + " at media time " + player.getCurrentPosition());
-            if (TrickPlayControl.directionForMode(previousMode) == TrickPlayDirection.NONE ||
-                    TrickPlayControl.directionForMode(previousMode) == TrickPlayDirection.SCRUB ||
-                    usePlaybackSpeedTrickPlay(previousMode)) {
+            if (TrickPlayControl.directionForMode(previousMode) != TrickPlayDirection.REVERSE) {
                 startSeekBasedTrickplay();
                 setTrackSelectionForTrickPlay(newMode, previousMode);
             }
