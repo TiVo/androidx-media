@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="@dimen/playback_state_width"
+    android:height="@dimen/playback_state_height"
+    android:viewportWidth="48"
+    android:viewportHeight="48">
+    <group android:name="speed1">
+        <path
+            android:name="play_triangle_close"
+            android:pathData="@string/pause_left"
+            android:strokeWidth="8"
+            android:strokeColor="@color/tpPlayedColor"
+            android:strokeAlpha="0"
+            android:strokeLineCap="round" />
+        <path
+            android:name="play_triangle_arrow"
+            android:pathData="@string/pause_right_play"
+            android:strokeWidth="8"
+            android:strokeColor="@color/tpPlayedColor"
+            android:fillColor="@color/tpPlayedColor"
+            android:fillAlpha="0"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round" />
+    </group>
+    <group android:name="speed2">
+        <path
+            android:pathData="@string/pause_right_play"
+            android:strokeWidth="8"
+            android:strokeColor="@color/tpPlayedColor"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round" />
+    </group>
+
+    <group android:name="speed3">
+        <path
+            android:pathData="@string/pause_right_play"
+            android:strokeWidth="8"
+            android:strokeColor="@color/tpPlayedColor"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round" />
+    </group>
+</vector>

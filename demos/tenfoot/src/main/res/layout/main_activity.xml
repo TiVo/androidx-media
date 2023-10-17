@@ -111,7 +111,7 @@
       android:id="@+id/fast_sync_enable"
       android:layout_width="wrap_content"
       android:layout_height="16dp"
-      android:checked="true"
+      android:checked="false"
       android:layoutDirection="rtl"
       android:text="Fast Sync"
       app:layout_constraintStart_toStartOf="parent"

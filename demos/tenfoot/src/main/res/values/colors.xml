@@ -5,7 +5,8 @@
     <color name="colorBuffered">#FF00ffff</color>
 
     <!-- trickplay bar colors -->
-    <color name="tpScrubberColor">#9e9e9e</color>
+    <color name="tpUnplayedColor">#9A191717</color>
+    <color name="tpScrubberColor">#CE787C73</color>
     <color name="tpPlayedColor">#FF00cf00</color>
-    <color name="tpBufferedColor">#4fcf9100</color>
+    <color name="tpBufferedColor">#BE579F57</color>
 </resources>

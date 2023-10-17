@@ -1,0 +1,136 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Copyright (C) 2016 The Android Open Source Project
+
+     Licensed under the Apache License, Version 2.0 (the "License");
+     you may not use this file except in compliance with the License.
+     You may obtain a copy of the License at
+
+          http://www.apache.org/licenses/LICENSE-2.0
+
+     Unless required by applicable law or agreed to in writing, software
+     distributed under the License is distributed on an "AS IS" BASIS,
+     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+     See the License for the specific language governing permissions and
+     limitations under the License.
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+              xmlns:tools="http://schemas.android.com/tools"
+              android:layout_width="match_parent"
+              android:layout_height="wrap_content"
+              android:layout_gravity="bottom"
+              android:layoutDirection="ltr"
+              android:background="#CC000000"
+              android:orientation="vertical"
+              tools:targetApi="28">
+    <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:layout_marginLeft="4dp"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+        <com.tivo.exoplayer.demo.DualModeTimeBar
+            android:id="@id/exo_progress"
+            android:layout_width="0dp"
+            android:layout_height="26dp"
+            android:layout_weight="1"/>
+        <TextView android:id="@id/exo_duration"
+                  android:layout_width="wrap_content"
+                  android:layout_height="wrap_content"
+                  android:textSize="14sp"
+                  android:textStyle="bold"
+                  android:paddingLeft="4dp"
+                  android:paddingRight="4dp"
+                  android:text="Test 1"
+                  android:includeFontPadding="false"
+                  android:textColor="#FFBEBEBE"/>
+
+    </LinearLayout>
+    <LinearLayout
+        android:id="@+id/current_time_holder"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:gravity="left"
+        android:orientation="horizontal">
+
+        <ImageButton
+            android:layout_width="match_parent"
+            android:layout_height="18dp"
+            android:layout_marginStart="5dp"
+            android:layout_marginEnd="5dp"
+            android:background="@drawable/state_focus_no_press_background"
+            android:src="@drawable/ic_replay_10_18dp" />
+
+        <TextView
+            android:id="@id/exo_position"
+            android:layout_width="wrap_content"
+            android:layout_height="match_parent"
+            android:layout_gravity="center_vertical"
+            android:includeFontPadding="false"
+            android:paddingTop="2dp"
+            android:paddingLeft="4dp"
+            android:textColor="#FFBEBEBE"
+            android:textSize="14sp"
+            android:textStyle="bold"
+            android:text="Test 1"
+            android:layout_marginRight="5dp"
+            tools:ignore="ObsoleteLayoutParam" />
+
+        <com.tivo.exoplayer.demo.views.PlaybackStateImageView
+            android:id="@+id/playback_state_view"
+            android:paddingTop="2dp"
+            android:layout_width="@dimen/playback_state_width"
+            android:layout_height="@dimen/playback_state_height"
+            android:background="@android:color/transparent" />
+        <ImageButton
+            android:layout_width="match_parent"
+            android:layout_height="18dp"
+            android:src="@drawable/ic_forward_30_18dp"
+            android:background="@drawable/state_focus_no_press_background"
+            android:layout_marginEnd="10dp"/>
+
+    </LinearLayout>
+    <RelativeLayout
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:orientation="horizontal">
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_centerVertical="true"
+            android:layout_centerInParent="true"
+            android:orientation="horizontal"
+            android:layout_height="wrap_content">
+            <ImageButton android:id="@+id/rewind"
+                style="@style/ExoMediaButton"
+                android:src="@drawable/ic_rwd_all_filled"/>
+
+            <ImageButton android:id="@+id/fast_forward"
+                style="@style/ExoMediaButton"
+                android:src="@drawable/ic_ff_all_filled"/>
+
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_alignParentEnd="true"
+            android:layout_centerInParent="true">
+
+            <ImageButton
+                android:id="@+id/bug_icon"
+                style="@style/ExoMediaButton"
+                android:layout_width="wrap_content"
+                android:src="@drawable/ic_round_bug_report_24" />
+            <ImageButton
+                android:layout_gravity="right"
+                android:id="@+id/close_captions"
+                style="@style/ExoMediaButton"
+                android:src="@drawable/ic_button_closed_captioning"
+                android:contentDescription="Close Captions" />
+
+        </LinearLayout>
+
+    </RelativeLayout>
+
+</LinearLayout>

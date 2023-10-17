@@ -1,4 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
   <dimen name="space_for_scrubbar">40dp</dimen>
+  <dimen name="playback_state_width">16dp</dimen>
+  <dimen name="playback_state_height">16dp</dimen>
+  <dimen name="exo_media_button_width">56dp</dimen>
+  <dimen name="exo_media_button_height">34dp</dimen>
 </resources>

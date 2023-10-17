@@ -1,0 +1,12 @@
+<animated-vector
+        xmlns:tools="http://schemas.android.com/tools" xmlns:android="http://schemas.android.com/apk/res/android"
+        xmlns:aapt="http://schemas.android.com/aapt"
+    android:drawable="@drawable/ic_ff_all_filled"
+    tools:ignore="NewApi">
+    <target android:name="ff1"
+        android:animation="@animator/arrow_1_fill"/>
+    <target android:name="ff2"
+        android:animation="@animator/arrow_2_empty"/>
+    <target android:name="ff3"
+        android:animation="@animator/arrow_3_empty"/>
+</animated-vector>

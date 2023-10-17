@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<animated-selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item
+        android:state_enabled="true"
+        android:state_focused="false"
+        >
+        <shape android:shape="rectangle">
+            <size android:height="12dp" android:width="4dp" />
+            <solid android:color="@android:color/white" />
+        </shape>
+    </item>
+    <item
+        android:state_enabled="true"
+        android:state_focused="true"
+        android:drawable="@drawable/ic_scrub_handle_selected">
+    </item>
+</animated-selector>

@@ -1,0 +1,105 @@
+{
+  "version": 1,
+  "layers": {
+    "vectorLayer": {
+      "id": "21",
+      "name": "vector",
+      "type": "vector",
+      "width": 48,
+      "height": 48,
+      "children": [
+        {
+          "id": "7",
+          "name": "arrow_1_group",
+          "type": "group",
+          "children": [
+            {
+              "id": "3",
+              "name": "arrow_1",
+              "type": "path",
+              "pathData": "M 4 24 L 18 38 M 4 24 L 18 10",
+              "strokeColor": "#0000FF",
+              "strokeWidth": 8,
+              "strokeLinecap": "round",
+              "strokeLinejoin": "round"
+            }
+          ]
+        },
+        {
+          "id": "12",
+          "name": "arrow_2_group",
+          "type": "group",
+          "children": [
+            {
+              "id": "8",
+              "name": "arrow_2",
+              "type": "path",
+              "pathData": "M 4 24 L 18 38 M 4 24 L 18 10",
+              "strokeColor": "#00FF0A",
+              "strokeWidth": 8,
+              "strokeLinecap": "round",
+              "strokeLinejoin": "round"
+            }
+          ]
+        },
+        {
+          "id": "16",
+          "name": "arrow_3",
+          "type": "path",
+          "pathData": "M 4 24 L 18 38 M 4 24 L 18 10 L 4 24",
+          "fillColor": "#ff0000",
+          "strokeColor": "#ff0000",
+          "strokeWidth": 8,
+          "strokeLinecap": "round",
+          "strokeLinejoin": "round"
+        }
+      ]
+    },
+    "hiddenLayerIds": [
+      "3",
+      "12"
+    ]
+  },
+  "timeline": {
+    "animation": {
+      "id": "2",
+      "name": "anim",
+      "duration": 300,
+      "blocks": [
+        {
+          "id": "64",
+          "layerId": "16",
+          "propertyName": "pathData",
+          "startTime": 29,
+          "endTime": 191,
+          "interpolator": "FAST_OUT_SLOW_IN",
+          "type": "path",
+          "fromValue": "M 4 24 L 18 38 M 4 24 L 18 10 L 4 24",
+          "toValue": "M 18 24 L 4 38 M 18 24 L 4 10 L 4 38"
+        },
+        {
+          "id": "2387",
+          "layerId": "3",
+          "propertyName": "strokeAlpha",
+          "startTime": 0,
+          "endTime": 31,
+          "interpolator": "FAST_OUT_SLOW_IN",
+          "type": "number",
+          "fromValue": 1,
+          "toValue": 0
+        },
+        {
+          "id": "2388",
+          "layerId": "8",
+          "propertyName": "strokeAlpha",
+          "startTime": 0,
+          "endTime": 31,
+          "interpolator": "FAST_OUT_SLOW_IN",
+          "type": "number",
+          "fromValue": 1,
+          "toValue": 0
+        }
+      ]
+    }
+  }
+}

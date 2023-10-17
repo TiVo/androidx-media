@@ -97,6 +97,7 @@ import java.util.HashMap;
 public class ViewActivity extends AppCompatActivity implements PlayerControlView.VisibilityListener {
 
   public static final String TAG = "ExoDemo";
+  private static final boolean USE_DEFAULTS_SCRUB_BEHAVIOR = false;
   private PlayerView playerView;
 
   private boolean isShowingTrackSelectionDialog;
@@ -174,7 +175,7 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
     }
   }
 
-  private @Nullable ScrubHandler currentScrubHandler;
+  private @Nullable TimeBar.OnScrubListener currentScrubHandler;
 
   private OutputProtectionMonitor outputProtectionMonitor;
 
@@ -184,6 +185,9 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
   private TimeBar timeBar;
 
   private Uri currentUri;
+
+  private PlayerControlView playerControlView;
+  private TransportControlHandler transportControlHandler;
 
   private static boolean isSMIPlayer;
   private static boolean isSmiClientInitialized = false;
@@ -390,16 +394,32 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
 
     playerView = findViewById(R.id.player_view);
     playerView.setControllerVisibilityListener(this);
-    playerView.requestFocus();
     playerView.setShowBuffering(PlayerView.SHOW_BUFFERING_WHEN_PLAYING);
     timeBar = playerView.findViewById(R.id.exo_progress);
-
-    // TODO this should change to bigger step as repeat keys come in.
-    timeBar.setKeyTimeIncrement(2_000);
-
+    timeBar.setKeyTimeIncrement(1_000);
     playerView.setControllerAutoShow(false);
     playerView.setControllerShowTimeoutMs(-1);
 
+    playerControlView = findViewById(R.id.exo_controller);
+    View ccView = playerView.findViewById(R.id.close_captions);
+    if (ccView != null) {
+      ccView.setOnClickListener(v -> {
+        showTrackSelection(exoPlayerFactory.getAvailableTextTracks(), "Select Text");
+      });
+    }
+    View bugView = playerView.findViewById(R.id.bug_icon);
+    if (bugView != null) {
+      bugView.setOnClickListener(v -> {
+        if (geekStats != null) {
+          geekStats.toggleVisible();
+        }
+      });
+    }
+
+    transportControlHandler = new TransportControlHandler(playerView, context);
+
+    // Subtitle view.
+    // set "defaults", which it fetches CaptioningManager
     accessibilityHelper = new AccessibilityHelper(context, new AccessibilityHelper.AccessibilityStateChangeListener() {
       @Override
       public void captionStateChanged(boolean enabled, Locale captionLanguage) {
@@ -495,9 +515,17 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
 
     player = exoPlayerFactory.createPlayer(false, false, builder);
     player.setAudioAttributes(AudioAttributes.DEFAULT,true);
-
     TrickPlayControl trickPlayControl = exoPlayerFactory.getCurrentTrickPlayControl();
-    currentScrubHandler = new ScrubHandler(trickPlayControl);
+
+    if (USE_DEFAULTS_SCRUB_BEHAVIOR) {
+      currentScrubHandler = new ScrubHandler(trickPlayControl);
+    } else {
+      TimeBarViewHandler timeBarViewHandler = new TimeBarViewHandler(trickPlayControl, playerView);
+      player.addListener(timeBarViewHandler);
+      timeBarViewHandler.setPlayer(player);
+      playerControlView.setProgressUpdateListener(timeBarViewHandler);
+      currentScrubHandler = timeBarViewHandler;
+    }
     timeBar.addListener(currentScrubHandler);
 
     // If request is for FAST_RECYNC, turn on debug logging in GeekStats
@@ -515,7 +543,7 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
 
     playerView.setPlayer(player);
     geekStats.setPlayer(player, trickPlayControl);
-
+    transportControlHandler.setPlayer(player, trickPlayControl);
 
     statsManager = new ManagePlaybackMetrics.Builder(player, trickPlayControl).build();
 
@@ -530,6 +558,11 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
   public void onResume() {
     super.onResume();
     Log.d(TAG, "onResume() called");
+
+    if (playerView != null) {
+      playerView.onResume();
+    }
+
     IntentFilter filter = new IntentFilter();
     filter.addAction(ACTION_HDMI_AUDIO_PLUG);
   }
@@ -537,16 +570,25 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
    @Override
    public void onPause() {
      super.onPause();
+     if (playerView != null) {
+       playerView.onPause();
+     }
    }
 
    @Override
    public void onStop() {
      super.onStop();
-     mediaHealthMetricsTest(false);
+     if (playerView != null) {
+       playerView.onPause();
+     }
+
      if (currentScrubHandler != null) {
        timeBar.removeListener(currentScrubHandler);
      }
      currentScrubHandler = null;
+     playerControlView.setProgressUpdateListener(null);
+     transportControlHandler.playerDestroyed();
+
      Log.d(TAG, "onStop() called");
      if (statsManager != null) {
        statsManager.endAllSessions();
@@ -609,94 +651,69 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
   @Override
   public boolean dispatchKeyEvent(KeyEvent event) {
     boolean handled = false;
+    if (playerView != null) {
+      if (exoPlayerFactory.getCurrentPlayer() != null) {
+        handled = handled || transportControlHandler.handleFunctionKeys(event);
+        handled = handled || processViewKey(event);
+
+        if (! handled && event.getAction() == KeyEvent.ACTION_DOWN) {
+          if (event.getKeyCode() == KeyEvent.KEYCODE_BACK && isTrickPlaybarShowing) {
+            playerView.hideController();
+            exoPlayerFactory.getCurrentPlayer().setPlayWhenReady(true);
+            handled = true;
+          } else if (! isTrickPlaybarShowing) {
+            focusAndShowControls();
+          }
+        }
+      }
+    }
+    if (! handled) {
+      handled = super.dispatchKeyEvent(event);
+    }
+    return handled;
+  }
+
+  private void focusAndShowControls() {
+    playerView.showController();
+    playerControlView.requestFocus();
+  }
+
+  public boolean processViewKey(KeyEvent event) {
+    boolean handled = false;
     Uri nextChannel = null;
 
     TrickPlayControl trickPlayControl = exoPlayerFactory.getCurrentTrickPlayControl();
-    SimpleExoPlayer player = exoPlayerFactory.getCurrentPlayer();
+    DefaultTrackSelector trackSelector = exoPlayerFactory.getTrackSelector();
 
-    if (trickPlayControl == null || player == null) {
-      handled = false;
-    } else {
+    if (event.getAction() == KeyEvent.ACTION_DOWN) {
+      int keyCode = event.getKeyCode();
 
-      DefaultTrackSelector trackSelector = exoPlayerFactory.getTrackSelector();
+      switch (keyCode) {
 
-      if (event.getAction() == KeyEvent.ACTION_DOWN) {
-        int keyCode = event.getKeyCode();
+        case KeyEvent.KEYCODE_INFO:
+          toggleTrickPlayBar();
+          handled = true;
+          break;
 
-        if (keyCode != KeyEvent.KEYCODE_INFO) {
-          playerView.showController();
-        }
+        case KeyEvent.KEYCODE_0:
+          if (!isShowingTrackSelectionDialog && trackSelector != null && TrackSelectionDialog
+              .willHaveContent(trackSelector)) {
+            isShowingTrackSelectionDialog = true;
+            TrackSelectionDialog trackSelectionDialog =
+                TrackSelectionDialog.createForTrackSelector(
+                    trackSelector,
+                    /* onDismissListener= */
+                    dismissedDialog -> isShowingTrackSelectionDialog = false);
+            trackSelectionDialog.show(getSupportFragmentManager(), /* tag= */ null);
+          }
+          handled = true;
+          break;
 
-        switch (keyCode) {
-
-          case KeyEvent.KEYCODE_INFO:
-            toggleTrickPlayBar();
-            break;
-
-          case KeyEvent.KEYCODE_0:
-            if (!isShowingTrackSelectionDialog && trackSelector != null && TrackSelectionDialog
-                .willHaveContent(trackSelector)) {
-              isShowingTrackSelectionDialog = true;
-              TrackSelectionDialog trackSelectionDialog =
-                  TrackSelectionDialog.createForTrackSelector(
-                      trackSelector,
-                      /* onDismissListener= */
-                      dismissedDialog -> isShowingTrackSelectionDialog = false);
-              trackSelectionDialog.show(getSupportFragmentManager(), /* tag= */ null);
-            }
-            handled = true;
-            break;
-
-          case KeyEvent.KEYCODE_F11:
-            Intent intent = new Intent(Settings.ACTION_CAPTIONING_SETTINGS);
-            startActivityForResult(intent, 1);
-            handled = true;
-            break;
-
-          case KeyEvent.KEYCODE_MEDIA_STEP_FORWARD:
-
-            long targetPositionMs = player.getCurrentPosition();
-
-            int currentPositionMinutes = (int) Math.floor(player.getCurrentPosition() / 60_000);
-            int minutesIntoPeriod = currentPositionMinutes % 15;
-            switch (trickPlayControl.getCurrentTrickDirection()) {
-              case FORWARD:
-                targetPositionMs = (currentPositionMinutes + (15 - minutesIntoPeriod)) * 60_000;
-                break;
-
-              case REVERSE:
-                targetPositionMs = (currentPositionMinutes - (15 - minutesIntoPeriod)) * 60_000;
-                break;
-
-              case NONE:
-                targetPositionMs = player.getCurrentPosition() + 20_000;
-                break;
-            }
-
-            boundedSeekTo(player, trickPlayControl, targetPositionMs);
-
-            handled = true;
-
-            break;
-
-          case KeyEvent.KEYCODE_MEDIA_STEP_BACKWARD:
-            if (trickPlayControl.getCurrentTrickMode() == TrickPlayControl.TrickMode.NORMAL) {
-                boundedSeekTo(player, trickPlayControl, player.getContentPosition() - 20_000);
-            }
-            handled = true;
-            break;
-
-          case KeyEvent.KEYCODE_MEDIA_FAST_FORWARD:
-          case KeyEvent.KEYCODE_MEDIA_REWIND:
-            TrickPlayControl.TrickMode newMode = nextTrickMode(trickPlayControl.getCurrentTrickMode(), keyCode);
-
-            if (trickPlayControl.setTrickMode(newMode) >= 0) {
-              Log.d(TAG, "request to play trick-mode " + newMode + " succeeded");
-            } else {
-              Log.d(TAG, "request to play trick-mode " + newMode + " not possible");
-            }
-            handled = true;
-            break;
+        case KeyEvent.KEYCODE_F11:
+          Intent intent = new Intent(Settings.ACTION_CAPTIONING_SETTINGS);
+          startActivityForResult(intent, 1);
+          handled = true;
+          break;
 
           case KeyEvent.KEYCODE_3:
             trickPlayControl.setTrickMode(TrickPlayControl.TrickMode.FF1);
@@ -794,26 +811,37 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
                 Timeline.Window window = timeline.getWindow(player.getCurrentWindowIndex(), new Timeline.Window());
                 boundedSeekTo(player, trickPlayControl , trickPlayControl.getLargestSafeSeekPositionMs() - 3000);
               }
+              handled = true;
+              break;
+
           default:
-            handled = false;
             break;
         }
 
         if (nextChannel != null) {
           playUri(nextChannel);
-
-        }
       }
     }
 
-    return handled || playerView.dispatchKeyEvent(event) || super.dispatchKeyEvent(event);
+    return handled;
+  }
+
+
+  private void showTrackSelection(List<TrackInfo> availableTextTracks, String s) {
+    List<TrackInfo> textTracks = availableTextTracks;
+    if (textTracks.size() > 0) {
+      DialogFragment dialog =
+              TrackInfoSelectionDialog
+                      .createForChoices(s, textTracks, exoPlayerFactory);
+      dialog.show(getSupportFragmentManager(), null);
+    }
   }
 
   protected void playUri(Uri uri) {
     // TODO chunkless should come from a properties file (so we can switch it when it's supported)
     boolean enableChunkless = getIntent().getBooleanExtra(CHUNKLESS_PREPARE, false);
+
     showErrorRecoveryWhisper(null, null);
-    currentUri = uri;
     outputProtectionMonitor.refreshState();
     stopPlaybackIfPlaying();
 
@@ -979,6 +1007,7 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
     if (uris.length > 0) {
       setIntent(intent);
       playUri(uris[0]);
+      setIntent(intent);
     }
   }
 

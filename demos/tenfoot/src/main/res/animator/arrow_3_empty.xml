@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<set xmlns:android="http://schemas.android.com/apk/res/android">
+    <objectAnimator
+        android:propertyName="strokeColor"
+        android:startOffset="67"
+        android:duration="10"
+        android:valueFrom="#ffffffff"
+        android:valueTo="#c0c0c0"
+        android:valueType="colorType"
+        android:interpolator="@android:interpolator/fast_out_slow_in"/>
+    <objectAnimator
+        android:propertyName="trimPathStart"
+        android:startOffset="67"
+        android:duration="369"
+        android:valueFrom="1"
+        android:valueTo="0"
+        android:valueType="floatType"
+        android:interpolator="@android:interpolator/fast_out_slow_in"/>
+    <objectAnimator
+        android:propertyName="fillColor"
+        android:startOffset="347"
+        android:duration="100"
+        android:valueFrom="#ffffffff"
+        android:valueTo="#ff000000"
+        android:valueType="colorType"
+        android:interpolator="@android:interpolator/fast_out_slow_in"/>
+</set>

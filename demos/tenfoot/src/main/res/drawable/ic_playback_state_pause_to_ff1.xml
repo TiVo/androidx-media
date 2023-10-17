@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<animated-vector
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:drawable="@drawable/ic_playback_state_pause">
+    <target android:name="pause_right">
+        <aapt:attr name="android:animation">
+            <objectAnimator
+                android:startOffset="0"
+                android:duration="250"
+                android:interpolator="@android:interpolator/accelerate_decelerate"
+                android:propertyName="pathData"
+                android:valueFrom="@string/pause_right_pause"
+                android:valueTo="@string/pause_right_play"
+                android:valueType="pathType" />
+        </aapt:attr>
+    </target>
+    <target android:name="pause_left">
+        <aapt:attr name="android:animation">
+            <objectAnimator
+                android:propertyName="strokeAlpha"
+                android:startOffset="100"
+                android:duration="150"
+                android:valueFrom="1"
+                android:valueTo="0"
+                android:valueType="floatType"
+                android:interpolator="@android:interpolator/accelerate_decelerate"/>
+        </aapt:attr>
+    </target>
+</animated-vector>

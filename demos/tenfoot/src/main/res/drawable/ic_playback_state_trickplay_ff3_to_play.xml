@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<animated-vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:drawable="@drawable/ic_playback_state_trickplay_fwd">
+
+    <target android:name="speed2">
+        <aapt:attr name="android:animation">
+            <objectAnimator
+                android:duration="300"
+                android:propertyName="translateX"
+                android:valueFrom="13"
+                android:valueTo="0" />
+        </aapt:attr>
+    </target>
+    <target android:name="speed3">
+        <aapt:attr name="android:animation">
+            <objectAnimator
+                android:duration="300"
+                android:propertyName="translateX"
+                android:valueFrom="26"
+                android:valueTo="0" />
+        </aapt:attr>
+    </target>
+
+    <target android:name="play_triangle_close">
+        <aapt:attr name="android:animation">
+            <objectAnimator
+                android:startOffset="300"
+                android:duration="200"
+                android:interpolator="@android:interpolator/accelerate_decelerate"
+                android:propertyName="strokeAlpha"
+                android:valueFrom="0"
+                android:valueTo="1" />
+        </aapt:attr>
+    </target>
+    <target android:name="play_triangle_arrow">
+        <aapt:attr name="android:animation">
+            <objectAnimator
+                android:startOffset="300"
+                android:duration="200"
+                android:interpolator="@android:interpolator/accelerate_decelerate"
+                android:propertyName="fillAlpha"
+                android:valueFrom="0"
+                android:valueTo="1" />
+        </aapt:attr>
+    </target>
+</animated-vector>

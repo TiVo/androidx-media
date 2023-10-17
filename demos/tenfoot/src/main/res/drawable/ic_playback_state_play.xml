@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="@dimen/playback_state_width"
+    android:height="@dimen/playback_state_height"
+    android:viewportWidth="48"
+    android:viewportHeight="48">
+
+    <path
+        android:name="pause_left"
+        android:pathData="@string/pause_left"
+        android:strokeWidth="8"
+        android:strokeColor="@color/tpPlayedColor"
+        android:strokeLineCap="round" />
+
+    <path
+        android:name="pause_right"
+        android:pathData="@string/pause_right_play"
+        android:strokeWidth="8"
+        android:fillColor="@color/tpPlayedColor"
+        android:strokeColor="@color/tpPlayedColor"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+
+</vector>

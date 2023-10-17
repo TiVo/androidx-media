@@ -188,9 +188,9 @@ public class DefaultTimeBar extends View implements TimeBar {
   private final Paint adMarkerPaint;
   private final Paint playedAdMarkerPaint;
   private final Paint scrubberPaint;
-  @Nullable private final Drawable scrubberDrawable;
+  @Nullable private Drawable scrubberDrawable;
   private final int barHeight;
-  private final int touchTargetHeight;
+  private int touchTargetHeight;
   private final int barGravity;
   private final int adMarkerWidth;
   private final int scrubberEnabledSize;
@@ -213,7 +213,7 @@ public class DefaultTimeBar extends View implements TimeBar {
   private ValueAnimator scrubberScalingAnimator;
   private float scrubberScale;
   private boolean scrubberPaddingDisabled;
-  private boolean scrubbing;
+  protected boolean scrubbing;
   private long scrubPosition;
   private long duration;
   private long position;
@@ -634,8 +634,8 @@ public class DefaultTimeBar extends View implements TimeBar {
           // Fall through.
         case KeyEvent.KEYCODE_DPAD_RIGHT:
           if (scrubIncrementally(positionIncrement)) {
-            removeCallbacks(stopScrubbingRunnable);
-            postDelayed(stopScrubbingRunnable, STOP_SCRUBBING_TIMEOUT_MS);
+//            removeCallbacks(stopScrubbingRunnable);
+//            postDelayed(stopScrubbingRunnable, STOP_SCRUBBING_TIMEOUT_MS);
             return true;
           }
           break;
@@ -800,7 +800,7 @@ public class DefaultTimeBar extends View implements TimeBar {
     }
   }
 
-  private void stopScrubbing(boolean canceled) {
+  protected void stopScrubbing(boolean canceled) {
     removeCallbacks(stopScrubbingRunnable);
     scrubbing = false;
     setPressed(false);
@@ -962,10 +962,21 @@ public class DefaultTimeBar extends View implements TimeBar {
     return Util.getStringForTime(formatBuilder, formatter, position);
   }
 
-  private long getPositionIncrement() {
+  protected long getPositionIncrement() {
     return keyTimeIncrement == C.TIME_UNSET
         ? (duration == C.TIME_UNSET ? 0 : (duration / keyCountIncrement))
         : keyTimeIncrement;
+  }
+
+  public void setScrubberDrawable(@Nullable Drawable scrubberDrawable) {
+    boolean updateHeight = this.scrubberDrawable != null;
+    this.scrubberDrawable = scrubberDrawable;
+    if (updateHeight) {
+      setDrawableLayoutDirection(scrubberDrawable);
+      touchTargetHeight =
+              Math.max(scrubberDrawable.getMinimumHeight(), touchTargetHeight);
+      invalidate();
+    }
   }
 
   private boolean setDrawableLayoutDirection(Drawable drawable) {
