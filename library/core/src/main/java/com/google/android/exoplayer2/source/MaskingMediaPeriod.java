@@ -178,6 +178,10 @@ public final class MaskingMediaPeriod implements MediaPeriod, MediaPeriod.Callba
       @NullableType SampleStream[] streams,
       boolean[] streamResetFlags,
       long positionUs) {
+    if (preparePositionOverrideUs != C.TIME_UNSET && positionUs == preparePositionUs) {
+      positionUs = preparePositionOverrideUs;
+      preparePositionOverrideUs = C.TIME_UNSET;
+    }
     return castNonNull(mediaPeriod)
         .selectTracks(selections, mayRetainStreamFlags, streams, streamResetFlags, positionUs);
   }
