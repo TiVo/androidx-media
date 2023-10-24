@@ -26,6 +26,12 @@ import com.google.android.exoplayer2.util.MimeTypes;
 public class SyncVideoTrackSelector extends DefaultTrackSelector {
 
 
+  /** Sync video failed because tunneling mode was selected and is not supported */
+  public static final int ERROR_CODE_SYNC_VIDEO_FAILED_TUNNELING = CUSTOM_ERROR_CODE_BASE + 1;
+
+  /** Sync video failed because no supported audio tracks are available */
+  public static final int ERROR_CODE_SYNC_VIDEO_FAILED_NO_PCM_AUDIO = CUSTOM_ERROR_CODE_BASE + 2;
+
   public SyncVideoTrackSelector(Context context, ExoTrackSelection.Factory trackSelectionFactory) {
     super(context, trackSelectionFactory);
   }
@@ -59,7 +65,7 @@ public class SyncVideoTrackSelector extends DefaultTrackSelector {
   ) throws ExoPlaybackException {
     if (params.tunnelingEnabled) {
       throw ExoPlaybackException.createForUnexpected(new RuntimeException("tunneling not supported for synced video"),
-          CUSTOM_ERROR_CODE_BASE + 1);
+          ERROR_CODE_SYNC_VIDEO_FAILED_TUNNELING);
     }
 
     @RendererCapabilities.Capabilities int[][] formatSupportCopy = new int[formatSupport.length][formatSupport[0].length];
@@ -70,7 +76,7 @@ public class SyncVideoTrackSelector extends DefaultTrackSelector {
       TrackGroup trackGroup = groups.get(groupIndex);
       for (int trackIndex = 0; trackIndex < trackGroup.length; trackIndex++) {
         Format format = trackGroup.getFormat(trackIndex);
-        if (MimeTypes.AUDIO_MP4.equals(format.sampleMimeType) || MimeTypes.AUDIO_AAC.equals(format.sampleMimeType)) {
+        if (isSupportedAudioFormatForSyncVideo(format)) {
           supportedFormatsCount++;
           formatSupportCopy[groupIndex][trackIndex] = formatSupport[groupIndex][trackIndex];
         } else {
@@ -87,11 +93,15 @@ public class SyncVideoTrackSelector extends DefaultTrackSelector {
           unsupportedFormat,
           C.FORMAT_UNSUPPORTED_TYPE,
           false,
-          CUSTOM_ERROR_CODE_BASE + 2
+          ERROR_CODE_SYNC_VIDEO_FAILED_NO_PCM_AUDIO
         );
     }
 
     return super.selectAudioTrack(groups, formatSupportCopy, mixedMimeTypeAdaptationSupports, params,
         enableAdaptiveTrackSelection);
+  }
+
+  public static boolean isSupportedAudioFormatForSyncVideo(Format format) {
+    return MimeTypes.AUDIO_MP4.equals(format.sampleMimeType) || MimeTypes.AUDIO_AAC.equals(format.sampleMimeType);
   }
 }

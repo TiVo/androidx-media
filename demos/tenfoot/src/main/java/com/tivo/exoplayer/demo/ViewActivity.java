@@ -44,6 +44,7 @@ import com.google.android.exoplayer2.source.hls.playlist.DefaultHlsPlaylistTrack
 import com.google.android.exoplayer2.trackselection.DefaultTrackSelector;
 import com.google.android.exoplayer2.trackselection.ExoTrackSelection;
 import com.google.android.exoplayer2.trackselection.MappingTrackSelector;
+import com.google.android.exoplayer2.trackselection.TrackSelection;
 import com.google.android.exoplayer2.trackselection.TrackSelectionArray;
 import com.google.android.exoplayer2.trickplay.TrickPlayControl;
 import com.google.android.exoplayer2.trickplay.TrickPlayEventListener;
@@ -77,6 +78,7 @@ import java.io.IOException;
 import java.io.BufferedReader;
 import com.tivo.exoplayer.library.util.AccessibilityHelper;
 
+import java.util.ArrayList;
 import org.json.JSONObject;
 
 import java.io.InputStream;
@@ -301,6 +303,12 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
                   break;
 
                 case FAILED:
+                  switch (error.errorCode) {
+                    case SyncVideoTrackSelector.ERROR_CODE_SYNC_VIDEO_FAILED_NO_PCM_AUDIO:
+                    case SyncVideoTrackSelector.ERROR_CODE_SYNC_VIDEO_FAILED_TUNNELING:
+                      Log.e(TAG,"Sync video failed, TODO fallback to no using SyncVideoTrackSelector", error);
+                      break;
+                  }
                   showErrorDialogWithRecoveryOption(error, "Playback Failed");
                   break;
               }
@@ -737,7 +745,16 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
 //            exoPlayerFactory.setRendererState(C.TRACK_TYPE_AUDIO, ! isAudioRenderOn);
 //            isAudioRenderOn = ! isAudioRenderOn;
 
-            List<TrackInfo> audioTracks = exoPlayerFactory.getAvailableAudioTracks();
+            List<TrackInfo> allAudioTracks = exoPlayerFactory.getAvailableAudioTracks();
+            List<TrackInfo> audioTracks = allAudioTracks;
+            if (trackSelector instanceof SyncVideoTrackSelector) {
+              audioTracks = new ArrayList<>();
+              for (TrackInfo info : allAudioTracks) {
+                if (SyncVideoTrackSelector.isSupportedAudioFormatForSyncVideo(info.format)) {
+                  audioTracks.add(info);
+                }
+              }
+            }
             if (audioTracks.size() > 0) {
               DialogFragment dialog =
                   TrackInfoSelectionDialog
