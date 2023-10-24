@@ -47,6 +47,7 @@ import com.google.android.exoplayer2.upstream.TransferListener;
 import com.google.android.exoplayer2.util.Assertions;
 import com.google.android.exoplayer2.util.MimeTypes;
 import com.google.android.exoplayer2.util.Util;
+import com.google.android.exoplayer2.util.Log;
 import com.google.common.primitives.Ints;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -65,6 +66,7 @@ public final class HlsMediaPeriod
         HlsSampleStreamWrapper.Callback,
         HlsPlaylistTracker.PlaylistEventListener {
 
+  private static final String TAG = "HlsMediaPeriod";
   private final HlsExtractorFactory extractorFactory;
   private final HlsPlaylistTracker playlistTracker;
   private final HlsDataSourceFactory dataSourceFactory;
@@ -635,6 +637,18 @@ public final class HlsMediaPeriod
         numberOfAudioCodecs <= 1
             && numberOfVideoCodecs <= 1
             && numberOfAudioCodecs + numberOfVideoCodecs > 0;
+    boolean hasCaptions =
+            masterPlaylist.muxedCaptionFormats != null &&
+                    masterPlaylist.muxedCaptionFormats.size() > 0;
+    if (allowChunklessPreparation) {
+      if (!codecsStringAllowsChunklessPreparation) {
+        Log.w(TAG, "Chunkless preparation not possible due to ambiguous codec line");
+      } else if (!hasCaptions) {
+        Log.w(TAG, "Chunkless preparation not possible due to missing captions line");
+      } else {
+        Log.w(TAG, "Chunkless preparation in use");
+      }
+    }
     int trackType =
         !useVideoVariantsOnly && numberOfAudioCodecs > 0
             ? C.TRACK_TYPE_AUDIO
@@ -650,7 +664,7 @@ public final class HlsMediaPeriod
             positionUs);
     sampleStreamWrappers.add(sampleStreamWrapper);
     manifestUrlIndicesPerWrapper.add(selectedVariantIndices);
-    if (allowChunklessPreparation && codecsStringAllowsChunklessPreparation) {
+    if (allowChunklessPreparation && codecsStringAllowsChunklessPreparation && hasCaptions) {
       List<TrackGroup> muxedTrackGroups = new ArrayList<>();
       if (numberOfVideoCodecs > 0) {
         Format[] videoFormats = new Format[selectedVariantsCount];
