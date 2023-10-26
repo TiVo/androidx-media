@@ -46,6 +46,7 @@ import com.google.android.exoplayer2.trackselection.ExoTrackSelection;
 import com.google.android.exoplayer2.trackselection.MappingTrackSelector;
 import com.google.android.exoplayer2.trackselection.TrackSelection;
 import com.google.android.exoplayer2.trackselection.TrackSelectionArray;
+import com.google.android.exoplayer2.trackselection.TrackSelector;
 import com.google.android.exoplayer2.trickplay.TrickPlayControl;
 import com.google.android.exoplayer2.trickplay.TrickPlayEventListener;
 import com.google.android.exoplayer2.ui.PlayerControlView;
@@ -306,10 +307,18 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
                   switch (error.errorCode) {
                     case SyncVideoTrackSelector.ERROR_CODE_SYNC_VIDEO_FAILED_NO_PCM_AUDIO:
                     case SyncVideoTrackSelector.ERROR_CODE_SYNC_VIDEO_FAILED_TUNNELING:
-                      Log.e(TAG,"Sync video failed, TODO fallback to no using SyncVideoTrackSelector", error);
+                      Log.e(TAG,"Sync video failed, restarting with filtered track selection disabled", error);
+                      TrackSelector trackSelector = exoPlayerFactory.getTrackSelector();
+                      if (trackSelector instanceof SyncVideoTrackSelector) {
+                        SyncVideoTrackSelector syncVideoTrackSelector = (SyncVideoTrackSelector) trackSelector;
+                        syncVideoTrackSelector.setEnableTrackFiltering(false);
+                        player.prepare();
+                      }
                       break;
+
+                    default:
+                      showErrorDialogWithRecoveryOption(error, "Playback Failed");
                   }
-                  showErrorDialogWithRecoveryOption(error, "Playback Failed");
                   break;
               }
             })
@@ -364,9 +373,7 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
            .setTrackSelectorFactory(new SimpleExoPlayerFactory.TrackSelectorFactory() {
              @Override
              public DefaultTrackSelector createTrackSelector(Context context, ExoTrackSelection.Factory trackSelectionFactory) {
-               return getIntent().hasExtra(FAST_RESYNC)
-                ? new SyncVideoTrackSelector(context, trackSelectionFactory)
-                : SimpleExoPlayerFactory.TrackSelectorFactory.super.createTrackSelector(context, trackSelectionFactory);
+                return new SyncVideoTrackSelector(context, trackSelectionFactory);
              }
            })
         ;
@@ -831,6 +838,14 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
     currentUri = uri;
     outputProtectionMonitor.refreshState();
     stopPlaybackIfPlaying();
+
+    boolean fast_resync = getIntent().hasExtra(FAST_RESYNC);
+    TrackSelector trackSelector = exoPlayerFactory.getTrackSelector();
+    if (trackSelector instanceof SyncVideoTrackSelector) {
+      SyncVideoTrackSelector syncVideoTrackSelector = (SyncVideoTrackSelector) trackSelector;
+      syncVideoTrackSelector.setEnableTrackFiltering(fast_resync);
+    }
+
     long seekTo =  getIntent().getIntExtra(INITIAL_SEEK, C.POSITION_UNSET);
     boolean playWhenReady =  getIntent().getBooleanExtra(START_PLAYING, true);
     Log.d(TAG, "playUri() playUri: '" + uri + "' - chunkless: " + enableChunkless + " initialPos: " + seekTo + " playWhenReady: " + playWhenReady);

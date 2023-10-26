@@ -4,6 +4,7 @@ import static com.google.android.exoplayer2.PlaybackException.CUSTOM_ERROR_CODE_
 
 import android.content.Context;
 import android.util.Pair;
+import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import com.google.android.exoplayer2.C;
 import com.google.android.exoplayer2.ExoPlaybackException;
@@ -31,6 +32,8 @@ public class SyncVideoTrackSelector extends DefaultTrackSelector {
 
   /** Sync video failed because no supported audio tracks are available */
   public static final int ERROR_CODE_SYNC_VIDEO_FAILED_NO_PCM_AUDIO = CUSTOM_ERROR_CODE_BASE + 2;
+
+  private boolean enableTrackFiltering = false;
 
   public SyncVideoTrackSelector(Context context, ExoTrackSelection.Factory trackSelectionFactory) {
     super(context, trackSelectionFactory);
@@ -63,6 +66,18 @@ public class SyncVideoTrackSelector extends DefaultTrackSelector {
       Parameters params,
       boolean enableAdaptiveTrackSelection
   ) throws ExoPlaybackException {
+    @RendererCapabilities.Capabilities int[][] filteredFormatSupport = formatSupport;
+
+    if (enableTrackFiltering) {
+      filteredFormatSupport = filterFormatSupport(groups, formatSupport, params);
+    }
+
+    return super.selectAudioTrack(groups, filteredFormatSupport, mixedMimeTypeAdaptationSupports, params,
+        enableAdaptiveTrackSelection);
+  }
+
+  @NonNull
+  private int[][] filterFormatSupport(TrackGroupArray groups, int[][] formatSupport, Parameters params) throws ExoPlaybackException {
     if (params.tunnelingEnabled) {
       throw ExoPlaybackException.createForUnexpected(new RuntimeException("tunneling not supported for synced video"),
           ERROR_CODE_SYNC_VIDEO_FAILED_TUNNELING);
@@ -96,9 +111,22 @@ public class SyncVideoTrackSelector extends DefaultTrackSelector {
           ERROR_CODE_SYNC_VIDEO_FAILED_NO_PCM_AUDIO
         );
     }
+    return formatSupportCopy;
+  }
 
-    return super.selectAudioTrack(groups, formatSupportCopy, mixedMimeTypeAdaptationSupports, params,
-        enableAdaptiveTrackSelection);
+  /**
+   * Set the overall behavior to filter or not filter. By default filtering is turned
+   * off.  This method should be called before each playback start to set the correct state
+   * It can also be called during error recovery to disable filtering
+   * 
+   * @param enable true to enable filtering to only audio supporting synced video
+   */
+  public void setEnableTrackFiltering(boolean enable) {
+    boolean changed = enable != enableTrackFiltering;
+    enableTrackFiltering = enable;
+    if (changed) {
+      super.invalidate();
+    }
   }
 
   public static boolean isSupportedAudioFormatForSyncVideo(Format format) {
