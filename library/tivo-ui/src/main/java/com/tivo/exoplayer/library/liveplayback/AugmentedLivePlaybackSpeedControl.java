@@ -4,6 +4,7 @@ import androidx.annotation.NonNull;
 import com.google.android.exoplayer2.C;
 import com.google.android.exoplayer2.LivePlaybackSpeedControl;
 import com.google.android.exoplayer2.MediaItem;
+import com.google.android.exoplayer2.SimpleExoPlayer;
 import com.google.android.exoplayer2.util.Log;
 
 /**
@@ -12,7 +13,15 @@ import com.google.android.exoplayer2.util.Log;
  */
 public class AugmentedLivePlaybackSpeedControl implements LivePlaybackSpeedControl {
 
-    private static final long MAX_LIVE_OFFSET_DELTA = 60 * 1_000;   // 60s
+    /**
+     * Live Adjustment is only enabled when the position (as implied by call to {@link #setTargetLiveOffsetOverrideUs(long)})
+     * is less than this difference from the {@link MediaItem.LiveConfiguration#targetOffsetMs}
+     *
+     * Set to value that is accommodates where trickplay forward most likely will exit.  Note a seek within this
+     * position will adjust back to live, the value must be large enough to cover where trickplay will exit for
+     * origins that do not update the trickplay track in real time.
+     */
+    public static long MAX_LIVE_OFFSET_DELTA_MS = 120 * 1_000;   // 120s
 
     private final String TAG = "AugmentedLivePlaybackSpeedControl";
 
@@ -31,12 +40,23 @@ public class AugmentedLivePlaybackSpeedControl implements LivePlaybackSpeedContr
         delegate.setLiveConfiguration(liveConfiguration);
     }
 
+    /**
+     * This method is called from ExoPlayer internally to "override" the ideal target from the {@link MediaItem.LiveConfiguration} when
+     * a seek occurs (which of course changes the position from the original starting live point ({@link SimpleExoPlayer#seekToDefaultPosition()})
+     * In Google's ExoPlayer version the only way to restore the original is a {@link MediaItem.LiveConfiguration}, and to have the
+     * bug fix for https://github.com/google/ExoPlayer/issues/11050
+     * <p></p>
+     * For our implementation this is not enough, as trick-play forward can exits short of live, and the desired action is to remove the
+     * override just like if  ({@link SimpleExoPlayer#seekToDefaultPosition()}) was called, and to disable live offset adjustment completely
+     * when we seek back from the live point significantly.   Net behavior is:
+     * 1) we simply do not accept an override that is more than {@link #MAX_LIVE_OFFSET_DELTA_MS} ms greater than the the target
+     *
+     * @param liveOffsetUs override target live offset value from ExoPlayer internal seek.
+     */
     @Override
     public void setTargetLiveOffsetOverrideUs(long liveOffsetUs) {
         updateEnableFromLiveOffsetOverride(liveOffsetUs);
-        if (enableLiveAdjustment) {
-            delegate.setTargetLiveOffsetOverrideUs(liveOffsetUs);
-        }
+        delegate.setTargetLiveOffsetOverrideUs(enableLiveAdjustment ? C.TIME_UNSET : liveOffsetUs);
     }
 
     /**
@@ -77,7 +97,7 @@ public class AugmentedLivePlaybackSpeedControl implements LivePlaybackSpeedContr
         boolean previousEnable = enableLiveAdjustment;
         if (liveOffsetUs == C.TIME_UNSET) {
             enableLiveAdjustment = true;        // re-enable on reset.
-            Log.d(TAG, "live offset override removed, enalbing live edge adjustment");
+            Log.d(TAG, "live offset override removed, enabling live edge adjustment");
         } else if (lastLiveConfiguration.targetOffsetMs != C.TIME_UNSET){
             enableLiveAdjustment = liveOffsetInRange(liveOffsetUs);
             if (previousEnable != enableLiveAdjustment) {
@@ -91,7 +111,7 @@ public class AugmentedLivePlaybackSpeedControl implements LivePlaybackSpeedContr
     }
 
     private boolean liveOffsetInRange(long liveOffsetUs) {
-        return (C.usToMs(liveOffsetUs) - lastLiveConfiguration.targetOffsetMs) <= MAX_LIVE_OFFSET_DELTA;
+        return (C.usToMs(liveOffsetUs) - lastLiveConfiguration.targetOffsetMs) <= MAX_LIVE_OFFSET_DELTA_MS;
     }
 
     private void updateEnableFromLiveConfiguration(@NonNull MediaItem.LiveConfiguration liveConfiguration) {
