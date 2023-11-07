@@ -1,11 +1,18 @@
 # Release notes #
-### 2.15.1-1.5-dev (Not Yet Release)
+### 2.15.1-1.5 (2023-11-07)
 
-#### Xperi Code Base
+Update targeted for first official release version for streamer-1-19.  
+
+#### New Features
+
+* *Live Video Sync'd Playback* &mdash; Enables real-time playback to synchronize across multiple screens in a hospitality setting.  This is described in the [Live Offset Sync Feature](https://github.com/tivocorp/exoplayerprvt/blob/release/tivo-docs/LiveOffsetSyncFeature.md) document.
+* Disable video fetch to lImit bandwidth use by burn-in screen &mdash; [WSIPCL-17565 - Replace full video bitrate playing in the Reduced Burn-in screen](https://jira.xperi.com/browse/WSIPCL-17565) 
+
+#### Xperi Code Base Changes
 
 ##### Bug Fixes
 
-<placeholder>
+* [Fixes stall on restart after LAN unplugged pd-17601](https://github.com/tivocorp/exoplayerprvt/commit/526cf30e44) &mdash; this was a bug reported by LLA, [PARTDEFECT-17601](https://jira.xperi.com/browse/PARTDEFECT-17601). 
 
 ##### Other Changes
 
@@ -14,21 +21,36 @@
 
 * Added "Buffering Count" display to demo GeekStatsOverlay, this displays the count of all transtions to
   buffering state, stall or otherwise.   This is useful for debugging Live Offset, each buffering event causes resync
+  
+* Add support for Live Video sync:
+  * [c982fc18a4 -- Trickplay exit now restores initial targetLiveOffset](https://github.com/tivocorp/exoplayerprvt/commit/c982fc18a4)
+  * [feb16c4222 -- Enables error recovery when live sync not possible](https://github.com/tivocorp/exoplayerprvt/commit/feb16c4222)
+  * [0b96266d92 -- Prevents selection of un-supported audio for sync video](https://github.com/tivocorp/exoplayerprvt/commit/0b96266d92)
+  * [6dca4fa5cf -- Add switch for livesync to tenfoot main UI](https://github.com/tivocorp/exoplayerprvt/commit/6dca4fa5cf)
+  * [bdcaff0518 -- Wraps SntpClient HLS changes in feature flag](https://github.com/tivocorp/exoplayerprvt/commit/bdcaff0518)
+  * [e87e4c93ef -- Add SyncVideoTrackSelector for sync video support](https://github.com/tivocorp/exoplayerprvt/commit/e87e4c93ef)
+  * [9a583914c5 -- Prevents target live change on rebuffer](https://github.com/tivocorp/exoplayerprvt/commit/9a583914c5)
 
 #### Google Module Changes
 
-Section documents our cherry-picks or other unshared changes to Google libraries (core, dash, HLS, extractor, etc)
+##### CORE (library-core)
 
-<placeholder>
+* Fix for PD-17601 involved changes to `MaskingMediaSource`,   Pull request [andriodx/media#753](https://github.com/androidx/media/pull/753) still open, Issue [google/ExoPlayer#9347](https://github.com/google/exoplayer/issues/9347).  Fixing PD-17601 required a revised fix to that issue.
+* Update `SntpClient` for Synced Video playback feature, this includes commit [dfe5358e8e - SntpClient periodically re-syncs the offset to NTP server](https://github.com/tivocorp/exoplayerprvt/commit/dfe5358e8e).   Change is covered by pull request [andriodx/media#697](https://github.com/androidx/media/pull/697)
+
+##### Extractor (library-extractor)
+
+* Add support for disabling ID3/metadata tracks so disabling video stops segment fetches.   Commit is: [ed27ccac40 - Prevents Creation of ID3 and EMSG Tracks for HLS](https://github.com/tivocorp/exoplayerprvt/commit/ed27ccac40).  This can be tracked with issue [andriodx/media#620](https://github.com/androidx/media/issues/620),  [andriodx/media#294](https://github.com/androidx/media/issues/294) has notes on the longer range plan.
+
+##### Extractor (library-hls)
+
+* The fMP4 portion of disabling ID3/metadata tracks, again commit is: [ed27ccac40](https://github.com/tivocorp/exoplayerprvt/commit/ed27ccac40).
+* Changes to HLS to allow Live Video sync, using `SntpClient`,  commits and pull request:
+  - [Wraps SntpClient HLS changes in feature flag](https://github.com/tivocorp/exoplayerprvt/commit/bdcaff0518)
+  - [Enables HLS Live Offset Synchronization Across Multiple Devices](https://github.com/tivocorp/exoplayerprvt/commit/c945a1806e)
+  - [androidx/media#703 -- Allows exact live sync for HLS](https://github.com/androidx/media/pull/703)
 
 
-
-### 2.15.1-1.5-dev (not yet released)
-
-#### Xperi Code Base
-    
-* Added "Buffering Count" display to demo GeekStatsOverlay, this displays the count of all transtions to
-  buffering state, stall or otherwise.   This is useful for debugging Live Offset, each buffering event causes resync      
 
 ### 2.15.1-1.4 (2023-08-02)
 
