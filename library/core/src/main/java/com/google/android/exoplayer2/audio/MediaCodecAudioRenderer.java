@@ -531,17 +531,17 @@ public class MediaCodecAudioRenderer extends MediaCodecRenderer implements Media
    */
   @Override
   protected boolean hasOutputReady() {
-      boolean fifoReady = true;
-      if (tunneling && lastOutputTimeUs != C.TIME_UNSET) {
-          long fifoLengthUs = getLargestQueuedPresentationTimeUs() - lastOutputTimeUs;
-          // make sure there is some amount of audio available in decoder FIFO,
-          // otherwise decoder may start stalling
-          if (fifoLengthUs <= 0)
-          {
-              fifoReady = false;
-          }
+    // fifoReady is false if no valid output time has been set, as we can't determine fifo readiness
+    boolean fifoReady = lastOutputTimeUs != C.TIME_UNSET;
+    if (tunneling && fifoReady) {
+      long fifoLengthUs = getLargestQueuedPresentationTimeUs() - lastOutputTimeUs;
+      // make sure there is some amount of audio available in decoder FIFO,
+      // otherwise decoder may start stalling
+      if (fifoLengthUs <= 0) {
+        fifoReady = false;
       }
-      return tunneling && fifoReady || super.hasOutputReady();
+    }
+    return tunneling && fifoReady || super.hasOutputReady();
   }
 
   @Override
