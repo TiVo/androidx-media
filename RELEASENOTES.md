@@ -1,4 +1,9 @@
 # Release notes #
+
+### 2.15.1-2.0-dev (2023-11-13)
+
+(Work in progress)
+
 ### 2.15.1-1.5 (2023-11-07)
 
 Update targeted for first official release version for streamer-1-19.  
