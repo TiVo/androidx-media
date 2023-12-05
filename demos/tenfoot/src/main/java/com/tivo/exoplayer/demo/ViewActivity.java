@@ -37,15 +37,12 @@ import com.google.android.exoplayer2.analytics.AnalyticsListener;
 import com.google.android.exoplayer2.audio.AudioAttributes;
 import com.google.android.exoplayer2.demo.TrackSelectionDialog;
 import com.google.android.exoplayer2.source.MediaSourceFactory;
-import com.google.android.exoplayer2.source.TrackGroupArray;
 import com.google.android.exoplayer2.source.UnrecognizedInputFormatException;
 import com.google.android.exoplayer2.source.hls.HlsMediaSource;
 import com.google.android.exoplayer2.source.hls.playlist.DefaultHlsPlaylistTracker;
 import com.google.android.exoplayer2.trackselection.DefaultTrackSelector;
 import com.google.android.exoplayer2.trackselection.ExoTrackSelection;
 import com.google.android.exoplayer2.trackselection.MappingTrackSelector;
-import com.google.android.exoplayer2.trackselection.TrackSelection;
-import com.google.android.exoplayer2.trackselection.TrackSelectionArray;
 import com.google.android.exoplayer2.trackselection.TrackSelector;
 import com.google.android.exoplayer2.trickplay.TrickPlayControl;
 import com.google.android.exoplayer2.trickplay.TrickPlayEventListener;
@@ -53,7 +50,6 @@ import com.google.android.exoplayer2.ui.PlayerControlView;
 import com.google.android.exoplayer2.ui.PlayerView;
 import com.google.android.exoplayer2.ui.SubtitleView;
 import com.google.android.exoplayer2.ui.TimeBar;
-import com.google.android.exoplayer2.util.MimeTypes;
 import com.google.android.exoplayer2.upstream.DefaultHttpDataSource;
 import com.google.android.exoplayer2.upstream.HttpDataSource;
 import com.streamingmediainsights.smiclientsdk.SMIClientSdk;
@@ -151,6 +147,7 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
 
   private boolean isAudioRenderOn = true;
   private PlaybackMetricsManagerApi statsManager;
+  private Toast errorRecoveryToast;
 
 
   private class ScrubHandler implements TimeBar.OnScrubListener {
@@ -262,17 +259,12 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
               switch (status) {
                 case IN_PROGRESS:
                   Log.d(TAG, "playerErrorProcessed() - error: " + error.getMessage() + " status: " + status);
-                  if (PlaybackExceptionRecovery.isBehindLiveWindow(error)) {
-                    Toast.makeText(getApplicationContext(), "Recovering Behind Live Window", Toast.LENGTH_LONG).show();
-                  } else if (PlaybackExceptionRecovery.isPlaylistStuck(error)) {
-                    Toast.makeText(getApplicationContext(), "Retrying stuck playlist", Toast.LENGTH_LONG).show();
-                  } else {
-                    Toast.makeText(getApplicationContext(), error.getMessage(), Toast.LENGTH_LONG).show();
-                  }
+                  showErrorRecoveryWhisper(null, error);
                   break;
 
                 case SUCCESS:
                   Log.d(TAG, "playerErrorProcessed() - recovered from " + error.getMessage());
+                  showErrorRecoveryWhisper(null, null);
                   break;
 
                 case WARNING:
@@ -833,8 +825,7 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
   protected void playUri(Uri uri) {
     // TODO chunkless should come from a properties file (so we can switch it when it's supported)
     boolean enableChunkless = getIntent().getBooleanExtra(CHUNKLESS_PREPARE, false);
-
-
+    showErrorRecoveryWhisper(null, null);
     currentUri = uri;
     outputProtectionMonitor.refreshState();
     stopPlaybackIfPlaying();
@@ -1013,6 +1004,33 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
       uris[i] = Uri.parse(uriStrings[i]);
     }
     return uris;
+  }
+
+  private void showErrorRecoveryWhisper(@Nullable String message, @Nullable PlaybackException error) {
+    String text = null;
+
+    if (message != null) {
+      text = message;
+    } else if (error != null) {
+      if (PlaybackExceptionRecovery.isBehindLiveWindow(error)) {
+         text = "Recovering Behind Live Window";
+      } else if (PlaybackExceptionRecovery.isPlaylistStuck(error)) {
+        text = "Retrying stuck playlist";
+      } else {
+        text = "Retrying - " + error.getErrorCodeName();
+      }
+    }
+    if (text != null) {
+      if (errorRecoveryToast == null) {
+        errorRecoveryToast = Toast.makeText(getApplicationContext(), text, Toast.LENGTH_LONG);
+      }
+      errorRecoveryToast.setText(text);
+      errorRecoveryToast.setDuration(Toast.LENGTH_LONG);
+      errorRecoveryToast.show();
+    } else if (errorRecoveryToast != null) {
+      errorRecoveryToast.cancel();
+      errorRecoveryToast = null;
+    }
   }
 
   private void showError(String message, @Nullable Exception exception) {

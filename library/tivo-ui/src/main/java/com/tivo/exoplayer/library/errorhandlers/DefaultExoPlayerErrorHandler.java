@@ -76,7 +76,7 @@ public class DefaultExoPlayerErrorHandler implements Player.Listener {
   @Override
   @CallSuper
   public void onPlayerError(PlaybackException error) {
-    Log.w(TAG, "onPlayerError: error: " + error);
+    Log.w(TAG, "onPlayerError() - error: " + error);
     PlaybackExceptionRecovery activeHandler = null;
 
     // This error is reported by player.release() on some Android platforms,
@@ -102,6 +102,7 @@ public class DefaultExoPlayerErrorHandler implements Player.Listener {
         reportErrorStatus(activeHandler);
       }
     }
+    Log.w(TAG, "onPlayerError() - return, activeHandler: " + activeHandler);
   }
 
   @Override
