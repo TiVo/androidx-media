@@ -11,12 +11,14 @@ import android.os.Looper;
 import androidx.annotation.Nullable;
 import com.google.android.exoplayer2.C;
 import com.google.android.exoplayer2.PlaybackException;
-import com.google.android.exoplayer2.PlaybackException.ErrorCode;
 import com.google.android.exoplayer2.Player;
 import com.google.android.exoplayer2.SimpleExoPlayer;
 import com.google.android.exoplayer2.Timeline;
 import com.google.android.exoplayer2.util.Log;
 import java.math.BigInteger;
+import java.net.SocketException;
+import java.net.SocketTimeoutException;
+import java.net.UnknownHostException;
 import java.security.SecureRandom;
 import java.util.Random;
 
@@ -105,7 +107,7 @@ public class NetworkLossPlayerErrorHandler implements PlaybackExceptionRecovery,
    */
   @Override
   public boolean recoverFrom(PlaybackException error) {
-    boolean handled = isHandledErrorCode(error.errorCode);
+    boolean handled = isHandledPlaybackException(error);
     if (handled && ! isRecoveryInProgress()) {
       currentError = error;
       addPlayerListener();
@@ -186,15 +188,44 @@ public class NetworkLossPlayerErrorHandler implements PlaybackExceptionRecovery,
   // Internal methods
 
   /**
-   * Returns if the error should be recovered by this class.
+   * Returns if the error should be recovered by this class, that is the error is caused
+   * by a network connection failure.  Presumably a <b>recoverable</b> temporary issue, including user induced like
+   * cable disconnect.
+   * <p></p>
+   * Specific handled errors are the two NETWORK_CONNECTION errorCodes, with these root causes:
+   * <ol>
+   *   <li>{@link SocketTimeoutException} -- occurs when the origin is non responsive, not listening on the socket, network path fails</li>
+   *   <li>{@link UnknownHostException} -- local network is down and CDN/Edge host cannot be reached (also could be a bad URL, but unlikely)</li>
+   *   <li>{@link SocketException} -- occurs when the local network is down (@link ConnectException}, note it is possible the subclasses
+   *                                  of this error are more permanent failures (e.g. BindException).</li>
+   * </ol>
    *
-   * @param errorCode code to check
+   * Note the {@link java.net.Socket} open could also fail for more non-recoverable causes which are not retried, including:
+   * <ol>
+   *   <li>{@link java.net.UnknownHostException}</li>
+   *   <li>{@link java.net.MalformedURLException}</li>
+   *   <li>{@link java.net.URISyntaxException}</li>
+   * </ol>
+   *
+   * @param error PlaybackException to check
    * @return true if it is a network lost type of error recovered by this class.
    */
-  private boolean isHandledErrorCode(@ErrorCode int errorCode) {
+  private boolean isHandledPlaybackException(PlaybackException error) {
+    return isHandledErrorCode(error) && isHandledRootCause(error);
+  }
+
+  private static boolean isHandledRootCause(PlaybackException error) {
+    return PlaybackExceptionRecovery.isSourceErrorOfType(error, SocketTimeoutException.class)
+        || PlaybackExceptionRecovery.isSourceErrorOfType(error, SocketException.class)
+        || PlaybackExceptionRecovery.isSourceErrorOfType(error, UnknownHostException.class);
+  }
+
+  private static boolean isHandledErrorCode(PlaybackException error) {
+    int errorCode = error.errorCode;
     return errorCode == PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED ||
         errorCode == PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT;
   }
+
   private boolean isNetworkConnected() {
     ConnectivityManager connectivityManager = (ConnectivityManager) androidContext.getSystemService(Context.CONNECTIVITY_SERVICE);
     NetworkInfo activeNetwork = connectivityManager.getActiveNetworkInfo();
@@ -267,7 +298,7 @@ public class NetworkLossPlayerErrorHandler implements PlaybackExceptionRecovery,
     positionAtError = player == null ? C.TIME_UNSET : player.getCurrentPosition();
   }
 
-  private Timeline.Window getCurrentWindow(SimpleExoPlayer player) {
+  private static Timeline.Window getCurrentWindow(SimpleExoPlayer player) {
     Timeline.Window currentWindow = null;
     Timeline timeline = player == null ? null : player.getCurrentTimeline();
     if (timeline != null && !timeline.isEmpty()) {

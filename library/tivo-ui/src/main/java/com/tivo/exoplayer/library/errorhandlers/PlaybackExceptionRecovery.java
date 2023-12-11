@@ -49,7 +49,7 @@ public interface PlaybackExceptionRecovery {
 
         }
 
-    static boolean isSourceErrorOfType(PlaybackException e, Class type) {
+    static boolean isSourceErrorOfType(PlaybackException e, Class<?> type) {
         if (! (e instanceof ExoPlaybackException)) {
             return false;
         }
@@ -59,7 +59,7 @@ public interface PlaybackExceptionRecovery {
         }
         Throwable cause = playbackException.getSourceException();
         while (cause != null) {
-            if (cause.getClass().isAssignableFrom(type)) {
+            if (type.isAssignableFrom(cause.getClass())) {      // the cause is or extends the type
                 return true;
             }
             cause = cause.getCause();
