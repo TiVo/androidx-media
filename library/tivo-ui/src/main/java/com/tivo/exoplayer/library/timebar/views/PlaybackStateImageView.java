@@ -4,10 +4,12 @@ import android.annotation.SuppressLint;
 import android.content.Context;
 import android.graphics.drawable.AnimatedVectorDrawable;
 import android.graphics.drawable.Drawable;
+import android.os.Build;
 import android.util.AttributeSet;
 import android.widget.ImageView;
 import androidx.annotation.Nullable;
 
+import androidx.core.content.res.ResourcesCompat;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -59,13 +61,13 @@ public class PlaybackStateImageView extends ImageView {
     }
 
     private Drawable getIconResource(int resId) {
-        return getContext().getDrawable(resId);
+        return ResourcesCompat.getDrawable(getResources(), resId, null);
     }
 
     private void updateDrawable(Drawable drawable) {
         Drawable previousDrawable = getDrawable();
         setImageDrawable(drawable);
-        if (previousDrawable != drawable) {
+        if (previousDrawable != drawable && Build.VERSION.SDK_INT >= 21 ) {
             Log.d(TAG, "updatingIcon - old: " + drawableName(previousDrawable) + " new: " + drawableName(drawable));
             if (previousDrawable instanceof AnimatedVectorDrawable) {
                 ((AnimatedVectorDrawable) previousDrawable).stop();

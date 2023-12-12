@@ -7,6 +7,8 @@ import android.view.KeyEvent;
 import android.view.View;
 import android.widget.ImageButton;
 
+import androidx.core.content.ContextCompat;
+import androidx.core.content.res.ResourcesCompat;
 import com.google.android.exoplayer2.Player;
 import com.google.android.exoplayer2.SimpleExoPlayer;
 import com.google.android.exoplayer2.trickplay.TrickPlayControl;
@@ -103,12 +105,12 @@ public class TransportControlHandler implements TrickPlayEventListener, Player.L
 
         trickPlayButtonImages = new HashMap<>();
 
-        trickPlayButtonImages.put(TrickPlayControl.TrickMode.FF1, context.getDrawable(R.drawable.ic_fwd_1_x));
-        trickPlayButtonImages.put(TrickPlayControl.TrickMode.FF2, context.getDrawable(R.drawable.ic_fwd_2_x));
-        trickPlayButtonImages.put(TrickPlayControl.TrickMode.FF3, context.getDrawable(R.drawable.ic_fwd_3_x));
-        trickPlayButtonImages.put(TrickPlayControl.TrickMode.FR1, context.getDrawable(R.drawable.ic_rwd_1_x));
-        trickPlayButtonImages.put(TrickPlayControl.TrickMode.FR2, context.getDrawable(R.drawable.ic_rwd_2_x));
-        trickPlayButtonImages.put(TrickPlayControl.TrickMode.FR3, context.getDrawable(R.drawable.ic_rwd_3_x));
+        trickPlayButtonImages.put(TrickPlayControl.TrickMode.FF1, ResourcesCompat.getDrawable(context.getResources(), R.drawable.ic_fwd_1_x, null));
+        trickPlayButtonImages.put(TrickPlayControl.TrickMode.FF2, ResourcesCompat.getDrawable(context.getResources(), R.drawable.ic_fwd_2_x, null));
+        trickPlayButtonImages.put(TrickPlayControl.TrickMode.FF3, ResourcesCompat.getDrawable(context.getResources(), R.drawable.ic_fwd_3_x, null));
+        trickPlayButtonImages.put(TrickPlayControl.TrickMode.FR1, ResourcesCompat.getDrawable(context.getResources(), R.drawable.ic_rwd_1_x, null));
+        trickPlayButtonImages.put(TrickPlayControl.TrickMode.FR2, ResourcesCompat.getDrawable(context.getResources(), R.drawable.ic_rwd_2_x, null));
+        trickPlayButtonImages.put(TrickPlayControl.TrickMode.FR3, ResourcesCompat.getDrawable(context.getResources(), R.drawable.ic_rwd_3_x, null));
 
         timeBar = playerView.findViewById(com.google.android.exoplayer2.ui.R.id.exo_progress);
         playbackStateView = playerView.findViewById(R.id.playback_state_view);
