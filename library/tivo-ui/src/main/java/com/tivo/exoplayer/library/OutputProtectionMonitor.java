@@ -60,6 +60,7 @@ public class OutputProtectionMonitor extends Handler {
     private boolean isHdcpLevelV2_2 = false;
     private int hdcpLevelOfConnectedTV = MediaDrm.HDCP_NO_DIGITAL_OUTPUT;
     private boolean isRefreshStateRequested = false;
+    private boolean isHotPlugged = true;
     private @HdcpLevel int requiredHdcpLevel;
     HandlerThread drmHandlerThread;
     DrmHandler drmHandler;
@@ -128,10 +129,12 @@ public class OutputProtectionMonitor extends Handler {
                     if (intent.getIntExtra
                             (AudioManager.EXTRA_AUDIO_PLUG_STATE, -1) == 1) {
                         Log.w(TAG, "HDMI Hotplug - plugged in");
+                        isHotPlugged = true;
                         refreshState();
                     }
                     else {
                         Log.w(TAG, "HDMI Hotplug - unplugged");
+                        isHotPlugged = false;
                         refreshState();
                     }
                 }
@@ -199,6 +202,10 @@ public class OutputProtectionMonitor extends Handler {
      */
     public boolean isHdcpV2_2() {
         return isHdcpLevelV2_2;
+    }
+
+    public boolean isHotPlugged() {
+        return isHotPlugged;
     }
 
     /**
