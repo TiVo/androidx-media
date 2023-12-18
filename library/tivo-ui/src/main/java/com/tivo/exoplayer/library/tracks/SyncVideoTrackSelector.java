@@ -129,6 +129,22 @@ public class SyncVideoTrackSelector extends DefaultTrackSelector {
     }
   }
 
+  /**
+   * Get the state of the enableTrackFiltering boolean.
+   * This is the getter for setEnableTrackFiltering.
+   *
+   * @return boolean enableTrackFiltering
+   */
+  public boolean getEnableTrackFiltering() {
+    return enableTrackFiltering;
+  }
+
+  /**
+   * Encapsulates the supported audio formats for Synced Playback.
+   *
+   * @param format, the audio format
+   * @return boolean whether or not the given audio format is supported
+   */
   public static boolean isSupportedAudioFormatForSyncVideo(Format format) {
     return MimeTypes.AUDIO_MP4.equals(format.sampleMimeType) || MimeTypes.AUDIO_AAC.equals(format.sampleMimeType);
   }

@@ -296,21 +296,7 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
                   break;
 
                 case FAILED:
-                  switch (error.errorCode) {
-                    case SyncVideoTrackSelector.ERROR_CODE_SYNC_VIDEO_FAILED_NO_PCM_AUDIO:
-                    case SyncVideoTrackSelector.ERROR_CODE_SYNC_VIDEO_FAILED_TUNNELING:
-                      Log.e(TAG,"Sync video failed, restarting with filtered track selection disabled", error);
-                      TrackSelector trackSelector = exoPlayerFactory.getTrackSelector();
-                      if (trackSelector instanceof SyncVideoTrackSelector) {
-                        SyncVideoTrackSelector syncVideoTrackSelector = (SyncVideoTrackSelector) trackSelector;
-                        syncVideoTrackSelector.setEnableTrackFiltering(false);
-                        player.prepare();
-                      }
-                      break;
-
-                    default:
-                      showErrorDialogWithRecoveryOption(error, "Playback Failed");
-                  }
+                  showErrorDialogWithRecoveryOption(error, "Playback Failed");
                   break;
               }
             })
@@ -747,9 +733,10 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
             List<TrackInfo> allAudioTracks = exoPlayerFactory.getAvailableAudioTracks();
             List<TrackInfo> audioTracks = allAudioTracks;
             if (trackSelector instanceof SyncVideoTrackSelector) {
+              SyncVideoTrackSelector syncVideoTrackSelector = (SyncVideoTrackSelector) trackSelector;
               audioTracks = new ArrayList<>();
               for (TrackInfo info : allAudioTracks) {
-                if (SyncVideoTrackSelector.isSupportedAudioFormatForSyncVideo(info.format)) {
+                if (!syncVideoTrackSelector.getEnableTrackFiltering() || SyncVideoTrackSelector.isSupportedAudioFormatForSyncVideo(info.format)) {
                   audioTracks.add(info);
                 }
               }
