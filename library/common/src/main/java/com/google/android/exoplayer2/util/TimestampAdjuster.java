@@ -210,7 +210,7 @@ public final class TimestampAdjuster {
    * @return The corresponding value in microseconds.
    */
   public static long ptsToUs(long pts) {
-    return (pts * C.MICROS_PER_SECOND) / 90000;
+    return (pts * 100) / 9;
   }
 
   /**
@@ -234,6 +234,6 @@ public final class TimestampAdjuster {
    * @return The corresponding value as a 90 kHz clock timestamp.
    */
   public static long usToNonWrappedPts(long us) {
-    return (us * 90000) / C.MICROS_PER_SECOND;
+    return (us * 9) / 100;
   }
 }

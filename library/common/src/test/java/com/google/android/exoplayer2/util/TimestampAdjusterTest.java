@@ -82,4 +82,20 @@ public class TimestampAdjusterTest {
     assertThat(firstAdjustedTimestampUs).isEqualTo(5000);
     assertThat(secondAdjustedTimestampUs).isEqualTo(9000);
   }
+
+  @Test
+  public void ptsToUs_with_pts_over_9223372036854() {
+
+    // Just under overflowing long
+    assertThat(TimestampAdjuster.ptsToUs(9223372036854L)).isEqualTo(102481911520600L);
+
+    // overflows conversion to microseconds without fix-point math
+    assertThat(TimestampAdjuster.ptsToUs(9223372036855L)).isEqualTo(102481911520611L);
+  }
+
+  @Test
+  public void usToNonWrappedPts_with_result_pts_over_9223372036854() {
+    assertThat(TimestampAdjuster.usToNonWrappedPts(102481911520600L)).isEqualTo(9223372036854L);
+    assertThat(TimestampAdjuster.usToNonWrappedPts(102481911520612L)).isEqualTo(9223372036855L);
+  }
 }
