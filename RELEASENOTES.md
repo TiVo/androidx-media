@@ -2,7 +2,36 @@
 
 ### 2.15.1-2.0-dev (2023-11-13)
 
-(Work in progress)
+#### New Features
+
+* Add support for Chunkless Prepare:
+  * [089df97515 -- Implements caption track check in ExoPlayer](https://github.com/tivocorp/exoplayerprvt/commit/089df97515)
+* Improve V60 Error reporting &mdash; Expose API's to allow the UI code to check the state of HDMI cable (or TV Power on/off state).  This code change adds the support, also ExoPlayerPlayer [change 1470407](https://p4web.tivo.com:1666/1470407?ac=10) requires this commit:
+  * [7db96d94eb -- Provide means to query hotplug status for platforms that support reliable means to do so.](https://github.com/tivocorp/exoplayerprvt/commit/7db96d94eb)
+
+#### Xperi Code Base Changes
+
+##### Bug Fixes
+
+* **VTR/Clairo PTS Wrap Fix** &mdash;[PARTDEFECT-19803 - VTR WebVTT timestamps overflow PTS](https://jira.xperi.com/browse/PARTDEFECT-19803)
+  * [8f023250a1 -- Unwrapped PTS over 9223372036854 does not overflow](https://github.com/tivocorp/exoplayerprvt/commit/8f023250a1)
+
+* **LLA Networking Issue** &mdash; [[CS0044805] Buffer issue...](https://jira.xperi.com/browse/PARTDEFECT-17601)
+    These two changes, along with ExoPlayerPlayer [Change 1470285](https://p4web.tivo.com:1666/@md=d&cd=//d-flash/clientcore/mainline/platform/video/video/lib/dependencies/android/src/com/tivo/platform/video/android/&cdf=//d-flash/clientcore/mainline/platform/video/video/lib/dependencies/android/src/com/tivo/platform/video/android/ExoPlayerPlayer.java&cl=smayhew-clientcore-noctua&c=Ee3@/1470285?ac=10) fix the bug where network errors on live would recover poorly 
+  ​  because of seeking past the live edge.  These changes also random backoff retries for network error recovery to avoid storming 
+    the origin and/or DRM server.
+  * [aa5e0366bc -- Limits NetworkLossPlayerErrorHandler to transient network errors](https://github.com/tivocorp/exoplayerprvt/commit/aa5e0366bc)
+  * [82dca4ccf0 -- Adds NetworkLossPlayerErrorHandler to recovery choices](https://github.com/tivocorp/exoplayerprvt/commit/82dca4ccf0)
+
+
+##### Other Changes
+
+* Handle Sync Video errors in player, requires (required for) ExoPlayerPlayer [change 1470444](https://p4web.tivo.com:1666/@md=d&cd=//d-flash/clientcore/mainline/platform/video/video/lib/dependencies/android/src/com/tivo/platform/video/android/&cdf=//d-flash/clientcore/mainline/platform/video/video/lib/dependencies/android/src/com/tivo/platform/video/android/ExoPlayerPlayer.java&cl=smayhew-clientcore-noctua&c=Ee3@/1470444?ac=10)
+  * [91efb0d39d -- Added new NoPcmAudioErrorHandler](https://github.com/tivocorp/exoplayerprvt/commit/91efb0d39d)
+  * [1422887c72 -- Exposes method to determine sync video enablement](https://github.com/tivocorp/exoplayerprvt/commit/1422887c72)
+* Add Hotplug API
+* Update Viewight DRM client in Tenfoot demo
+  * [f066f4806b -- Upate Viewight DRM client to v5.0.0.1.](https://github.com/tivocorp/exoplayerprvt/commit/f066f4806b)
 
 ### 2.15.1-1.5 (2023-11-07)
 
