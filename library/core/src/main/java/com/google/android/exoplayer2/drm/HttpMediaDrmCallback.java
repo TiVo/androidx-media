@@ -27,6 +27,7 @@ import com.google.android.exoplayer2.upstream.HttpDataSource;
 import com.google.android.exoplayer2.upstream.HttpDataSource.InvalidResponseCodeException;
 import com.google.android.exoplayer2.upstream.StatsDataSource;
 import com.google.android.exoplayer2.util.Assertions;
+import com.google.android.exoplayer2.util.Log;
 import com.google.android.exoplayer2.util.Util;
 import com.google.common.collect.ImmutableMap;
 import java.util.Collections;
@@ -37,6 +38,7 @@ import java.util.UUID;
 
 /** A {@link MediaDrmCallback} that makes requests using {@link HttpDataSource} instances. */
 public final class HttpMediaDrmCallback implements MediaDrmCallback {
+  public static final String TAG = "HttpMediaDrmCallback";
 
   private static final int MAX_MANUAL_REDIRECTS = 5;
 
@@ -114,11 +116,15 @@ public final class HttpMediaDrmCallback implements MediaDrmCallback {
       throws MediaDrmCallbackException {
     String url =
         request.getDefaultUrl() + "&signedRequest=" + Util.fromUtf8Bytes(request.getData());
-    return executePost(
+    long started = System.currentTimeMillis();
+    Log.i(TAG, "executeProvisionRequest() - server: " + request.getDefaultUrl());
+    byte[] value = executePost(
         dataSourceFactory,
         url,
         /* httpBody= */ null,
         /* requestProperties= */ Collections.emptyMap());
+    Log.i(TAG, "executeProvisionRequest() completed, time: " + (System.currentTimeMillis() - started));
+    return value;
   }
 
   @Override
@@ -150,7 +156,11 @@ public final class HttpMediaDrmCallback implements MediaDrmCallback {
     synchronized (keyRequestProperties) {
       requestProperties.putAll(keyRequestProperties);
     }
-    return executePost(dataSourceFactory, url, request.getData(), requestProperties);
+    long started = System.currentTimeMillis();
+    Log.i(TAG, "executeKeyRequest() - server: " + url);
+    byte[] value = executePost(dataSourceFactory, url, request.getData(), requestProperties);
+    Log.i(TAG, "executeKeyRequest() completed, time: " + (System.currentTimeMillis() - started) + " size: " + value.length);
+    return value;
   }
 
   private static byte[] executePost(
