@@ -830,7 +830,8 @@ class TrickPlayController implements TrickPlayControlInternal {
             player.setPlaybackParameters(new PlaybackParameters(getSpeedFor(newMode)));
         } else {
             Log.d(TAG, "Start seek-based trickplay " + newMode + " at media time " + player.getCurrentPosition());
-            if (TrickPlayControl.directionForMode(previousMode) != TrickPlayDirection.REVERSE) {
+            if (TrickPlayControl.directionForMode(previousMode) == TrickPlayDirection.NONE ||
+                    usePlaybackSpeedTrickPlay(previousMode)) {
                 startSeekBasedTrickplay();
                 setTrackSelectionForTrickPlay(newMode, previousMode);
             }

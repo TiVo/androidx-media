@@ -133,11 +133,25 @@ class TrickPlayRendererFactory extends DefaultRenderersFactory {
     }
 
     private boolean codecRequiresTunnelingTrickModeVsync() {
-      @Nullable MediaCodecAdapter codec = getCodec();
       @Nullable MediaCodecInfo codecInfo = getCodecInfo();
-      return (codecInfo!=null && codec!=null &&
-              codecInfo.name.contains("tunnel") &&
-              codecInfo.name.startsWith("OMX.bcm.vdec"));
+      return (codecInfo != null && codecInfo.name.contains("tunnel") &&
+          codecInfo.name.startsWith("OMX.bcm.vdec"));
+    }
+
+    private boolean codecRequires2FramesAfterFlush() {
+      @Nullable MediaCodecInfo codecInfo = getCodecInfo();
+      return (codecInfo != null && codecInfo.name.startsWith("OMX.bcm.vdec"));
+    }
+
+    // Skip the flush if we are doing seek-based FW or RW VTP. We are only sending 1 frame per seek
+    // so there should be nothing to flush. The flush also resets the BCM decoder into a state where
+    // it needs 2 frames to display. For this reason we need to skip the flush for scrub mode on BCM.
+    // The flush also requires us to delay the next sync until it reaches the display on all platforms.
+    private boolean shouldSkipFlush() {
+      TrickPlayControl.TrickPlayDirection currentDirection = trickPlay.getCurrentTrickDirection();
+      return (currentDirection == TrickPlayControl.TrickPlayDirection.REVERSE ||
+              (currentDirection == TrickPlayControl.TrickPlayDirection.FORWARD && !trickPlay.isPlaybackSpeedForwardTrickPlayEnabled()) ||
+              (currentDirection == TrickPlayControl.TrickPlayDirection.SCRUB && codecRequires2FramesAfterFlush()));
     }
 
     @RequiresApi(api = Build.VERSION_CODES.KITKAT)
@@ -172,13 +186,7 @@ class TrickPlayRendererFactory extends DefaultRenderersFactory {
       Log.d(TAG, "Renderer onEnabled()");
       super.onEnabled(joining, mayRenderStartOfStream);
       configureVendorTrickMode();
-      // Skip the flush if we are doing seek-based FW or RW VTP. We are only sending 1 frame per seek
-      // so there should be nothing to flush. The flush also resets the BCM decoder into a state where
-      // it needs 2 frames to display. The flush also requires us to delay the next sync until it reaches
-      // the display on all platforms.
-      skipFlush = (trickPlay.getCurrentTrickDirection() == TrickPlayControl.TrickPlayDirection.REVERSE ||
-              (trickPlay.getCurrentTrickDirection() == TrickPlayControl.TrickPlayDirection.FORWARD &&
-                      !trickPlay.isPlaybackSpeedForwardTrickPlayEnabled()));
+      skipFlush = shouldSkipFlush();
     }
 
     @Override
@@ -255,7 +263,7 @@ class TrickPlayRendererFactory extends DefaultRenderersFactory {
       lastRenderTimeUs = System.nanoTime() / 1000;
       long positionDeltaUs = presentationTimeUs - lastRenderPositionUs;
 
-      if (trickPlay.isSmoothPlayAvailable() && trickPlay.getCurrentTrickDirection() != TrickPlayControl.TrickPlayDirection.NONE) {
+      if (!skipFlush && trickPlay.getCurrentTrickDirection() != TrickPlayControl.TrickPlayDirection.NONE) {
         Log.d(TAG, "renderOutputBufferV21() in trickplay - timestamp: " + C.usToMs(presentationTimeUs) + " delta(us): " + positionDeltaUs + " releaseTimeUs: " + (releaseTimeNs / 1000) + " index:" + index + " timeSinceLastUs: " + timeSinceLastRender);
         trickPlay.dispatchTrickFrameRender(presentationTimeUs);
       }

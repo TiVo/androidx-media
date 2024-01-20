@@ -78,7 +78,7 @@ public class AdaptiveLoadControl implements LoadControl, TrickPlayEventListener 
           break;
 
         case SCRUB:
-          requiredBufferedTimeUs = 10_000_000L;
+          requiredBufferedTimeUs = 1_000_000L;
           break;
           
         case REVERSE:
