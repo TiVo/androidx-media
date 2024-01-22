@@ -639,6 +639,7 @@ import org.checkerframework.checker.nullness.qual.RequiresNonNull;
       requestTask.errorCount++;
       if (requestTask.errorCount
           > loadErrorHandlingPolicy.getMinimumLoadableRetryCount(C.DATA_TYPE_DRM)) {
+        Log.w(TAG, "retrying DRM request, error count: " + requestTask.errorCount + " greater than getMinimumLoadableRetryCount(), aborting.");
         return false;
       }
       LoadEventInfo loadEventInfo =
@@ -659,6 +660,7 @@ import org.checkerframework.checker.nullness.qual.RequiresNonNull;
           loadErrorHandlingPolicy.getRetryDelayMsFor(
               new LoadErrorInfo(
                   loadEventInfo, mediaLoadData, loadErrorCause, requestTask.errorCount));
+      Log.w(TAG, "retrying DRM request, error count: " + requestTask.errorCount + " delay for: " + retryDelayMs, exception);
       if (retryDelayMs == C.TIME_UNSET) {
         // The error is fatal.
         return false;
