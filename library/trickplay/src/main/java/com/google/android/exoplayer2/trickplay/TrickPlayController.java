@@ -806,11 +806,15 @@ class TrickPlayController implements TrickPlayControlInternal {
 
     /**
      * Internal method to change trick play speed.  Assumes change is to a trick-play mode either
-     * from another trick-play mode or {@link TrickMode#NORMAL}
+     * from another trick-play mode or {@link TrickMode#NORMAL}, that is changes from any trick-play
+     * mode back to {@link TrickMode#NORMAL} do not call this method.
      *
-     * This method immediately begins trick playback.  If I-Frame tracks (isSmoothPlayback available)
-     * are available and mode is forward playback, then use the DefaultMediaClock to handle timing trick-play
-     * otherwise use seek based trick-play is used.
+     * This method immediately begins trick playback.  If {@link #usePlaybackSpeedTrickPlay(TrickMode)} for
+     * the new mode is true, then playback uses the I-Frame tracks with {@link Player#setPlaybackParameters(PlaybackParameters)}
+     * to set the playback speed.  For {@link TrickMode#SCRUB} mode playback is paused and first frame renders display the
+     * seek target frame.  Otherwise if {@link #usePlaybackSpeedTrickPlay(TrickMode)} is false, then either we
+     * are doing tunneled trickplay or the new mode is {@link TrickPlayDirection#REVERSE} in this case we start
+     * seek based trick-play, unless it is already started (the previousMode would have started seek based).
      *
      * @param newMode any TrickMode other then NORMAL
      * @param previousMode the previous TrickMode, can be any mode.
@@ -828,14 +832,12 @@ class TrickPlayController implements TrickPlayControlInternal {
             setTrackSelectionForTrickPlay(newMode, previousMode);
             player.setPlayWhenReady(newMode != TrickMode.SCRUB);        // SCRUB mode is always paused
             player.setPlaybackParameters(new PlaybackParameters(getSpeedFor(newMode)));
-        } else {
+        } else if (TrickPlayControl.directionForMode(previousMode) == TrickPlayDirection.NONE ||
+            usePlaybackSpeedTrickPlay(previousMode)) {
             Log.d(TAG, "Start seek-based trickplay " + newMode + " at media time " + player.getCurrentPosition());
-            if (TrickPlayControl.directionForMode(previousMode) == TrickPlayDirection.NONE ||
-                    usePlaybackSpeedTrickPlay(previousMode)) {
-                startSeekBasedTrickplay();
-                setTrackSelectionForTrickPlay(newMode, previousMode);
-            }
-        }
+            startSeekBasedTrickplay();
+            setTrackSelectionForTrickPlay(newMode, previousMode);
+        }   // else { seek-based trickplay is already running and will handle the mode change
         dispatchTrickModeChanged(newMode, previousMode);
 
     }
