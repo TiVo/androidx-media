@@ -513,9 +513,6 @@ public class GeekStatsOverlay implements AnalyticsListener, Runnable {
       if (currentState == Player.STATE_BUFFERING) {
         bufferingCount++;
       }
-      if (lastPlayState != Player.STATE_IDLE && currentState == Player.STATE_IDLE) {
-        resetStats();
-      }
       lastPlayState = currentState;
       stateView.setText(getPlayerState());
       updateChildViews();
@@ -532,14 +529,20 @@ public class GeekStatsOverlay implements AnalyticsListener, Runnable {
   @Override
   public void onTimelineChanged(EventTime eventTime, int reason) {
     Timeline.Window window = new Timeline.Window();
-    if (eventTime.timeline.isEmpty()) {
-      Log.d(TAG, "onTimeLineChanged - empty timeline");
-    } else {
-      eventTime.timeline.getWindow(0, window);
-      long windowStartTimeMs = window.windowStartTimeMs;
-      Log.d(TAG, "onTimeLineChanged - eventPlaybackPositionMs: " + eventTime.eventPlaybackPositionMs
-          + " widowStartTime: " + UTC_DATETIME.format(windowStartTimeMs) + "(" + + windowStartTimeMs + ")");
-
+    switch (reason) {
+      case Player.TIMELINE_CHANGE_REASON_PLAYLIST_CHANGED:
+        resetStats();
+        break;
+      case Player.TIMELINE_CHANGE_REASON_SOURCE_UPDATE:
+        if (eventTime.timeline.isEmpty()) {
+          Log.d(TAG, "onTimeLineChanged - empty timeline");
+        } else {
+          eventTime.timeline.getWindow(0, window);
+          long windowStartTimeMs = window.windowStartTimeMs;
+          Log.d(TAG, "onTimeLineChanged - eventPlaybackPositionMs: " + eventTime.eventPlaybackPositionMs
+              + " widowStartTime: " + UTC_DATETIME.format(windowStartTimeMs) + "(" + +windowStartTimeMs + ")");
+        }
+        break;
     }
   }
 
