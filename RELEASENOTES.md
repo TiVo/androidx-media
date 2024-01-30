@@ -1,5 +1,17 @@
 # Release notes #
 
+### 2.15.1-2.1-dev (not yet released)
+
+#### New Features
+
+#### Xperi Code Base Changes
+
+##### Bug Fixes
+
+##### Other Changes
+
+- Update CONTRIBUTING-TIVO.md with instructions on regular releases.
+
 ### 2.15.1-2.0 (2024-01-30)
 
 #### New Features
