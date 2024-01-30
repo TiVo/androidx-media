@@ -1,6 +1,6 @@
 # Release notes #
 
-### 2.15.1-2.0-dev (2023-11-13)
+### 2.15.1-2.0 (2024-01-30)
 
 #### New Features
 
@@ -8,6 +8,13 @@
   * [089df97515 -- Implements caption track check in ExoPlayer](https://github.com/tivocorp/exoplayerprvt/commit/089df97515)
 * Improve V60 Error reporting &mdash; Expose API's to allow the UI code to check the state of HDMI cable (or TV Power on/off state).  This code change adds the support, also ExoPlayerPlayer [change 1470407](https://p4web.tivo.com:1666/1470407?ac=10) requires this commit:
   * [7db96d94eb -- Provide means to query hotplug status for platforms that support reliable means to do so.](https://github.com/tivocorp/exoplayerprvt/commit/7db96d94eb)
+  
+* Add demo for new Trick-Play Dual Mode UX, [WSIPCL-18252](https://jira.xperi.com/browse/WSIPCL-18252)
+  * Fix SCRUB mode to follow rendered frames:
+    *  [ee459f4db2 - Scrub transition to reverse trickplay works correctly](https://github.com/tivocorp/exoplayerprvt/commit/ee459f4db2)
+    * [1de0c2943 - Minimal changes to make BCM devices work with scrub mode](https://github.com/tivocorp/exoplayerprvt/commit/31de0c2943)
+  * Update tenfoot demo with new UX
+
 
 #### Xperi Code Base Changes
 
