@@ -108,12 +108,12 @@ public class GeekStatsOverlay implements AnalyticsListener, Runnable {
     // Add a line for current level bitrate (in Mbps) TODO - move to track select
     traceColor = containingView.getResources().getColor(R.color.colorLevel);
     levelBitrateTraceNum =
-        bandwidthGraph.addTraceLine(traceColor, 0, 30);
+        bandwidthGraph.addTraceLine(traceColor, 0, 40);
 
     // Add a line for current bandwidth bitrate (in Mbps)
     traceColor = containingView.getResources().getColor(R.color.colorBandwidth);
     bandwidthTraceNum =
-        bandwidthGraph.addTraceLine(traceColor, 0, 150);
+        bandwidthGraph.addTraceLine(traceColor, 0, 40);
 
     manifestUrl = view.findViewById(R.id.manifest_url);
     this.updateInterval = updateInterval;
