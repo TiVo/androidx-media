@@ -9,6 +9,7 @@ import android.util.Log;
 import androidx.annotation.VisibleForTesting;
 
 import com.google.android.exoplayer2.C;
+import com.google.android.exoplayer2.decoder.DecoderCounters;
 import java.util.Map;
 
 import com.google.android.exoplayer2.Player;
@@ -122,6 +123,10 @@ public class ManagePlaybackMetrics implements PlaybackMetricsManagerApi {
         @Override
         public void enteringTrickPlayMeasurement() {
             currentPlayer.removeAnalyticsListener(playbackStatsListener);
+            if (currentPlayer != null && currentPlayer.getVideoDecoderCounters() != null) {
+                createOrReturnCurrent().captureVideoDecoderCountersSnapshot(currentPlayer.getVideoDecoderCounters());
+            }
+
             lastTrickPlayStartTimeMs = clock.elapsedRealtime();
             lastTrickPlayStartPosition = getCurrentPositionInfo();
 
@@ -242,7 +247,8 @@ public class ManagePlaybackMetrics implements PlaybackMetricsManagerApi {
     private void fillInPlaybackMetrics(PlaybackMetrics priorMetrics, PlaybackStats stats) {
         if (priorMetrics != null) {
             long currentRealtime = clock.elapsedRealtime();
-            priorMetrics.updateValuesFromStats(stats, currentRealtime);
+            DecoderCounters counters = currentPlayer.getVideoDecoderCounters();
+            priorMetrics.updateValuesFromStats(stats, currentRealtime, counters == null ? new DecoderCounters() : counters);
         }
     }
 

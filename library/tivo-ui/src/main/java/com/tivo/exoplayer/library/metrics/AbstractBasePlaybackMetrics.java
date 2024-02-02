@@ -4,9 +4,7 @@ import android.annotation.SuppressLint;
 import androidx.annotation.Nullable;
 
 import com.google.android.exoplayer2.Player;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
+import com.google.android.exoplayer2.decoder.DecoderCounters;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -14,9 +12,6 @@ import com.google.android.exoplayer2.C;
 import com.google.android.exoplayer2.ExoPlaybackException;
 import com.google.android.exoplayer2.Format;
 import com.google.android.exoplayer2.analytics.PlaybackStats;
-import com.google.android.exoplayer2.analytics.PlaybackStats.EventTimeAndException;
-import com.google.android.exoplayer2.analytics.PlaybackStats.EventTimeAndFormat;
-import com.google.android.exoplayer2.analytics.PlaybackStats.EventTimeAndPlaybackState;
 import com.google.android.exoplayer2.util.Clock;
 import com.google.android.exoplayer2.util.Log;
 import com.tivo.exoplayer.library.util.LoggingUtils;
@@ -55,6 +50,8 @@ public abstract class AbstractBasePlaybackMetrics {
     protected CurrentState currentState = CurrentState.UNKNOWN;
     private int totalSeekCount;
     private long totalSeekTime;
+    protected final DecoderCounters cumulativeVideoDecoderCounters = new DecoderCounters();
+
 
     /**
      * Called by the {@link ManagePlaybackMetrics} to initialize a new set of PlaybackMetrics.
@@ -77,11 +74,11 @@ public abstract class AbstractBasePlaybackMetrics {
      *
      * @param playbackStats      used to compute the metric values
      * @param currentElapsedTime current {@link Clock#elapsedRealtime()}
-     *
+     * @param currentCounters   DecoderCounters from the player at the point of the update.
      * @return the final PlaybackStats @PlaybackState
      */
     @SuppressLint("SwitchIntDef")
-    int updateValuesFromStats(PlaybackStats playbackStats, long currentElapsedTime) {
+    int updateValuesFromStats(PlaybackStats playbackStats, long currentElapsedTime, DecoderCounters currentCounters) {
         // TODO compute values
         startingTimestamp = currentElapsedTime;
 
@@ -167,6 +164,7 @@ public abstract class AbstractBasePlaybackMetrics {
         loggedStats.put("avgAudioBitrate", getAvgAudioBitrate());
         loggedStats.put("avgBandwidthMbps", getAvgNetworkBitrate());
         loggedStats.put("videoFramesDropped", getVideoFramesDropped());
+
         if (getEndedWithError() != null) {
             loggedStats.put("playbackError", getEndedWithError().toString());
         }
@@ -353,6 +351,20 @@ public abstract class AbstractBasePlaybackMetrics {
      */
     public @Nullable Exception getEndedWithError() {
         return endedWithError;
+    }
+
+    /**
+     * Merge in the current{@link DecoderCounters} values into our running set.
+     *
+     * This method is called before the video decoder creates a fresh {@link DecoderCounters} object,
+     * this happens during decoder disable()/enable().
+     *
+     * @param curr The current {@link DecoderCounters} for video
+     */
+    void captureVideoDecoderCountersSnapshot(DecoderCounters curr) {
+        cumulativeVideoDecoderCounters.merge(curr);
+        Log.d(TAG, "captureVideoDecoderCountersSnapshot, renderedFramesCount: " + cumulativeVideoDecoderCounters.renderedOutputBufferCount +
+            " after capturing snapshot renderedOutputBufferCount: " + curr.renderedOutputBufferCount );
     }
 
     protected enum CurrentState {

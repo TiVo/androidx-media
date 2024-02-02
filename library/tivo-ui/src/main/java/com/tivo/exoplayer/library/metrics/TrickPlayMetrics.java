@@ -2,6 +2,7 @@ package com.tivo.exoplayer.library.metrics;
 
 import androidx.annotation.Nullable;
 
+import com.google.android.exoplayer2.decoder.DecoderCounters;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
@@ -334,7 +335,7 @@ public class TrickPlayMetrics extends AbstractBasePlaybackMetrics {
     }
 
     void updateOnSessionEnd(PlaybackStats playbackStats, AnalyticsListener.EventTime startEventTime, AnalyticsListener.EventTime endEventTime) {
-        super.updateValuesFromStats(playbackStats, startEventTime.realtimeMs);
+        super.updateValuesFromStats(playbackStats, startEventTime.realtimeMs,  new DecoderCounters());
 
         lastPlayedFormat = playbackStats.videoFormatHistory.size() > 0
                 ? playbackStats.videoFormatHistory.get(playbackStats.videoFormatHistory.size() - 1).format : null;
