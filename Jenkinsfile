@@ -197,7 +197,7 @@ pipeline {
               branch pattern: "release-*"
               branch pattern: "streamer-*"
               branch "release"
-              tag pattern: "r\\d+.*"
+              tag pattern: "r\\d+.*", comparator: "REGEXP"
             }
           }
           steps {
