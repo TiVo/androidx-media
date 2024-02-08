@@ -7,6 +7,7 @@ import com.google.android.exoplayer2.C;
 import com.google.android.exoplayer2.source.MediaSource;
 import com.google.android.exoplayer2.source.UnrecognizedInputFormatException;
 
+@Deprecated
 public interface MediaSourceLifeCycle {
 
   /**
@@ -41,6 +42,7 @@ public interface MediaSourceLifeCycle {
    * @param drmInfo - DRM information, {@link DrmInfo#CLEAR} for no DRM
    * @throws UnrecognizedInputFormatException - if the URI is not in a supported container format.
    */
+  @Deprecated
   void playUrl(Uri uri, long startPositionMs, boolean startPlaying, DrmInfo drmInfo) throws UnrecognizedInputFormatException;
 
   /**
@@ -55,6 +57,7 @@ public interface MediaSourceLifeCycle {
    * @param drmInfo - DRM information, {@link DrmInfo#CLEAR} for no DRM
    * @throws UnrecognizedInputFormatException - if the URI is not in a supported container format.
    */
+  @Deprecated
   void playUrl(Uri uri, long startPositionMs, DrmInfo drmInfo) throws UnrecognizedInputFormatException;
 
   /**
@@ -66,6 +69,7 @@ public interface MediaSourceLifeCycle {
    *
    * @param callback callback notified of prepare event, or null to remove reference
    */
+  @Deprecated
   void setMediaSourceEventCallback(@Nullable MediaSourceEventCallback callback);
 
 
@@ -75,5 +79,6 @@ public interface MediaSourceLifeCycle {
    * reference is nulled out, so a new MediaSourceLifeCycle implementation will be
    * created.
    */
+  @Deprecated
   void releaseResources();
 }

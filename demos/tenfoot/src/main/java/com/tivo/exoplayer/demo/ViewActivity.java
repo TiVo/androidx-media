@@ -8,7 +8,6 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.res.Resources;
 import android.net.Uri;
-import android.os.Build;
 import android.os.Bundle;
 import android.provider.Settings;
 import android.util.Log;
@@ -38,7 +37,7 @@ import com.google.android.exoplayer2.analytics.AnalyticsListener;
 import com.google.android.exoplayer2.audio.AudioAttributes;
 import com.google.android.exoplayer2.demo.TrackSelectionDialog;
 import com.google.android.exoplayer2.source.MediaSourceFactory;
-import com.google.android.exoplayer2.source.UnrecognizedInputFormatException;
+import com.google.android.exoplayer2.source.ShuffleOrder;
 import com.google.android.exoplayer2.source.hls.HlsMediaSource;
 import com.google.android.exoplayer2.source.hls.playlist.DefaultHlsPlaylistTracker;
 import com.google.android.exoplayer2.trackselection.DefaultTrackSelector;
@@ -46,7 +45,6 @@ import com.google.android.exoplayer2.trackselection.ExoTrackSelection;
 import com.google.android.exoplayer2.trackselection.MappingTrackSelector;
 import com.google.android.exoplayer2.trackselection.TrackSelector;
 import com.google.android.exoplayer2.trickplay.TrickPlayControl;
-import com.google.android.exoplayer2.trickplay.TrickPlayEventListener;
 import com.google.android.exoplayer2.ui.PlayerControlView;
 import com.google.android.exoplayer2.ui.PlayerView;
 import com.google.android.exoplayer2.ui.SubtitleView;
@@ -57,6 +55,8 @@ import com.streamingmediainsights.smiclientsdk.SMIClientSdk;
 import com.streamingmediainsights.smiclientsdk.SMIEventCallbackListener;
 import com.streamingmediainsights.smiclientsdk.SMISimpleExoPlayer;
 import com.tivo.android.utils.SystemUtils;
+import com.tivo.exoplayer.library.errorhandlers.PlayerErrorHandlerListener;
+import com.tivo.exoplayer.library.source.MediaItemHelper;
 import com.tivo.exoplayer.library.timebar.controllers.BaseTimeBarViewHandler;
 import com.tivo.exoplayer.library.timebar.controllers.DPadToTransportBaseTimeBarViewHandler;
 import com.tivo.exoplayer.library.timebar.controllers.HoldTimeChangesSpeedTimeBarViewHandler;
@@ -65,11 +65,8 @@ import com.tivo.exoplayer.library.timebar.controllers.TransportControlHandler;
 import com.tivo.exoplayer.library.timebar.views.DualModeTimeBar;
 import com.tivo.exoplayer.library.DrmInfo;
 import com.tivo.exoplayer.library.GeekStatsOverlay;
-import com.tivo.exoplayer.library.OutputProtectionMonitor;
 import com.tivo.exoplayer.library.SimpleExoPlayerFactory;
 import com.tivo.exoplayer.library.SourceFactoriesCreated;
-import com.tivo.exoplayer.library.VcasDrmInfo;
-import com.tivo.exoplayer.library.WidevineDrmInfo;
 import com.tivo.exoplayer.library.errorhandlers.PlaybackExceptionRecovery;
 import com.tivo.exoplayer.library.logging.ExtendedEventLogger;
 import com.tivo.exoplayer.library.metrics.ManagePlaybackMetrics;
@@ -77,12 +74,15 @@ import com.tivo.exoplayer.library.metrics.PlaybackMetrics;
 import com.tivo.exoplayer.library.metrics.PlaybackMetricsManagerApi;
 import com.tivo.exoplayer.library.tracks.SyncVideoTrackSelector;
 import com.tivo.exoplayer.library.tracks.TrackInfo;
-import java.io.File;
 import java.io.IOException;
 import java.io.BufferedReader;
 import com.tivo.exoplayer.library.util.AccessibilityHelper;
 
+import java.math.BigInteger;
+import java.security.SecureRandom;
 import java.util.ArrayList;
+import java.util.Map;
+import java.util.Random;
 import org.json.JSONObject;
 
 import java.io.InputStream;
@@ -91,7 +91,6 @@ import java.nio.charset.Charset;
 
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.HashMap;
 
 /**
@@ -119,11 +118,11 @@ public class ViewActivity extends AppCompatActivity {
   public static final String ACTION_GEEK_STATS = "com.tivo.exoplayer.action.GEEK_STATS";
   public static final String ACTION_STOP = "com.tivo.exoplayer.action.STOP_PLAYBACK";
   public static final String ACTION_SEEK = "com.tivo.exoplayer.action.SEEK_TO";
-  public static final String ACTION_HEADERS = "com.tivo.exoplayer.action.SET_HEADERS";
 
   // Intent data
   public static final String ENABLE_TUNNELED_PLAYBACK = "enable_tunneled_playback";
   public static final String URI_LIST_EXTRA = "uri_list";
+  public static final String URI_LIST_AS_PLAYLIST = "as_playlist";
   public static final String CHUNKLESS_PREPARE = "chunkless";
   public static final String ENABLE_ASYNC_RENDER = "enable_async_renderer";
   public static final String INITIAL_SEEK = "start_at";
@@ -132,16 +131,8 @@ public class ViewActivity extends AppCompatActivity {
   public static final String SEEK_NEAREST_SYNC = "seek_nearest";
   public static final String START_PLAYING = "start_playing";
   public static final String SHOW_GEEK_STATS = "show_geek";
-  public static final String DRM_SCHEME = "drm_scheme";
-  public static final String DRM_VCAS_CA_ID = "vcas_ca_id";
-  public static final String DRM_VCAS_ADDR = "vcas_addr";
-  public static final String DRM_WV_PROXY = "wv_proxy";
-  public static final String DRM_VCAS_VUID = "vcas_vuid";
   public static final String LIVE_OFFSET = "live_offset";
   public static final String FAST_RESYNC = "fast_resync";
-
-  public static final String DRM_SCHEME_VCAS = "vcas";
-  public static final String DRM_SCHEME_WIDEVINE = "widevine";
 
   public static final String ENABLE_TRUSTREME_LOGGING = "enable_trustreme_logging";
 
@@ -150,27 +141,15 @@ public class ViewActivity extends AppCompatActivity {
   public static final String BEHAVIOR_SCRUB_LP_VTP = "scrub_lp_vtp";
   public static final String BEHAVIOR_SCRUB_DPAD_MORPH = "scrub_dpad_morph";
 
-  protected Uri[] uris;
-
-  private int currentChannel;
-  private Uri[] channelUris;
-
-  private boolean isTrickPlaybarShowing = false;
-
-  private boolean isAudioRenderOn = true;
   private PlaybackMetricsManagerApi statsManager;
   private Toast errorRecoveryToast;
 
   private @Nullable BaseTimeBarViewHandler timeBarViewHandler;
 
-  private OutputProtectionMonitor outputProtectionMonitor;
-
   private GeekStatsOverlay geekStats;
   private AccessibilityHelper accessibilityHelper;
 
   private TimeBar timeBar;
-
-  private Uri currentUri;
 
   private PlayerControlView playerControlView;
   private TransportControlHandler transportControlHandler;
@@ -179,10 +158,109 @@ public class ViewActivity extends AppCompatActivity {
   private static boolean isSmiClientInitialized = false;
   private static SimpleExoPlayer player;
 
+  private Map<MediaItem.PlaybackProperties, Integer> playbacks = new HashMap<>();
+  private boolean usePlaylist;
+  private MediaItem[] channelList;
+  private int currentChannel;
+  private Random nextChannelRamdomizer;
+
   /**
-   * Allows injecting HTTP Headers into all the requests made by the player
+   * Callback class for when each MediaItem and it's MediaSource is created.  This allows
+   * modfying settings on the MediaSourceFactory or cloning and creating an alternate
+   * MediaItem
    */
-  private @Nullable HttpDataSource.Factory httpDataSourceFactory;
+  private class FactoriesCreatedCallback implements SourceFactoriesCreated {
+    @Override
+    public MediaItem factoriesCreated(@C.ContentType int type, MediaItem item, MediaSourceFactory factory) {
+      if (type == C.TYPE_HLS) {
+        HlsMediaSource.Factory hlsFactory = (HlsMediaSource.Factory) factory;
+        boolean allowChunkless = getIntent().getBooleanExtra(CHUNKLESS_PREPARE, false);
+        hlsFactory.setAllowChunklessPreparation(allowChunkless);
+      }
+
+      MediaItem.Builder itemBuilder = item.buildUpon();
+      boolean fast_resync = getIntent().hasExtra(FAST_RESYNC);
+      if (fast_resync) {
+        DefaultHlsPlaylistTracker.ENABLE_SNTP_TIME_SYNC = true;
+        DefaultHlsPlaylistTracker.ENABLE_SNTP_TIME_SYNC_LOGGING = true;
+        float resyncPercentChange = getIntent().getFloatExtra(FAST_RESYNC, 0.0f) / 100.0f;
+
+        itemBuilder
+            .setLiveMinPlaybackSpeed(1.0f - resyncPercentChange)
+            .setLiveMaxPlaybackSpeed(1.0f + resyncPercentChange);
+
+      }
+
+      if (getIntent().hasExtra(LIVE_OFFSET)) {
+        int liveTargetOffsetMs = (int) (getIntent().getFloatExtra(LIVE_OFFSET, 30.0f) * 1000);
+        itemBuilder
+            .setLiveTargetOffsetMs(liveTargetOffsetMs);
+        if (fast_resync) {
+          itemBuilder
+              .setLiveMinOffsetMs(liveTargetOffsetMs)
+              .setLiveMaxOffsetMs(liveTargetOffsetMs);
+        }
+      }
+      return itemBuilder.build();
+    }
+
+    @Override
+    public void upstreamDataSourceFactoryCreated(HttpDataSource.Factory upstreamFactory) {
+      // TODO other factories then the default
+      if (upstreamFactory instanceof DefaultHttpDataSource.Factory) {
+        ((DefaultHttpDataSource.Factory) upstreamFactory).setUserAgent("TenFootDemo - [" + SimpleExoPlayerFactory.VERSION_INFO + "]");
+      }
+    }
+  }
+
+  private class PlaybackErrorHandlerCallback implements PlayerErrorHandlerListener {
+    @Override
+    public void playerErrorProcessed(PlaybackException error, HandlingStatus status) {
+      switch (status) {
+        case IN_PROGRESS:
+          Log.d(TAG, "playerErrorProcessed() - error: " + error.getMessage() + " status: " + status);
+          ViewActivity.this.showErrorRecoveryWhisper(null, error);
+          break;
+
+        case SUCCESS:
+          Log.d(TAG, "playerErrorProcessed() - recovered from " + error.getMessage());
+          ViewActivity.this.showErrorRecoveryWhisper(null, null);
+          break;
+
+        case WARNING:
+          if (error.errorCode == PlaybackException.ERROR_CODE_DECODING_FORMAT_UNSUPPORTED) {
+            ExoPlaybackException exoPlaybackException = (ExoPlaybackException) error;
+            @C.FormatSupport int formatSupport = exoPlaybackException.rendererFormatSupport;
+            String reason = "format: " + Format.toLogString(exoPlaybackException.rendererFormat) + ", ";
+            switch (formatSupport) {
+              case C.FORMAT_EXCEEDS_CAPABILITIES:
+                reason = "Exceeds Capabilities";
+                break;
+              case C.FORMAT_HANDLED:
+                break;
+              case C.FORMAT_UNSUPPORTED_DRM:
+                reason = "Unsupported DRM";
+                break;
+              case C.FORMAT_UNSUPPORTED_SUBTYPE:
+                reason = "Unsupported Subtype";
+                break;
+              case C.FORMAT_UNSUPPORTED_TYPE:
+                reason = "Unsupported Type";
+                break;
+            }
+            ViewActivity.this.showError("No supported video tracks, " + reason, error);
+
+          } else {
+            ViewActivity.this.showErrorDialogWithRecoveryOption(error, "Un-excpected playback error");
+          }
+          break;
+
+        case FAILED:
+          ViewActivity.this.showErrorDialogWithRecoveryOption(error, "Playback Failed");
+          break;
+      }
+    }
+  }
 
   private void initSmiClientIfNeeded(Context context) throws IOException {
     if (isSmiClientInitialized == true) {
@@ -223,6 +301,7 @@ public class ViewActivity extends AppCompatActivity {
       }
     }
   }
+
   // Activity lifecycle
   @Override
   public void onCreate(Bundle savedInstanceState) {
@@ -236,7 +315,7 @@ public class ViewActivity extends AppCompatActivity {
 
     isSMIPlayer = getIntent().getBooleanExtra(ENABLE_TRUSTREME_LOGGING, false);
 
-    if(isSMIPlayer == true) {
+    if (isSMIPlayer) {
       try {
         initSmiClientIfNeeded(context);
       } catch (IOException e) {
@@ -245,106 +324,20 @@ public class ViewActivity extends AppCompatActivity {
     }
 
     SimpleExoPlayerFactory.Builder builder = new SimpleExoPlayerFactory.Builder(context)
-            .setPlaybackErrorHandlerListener((error, status) -> {
-              switch (status) {
-                case IN_PROGRESS:
-                  Log.d(TAG, "playerErrorProcessed() - error: " + error.getMessage() + " status: " + status);
-                  showErrorRecoveryWhisper(null, error);
-                  break;
-
-                case SUCCESS:
-                  Log.d(TAG, "playerErrorProcessed() - recovered from " + error.getMessage());
-                  showErrorRecoveryWhisper(null, null);
-                  break;
-
-                case WARNING:
-                  if (error.errorCode == PlaybackException.ERROR_CODE_DECODING_FORMAT_UNSUPPORTED) {
-                    ExoPlaybackException exoPlaybackException = (ExoPlaybackException) error;
-                    @C.FormatSupport int formatSupport = exoPlaybackException.rendererFormatSupport;
-                    String reason = "format: " + Format.toLogString(exoPlaybackException.rendererFormat) + ", ";
-                    switch (formatSupport) {
-                      case C.FORMAT_EXCEEDS_CAPABILITIES:
-                        reason = "Exceeds Capabilities";
-                        break;
-                      case C.FORMAT_HANDLED:
-                        break;
-                      case C.FORMAT_UNSUPPORTED_DRM:
-                        reason = "Unsupported DRM";
-                        break;
-                      case C.FORMAT_UNSUPPORTED_SUBTYPE:
-                        reason = "Unsupported Subtype";
-                        break;
-                      case C.FORMAT_UNSUPPORTED_TYPE:
-                        reason = "Unsupported Type";
-                        break;
-                    }
-                    ViewActivity.this.showError("No supported video tracks, " + reason, error);
-
-                  } else {
-                    showErrorDialogWithRecoveryOption(error, "Un-excpected playback error");
-                  }
-                  break;
-
-                case FAILED:
-                  showErrorDialogWithRecoveryOption(error, "Playback Failed");
-                  break;
-              }
-            })
+            .setPlaybackErrorHandlerListener(new PlaybackErrorHandlerCallback())
             .setEventListenerFactory(new SimpleExoPlayerFactory.EventListenerFactory() {
               @Override
               public AnalyticsListener createEventLogger(MappingTrackSelector trackSelector) {
                 return new ExtendedEventLogger(trackSelector);
               }
             })
-            .setSourceFactoriesCreatedCallback(new SourceFactoriesCreated() {
-              @Override
-              public void factoriesCreated(@C.ContentType int type, MediaItem.Builder itemBuilder, MediaSourceFactory factory) {
-                if (type == C.TYPE_HLS) {
-                  HlsMediaSource.Factory hlsFactory = (HlsMediaSource.Factory) factory;
-                  boolean allowChunkless = getIntent().getBooleanExtra(CHUNKLESS_PREPARE, false);
-                  hlsFactory.setAllowChunklessPreparation(allowChunkless);
-                }
-
-                boolean fast_resync = getIntent().hasExtra(FAST_RESYNC);
-                if (fast_resync) {
-                  DefaultHlsPlaylistTracker.ENABLE_SNTP_TIME_SYNC = true;
-                  DefaultHlsPlaylistTracker.ENABLE_SNTP_TIME_SYNC_LOGGING = true;
-                  float resyncPercentChange = getIntent().getFloatExtra(FAST_RESYNC, 0.0f) / 100.0f;
-
-                  itemBuilder
-                      .setLiveMinPlaybackSpeed(1.0f - resyncPercentChange)
-                      .setLiveMaxPlaybackSpeed(1.0f + resyncPercentChange);
-
-                }
-
-                if (getIntent().hasExtra(LIVE_OFFSET)) {
-                  int liveTargetOffsetMs = (int) (getIntent().getFloatExtra(LIVE_OFFSET,30.0f) * 1000);
-                  itemBuilder
-                      .setLiveTargetOffsetMs(liveTargetOffsetMs);
-                  if (fast_resync) {
-                    itemBuilder
-                        .setLiveMinOffsetMs(liveTargetOffsetMs)
-                        .setLiveMaxOffsetMs(liveTargetOffsetMs);
-                  }
-                }
-              }
-
-              @Override
-              public void upstreamDataSourceFactoryCreated(HttpDataSource.Factory upstreamFactory) {
-                // TODO other factories then the default
-                if (upstreamFactory instanceof DefaultHttpDataSource.Factory) {
-                  ((DefaultHttpDataSource.Factory) upstreamFactory).setUserAgent("TenFootDemo - [" + SimpleExoPlayerFactory.VERSION_INFO + "]");
-                }
-                ViewActivity.this.httpDataSourceFactory = upstreamFactory;
-              }
-            })
+           .setSourceFactoriesCreatedCallback(new FactoriesCreatedCallback())
            .setTrackSelectorFactory(new SimpleExoPlayerFactory.TrackSelectorFactory() {
              @Override
              public DefaultTrackSelector createTrackSelector(Context context, ExoTrackSelection.Factory trackSelectionFactory) {
                 return new SyncVideoTrackSelector(context, trackSelectionFactory);
              }
-           })
-        ;
+           });
 
     if (isSMIPlayer) {
       builder.setAlternatePlayerFactory(new SimpleExoPlayerFactory.AlternatePlayerFactory() {
@@ -423,12 +416,6 @@ public class ViewActivity extends AppCompatActivity {
     });
 
     exoPlayerFactory.setPreferredAudioLanguage(Locale.getDefault().getLanguage());
-
-    final OutputProtectionMonitor.ProtectionChangedListener opmStateCallback = (isSecure) ->
-            Log.i(TAG, "Output protection is: " + (isSecure ? "ON" : "OFF"));
-
-    outputProtectionMonitor = new OutputProtectionMonitor(context, OutputProtectionMonitor.HDCP_1X, opmStateCallback);
-
     View v = getCurrentFocus();
     if (v != null) {
       String viewName = getResources().getResourceEntryName(v.getId());
@@ -438,7 +425,7 @@ public class ViewActivity extends AppCompatActivity {
   }
 
   @Override
-   public void onNewIntent(Intent intent) {
+ public void onNewIntent(Intent intent) {
     super.onNewIntent(intent);
     String action = intent.getAction();
     action = action == null ? "" : action;
@@ -452,10 +439,10 @@ public class ViewActivity extends AppCompatActivity {
         break;
 
       case ACTION_SEEK:
-        long seekTo =  intent.getIntExtra(SEEK_TO, C.POSITION_UNSET);
+        long seekTo = intent.getIntExtra(SEEK_TO, C.POSITION_UNSET);
         boolean nearestSync = intent.getBooleanExtra(SEEK_NEAREST_SYNC, false);
         if (seekTo == C.POSITION_UNSET) {
-          Log.e(TAG, "Must specify seek position with --ei " +SEEK_TO + " = n, in ms");
+          Log.e(TAG, "Must specify seek position with --ei " + SEEK_TO + " = n, in ms");
         } else {
           TrickPlayControl trickPlayControl = exoPlayerFactory.getCurrentTrickPlayControl();
           SimpleExoPlayer player = exoPlayerFactory.getCurrentPlayer();
@@ -481,22 +468,11 @@ public class ViewActivity extends AppCompatActivity {
         }
         break;
 
-      case ACTION_HEADERS:
-        Bundle newHeaders = intent.getExtras();
-        HashMap<String, String> headerSet = new HashMap<>();
-        for (String key : newHeaders.keySet()) {
-          headerSet.put(key, intent.getStringExtra(key));
-        }
-        if (httpDataSourceFactory != null) {
-          httpDataSourceFactory.setDefaultRequestProperties(headerSet);
-        }
-        break;
-
       default:
         processIntent(intent);
         break;
     }
-   }
+  }
 
   @Override
   public void onStart() {
@@ -505,13 +481,13 @@ public class ViewActivity extends AppCompatActivity {
     Log.d(TAG, "onStart() called");
     DefaultLoadControl.Builder builder = new DefaultLoadControl.Builder();
     builder.setBufferDurationsMs(
-            DefaultLoadControl.DEFAULT_MIN_BUFFER_MS,
-            DefaultLoadControl.DEFAULT_MAX_BUFFER_MS,
-            1000,   // Faster channel change
-            DefaultLoadControl.DEFAULT_BUFFER_FOR_PLAYBACK_AFTER_REBUFFER_MS);
+        DefaultLoadControl.DEFAULT_MIN_BUFFER_MS,
+        DefaultLoadControl.DEFAULT_MAX_BUFFER_MS,
+        1000,   // Faster channel change
+        DefaultLoadControl.DEFAULT_BUFFER_FOR_PLAYBACK_AFTER_REBUFFER_MS);
 
     player = exoPlayerFactory.createPlayer(false, false, builder);
-    player.setAudioAttributes(AudioAttributes.DEFAULT,true);
+    player.setAudioAttributes(AudioAttributes.DEFAULT, true);
     TrickPlayControl trickPlayControl = exoPlayerFactory.getCurrentTrickPlayControl();
 
     String scrubBehavior = getIntent().getStringExtra(SCRUB_BEHAVIOR);
@@ -540,26 +516,12 @@ public class ViewActivity extends AppCompatActivity {
 
     // If request is for FAST_RECYNC, turn on debug logging in GeekStats
     geekStats.setEnableLiveOffsetLogging(getIntent().hasExtra(FAST_RESYNC));
-    trickPlayControl.addEventListener(new TrickPlayEventListener() {
-      @Override
-      public void playlistMetadataValid(boolean isMetadataValid) {
-        if (isMetadataValid) {
-          Log.d(TAG, "Trick play metadata valid, iframes supported: " + trickPlayControl.isSmoothPlayAvailable());
-        } else {
-          Log.d(TAG, "Trick play metadata invalidated");
-        }
-      }
-    });
 
     playerView.setPlayer(player);
     geekStats.setPlayer(player, trickPlayControl);
     transportControlHandler.setPlayer(player, trickPlayControl);
 
     statsManager = new ManagePlaybackMetrics.Builder(player, trickPlayControl).build();
-
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR2) {
-        outputProtectionMonitor.start();
-    }
 
     processIntent(getIntent());
   }
@@ -577,39 +539,34 @@ public class ViewActivity extends AppCompatActivity {
     filter.addAction(ACTION_HDMI_AUDIO_PLUG);
   }
 
-   @Override
-   public void onPause() {
-     super.onPause();
-     if (playerView != null) {
-       playerView.onPause();
-     }
-   }
+  @Override
+  public void onPause() {
+    super.onPause();
+    if (playerView != null) {
+      playerView.onPause();
+    }
+  }
 
-   @Override
-   public void onStop() {
-     super.onStop();
-     if (playerView != null) {
-       playerView.onPause();
-     }
+  @Override
+  public void onStop() {
+    super.onStop();
+    if (playerView != null) {
+      playerView.onPause();
+    }
 
-     if (timeBarViewHandler != null) {
+    if (timeBarViewHandler != null) {
       timeBarViewHandler.playerDestroyed();
-     }
-     timeBarViewHandler = null;
-     playerControlView.setProgressUpdateListener(null);
-     transportControlHandler.playerDestroyed();
+    }
+    timeBarViewHandler = null;
+    playerControlView.setProgressUpdateListener(null);
+    transportControlHandler.playerDestroyed();
 
-     Log.d(TAG, "onStop() called");
-     if (statsManager != null) {
-       statsManager.endAllSessions();
-     }
-     exoPlayerFactory.releasePlayer();
-
-     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR2) {
-        outputProtectionMonitor.stop();
-     }
-
-   }
+    Log.d(TAG, "onStop() called");
+    if (statsManager != null) {
+      statsManager.endAllSessions();
+    }
+    exoPlayerFactory.releasePlayer();
+  }
 
   protected void stopPlaybackIfPlaying() {
     SimpleExoPlayer currentPlayer = exoPlayerFactory.getCurrentPlayer();
@@ -635,29 +592,16 @@ public class ViewActivity extends AppCompatActivity {
     }
   }
 
-  public static boolean boundedSeekTo(SimpleExoPlayer player,
-      TrickPlayControl trickPlayControl,
-      long targetPositionMs) {
-    if (targetPositionMs != C.TIME_UNSET) {
-      targetPositionMs = Math.min(targetPositionMs, trickPlayControl.getLargestSafeSeekPositionMs());
-    }
-    targetPositionMs = Math.max(targetPositionMs, 0);
-    player.seekTo(targetPositionMs);
-    return true;
-  }
-
-
   // UI
 
   /**
    * Handle keys at the activity level. before they are dispatched to the Window
    * (and thus any focused View children thereof.
-   *
+   * <p>
    * Here global keys (transport control, back, channel up/down) are handled, if they
    * are handled here returns true to stop dipatch to the child views.
    *
    * @param event The key event.
-   *
    * @return true or call super to dispatch to child views.
    */
   @Override
@@ -665,18 +609,17 @@ public class ViewActivity extends AppCompatActivity {
     boolean handled = false;
     if (playerView != null && timeBarViewHandler != null) {
       boolean isTrickPlaybarShowing = playerView.isControllerVisible();
-      Log.d(TAG, "dispatchKeyEvent() - isTrickPlaybarShowing: " + isTrickPlaybarShowing + " event: " + event + " focus: " + getCurrentFocus());
+//      Log.d(TAG, "dispatchKeyEvent() - isTrickPlaybarShowing: " + isTrickPlaybarShowing + " event: " + event + " focus: " + getCurrentFocus());
       if (exoPlayerFactory.getCurrentPlayer() != null) {
         handled = transportControlHandler.handleFunctionKeys(event);
         handled = handled || processActivityGlobalKey(event);
-
 
         // Events not handled by the transport control handler or the other activity level global keys handled below.
         // Initial event with trickplay bar not showing, shows it and pauses playback with bar focused.
         // DPAD up when trickplay bar is focused is essentially the "exit" (there is no focusable component above the bar, so
         // hide control.
         //
-        if (! handled && event.getAction() == KeyEvent.ACTION_DOWN) {
+        if (!handled && event.getAction() == KeyEvent.ACTION_DOWN) {
           if (event.getKeyCode() == KeyEvent.KEYCODE_BACK) {
             if (isTrickPlaybarShowing) {
               playerView.hideController();
@@ -691,7 +634,7 @@ public class ViewActivity extends AppCompatActivity {
         }
       }
     }
-    if (! handled) {
+    if (!handled) {
       handled = super.dispatchKeyEvent(event);
     }
     return handled;
@@ -740,24 +683,26 @@ public class ViewActivity extends AppCompatActivity {
 //            exoPlayerFactory.setRendererState(C.TRACK_TYPE_AUDIO, ! isAudioRenderOn);
 //            isAudioRenderOn = ! isAudioRenderOn;
 
-            List<TrackInfo> allAudioTracks = exoPlayerFactory.getAvailableAudioTracks();
-              List<TrackInfo> audioTracks = allAudioTracks;
-              if (trackSelector instanceof SyncVideoTrackSelector) {
-                SyncVideoTrackSelector syncVideoTrackSelector = (SyncVideoTrackSelector) trackSelector;audioTracks = new ArrayList<>();
-                for (TrackInfo info : allAudioTracks) {
-                  if (!syncVideoTrackSelector.getEnableTrackFiltering() ||SyncVideoTrackSelector.isSupportedAudioFormatForSyncVideo(info.format)) {
-                    audioTracks.add(info);
-                  }
-                }
+          List<TrackInfo> allAudioTracks = exoPlayerFactory.getAvailableAudioTracks();
+          List<TrackInfo> audioTracks = allAudioTracks;
+          if (trackSelector instanceof SyncVideoTrackSelector) {
+            SyncVideoTrackSelector syncVideoTrackSelector = (SyncVideoTrackSelector) trackSelector;
+            audioTracks = new ArrayList<>();
+            for (TrackInfo info : allAudioTracks) {
+              if (!syncVideoTrackSelector.getEnableTrackFiltering() || SyncVideoTrackSelector.isSupportedAudioFormatForSyncVideo(
+                  info.format)) {
+                audioTracks.add(info);
               }
-            if (audioTracks.size() > 0) {
-              DialogFragment dialog =
-                  TrackInfoSelectionDialog
-                      .createForChoices("Select Audio", audioTracks, exoPlayerFactory);
-              dialog.show(getSupportFragmentManager(), null);
             }
-            handled = true;
-            break;
+          }
+          if (audioTracks.size() > 0) {
+            DialogFragment dialog =
+                TrackInfoSelectionDialog
+                    .createForChoices("Select Audio", audioTracks, exoPlayerFactory);
+            dialog.show(getSupportFragmentManager(), null);
+          }
+          handled = true;
+          break;
 
         case KeyEvent.KEYCODE_8:
           List<TrackInfo> textTracks = exoPlayerFactory.getAvailableTextTracks();
@@ -770,46 +715,58 @@ public class ViewActivity extends AppCompatActivity {
           handled = true;
           break;
 
-        case KeyEvent.KEYCODE_CHANNEL_DOWN:
-          if (channelUris != null) {
-            currentChannel = (currentChannel + (channelUris.length - 1)) % channelUris.length;
-            nextChannel = channelUris[currentChannel];
-            Log.d(TAG, "Channel change down to: " + nextChannel);
-          }
-          handled = true;
-          break;
         case KeyEvent.KEYCODE_CHANNEL_UP:
-          if (channelUris != null) {
-            currentChannel = (currentChannel + 1) % channelUris.length;
-            nextChannel = channelUris[currentChannel];
-            Log.d(TAG, "Channel change up to: " + nextChannel);
-          }
-          handled = true;
+          handled = channelUpDown(true);
+          break;
+
+        case KeyEvent.KEYCODE_CHANNEL_DOWN:
+          handled = channelUpDown(false);
           break;
 
         case KeyEvent.KEYCODE_LAST_CHANNEL:
-            Timeline timeline = player.getCurrentTimeline();
-            if (! timeline.isEmpty()) {
-              Timeline.Window window = timeline.getWindow(player.getCurrentWindowIndex(), new Timeline.Window());
-              long targetPositionMs = trickPlayControl.getLargestSafeSeekPositionMs() - 3000;
-              if (targetPositionMs != C.TIME_UNSET) {
-                targetPositionMs = Math.min(targetPositionMs, trickPlayControl.getLargestSafeSeekPositionMs());
-              }
-              targetPositionMs = Math.max(targetPositionMs, 0);
-              player.seekTo(targetPositionMs);
+          Timeline timeline = player.getCurrentTimeline();
+          if (!timeline.isEmpty()) {
+            long targetPositionMs = trickPlayControl.getLargestSafeSeekPositionMs() - 3000;
+            if (targetPositionMs != C.TIME_UNSET) {
+              targetPositionMs = Math.min(targetPositionMs, trickPlayControl.getLargestSafeSeekPositionMs());
             }
-            handled = true;
-            break;
+            targetPositionMs = Math.max(targetPositionMs, 0);
+            player.seekTo(targetPositionMs);
+          }
+          handled = true;
+          break;
 
         default:
           break;
       }
-
-      if (nextChannel != null) {
-          playUri(nextChannel);
-      }
     }
 
+    return handled;
+  }
+
+  private boolean channelUpDown(boolean isChannelUp) {
+    boolean handled = false;
+    playerView.removeCallbacks(doShuffle);
+    if (usePlaylist) {
+      if (isChannelUp && player.hasNextWindow()) {
+        player.seekToNextWindow();
+      } else if (! isChannelUp && player.hasPreviousWindow()) {
+        player.seekToPreviousWindow();
+      } else {
+        player.seekToDefaultPosition(0);
+      }
+      handled = true;
+    } else if (channelList != null) {
+      int nextChannel = isChannelUp ? currentChannel + 1 : currentChannel - 1;
+      currentChannel = nextChannel % channelList.length;
+      long seekTo = getIntent().getIntExtra(INITIAL_SEEK, C.POSITION_UNSET);
+      boolean playWhenReady = getIntent().getBooleanExtra(START_PLAYING, true);
+      exoPlayerFactory.playMediaItems(seekTo, playWhenReady, channelList[currentChannel]);
+      handled = true;
+    }
+    if (handled) {
+      Log.d(TAG, "channel " + (isChannelUp ? "up" : "down") + " to " + player.getCurrentMediaItem().playbackProperties.uri);
+    }
     return handled;
   }
 
@@ -818,107 +775,11 @@ public class ViewActivity extends AppCompatActivity {
     List<TrackInfo> textTracks = availableTextTracks;
     if (textTracks.size() > 0) {
       DialogFragment dialog =
-              TrackInfoSelectionDialog
-                      .createForChoices(s, textTracks, exoPlayerFactory);
+          TrackInfoSelectionDialog
+              .createForChoices(s, textTracks, exoPlayerFactory);
       dialog.show(getSupportFragmentManager(), null);
     }
   }
-
-  protected void playUri(Uri uri) {
-    // TODO chunkless should come from a properties file (so we can switch it when it's supported)
-    boolean enableChunkless = getIntent().getBooleanExtra(CHUNKLESS_PREPARE, false);
-
-    showErrorRecoveryWhisper(null, null);
-    outputProtectionMonitor.refreshState();
-    stopPlaybackIfPlaying();
-
-    boolean fast_resync = getIntent().hasExtra(FAST_RESYNC);
-    TrackSelector trackSelector = exoPlayerFactory.getTrackSelector();
-    if (trackSelector instanceof SyncVideoTrackSelector) {
-      SyncVideoTrackSelector syncVideoTrackSelector = (SyncVideoTrackSelector) trackSelector;
-      syncVideoTrackSelector.setEnableTrackFiltering(fast_resync);
-    }
-
-    long seekTo =  getIntent().getIntExtra(INITIAL_SEEK, C.POSITION_UNSET);
-    boolean playWhenReady =  getIntent().getBooleanExtra(START_PLAYING, true);
-    Log.d(TAG, "playUri() playUri: '" + uri + "' - chunkless: " + enableChunkless + " initialPos: " + seekTo + " playWhenReady: " + playWhenReady);
-    try {
-      exoPlayerFactory.playUrl(uri, drmInfo, seekTo, playWhenReady);
-      mediaHealthMetricsTest(true);
-    } catch (UnrecognizedInputFormatException e) {
-      showError("Can't play URI: " + uri, e);
-    }
-  }
-
-
-  @Override
-  public boolean onKeyLongPress(int keyCode, KeyEvent event) {
-    return super.onKeyLongPress(keyCode, event);
-  }
-
-  /**
-   * Get the UX expected trick mode if sequencing through the modes with a single media
-   * forward or media rewind key.
-   *
-   * @param currentMode - current trickplay mode
-   * @param keyCode - key event with indicated direction
-   * @return next TrickMode to set
-   */
-  private static TrickPlayControl.TrickMode nextTrickMode(TrickPlayControl.TrickMode currentMode, int keyCode) {
-    TrickPlayControl.TrickMode value;
-
-    switch (keyCode) {
-      case KeyEvent.KEYCODE_MEDIA_FAST_FORWARD:
-        switch (currentMode) {
-          case NORMAL:
-            value = TrickPlayControl.TrickMode.FF1;
-            break;
-          case FF1:
-            value = TrickPlayControl.TrickMode.FF2;
-            break;
-          case FF2:
-            value = TrickPlayControl.TrickMode.FF3;
-            break;
-          case FF3:    // FF3 keeps going in FF3
-            value = TrickPlayControl.TrickMode.FF3;
-            break;
-          default:    // FR mode with FF keypress goes back to normal
-            value = TrickPlayControl.TrickMode.NORMAL;
-            break;
-        }
-        break;
-
-      case KeyEvent.KEYCODE_MEDIA_REWIND:
-        switch (currentMode) {
-          case NORMAL:
-            value = TrickPlayControl.TrickMode.FR1;
-            break;
-          case FR1:
-            value = TrickPlayControl.TrickMode.FR2;
-            break;
-          case FR2:
-            value = TrickPlayControl.TrickMode.FR3;
-            break;
-          case FR3:    // FR3 keeps going in FR3
-            value = TrickPlayControl.TrickMode.FR3;
-            break;
-          default:    // FF mode with REW keypress goes back to normal
-            value = TrickPlayControl.TrickMode.NORMAL;
-            break;
-        }
-        break;
-
-        default:
-          throw new RuntimeException("nextTrickMode() must be on FF or REW button");
-    }
-
-    Log.d(TAG, "Trickplay in currentMode: " + currentMode + ", next is: " + value);
-
-    return value;
-  }
-
-  // Internals
-
 
   // Internal methods
 
@@ -943,9 +804,7 @@ public class ViewActivity extends AppCompatActivity {
 
   private void processIntent(Intent intent) {
     String action = intent.getAction();
-    uris = new Uri[0];
-    currentChannel = 0;
-    channelUris = null;
+    Uri[] uris = new Uri[0];
 
     String[] uriStrings = intent.getStringArrayExtra(URI_LIST_EXTRA);
 
@@ -953,63 +812,106 @@ public class ViewActivity extends AppCompatActivity {
       uris = new Uri[]{intent.getData()};
     } else if (ACTION_VIEW_LIST.equals(action)) {
       uris = parseToUriList(uriStrings);
-      channelUris = uris;
-      currentChannel = 0;
     } else {
       showToast(getString(R.string.unexpected_intent_action, action));
       finish();
     }
 
     boolean showGeekStats = getIntent().getBooleanExtra(SHOW_GEEK_STATS, true);
-    if (! showGeekStats) {
+    if (!showGeekStats) {
       geekStats.toggleVisible();
     }
 
     boolean enableTunneling = getIntent().getBooleanExtra(ENABLE_TUNNELED_PLAYBACK, false);
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-      exoPlayerFactory.setTunnelingMode(enableTunneling);
+    exoPlayerFactory.setTunnelingMode(enableTunneling);
+    // TODO chunkless should come from a properties file (so we can switch it when it's supported)
+    boolean enableChunkless = getIntent().getBooleanExtra(CHUNKLESS_PREPARE, false);
+
+    showErrorRecoveryWhisper(null, null);
+    stopPlaybackIfPlaying();
+
+    boolean fast_resync = getIntent().hasExtra(FAST_RESYNC);
+    TrackSelector trackSelector = exoPlayerFactory.getTrackSelector();
+    if (trackSelector instanceof SyncVideoTrackSelector) {
+      SyncVideoTrackSelector syncVideoTrackSelector = (SyncVideoTrackSelector) trackSelector;
+      syncVideoTrackSelector.setEnableTrackFiltering(fast_resync);
     }
+    mediaHealthMetricsTest(true);
 
-    if (DRM_SCHEME_VCAS.equals(getIntent().getStringExtra(DRM_SCHEME))) {
-      String vcasAddr = getIntent().getStringExtra(DRM_VCAS_ADDR);
-      String vcasCaId = getIntent().getStringExtra(DRM_VCAS_CA_ID);
-      String storeDir = "/sdcard/demoVR";
-      File vcasStoreDir = getApplicationContext().getExternalFilesDir("VCAS");
-      if (! vcasStoreDir.exists()) {
-        vcasStoreDir.mkdirs();
-      }
-      try {
-        storeDir = vcasStoreDir.getCanonicalPath();
-      } catch (IOException e) {
-        Log.e(TAG, "Failed to open VCAS storage directory.", e);
-      }
-
-      Log.d(TAG, String.format("Requested Verimatrix DRM with addr:%s CAID:%s storage:%s", vcasAddr, vcasCaId, storeDir));
-      drmInfo = new VcasDrmInfo(vcasAddr, vcasCaId, storeDir, true);
-    } else if (DRM_SCHEME_WIDEVINE.equals(getIntent().getStringExtra(DRM_SCHEME))) {
-      String wvProxy = getIntent().getStringExtra(DRM_WV_PROXY);
-      String vuid = getIntent().getStringExtra(DRM_VCAS_VUID);
-
-      Log.d(TAG, String.format("Requested Widevine DRM with addr:%s VUID:%s", wvProxy, vuid));
-
-      Map<String, String> keyRequestProps = new HashMap<String, String>();
-
-      if (vuid != null) {
-          keyRequestProps.put( "deviceId", vuid );
-      }
-      drmInfo = new WidevineDrmInfo(wvProxy, keyRequestProps, true);
+    long seekTo = getIntent().getIntExtra(INITIAL_SEEK, C.POSITION_UNSET);
+    boolean playWhenReady = getIntent().getBooleanExtra(START_PLAYING, true);
+    playbacks.clear();
+    usePlaylist = getIntent().getBooleanExtra(URI_LIST_AS_PLAYLIST, false) && uris.length > 1;
+    if (uris.length == 1) {
+      Log.d(TAG, "playUri() playUri: '" + uris[0] + "' - chunkless: " + enableChunkless + " initialPos: " + seekTo + " playWhenReady: "
+          + playWhenReady);
     } else {
-      drmInfo = new DrmInfo(DrmInfo.CLEAR);
+      Log.d(TAG,
+          "playUri() play " + uris.length + " channels, start with: '" + uris[0] + "' - chunkless: " + enableChunkless
+              + " usePlaylist: " + usePlaylist + " initialPos: " + seekTo + " playWhenReady: " + playWhenReady);
+    }
+
+    byte[] seed = new SecureRandom().generateSeed(20); // 20 bytes of seed
+    nextChannelRamdomizer = new Random(new BigInteger(seed).longValue());
+    channelList = null;
+    MediaItem[] channels = new MediaItem[uris.length];
+    int index = 0;
+    for (Uri uri : uris) {
+      MediaItem.Builder builder = new MediaItem.Builder();
+      builder.setUri(uri);
+      MediaItemHelper.populateDrmPropertiesFromIntent(builder, intent, this);
+      channels[index++] = builder.build();
+    }
+
+    usePlaylist = getIntent().getBooleanExtra(URI_LIST_AS_PLAYLIST, false) && uris.length > 1;
+    if (usePlaylist) {
+      exoPlayerFactory.playMediaItems(seekTo, playWhenReady, channels);
+    } else {
+      channelList = channels;
+      exoPlayerFactory.playMediaItems(seekTo, playWhenReady, channels[0]);
     }
 
 
-    if (uris.length > 0) {
-      setIntent(intent);
-      playUri(uris[0]);
-      setIntent(intent);
+    int shuffle_every = getIntent().getIntExtra("shuffle_every", 0);
+    if (shuffle_every > 0) {
+      if (usePlaylist) {
+        player.setRepeatMode(Player.REPEAT_MODE_ALL);
+        player.setShuffleModeEnabled(true);
+        player.setShuffleOrder(new ShuffleOrder.DefaultShuffleOrder(uris.length));
+      }
+      doShuffle = () -> shuffleNextChannel(shuffle_every * 1000L);
+      playerView.postDelayed(doShuffle, shuffle_every * 1000L);
     }
   }
 
+  private void shuffleNextChannel(long delay) {
+    if (player != null) {
+      if (usePlaylist) {
+        player.seekToNextWindow();
+      } else {
+        int nextChannelIncrement = nextChannelRamdomizer.nextInt(channelList.length - 1);
+        currentChannel = (currentChannel + nextChannelIncrement) % channelList.length;
+        long seekTo = getIntent().getIntExtra(INITIAL_SEEK, C.POSITION_UNSET);
+        boolean playWhenReady = getIntent().getBooleanExtra(START_PLAYING, true);
+        exoPlayerFactory.playMediaItems(seekTo, playWhenReady, channelList[currentChannel]);
+      }
+      MediaItem currentMediaItem = player.getCurrentMediaItem();
+      @Nullable MediaItem.PlaybackProperties next = currentMediaItem == null ? null : currentMediaItem.playbackProperties;
+      Integer playedCounter = playbacks.get(next);
+      if (playedCounter == null) {
+        playedCounter = 0;
+      }
+      playedCounter++;
+      playbacks.put(next, playedCounter);
+      Log.d(TAG, "");
+      Log.d(TAG, "play next MediaItem: " + (next == null ? "none" : next.uri) + " play count: " + playedCounter);
+      playerView.postDelayed(doShuffle, delay);
+    } else {
+      playerView.removeCallbacks(doShuffle);
+    }
+  }
+
+  private Runnable doShuffle;
 
   // Utilities
   private Uri[] parseToUriList(String[] uriStrings) {

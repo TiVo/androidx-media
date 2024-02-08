@@ -6,12 +6,15 @@ import androidx.annotation.IntDef;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 
+import java.util.UUID;
 import org.checkerframework.checker.units.qual.C;
 
 /** Base class to pass DRM specific metadata to
  * {@link com.tivo.exoplayer.library.SimpleExoPlayerFactory#playUrl(Uri, DrmInfo, boolean)}
  */
 public class DrmInfo {
+    public static final UUID VCAS_UUID = UUID.fromString("2537711a-f2d1-42c6-a9e7-fbf71440395c");
+    public static final UUID TIVO_CRYPT_UUID = UUID.fromString("fcb7c33d-e404-470c-bbe5-d0fb085d2627");
 
     @Retention(RetentionPolicy.SOURCE)
     @IntDef({

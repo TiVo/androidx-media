@@ -7,6 +7,7 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import com.google.android.exoplayer2.C;
 import com.google.android.exoplayer2.Format;
+import com.google.android.exoplayer2.MediaItem;
 import com.google.android.exoplayer2.Player;
 import com.google.android.exoplayer2.SimpleExoPlayer;
 import com.google.android.exoplayer2.Timeline;
@@ -526,24 +527,9 @@ public class GeekStatsOverlay implements AnalyticsListener, Runnable {
     }
   }
 
-  @Override
-  public void onTimelineChanged(EventTime eventTime, int reason) {
-    Timeline.Window window = new Timeline.Window();
-    switch (reason) {
-      case Player.TIMELINE_CHANGE_REASON_PLAYLIST_CHANGED:
-        resetStats();
-        break;
-      case Player.TIMELINE_CHANGE_REASON_SOURCE_UPDATE:
-        if (eventTime.timeline.isEmpty()) {
-          Log.d(TAG, "onTimeLineChanged - empty timeline");
-        } else {
-          eventTime.timeline.getWindow(0, window);
-          long windowStartTimeMs = window.windowStartTimeMs;
-          Log.d(TAG, "onTimeLineChanged - eventPlaybackPositionMs: " + eventTime.eventPlaybackPositionMs
-              + " widowStartTime: " + UTC_DATETIME.format(windowStartTimeMs) + "(" + +windowStartTimeMs + ")");
-        }
-        break;
-    }
+  public void onMediaItemTransition(EventTime eventTime, @Nullable MediaItem mediaItem, @Player.MediaItemTransitionReason int reason) {
+    manifestUrl.setText(mediaItem.playbackProperties.uri.toString());
+    resetStats();
   }
 
   @Override
@@ -579,13 +565,6 @@ public class GeekStatsOverlay implements AnalyticsListener, Runnable {
 
   @Override
   public void onLoadCompleted(EventTime eventTime, LoadEventInfo loadEventInfo, MediaLoadData mediaLoadData) {
-
-    // Set the playlist URL, if this is the first manifest load (timeline is empty)
-    boolean isEmpty = manifestUrl.getText().length() == 0;
-    if (isEmpty && mediaLoadData.dataType == C.DATA_TYPE_MANIFEST) {
-      manifestUrl.setText(loadEventInfo.dataSpec.uri.toString());
-    }
-
     Format format = mediaLoadData.trackFormat;
     if (isVideoTrack(mediaLoadData)) {
 
@@ -599,3 +578,4 @@ public class GeekStatsOverlay implements AnalyticsListener, Runnable {
     }
   }
 }
+

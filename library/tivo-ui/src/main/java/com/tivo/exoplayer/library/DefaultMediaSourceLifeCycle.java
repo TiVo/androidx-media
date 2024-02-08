@@ -48,6 +48,7 @@ import java.util.Map;
  *
  * This object manages the life-cycle of playback for a given URL
  */
+@Deprecated
 public class DefaultMediaSourceLifeCycle implements MediaSourceLifeCycle, Player.EventListener {
 
   private static final String TAG = "DefaultMediaSourceLifeCycle";
@@ -148,9 +149,59 @@ public class DefaultMediaSourceLifeCycle implements MediaSourceLifeCycle, Player
     // If the library can provide the decrypting key then decryption can be done at
     // MediaSource level using DrmSessionManager with Clearkey DRM scheme.
     if (drmInfo instanceof VcasDrmInfo) {
-        return buildVcasDataSourceFactory((VcasDrmInfo)drmInfo, upstreamFactory);
+      if (Build.VERSION.SDK_INT >= 22) {
+        // Create the singleton "Verimatrix DRM" data source factory
+        Class<?> clazz =
+                null;
+        try {
+          clazz = Class.forName("com.tivo.exoplayer.vcas.VerimatrixDataSourceFactory");
+          Constructor<?> constructor =
+                  clazz.getConstructor(
+                          DataSource.Factory.class,
+                          String.class, String.class,
+                          String.class, String.class,
+                          String.class, boolean.class);
+
+          String filesDir = ((VcasDrmInfo)drmInfo).getStoreDir();
+          File folder = new File(filesDir);
+          if (!folder.exists()) {
+            folder.mkdirs();
+          }
+
+          String sourceDir = context.getApplicationInfo().sourceDir;
+          // AAB install will place the libs in split directory. Look for
+          // matching directory with pattern armeabi. We are exporting
+          // armeabi_v7a only
+          String[] splitSourceDirs = context.getApplicationInfo().splitSourceDirs;
+          if (splitSourceDirs != null) {
+              for (String splitSourceDir : splitSourceDirs) {
+                  if (splitSourceDir.contains(".armeabi")) {
+                      sourceDir = splitSourceDir;
+                  }
+              }
+          }
+
+          DataSource.Factory vfactory = (DataSource.Factory) constructor
+                  .newInstance(upstreamFactory,
+                          filesDir,
+                          context.getApplicationInfo().nativeLibraryDir,
+                          sourceDir,
+                          ((VcasDrmInfo)drmInfo).getCaId(),
+                          ((VcasDrmInfo)drmInfo).getBootAddr(),
+                          ((VcasDrmInfo)drmInfo).isDebugOn());
+          return vfactory;
+        } catch (ClassNotFoundException e) {
+          Log.e(TAG, "Couldn't instantiate VCAS factory");
+        } catch (NoSuchMethodException e) {
+          Log.e(TAG, "No matching VCAS constructor");
+        } catch (Exception e) {
+          Log.e(TAG, "VCAS instantiation failed: ", e);
+        }
+      }
+      return null;
     } else if (drmInfo instanceof TivoCryptDrmInfo) {
-      return buildTivoCryptDataSourceFactory((TivoCryptDrmInfo) drmInfo, upstreamFactory);
+
+      return new TivoCryptDataSourceFactory(upstreamFactory, ((TivoCryptDrmInfo) drmInfo).getWbKey(), ((TivoCryptDrmInfo) drmInfo).getContext(), ((TivoCryptDrmInfo) drmInfo).getDeviceKey());
     }
 
     return new DefaultDataSourceFactory(context, upstreamFactory);
@@ -175,13 +226,13 @@ public class DefaultMediaSourceLifeCycle implements MediaSourceLifeCycle, Player
     return upstreamFactory;
   }
 
-  private DataSource.Factory buildTivoCryptDataSourceFactory(TivoCryptDrmInfo drmInfo, HttpDataSource.Factory upstreamFactory) {
+  public static DataSource.Factory buildTivoCryptDataSourceFactory(TivoCryptDrmInfo drmInfo, HttpDataSource.Factory upstreamFactory) {
 
     return new TivoCryptDataSourceFactory(upstreamFactory, drmInfo.getWbKey(), drmInfo.getContext(), drmInfo.getDeviceKey());
   }
 
-  private DataSource.Factory buildVcasDataSourceFactory(VcasDrmInfo vDrmInfo,
-                                                        HttpDataSource.Factory upstreamFactory) {
+  public static DataSource.Factory buildVcasDataSourceFactory(Context context, VcasDrmInfo vDrmInfo,
+      HttpDataSource.Factory upstreamFactory) {
     if (Build.VERSION.SDK_INT >= 22) {
       // Create the singleton "Verimatrix DRM" data source factory
       Class<?> clazz =

@@ -31,8 +31,26 @@ public interface SourceFactoriesCreated {
    * @param itemBuilder builder for item with mimeType matching the "type" parameter
    * @param factory MediaSourceFactory subclass matching the type, e.g. {@link C#TYPE_HLS} will
    *                be an {@link HlsMediaSource.Factory}
+   *
+   * Deprecated - it is not possible to alter the MediaItem with this path, use
+   * {@link #factoriesCreated(int, MediaItem, MediaSourceFactory)} instead and return the updated MediaItem if
+   *                changed, or just the item passed.
    */
+  @Deprecated
   default void factoriesCreated(@C.ContentType int type, MediaItem.Builder itemBuilder, MediaSourceFactory factory) {}
+
+  /**
+   * Called when the {@link MediaSourceFactory} needed to create {@link MediaSource}'s for the
+   * indicated {@link MediaItem} is created.  Either of both of these can be inspected and altered, with the
+   * obvious limitation that the content type is fixed to what is reported as "type"
+   *
+   * @param type contentType of the item/factory.  This is immutable and may be used to determine the
+   *             class of the "factory" and "item"
+   * @param factory - newly created MediaSourceFactory factory
+   * @param item - MediaItem that the callee may buildUpon() and return updated item
+   * @return updated MediaItem or the original argument value.
+   */
+  default MediaItem factoriesCreated(@C.ContentType int type, MediaItem item, MediaSourceFactory factory) { return item; }
 
   /**
    * Called just after the most upstream {@link HttpDataSource.Factory} is created and properties

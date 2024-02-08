@@ -22,6 +22,7 @@ import com.google.android.exoplayer2.PlaybackException;
 import com.google.android.exoplayer2.Player;
 import com.google.android.exoplayer2.SimpleExoPlayer;
 import com.google.android.exoplayer2.analytics.AnalyticsListener;
+import com.google.android.exoplayer2.source.MediaSourceFactory;
 import com.google.android.exoplayer2.source.TrackGroup;
 import com.google.android.exoplayer2.source.TrackGroupArray;
 import com.google.android.exoplayer2.source.UnrecognizedInputFormatException;
@@ -51,6 +52,8 @@ import com.tivo.exoplayer.library.errorhandlers.StuckPlaylistErrorRecovery;
 import com.tivo.exoplayer.library.liveplayback.AugmentedLivePlaybackSpeedControl;
 import com.tivo.exoplayer.library.logging.ExtendedEventLogger;
 import com.tivo.exoplayer.library.logging.LoggingLivePlaybackSpeedControl;
+import com.tivo.exoplayer.library.source.ExtendedMediaSourceFactory;
+import com.tivo.exoplayer.library.source.MediaItemHelper;
 import com.tivo.exoplayer.library.tracks.SyncVideoTrackSelector;
 import com.tivo.exoplayer.library.tracks.TrackInfo;
 import java.io.File;
@@ -76,8 +79,6 @@ import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
  * extending and customizing many of the ExoPlayer supporting classes including the
  * {@link com.google.android.exoplayer2.RenderersFactory}, {@link com.google.android.exoplayer2.LoadControl}
  * and others.
- *
- *
  */
 public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
   public static final String TAG = "SimpleExoPlayerFactory";
@@ -128,9 +129,6 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
   @Nullable
   private PlayerErrorHandlerListener playerErrorHandlerListener;
 
-  @Nullable
-  private MediaSourceEventCallback callback;
-
   private EventListenerFactory eventListenerFactory;
 
   /**
@@ -163,6 +161,7 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
   private boolean mediaCodecAsyncMode;
   private AlternatePlayerFactory alternatePlayerFactory;
   private TrackSelectorFactory trackSelectorFactory;
+  private ExtendedMediaSourceFactory mediaSourceFactory;
 
   /**
    * Simple callback to produce an AnalyticsListener for logging purposes.
@@ -400,7 +399,6 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
     assert player != null;
     DefaultMediaSourceLifeCycle mediaSourceLifeCycle =
         new DefaultMediaSourceLifeCycle(context, player, hlsPlaylistParserFactory);
-    mediaSourceLifeCycle.setMediaSourceEventCallback(callback);
     mediaSourceLifeCycle.factoriesCreated = factoriesCreatedCallback == null
         ? new SourceFactoriesCreated() {} : factoriesCreatedCallback;
     mediaSourceLifeCycle.userAgentPrefix = userAgentPrefix == null ? "TiVoExoPlayer" : userAgentPrefix;
@@ -474,8 +472,10 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
         trickPlayControl = null;
       }
       player = null;
-      mediaSourceLifeCycle.releaseResources();
-      mediaSourceLifeCycle = null;
+      if (mediaSourceFactory != null) {
+        mediaSourceFactory.releaseResources();
+      }
+      mediaSourceFactory = null;
       trackSelector = null;
       playerErrorHandler.releaseResources();
       playerErrorHandler = null;
@@ -565,6 +565,10 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
 
     LoadControl loadControl = trickPlayControl.createLoadControl(controlBuilder.createDefaultLoadControl());
 
+    mediaSourceFactory =
+        new ExtendedMediaSourceFactory(context, hlsPlaylistParserFactory)
+            .setSourceFactoriesCreatedCallback(factoriesCreatedCallback);
+
     // Wrap default with our own version that logs useful bits, TODO factory method for default
     LivePlaybackSpeedControl livePlaybackSpeedControl =
         new AugmentedLivePlaybackSpeedControl(
@@ -582,10 +586,9 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
           .setTrackSelector(trackSelector)
           .setLoadControl(loadControl)
           .setLivePlaybackSpeedControl(livePlaybackSpeedControl)
+          .setMediaSourceFactory(mediaSourceFactory)
           .build();
     }
-
-    mediaSourceLifeCycle = createMediaSourceLifeCycle();
 
     trickPlayControl.setPlayer(player);
 
@@ -598,6 +601,21 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
     player.addListener(playerErrorHandler);
     player.setPlayWhenReady(playWhenReady);
     return player;
+  }
+
+  /**
+   * This call will return the {@link ExtendedMediaSourceFactory} the player is using
+   * after a call to {@link #createPlayer()}.   This can be used to add decorator objects to
+   * the factory, for example for using ad insertion:
+   *
+   * <pre>
+   *   getMediaSourceFactory().setAdsLoaderProvider(...)
+   * </pre>
+   *
+   * @return null or current MediaSourceFactory in use by player
+   */
+  public @Nullable ExtendedMediaSourceFactory getMediaSourceFactory() {
+    return mediaSourceFactory;
   }
 
   /**
@@ -628,7 +646,7 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
    * <pre>
    *           .setSourceFactoriesCreatedCallback(new SourceFactoriesCreated() {
    *               @Override
-   *               public void factoriesCreated(@C.ContentType int type, MediaItem.Builder itemBuilder, MediaSourceFactory factory) {
+   *               public MediaItem factoriesCreated(@C.ContentType int type, MediaItem item, MediaSourceFactory factory) {
    *                 switch (type) {
    *                   case C.TYPE_HLS:
    *                     HlsMediaSource.Factory hlsFactory = (HlsMediaSource.Factory) factory;
@@ -636,14 +654,16 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
    *                     break;
    *                  ...
    *                 }
+   *                 return mediaItem;
    *               }
    *             })
    *
    *</pre>
+   * // deprecated, use {@link #playMediaItems(long, boolean, MediaItem...)}
    */
   @Deprecated
   public void playUrl(Uri url, DrmInfo drmInfo, boolean enableChunkless) throws UnrecognizedInputFormatException {
-    mediaSourceLifeCycle.playUrl(url, C.POSITION_UNSET, drmInfo, enableChunkless);
+    playUrl(url, drmInfo, C.POSITION_UNSET);
   }
 
   /**
@@ -660,7 +680,7 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
    */
   @Deprecated
   public void playUrl(Uri url, long startPosUs, DrmInfo drmInfo, boolean enableChunkless) throws UnrecognizedInputFormatException {
-    mediaSourceLifeCycle.playUrl(url, startPosUs, drmInfo, enableChunkless);
+    playUrl(url, drmInfo, startPosUs);
   }
 
 
@@ -672,9 +692,11 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
    * @param url - URL to play
    * @param drmInfo - DRM information, use {@link DrmInfo#NO_DRM} for clear
    * @throws UnrecognizedInputFormatException - if the URI is not in a supported container format.
+   * // deprecated, use {@link #playMediaItems(long, boolean, MediaItem...)}
    */
+  @Deprecated
   public void playUrl(Uri url, DrmInfo drmInfo) throws UnrecognizedInputFormatException {
-    playUrl(url, drmInfo, C.TIME_UNSET);
+    playUrl(url, drmInfo, C.POSITION_UNSET);
   }
 
   /**
@@ -684,9 +706,11 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
    * @param drmInfo - DRM information, use {@link DrmInfo#NO_DRM} for clear
    * @param startPosMs - starting position (milliseconds) must be 0 - duration of playlist (or live offset)
    * @throws UnrecognizedInputFormatException - if the URI is not in a supported container format.
+   * // deprecated, use {@link #playMediaItems(long, boolean, MediaItem...)}
    */
+  @Deprecated
   public void playUrl(Uri url, DrmInfo drmInfo, long startPosMs) throws UnrecognizedInputFormatException {
-    mediaSourceLifeCycle.playUrl(url, startPosMs, drmInfo);
+    playUrl(url, drmInfo, startPosMs, true);
   }
 
 
@@ -701,20 +725,36 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
    *                   specifying {@link C#TIME_UNSET} will start at the default position
    * @param startPlaying - override the the initial setting for playWhenReady, if false will start paused
    * @throws UnrecognizedInputFormatException - if the URI is not in a supported container format.
+   * // deprecated, use {@link #playMediaItems(long, boolean, MediaItem...)}
    */
+  @Deprecated
   public void playUrl(Uri url, DrmInfo drmInfo, long startPosMs, boolean startPlaying) throws UnrecognizedInputFormatException {
-    mediaSourceLifeCycle.playUrl(url, startPosMs, startPlaying, drmInfo);
+    MediaItem.Builder builder = MediaItemHelper.populateDrmFromDrmInfo(new MediaItem.Builder(), drmInfo);
+    builder.setUri(url);
+    playMediaItems(startPosMs, startPlaying, builder.build());
   }
+
+  public void playMediaItems(long startPosMs, boolean startPlaying, MediaItem... mediaItems) {
+    assert player != null;
+    player.setPlayWhenReady(startPlaying);
+    boolean haveStartPosition = startPosMs != C.POSITION_UNSET;
+    if (haveStartPosition) {
+      // TODO - work around bug, https://github.com/google/ExoPlayer/issues/7975 min is non-zero
+      startPosMs = Math.max(1, startPosMs);
+      player.seekTo(startPosMs);
+    }
+    player.setMediaItems(Arrays.asList(mediaItems), /* resetPosition= */ !haveStartPosition);
+    player.prepare();
+  }
+
 
   /**
    *
    * @param callback {@link MediaSourceEventCallback} implementation to be called or null to remove reference
+   * / deprecated / use player.listener() for this, the {@link Player.Listener#onIsPlayingChanged(boolean)}
    */
+  @Deprecated
   public void setMediaSourceEventCallback(@Nullable MediaSourceEventCallback callback) {
-    this.callback = callback;
-    if (mediaSourceLifeCycle != null) {
-      mediaSourceLifeCycle.setMediaSourceEventCallback(callback);
-    }
   }
 
   // Track Selection
