@@ -32,7 +32,7 @@ import static com.google.android.exoplayer2.analytics.PlaybackStats.PLAYBACK_STA
 import static com.google.android.exoplayer2.analytics.PlaybackStats.PLAYBACK_STATE_SUPPRESSED_BUFFERING;
 
 public abstract class AbstractBasePlaybackMetrics {
-    private static final String TAG = "PlaybackMetrics";
+    protected static final String TAG = "PlaybackMetrics";
     protected long startingTimestamp;
     private @Nullable
     AbstractBasePlaybackMetrics previousMetrics;
@@ -50,7 +50,6 @@ public abstract class AbstractBasePlaybackMetrics {
     protected CurrentState currentState = CurrentState.UNKNOWN;
     private int totalSeekCount;
     private long totalSeekTime;
-    protected final DecoderCounters cumulativeVideoDecoderCounters = new DecoderCounters();
 
 
     /**
@@ -74,11 +73,13 @@ public abstract class AbstractBasePlaybackMetrics {
      *
      * @param playbackStats      used to compute the metric values
      * @param currentElapsedTime current {@link Clock#elapsedRealtime()}
+     * @param playerStatisticsHelper used to compute the metrics from Player core
      * @param currentCounters   DecoderCounters from the player at the point of the update.
      * @return the final PlaybackStats @PlaybackState
      */
     @SuppressLint("SwitchIntDef")
-    int updateValuesFromStats(PlaybackStats playbackStats, long currentElapsedTime, DecoderCounters currentCounters) {
+    int updateValuesFromStats(PlaybackStats playbackStats, long currentElapsedTime,
+        PlayerStatisticsHelper playerStatisticsHelper, DecoderCounters currentCounters) {
         // TODO compute values
         startingTimestamp = currentElapsedTime;
 
@@ -351,20 +352,6 @@ public abstract class AbstractBasePlaybackMetrics {
      */
     public @Nullable Exception getEndedWithError() {
         return endedWithError;
-    }
-
-    /**
-     * Merge in the current{@link DecoderCounters} values into our running set.
-     *
-     * This method is called before the video decoder creates a fresh {@link DecoderCounters} object,
-     * this happens during decoder disable()/enable().
-     *
-     * @param curr The current {@link DecoderCounters} for video
-     */
-    void captureVideoDecoderCountersSnapshot(DecoderCounters curr) {
-        cumulativeVideoDecoderCounters.merge(curr);
-        Log.d(TAG, "captureVideoDecoderCountersSnapshot, renderedFramesCount: " + cumulativeVideoDecoderCounters.renderedOutputBufferCount +
-            " after capturing snapshot renderedOutputBufferCount: " + curr.renderedOutputBufferCount );
     }
 
     protected enum CurrentState {

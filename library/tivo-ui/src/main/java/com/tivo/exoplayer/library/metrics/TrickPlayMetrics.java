@@ -335,7 +335,7 @@ public class TrickPlayMetrics extends AbstractBasePlaybackMetrics {
     }
 
     void updateOnSessionEnd(PlaybackStats playbackStats, AnalyticsListener.EventTime startEventTime, AnalyticsListener.EventTime endEventTime) {
-        super.updateValuesFromStats(playbackStats, startEventTime.realtimeMs,  new DecoderCounters());
+        super.updateValuesFromStats(playbackStats, startEventTime.realtimeMs, null, new DecoderCounters());
 
         lastPlayedFormat = playbackStats.videoFormatHistory.size() > 0
                 ? playbackStats.videoFormatHistory.get(playbackStats.videoFormatHistory.size() - 1).format : null;

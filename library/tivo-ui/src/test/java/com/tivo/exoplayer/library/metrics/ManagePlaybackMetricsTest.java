@@ -5,6 +5,9 @@ import androidx.test.ext.junit.runners.AndroidJUnit4;
 
 import com.google.android.exoplayer2.PlaybackException;
 import com.google.android.exoplayer2.PlaybackParameters;
+import com.google.android.exoplayer2.analytics.PlaybackStatsListener;
+import com.google.android.exoplayer2.decoder.Decoder;
+import com.google.android.exoplayer2.decoder.DecoderCounters;
 import java.util.Map;
 import java.util.Set;
 
@@ -14,6 +17,7 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
+import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
 import org.mockito.stubbing.Answer;
 
@@ -34,6 +38,7 @@ import static com.tivo.exoplayer.library.metrics.PlaybackStatsExtensionTest.crea
 import static com.tivo.exoplayer.library.metrics.TrickPlayMetricsHelper.createEventsAtSameEventTime;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.atLeastOnce;
+import static org.mockito.Mockito.atMost;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -46,6 +51,9 @@ import com.google.android.exoplayer2.trackselection.TrackSelectionArray;
 import com.google.android.exoplayer2.trickplay.TrickPlayControl;
 import com.google.android.exoplayer2.trickplay.TrickPlayEventListener;
 import com.google.android.exoplayer2.util.Clock;
+
+import java.util.List;
+
 
 /**
  * Test the {@link PlaybackMetricsManagerApi} that manages {@link com.google.android.exoplayer2.analytics.PlaybackStats} collection
@@ -89,11 +97,25 @@ public class ManagePlaybackMetricsTest {
     private MetricsEventListener metricsEventListener;
 
     private AnalyticsListener analyticsListener;            // current AnalyticsListener attached to player.
+
+    private PlayerStatisticsHelper playerStatisticsHelper;  // current PlayerStatisticsHelper
     private TrickPlayEventListener trickPlayEventListener;  // shouldn't change
 
     // Captures the AnalyticsListener[s] passed to the player mock's addAnalyticsListener
     private ArgumentCaptor<AnalyticsListener> analyticsListenerArgumentCaptor;
 
+    private DecoderCounters decoderCountersTest = new DecoderCounters();
+    private DecoderCounters getDecoderCountersTP = new DecoderCounters();
+
+    private DecoderCounters increment() {
+        decoderCountersTest.renderedOutputBufferCount += 10;
+        return decoderCountersTest;
+    }
+
+    private DecoderCounters zer0() {
+        getDecoderCountersTP.renderedOutputBufferCount = 0;
+        return getDecoderCountersTP;
+    }
     class MyTrickPlayMetrics extends TrickPlayMetrics {
 
         public MyTrickPlayMetrics(TrickPlayControl.TrickMode currentMode, TrickPlayControl.TrickMode prevMode) {
@@ -106,6 +128,8 @@ public class ManagePlaybackMetricsTest {
         MockitoAnnotations.openMocks(this);
 
         ArgumentCaptor<TrickPlayEventListener> trickPlayListenerCaptor = ArgumentCaptor.forClass(TrickPlayEventListener.class);
+        ArgumentCaptor<PlaybackStatsListener> playbackStatsListenerArgumentCaptor = ArgumentCaptor.forClass(PlaybackStatsListener.class);
+
         analyticsListenerArgumentCaptor = ArgumentCaptor.forClass(AnalyticsListener.class);
 
         when(playerMock.getCurrentTimeline()).thenReturn(TEST_TIMELINE);
@@ -122,8 +146,10 @@ public class ManagePlaybackMetricsTest {
                 .setMetricsEventListener(metricsEventListener)
                 .build();
 
-        verify(playerMock).addAnalyticsListener(analyticsListenerArgumentCaptor.capture());
-        analyticsListener = analyticsListenerArgumentCaptor.getValue();
+        verify(playerMock, atMost(2)).addAnalyticsListener(analyticsListenerArgumentCaptor.capture());
+        List<AnalyticsListener> capturedListener = analyticsListenerArgumentCaptor.getAllValues();
+        analyticsListener = capturedListener.get(0);
+        playerStatisticsHelper = (PlayerStatisticsHelper)capturedListener.get(1);
 
         verify(controlMock).addEventListener(trickPlayListenerCaptor.capture());
         trickPlayEventListener = trickPlayListenerCaptor.getValue();
@@ -140,6 +166,8 @@ public class ManagePlaybackMetricsTest {
         AnalyticsListener.Events events = createEventsAtSameEventTime(initialTime,
             EVENT_DOWNSTREAM_FORMAT_CHANGED, EVENT_TIMELINE_CHANGED, EVENT_PLAYBACK_STATE_CHANGED, EVENT_PLAY_WHEN_READY_CHANGED);
         analyticsListener.onEvents(playerMock, events);
+
+        when(playerMock.getVideoDecoderCounters()).thenReturn(increment());
 
         // TrackSelection that disables video (our mute for example) can cause a null video format period,
         // that is the last 40ms (210 - 250) of playback
@@ -189,6 +217,9 @@ public class ManagePlaybackMetricsTest {
         events = createEventsAtSameEventTime(eventTime, EVENT_TIMELINE_CHANGED, EVENT_PLAYBACK_STATE_CHANGED);
         analyticsListener.onEvents(playerMock, events);
 
+        //Not a null counter
+        when(playerMock.getVideoDecoderCounters()).thenReturn(increment());
+
         // Switch into trickplay mode, generate some trickplay events, then switch out.
         SystemClock.setCurrentTimeMillis(225);
         trickPlayEventListener.trickPlayModeChanged(TrickPlayControl.TrickMode.FF1, TrickPlayControl.TrickMode.NORMAL);
@@ -233,6 +264,9 @@ public class ManagePlaybackMetricsTest {
         when(playerMock.getPlayWhenReady()).thenReturn(true);
         events = createEventsAtSameEventTime(eventTime200, EVENT_TIMELINE_CHANGED, EVENT_PLAYBACK_STATE_CHANGED, EVENT_PLAY_WHEN_READY_CHANGED);
         analyticsListener.onEvents(playerMock, events);
+
+        //Not a null counter
+        when(playerMock.getVideoDecoderCounters()).thenReturn(increment());
 
         // Switch into trickplay mode and generate some metrics that should be ingored
         SystemClock.setCurrentTimeMillis(225);
@@ -421,7 +455,6 @@ public class ManagePlaybackMetricsTest {
         AnalyticsListener.EventTime eventTime100 = createEventTime(100);
         analyticsListener.onDownstreamFormatChanged(eventTime100, createMediaLoad(formats[0]));
 
-
         // first format plays from 400 - 700, minus 100ms of buffering so 200 ms actual playing time
         SystemClock.setCurrentTimeMillis(200);
         AnalyticsListener.EventTime eventTime300 = createEventTime(300);
@@ -454,6 +487,9 @@ public class ManagePlaybackMetricsTest {
         mockTrackSelection.setSelectedIndex(1);
         events = createEventsAtSameEventTime(eventTime700, EVENT_DOWNSTREAM_FORMAT_CHANGED);
         analyticsListener.onEvents(playerMock, events);
+
+        //Not a null counter
+        when(playerMock.getVideoDecoderCounters()).thenReturn(increment());
 
         SystemClock.setCurrentTimeMillis(800);
         trickPlayEventListener.trickPlayModeChanged(TrickPlayControl.TrickMode.FF1, TrickPlayControl.TrickMode.NORMAL);
@@ -538,6 +574,8 @@ public class ManagePlaybackMetricsTest {
         events = createEventsAtSameEventTime(eventTime660, EVENT_PLAYBACK_STATE_CHANGED);
         analyticsListener.onEvents(playerMock, events);
 
+        when(playerMock.getVideoDecoderCounters()).thenReturn(increment());
+
         PlaybackMetrics metrics = new PlaybackMetrics();
         manageMetrics.updateFromCurrentStats(metrics);
 
@@ -557,6 +595,8 @@ public class ManagePlaybackMetricsTest {
         AnalyticsListener.Events events = createEventsAtSameEventTime(eventTime200, EVENT_PLAYBACK_STATE_CHANGED);
         analyticsListener.onEvents(playerMock, events);
 
+        when(playerMock.getVideoDecoderCounters()).thenReturn(increment());
+
         SystemClock.setCurrentTimeMillis(225);
         ExoPlaybackException error = ExoPlaybackException.createForUnexpected(new RuntimeException("test"), PlaybackException.ERROR_CODE_UNSPECIFIED);
         AnalyticsListener.EventTime eventTime225 = createEventTime(225);
@@ -571,7 +611,68 @@ public class ManagePlaybackMetricsTest {
 
         assertThat(metrics.getEndReason()).isEqualTo(PlaybackMetrics.EndReason.ERROR);
         assertThat(metrics.getEndedWithError()).isEqualTo(error);
+    }
 
+    @Test
+    public void testCaptureVideoDecoderCounters_WithTrickplay() {
+
+        when(metricsEventListener.createEmptyTrickPlayMetrics(any(), any())).thenAnswer(
+            (Answer<TrickPlayMetrics>) invocation -> new MyTrickPlayMetrics(invocation.getArgument(0), invocation.getArgument(1)));
+
+        MockTrackSelection mockTrackSelection = MockTrackSelection.buildFrom(TEST_BASEVIDEO_FORMAT);
+        when(playerMock.getCurrentTrackSelections()).thenReturn(new TrackSelectionArray(mockTrackSelection));
+        AnalyticsListener.EventTime eventTime = createEventTime(100);
+        analyticsListener.onDownstreamFormatChanged(eventTime, createMediaLoad(TEST_BASEVIDEO_FORMAT));
+        AnalyticsListener.Events events = createEventsAtSameEventTime(eventTime, EVENT_DOWNSTREAM_FORMAT_CHANGED);
+        analyticsListener.onEvents(playerMock, events);
+
+        eventTime = createEventTime(200);
+        events = createEventsAtSameEventTime(eventTime, EVENT_TIMELINE_CHANGED, EVENT_PLAYBACK_STATE_CHANGED);
+        analyticsListener.onEvents(playerMock, events);
+
+        when(playerMock.getVideoDecoderCounters()).thenReturn(increment());
+        PlaybackMetrics pbmetrics = manageMetrics.createOrReturnCurrent();
+        //First play
+        manageMetrics.updateFromCurrentStats(pbmetrics);
+        assertThat(pbmetrics.getVideoFramesPresented()).isEqualTo(10);
+
+        //Adding 10 frames
+        when(playerMock.getVideoDecoderCounters()).thenReturn(increment());
+
+        //First Trickplay
+        // Switch into trickplay mode, generate some trickplay events, then switch out.
+        SystemClock.setCurrentTimeMillis(225);
+        trickPlayEventListener.trickPlayModeChanged(TrickPlayControl.TrickMode.FF1, TrickPlayControl.TrickMode.NORMAL);
+        playerStatisticsHelper.mergeCounterValues(playerMock.getVideoDecoderCounters());
+        verify(metricsEventListener, atMost(1)).enteringTrickPlayMeasurement();
+
+        //Capturing the first 20
+        manageMetrics.updateFromCurrentStats(pbmetrics);
+        assertThat(pbmetrics.getVideoFramesPresented()).isEqualTo(20);
+
+        SystemClock.setCurrentTimeMillis(225);
+        trickPlayEventListener.trickFrameRendered(1);
+        SystemClock.setCurrentTimeMillis(325);
+        trickPlayEventListener.trickFrameRendered(1);
+        SystemClock.setCurrentTimeMillis(425);
+
+        //Not counting the VTP frames, frame count not increased
+        assertThat(pbmetrics.getVideoFramesPresented()).isEqualTo(20);
+
+        trickPlayEventListener.trickPlayModeChanged(TrickPlayControl.TrickMode.NORMAL, TrickPlayControl.TrickMode.FF1);
+        verify(metricsEventListener, atMost(1)).exitingTrickPlayMeasurement();
+
+        playerStatisticsHelper.mergeCounterValues(playerMock.getVideoDecoderCounters());
+
+        //Captured: 20, Current: 30
+        when(playerMock.getVideoDecoderCounters()).thenReturn(increment());
+        manageMetrics.updateFromCurrentStats(pbmetrics);
+        assertThat(pbmetrics.getVideoFramesPresented()).isEqualTo(50);
+
+        //Adding 10
+        when(playerMock.getVideoDecoderCounters()).thenReturn(increment());
+        manageMetrics.updateFromCurrentStats(pbmetrics);
+        assertThat(pbmetrics.getVideoFramesPresented()).isEqualTo(60);
 
     }
 }

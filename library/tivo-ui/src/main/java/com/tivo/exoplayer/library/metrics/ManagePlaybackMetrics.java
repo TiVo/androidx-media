@@ -6,10 +6,12 @@ import static com.google.android.exoplayer2.analytics.AnalyticsListener.EVENT_PO
 import static com.tivo.exoplayer.library.metrics.TrickPlayMetricsHelper.createEventsAtSameEventTime;
 
 import android.util.Log;
+import androidx.annotation.Nullable;
 import androidx.annotation.VisibleForTesting;
 
 import com.google.android.exoplayer2.C;
 import com.google.android.exoplayer2.decoder.DecoderCounters;
+import com.google.android.exoplayer2.util.EventLogger;
 import java.util.Map;
 
 import com.google.android.exoplayer2.Player;
@@ -40,10 +42,10 @@ public class ManagePlaybackMetrics implements PlaybackMetricsManagerApi {
     private final Clock clock;
     private final MetricsPlaybackSessionManager sessionManager;
     private final TrickPlayMetricsHelper trickPlayMetricsHelper;
+    public final PlayerStatisticsHelper playerStatisticsHelper;
 
     private PlaybackStatsListener playbackStatsListener;
     private PlaybackMetrics currentPlaybackMetrics;
-
 
     public static class Builder {
         private final SimpleExoPlayer player;
@@ -123,9 +125,7 @@ public class ManagePlaybackMetrics implements PlaybackMetricsManagerApi {
         @Override
         public void enteringTrickPlayMeasurement() {
             currentPlayer.removeAnalyticsListener(playbackStatsListener);
-            if (currentPlayer != null && currentPlayer.getVideoDecoderCounters() != null) {
-                createOrReturnCurrent().captureVideoDecoderCountersSnapshot(currentPlayer.getVideoDecoderCounters());
-            }
+            playerStatisticsHelper.enterTrickPlay(currentPlayer.getVideoDecoderCounters());
 
             lastTrickPlayStartTimeMs = clock.elapsedRealtime();
             lastTrickPlayStartPosition = getCurrentPositionInfo();
@@ -161,6 +161,7 @@ public class ManagePlaybackMetrics implements PlaybackMetricsManagerApi {
             playbackStatsListener.onPositionDiscontinuity(eventTime, lastTrickPlayStartPosition, getCurrentPositionInfo(), DISCONTINUITY_REASON_SEEK);
             playbackStatsListener.onEvents(currentPlayer, createEventsAtSameEventTime(eventTime, EVENT_POSITION_DISCONTINUITY));
             currentPlayer.addAnalyticsListener(playbackStatsListener);
+            playerStatisticsHelper.exitTrickPlay(currentPlayer.getVideoDecoderCounters());
             parentListener.exitingTrickPlayMeasurement();
         }
     }
@@ -176,6 +177,8 @@ public class ManagePlaybackMetrics implements PlaybackMetricsManagerApi {
 
         trickPlayMetricsHelper = new TrickPlayMetricsHelper(clock, player, trickPlayControl, new TrickPlayMetricsHelperListener(callback));
         trickPlayControl.addEventListener(trickPlayMetricsHelper);
+        playerStatisticsHelper = new PlayerStatisticsHelper();
+        player.addAnalyticsListener(playerStatisticsHelper);
     }
 
     private AnalyticsListener.EventTime createEventTime(long eventTime) {
@@ -215,6 +218,7 @@ public class ManagePlaybackMetrics implements PlaybackMetricsManagerApi {
     public void endAllSessions() {
         trickPlayMetricsHelper.endCurrentTrickPlaySession();
         playbackStatsListener.finishAllSessions();
+        currentPlayer.removeAnalyticsListener(playerStatisticsHelper);
     }
 
     @Override
@@ -247,8 +251,12 @@ public class ManagePlaybackMetrics implements PlaybackMetricsManagerApi {
     private void fillInPlaybackMetrics(PlaybackMetrics priorMetrics, PlaybackStats stats) {
         if (priorMetrics != null) {
             long currentRealtime = clock.elapsedRealtime();
-            DecoderCounters counters = currentPlayer.getVideoDecoderCounters();
-            priorMetrics.updateValuesFromStats(stats, currentRealtime, counters == null ? new DecoderCounters() : counters);
+
+            DecoderCounters counters = null;
+            if (currentPlayer != null && currentPlayer.getVideoDecoderCounters() != null){
+                counters = currentPlayer.getVideoDecoderCounters();
+            }
+            priorMetrics.updateValuesFromStats(stats, currentRealtime, playerStatisticsHelper, counters == null ? new DecoderCounters() : counters);
         }
     }
 

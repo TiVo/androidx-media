@@ -3,6 +3,7 @@ package com.tivo.exoplayer.library.metrics;
 import androidx.annotation.Nullable;
 
 import com.google.android.exoplayer2.decoder.DecoderCounters;
+import com.google.android.exoplayer2.util.Log;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -23,7 +24,8 @@ public class PlaybackMetrics extends AbstractBasePlaybackMetrics {
     private int trickPlayCount;
     private EndReason endReason = EndReason.NONE;
     private Map<Format, Long> timeInAudioOnlyFormat;
-    private int videoFramesRendered;
+    protected int videoFramesRendered;
+
 
     // Internal methods
 
@@ -53,16 +55,14 @@ public class PlaybackMetrics extends AbstractBasePlaybackMetrics {
     }
 
     @Override
-    int updateValuesFromStats(PlaybackStats playbackStats, long currentElapsedTime, DecoderCounters currentCounters) {
-        int playbackStateAtTime = super.updateValuesFromStats(playbackStats, currentElapsedTime, new DecoderCounters());
+    int updateValuesFromStats(PlaybackStats playbackStats, long currentElapsedTime, PlayerStatisticsHelper playerStatisticsHelper, DecoderCounters currentCounters) {
+        int playbackStateAtTime = super.updateValuesFromStats(playbackStats, currentElapsedTime, playerStatisticsHelper, currentCounters);
         totalPlaybackTime = playbackStats.getTotalPlayTimeMs();
         timeInAudioOnlyFormat= PlaybackStatsExtension.getPlayingTimeInAudioOnlyFormat(playbackStats,currentElapsedTime);
 
-        DecoderCounters countersSnapShot = new DecoderCounters();
-        countersSnapShot.merge(cumulativeVideoDecoderCounters);
-        countersSnapShot.merge(currentCounters);
-        videoFramesRendered = countersSnapShot.renderedOutputBufferCount;
-
+        if (currentCounters != null) {
+            videoFramesRendered = playerStatisticsHelper.getVideoFramesRendered(currentCounters);
+        }
 
         if (getEndedWithError() != null) {
             endReason = PlaybackMetrics.EndReason.ERROR;
@@ -131,7 +131,7 @@ public class PlaybackMetrics extends AbstractBasePlaybackMetrics {
 
     /**
      * Get the total number of video frames presented since the last call to
-     * {@link #updateValuesFromStats(PlaybackStats, long, DecoderCounters)}
+     * {@link #updateValuesFromStats(PlaybackStats, long, PlayerStatisticsHelper, DecoderCounters)}
      *
      * Note this does not include frames presented during trickplay
      *
