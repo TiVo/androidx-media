@@ -41,6 +41,7 @@ public final class HttpMediaDrmCallback implements MediaDrmCallback {
   public static final String TAG = "HttpMediaDrmCallback";
 
   private static final int MAX_MANUAL_REDIRECTS = 5;
+  private static final long WARN_IF_REQUEST_EXCEEDS_MS = 2000;
 
   private final HttpDataSource.Factory dataSourceFactory;
   @Nullable private final String defaultLicenseUrl;
@@ -117,13 +118,18 @@ public final class HttpMediaDrmCallback implements MediaDrmCallback {
     String url =
         request.getDefaultUrl() + "&signedRequest=" + Util.fromUtf8Bytes(request.getData());
     long started = System.currentTimeMillis();
-    Log.i(TAG, "executeProvisionRequest() - server: " + request.getDefaultUrl());
+    Log.d(TAG, "executeProvisionRequest() - issue request to server: " + request.getDefaultUrl());
     byte[] value = executePost(
         dataSourceFactory,
         url,
         /* httpBody= */ null,
         /* requestProperties= */ Collections.emptyMap());
-    Log.i(TAG, "executeProvisionRequest() completed, time: " + (System.currentTimeMillis() - started));
+    long requestTime = System.currentTimeMillis() - started;
+    if (requestTime > WARN_IF_REQUEST_EXCEEDS_MS) {
+      Log.w(TAG, "executeProvisionRequest() completed, time: " + requestTime);
+    } else {
+      Log.d(TAG, "executeProvisionRequest() completed, time: " + requestTime);
+    }
     return value;
   }
 
@@ -157,9 +163,14 @@ public final class HttpMediaDrmCallback implements MediaDrmCallback {
       requestProperties.putAll(keyRequestProperties);
     }
     long started = System.currentTimeMillis();
-    Log.i(TAG, "executeKeyRequest() - server: " + url);
+    Log.d(TAG, "executeKeyRequest() - issue request to server: " + url);
     byte[] value = executePost(dataSourceFactory, url, request.getData(), requestProperties);
-    Log.i(TAG, "executeKeyRequest() completed, time: " + (System.currentTimeMillis() - started) + " size: " + value.length);
+    long requestTime = System.currentTimeMillis() - started;
+    if (requestTime > WARN_IF_REQUEST_EXCEEDS_MS) {
+      Log.w(TAG, "executeKeyRequest() completed, time: " + requestTime + " size: " + value.length);
+    } else {
+      Log.i(TAG, "executeKeyRequest() completed, time: " + requestTime + " size: " + value.length);
+    }
     return value;
   }
 
