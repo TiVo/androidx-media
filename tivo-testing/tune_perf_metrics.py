@@ -55,10 +55,13 @@ class TunePerfStats() :
             "channelUrl"                : None,
             "dateTime"                  : None,
             "drmType"                   : None,
-            "provisionRequest"          : None,
-            "keyRequest"                : None,
             "chunklessUsed"             : None,
             "tunnelingUsed"             : None,
+            "provisionRequest"          : None,
+            "keyRequest"                : None,
+            "drmSessionAcquired"        : None,
+            "videoDecoderInitialized"   : None,
+            "audioDecoderInitialized"   : None,
             "renderedFirstFrame"        : None,
             "isPlaying"                 : None,
             "loadCompletedPlaylist"     : None,
@@ -75,7 +78,7 @@ class TunePerfStats() :
         self.lineNo += 1
 
         # Groom & split
-        replaceList = [ ',', '[', ']', '{', '}', '(', ')', ': ', ' :' ]
+        replaceList = [ ',', '=', '[', ']', '{', '}', '(', ')', ': ', ' :' ]
         for c in replaceList : line = line.replace( c, ' ' )
         fields = line.split()
 
@@ -171,13 +174,54 @@ class TunePerfStats() :
 
         message = None
 
+        # Get event time
+        eventTime = self.timeDelta
+        value = self._GetKeyValue( 'eventTime', fields )
+        if value != None : eventTime = float( value )
+
+        ### drmSessionAcquired ###
+
+        baseIndex = self._GetBaseIndex( 'drmSessionAcquired', fields )
+        if baseIndex != None :
+
+            if self.tuneMetrics[ "drmSessionAcquired" ] == None :
+                self.tuneMetrics[ "drmSessionAcquired" ] = [ 0, eventTime ]
+            else :
+                message = "Line {}: drmSessionAcquired already set!".format( self.lineNo )
+
+            return TpsStatus.CONTINUE, message
+
+        ### videoDecoderInitialized ###
+
+        baseIndex = self._GetBaseIndex( 'videoDecoderInitialized', fields )
+        if baseIndex != None :
+
+            if self.tuneMetrics[ "videoDecoderInitialized" ] == None :
+                self.tuneMetrics[ "videoDecoderInitialized" ] = [ 0, eventTime ]
+            else :
+                message = "Line {}: videoDecoderInitialized already set!".format( self.lineNo )
+
+            return TpsStatus.CONTINUE, message
+
+        ### audioDecoderInitialized ###
+
+        baseIndex = self._GetBaseIndex( 'audioDecoderInitialized', fields )
+        if baseIndex != None :
+
+            if self.tuneMetrics[ "audioDecoderInitialized" ] == None :
+                self.tuneMetrics[ "audioDecoderInitialized" ] = [ 0, eventTime ]
+            else :
+                message = "Line {}: audioDecoderInitialized already set!".format( self.lineNo )
+
+            return TpsStatus.CONTINUE, message
+
         ### renderedFirstFrame ###
 
         baseIndex = self._GetBaseIndex( 'renderedFirstFrame', fields )
         if baseIndex != None :
 
             if self.tuneMetrics[ "renderedFirstFrame" ] == None :
-                self.tuneMetrics[ "renderedFirstFrame" ] = self.timeDelta
+                self.tuneMetrics[ "renderedFirstFrame" ] = [ 0, eventTime ]
             else :
                 message = "Line {}: renderedFirstFrame already set!".format( self.lineNo )
 
@@ -190,43 +234,22 @@ class TunePerfStats() :
 
             if self.tuneMetrics[ "isPlaying" ] != None : return TpsStatus.CONTINUE, message
 
-            value = self._GetPositionalValues( [baseIndex + 6], fields )
+            value = self._GetPositionalValues( [baseIndex + 11], fields )
             if value == None :
                 message = "Line {}: Can't determine isPlaying state!".format( self.lineNo )
                 return TpsStatus.CONTINUE, message
 
-            if value == 'true' : self.tuneMetrics[ "isPlaying" ] = self.timeDelta
-
-        def LoadCompletedCommon( event, fields ) :
-
-            message = None
-
-            # Create empty array if not present
-            if self.tuneMetrics[ event ] == None : self.tuneMetrics[ event ] = {}
-
-            # Uri
-            uri = self._GetKeyValue( 'uri', fields )
-            if uri == None :
-                message = "Line {}: Can't determine uri!".format( self.lineNo )
-                return None, None, message
-
-            # Load duration
-            value = self._GetKeyValue( 'load-duration', fields )
-            if value != None :
-
-                try : loadDuration = int( value[ : -2 ] )/1000
-                except :
-                    message = "Line {}: Can't determine load-duration!".format( self.lineNo )
-                    return None, None, message
-
-            return uri, loadDuration, message
+            if value == 'true' : self.tuneMetrics[ "isPlaying" ] = [ 0, eventTime ]
+            return TpsStatus.CONTINUE, message
 
         ### loadCompletedPlaylist ###
 
         baseIndex = self._GetBaseIndex( 'loadCompletedPlaylist', fields )
         if baseIndex != None :
 
-            uri, loadDuration, message = LoadCompletedCommon( 'loadCompletedPlaylist', fields )
+            uri, loadDuration, message = \
+                self._LoadCompletedCommon( 'loadCompletedPlaylist', fields )
+
             if uri == None or loadDuration == None : return TpsStatus.CONTINUE, message
 
             # Only the first occurance is saved
@@ -234,14 +257,19 @@ class TunePerfStats() :
                 return TpsStatus.CONTINUE, message
 
             # Add url and loadDuration
-            self.tuneMetrics[ 'loadCompletedPlaylist' ][ uri ] = loadDuration
+            self.tuneMetrics[ 'loadCompletedPlaylist' ][ uri ] = \
+                [ round( eventTime - loadDuration, 3 ), loadDuration ]
+
+            return TpsStatus.CONTINUE, message
 
         ### loadCompletedMedia ###
 
         baseIndex = self._GetBaseIndex( 'loadCompletedMedia', fields )
         if baseIndex != None :
 
-            uri,loadDuration, message = LoadCompletedCommon( 'loadCompletedMedia', fields )
+            uri,loadDuration, message = \
+                self._LoadCompletedCommon( 'loadCompletedMedia', fields )
+
             if uri == None or loadDuration == None : return TpsStatus.CONTINUE, message
 
             # Determin variant type
@@ -270,7 +298,11 @@ class TunePerfStats() :
                 else : self.audioSegmentAdded = True
 
             # Add url and loadDuration
-            self.tuneMetrics[ 'loadCompletedMedia' ][ uri ] = loadDuration
+            self.tuneMetrics[ 'loadCompletedMedia' ][ uri ] = \
+                [ round( eventTime - loadDuration, 3 ), loadDuration ]
+
+            return TpsStatus.CONTINUE, message
+
 
         return TpsStatus.CONTINUE, message
 
@@ -283,11 +315,12 @@ class TunePerfStats() :
         value = self._GetKeyValue( 'time', fields )
         if value != None :
 
-            try : time = int( value ) / 1000
+            try : duration = int( value ) / 1000
             except : return TpsStatus.CONTINUE, \
                    "Line {}: Can't get DRM provision request duration!".format( self.lineNo )
 
-            self.tuneMetrics[ "provisionRequest" ] = time
+            self.tuneMetrics[ "provisionRequest" ] = \
+                [ round( self.timeDelta - duration, 3 ), duration ]
 
         return TpsStatus.CONTINUE, None
 
@@ -300,20 +333,46 @@ class TunePerfStats() :
         value = self._GetKeyValue( 'time', fields )
         if value != None :
 
-            try : time = int( value ) / 1000
+            try : duration = int( value ) / 1000
             except : return TpsStatus.CONTINUE, \
                    "Line {}: Can't get DRM key request duration!".format( self.lineNo )
 
-            self.tuneMetrics[ "keyRequest" ] = time
+            self.tuneMetrics[ "keyRequest" ] = \
+                [ round( self.timeDelta - duration, 3 ), duration ]
 
         return TpsStatus.CONTINUE, None
 
     #----------------------------------------------------------------------------------------------
     # Private methods
     #----------------------------------------------------------------------------------------------
+    def _LoadCompletedCommon( self, event, fields ) :
+
+        message = None
+
+        # Create empty array if not present
+        if self.tuneMetrics[ event ] == None : self.tuneMetrics[ event ] = {}
+
+        # Uri
+        uri = self._GetKeyValue( 'uri', fields )
+        if uri == None :
+            message = "Line {}: Can't determine uri!".format( self.lineNo )
+            return None, None, message
+
+        # Load duration
+        value = self._GetKeyValue( 'load-duration', fields )
+        if value != None :
+
+            try : loadDuration = int( value[ : -2 ] )/1000
+            except :
+                message = "Line {}: Can't determine load-duration!".format( self.lineNo )
+                return None, None, message
+
+        return uri, loadDuration, message
+
+    #----------------------------------------------------------------------------------------------
     def _GetTimestamp( self, args ) :
 
-        refDate = defaultDate = datetime( 2000, 1, 1, 0, 0, 0 )
+        refDate = defaultDate = datetime( date.today().year, 1, 1, 0, 0, 0 )
         for arg in args :
 
             try : d = dateparser.parse( arg, default=defaultDate, fuzzy=True )
