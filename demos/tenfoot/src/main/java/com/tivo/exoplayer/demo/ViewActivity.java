@@ -468,6 +468,19 @@ public class ViewActivity extends AppCompatActivity {
         }
         break;
 
+      case "mute":
+        View mute = playerView.findViewById(R.id.mute_shutter);
+        if (mute != null) {
+          boolean visible = mute.getVisibility() == View.VISIBLE;
+          if (visible) {
+            mute.setVisibility(View.INVISIBLE);
+          } else {
+            mute.setVisibility(View.VISIBLE);
+          }
+        }
+        break;
+
+
       default:
         processIntent(intent);
         break;
