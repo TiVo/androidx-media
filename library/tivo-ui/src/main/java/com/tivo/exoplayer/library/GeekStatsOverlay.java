@@ -528,7 +528,11 @@ public class GeekStatsOverlay implements AnalyticsListener, Runnable {
   }
 
   public void onMediaItemTransition(EventTime eventTime, @Nullable MediaItem mediaItem, @Player.MediaItemTransitionReason int reason) {
-    manifestUrl.setText(mediaItem.playbackProperties.uri.toString());
+    if (mediaItem != null && mediaItem.playbackProperties != null) {
+      manifestUrl.setText(mediaItem.playbackProperties.uri.toString());
+    } else {
+      manifestUrl.setText("");
+    }
     resetStats();
   }
 
