@@ -22,6 +22,7 @@ import androidx.annotation.NonNull;
 import androidx.annotation.RequiresApi;
 import androidx.fragment.app.FragmentActivity;
 import com.google.android.exoplayer2.util.Log;
+import com.tivo.exoplayer.library.ima.ImaSDKHelper;
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.File;
@@ -63,6 +64,8 @@ public class MainActivity extends FragmentActivity {
   @Override
   public void onCreate(Bundle savedInstanceState) {
     super.onCreate(savedInstanceState);
+
+    ImaSDKHelper.Builder.warmStartIMA(getApplicationContext());
     setContentView(R.layout.main_activity);
     urlSpinner = (Spinner) findViewById(R.id.url_spinner);
 

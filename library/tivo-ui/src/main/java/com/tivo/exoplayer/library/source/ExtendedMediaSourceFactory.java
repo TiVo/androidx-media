@@ -6,7 +6,7 @@ import static com.tivo.exoplayer.library.DrmInfo.VCAS_UUID;
 
 import android.annotation.SuppressLint;
 import android.content.Context;
-import android.os.Build;
+import android.net.Uri;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import com.google.android.exoplayer2.C;
@@ -42,7 +42,6 @@ import com.tivo.exoplayer.library.VcasDrmInfo;
 import com.tivo.exoplayer.tivocrypt.TivoCryptDataSourceFactory;
 import com.tivo.exoplayer.vcas.VerimatrixDataSourceFactory;
 import java.io.File;
-import java.lang.reflect.Constructor;
 import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
 
 /**
@@ -60,7 +59,15 @@ import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
  * ...
  */
 public class ExtendedMediaSourceFactory implements MediaSourceFactory {
+
   private static final String TAG = "ExtendedMediaSourceFactory";
+
+  /** sets the default duration of Silence media to produce for {@link #SILENCE_URI} as the content URL */
+  public static int SILENCE_URI_PLAY_DURATION = 200;
+
+  /** Use this Uri in a MediaItem to resquest a SilenceMediaSource */
+  public static final Uri SILENCE_URI = Uri.EMPTY;
+
   private final Context context;
   private HlsPlaylistParserFactory hlsPlaylistParserFactory;
   private SourceFactoriesCreated factoriesCreated = new SourceFactoriesCreated() {};
@@ -238,18 +245,23 @@ public class ExtendedMediaSourceFactory implements MediaSourceFactory {
 
     DataSource.Factory dataSourceFactory = buildDataSourceFactory(mediaItem);
     @Nullable MediaSourceFactory factory = null;
-    switch (type) {
-      case C.TYPE_HLS:
-        factory = new HlsMediaSource.Factory(dataSourceFactory)
-            .setPlaylistParserFactory(hlsPlaylistParserFactory);
-        break;
-      case C.TYPE_OTHER:
-        factory =  new ProgressiveMediaSource.Factory(dataSourceFactory);
-        break;
-      case C.TYPE_DASH:
-        factory = new DashMediaSource.Factory(dataSourceFactory);
-        break;
+    if (mediaItem.playbackProperties.uri == SILENCE_URI) {
+      factory = new SilenceMediaSourceFactory(SILENCE_URI_PLAY_DURATION);
+    } else {
+      switch (type) {
+        case C.TYPE_HLS:
+          factory = new HlsMediaSource.Factory(dataSourceFactory)
+              .setPlaylistParserFactory(hlsPlaylistParserFactory);
+          break;
+        case C.TYPE_OTHER:
+          factory =  new ProgressiveMediaSource.Factory(dataSourceFactory);
+          break;
+        case C.TYPE_DASH:
+          factory = new DashMediaSource.Factory(dataSourceFactory);
+          break;
+      }
     }
+
     Assertions.checkNotNull(factory, "getSupportedType() should have prevented this!");
     assert factory != null;
 

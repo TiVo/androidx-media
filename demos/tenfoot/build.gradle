@@ -15,7 +15,7 @@ apply from: '../../constants.gradle'
 apply plugin: 'com.android.application'
 
 android {
-    compileSdkVersion project.ext.compileSdkVersion
+    compileSdkVersion 33
 
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_1_8
@@ -53,6 +53,7 @@ android {
 
 
 dependencies {
+    implementation 'com.google.ads.interactivemedia.v3:interactivemedia:3.33.0'
     implementation 'com.tivo.android.exoplayer:trustreme:2.0.4.204'
     implementation 'androidx.annotation:annotation:1.0.2'
     implementation 'androidx.legacy:legacy-support-core-ui:1.0.0'
@@ -67,6 +68,7 @@ dependencies {
     implementation 'com.tivo.android.exoplayer:verimatrix:5.0.0.1-1.1'
     implementation "androidx.multidex:multidex:2.0.1"
     implementation 'com.google.protobuf:protobuf-lite:3.0.1'
+    implementation project(path: ':extension-ima')
 }
 
 ext {

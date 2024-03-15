@@ -361,6 +361,9 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
   public SimpleExoPlayerFactory(Context context) {
     this.context = context;
     currentParameters = new DefaultTrackSelector.ParametersBuilder(context).build();
+
+    // Create now, will be decorated with player components when the player is created.
+    mediaSourceFactory = new ExtendedMediaSourceFactory(context);
   }
 
   /**
@@ -442,7 +445,7 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
    * @return the default list of playback error handlers.
    */
   protected List<PlaybackExceptionRecovery> getDefaultPlaybackExceptionHandlers() {
-    ArrayList handlers = new ArrayList(Arrays.asList(
+    ArrayList<PlaybackExceptionRecovery> handlers = new ArrayList<>(Arrays.asList(
         new AudioTrackInitPlayerErrorHandler(this),
         new BehindLiveWindowExceptionRecovery(this),
         new StuckPlaylistErrorRecovery(this),
@@ -564,10 +567,9 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
 
     LoadControl loadControl = trickPlayControl.createLoadControl(controlBuilder.createDefaultLoadControl());
 
-    mediaSourceFactory =
-        new ExtendedMediaSourceFactory(context)
-            .setSourceFactoriesCreatedCallback(factoriesCreatedCallback)
-            .setHlsPlaylistParserFactory(hlsPlaylistParserFactory);
+    mediaSourceFactory
+        .setSourceFactoriesCreatedCallback(factoriesCreatedCallback)
+        .setHlsPlaylistParserFactory(hlsPlaylistParserFactory);
 
     // Wrap default with our own version that logs useful bits, TODO factory method for default
     LivePlaybackSpeedControl livePlaybackSpeedControl =
@@ -604,9 +606,8 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
   }
 
   /**
-   * This call will return the {@link ExtendedMediaSourceFactory} the player is using
-   * after a call to {@link #createPlayer()}.   This can be used to add decorator objects to
-   * the factory, for example for using ad insertion:
+   * This call will return the {@link ExtendedMediaSourceFactory} the player will use.  This can be used to add
+   * decorator objects to the factory, for example for using ad insertion:
    *
    * <pre>
    *   getMediaSourceFactory().setAdsLoaderProvider(...)

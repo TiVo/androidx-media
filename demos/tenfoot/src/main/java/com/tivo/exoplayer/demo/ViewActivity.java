@@ -9,6 +9,7 @@ import android.content.IntentFilter;
 import android.content.res.Resources;
 import android.net.Uri;
 import android.os.Bundle;
+import android.os.SystemClock;
 import android.provider.Settings;
 import android.util.Log;
 import android.view.KeyEvent;
@@ -20,6 +21,9 @@ import android.widget.Toast;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.fragment.app.DialogFragment;
+import com.google.ads.interactivemedia.v3.api.Ad;
+import com.google.ads.interactivemedia.v3.api.AdErrorEvent;
+import com.google.ads.interactivemedia.v3.api.AdEvent;
 import com.google.android.exoplayer2.C;
 import com.google.android.exoplayer2.DefaultLoadControl;
 import com.google.android.exoplayer2.DefaultRenderersFactory;
@@ -56,6 +60,7 @@ import com.streamingmediainsights.smiclientsdk.SMIEventCallbackListener;
 import com.streamingmediainsights.smiclientsdk.SMISimpleExoPlayer;
 import com.tivo.android.utils.SystemUtils;
 import com.tivo.exoplayer.library.errorhandlers.PlayerErrorHandlerListener;
+import com.tivo.exoplayer.library.ima.ImaSDKHelper;
 import com.tivo.exoplayer.library.source.MediaItemHelper;
 import com.tivo.exoplayer.library.timebar.controllers.BaseTimeBarViewHandler;
 import com.tivo.exoplayer.library.timebar.controllers.DPadToTransportBaseTimeBarViewHandler;
@@ -83,6 +88,7 @@ import java.security.SecureRandom;
 import java.util.ArrayList;
 import java.util.Map;
 import java.util.Random;
+import java.util.UUID;
 import org.json.JSONObject;
 
 import java.io.InputStream;
@@ -123,6 +129,7 @@ public class ViewActivity extends AppCompatActivity {
   public static final String ENABLE_TUNNELED_PLAYBACK = "enable_tunneled_playback";
   public static final String URI_LIST_EXTRA = "uri_list";
   public static final String URI_LIST_AS_PLAYLIST = "as_playlist";
+  public static final String VAST_URL = "vast_url";
   public static final String CHUNKLESS_PREPARE = "chunkless";
   public static final String ENABLE_ASYNC_RENDER = "enable_async_renderer";
   public static final String INITIAL_SEEK = "start_at";
@@ -163,6 +170,8 @@ public class ViewActivity extends AppCompatActivity {
   private MediaItem[] channelList;
   private int currentChannel;
   private Random nextChannelRamdomizer;
+  private ImaSDKHelper imaSdkHelper;
+  private long vastPlaybackStartTime = C.TIME_UNSET;
 
   /**
    * Callback class for when each MediaItem and it's MediaSource is created.  This allows
@@ -248,7 +257,8 @@ public class ViewActivity extends AppCompatActivity {
                 reason = "Unsupported Type";
                 break;
             }
-            ViewActivity.this.showError("No supported video tracks, " + reason, error);
+            // TODO this is ok if it is audio only
+//            ViewActivity.this.showError("No supported video tracks, " + reason, error);
 
           } else {
             ViewActivity.this.showErrorDialogWithRecoveryOption(error, "Un-excpected playback error");
@@ -377,7 +387,6 @@ public class ViewActivity extends AppCompatActivity {
     timeBar.setKeyTimeIncrement(2_000);
     playerView.setControllerAutoShow(false);
     playerView.setControllerShowTimeoutMs(-1);
-
     playerControlView = findViewById(R.id.exo_controller);
     View ccView = playerView.findViewById(R.id.close_captions);
     if (ccView != null) {
@@ -422,10 +431,44 @@ public class ViewActivity extends AppCompatActivity {
       Log.d(TAG, "View " + viewName + " has initial focus");
     }
     setFocusChangeListeners(activityView);
+
+
+    imaSdkHelper = new ImaSDKHelper.Builder(playerView, exoPlayerFactory.getMediaSourceFactory(), getApplicationContext())
+        .setAdEventListener(new AdEvent.AdEventListener() {
+          @Override
+          public void onAdEvent(AdEvent adEvent) {
+            long deltaTime = SystemClock.elapsedRealtime() - vastPlaybackStartTime;
+            AdEvent.AdEventType eventType = adEvent.getType();
+            switch (eventType) {
+              case AD_PROGRESS: // PROGRESS is very chatty
+                break;
+
+              case LOADED:
+                Log.d(TAG, "IMA Event: LOADED - elapsed(ms): " + deltaTime + " Ad Id: " + adEvent.getAd().getAdId());
+                break;
+
+              default:
+                Ad ad = adEvent.getAd();
+                Log.d(TAG, "IMA Event: " + eventType
+                    + " - elapsed(ms): " + deltaTime
+                    + " data: " + adEvent.getAdData()
+                    + (ad == null ? "" : " Ad Id: " + ad.getAdId())
+                );
+            }
+          }
+        })
+        .setAdErrorListener(new AdErrorEvent.AdErrorListener() {
+          @Override
+          public void onAdError(AdErrorEvent adErrorEvent) {
+            Log.d(TAG, "IMA Error: " + adErrorEvent.getError().getMessage());
+          }
+        })
+        .build();
   }
 
   @Override
  public void onNewIntent(Intent intent) {
+    Log.d(TAG, "onNewIntent() - intent: " + intent);
     super.onNewIntent(intent);
     String action = intent.getAction();
     action = action == null ? "" : action;
@@ -530,10 +573,11 @@ public class ViewActivity extends AppCompatActivity {
     // If request is for FAST_RECYNC, turn on debug logging in GeekStats
     geekStats.setEnableLiveOffsetLogging(getIntent().hasExtra(FAST_RESYNC));
 
+    // Set the current ExoPlayer into all the objects that need it
+    //
     playerView.setPlayer(player);
     geekStats.setPlayer(player, trickPlayControl);
     transportControlHandler.setPlayer(player, trickPlayControl);
-
     statsManager = new ManagePlaybackMetrics.Builder(player, trickPlayControl).build();
 
     processIntent(getIntent());
@@ -596,6 +640,10 @@ public class ViewActivity extends AppCompatActivity {
   @Override
   protected void onDestroy() {
     super.onDestroy();
+    if (imaSdkHelper != null) {
+      imaSdkHelper.release();
+      imaSdkHelper = null;
+    }
     if (playerView != null) {
       mediaHealthMetricsTest(false);
       playerView.setControllerVisibilityListener(null);
@@ -665,6 +713,11 @@ public class ViewActivity extends AppCompatActivity {
 
       switch (keyCode) {
 
+        case KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE:
+          handled = player != null;
+          if (handled) {
+            player.setPlayWhenReady(!player.getPlayWhenReady());
+          }
         case KeyEvent.KEYCODE_INFO:
           if (timeBarViewHandler != null) {
             timeBarViewHandler.toggleTrickPlayBar();
@@ -816,34 +869,38 @@ public class ViewActivity extends AppCompatActivity {
   }
 
   private void processIntent(Intent intent) {
+    Log.d(TAG, "processIntent() - intent: " + intent);
     String action = intent.getAction();
+    Uri videoUri = intent.getData();
+    String vastUrlString = intent.getStringExtra(VAST_URL);
+
     Uri[] uris = new Uri[0];
 
     String[] uriStrings = intent.getStringArrayExtra(URI_LIST_EXTRA);
 
-    if (ACTION_VIEW.equals(action)) {
-      uris = new Uri[]{intent.getData()};
+    if (ACTION_VIEW.equals(action) && videoUri != null) {
+      uris = new Uri[]{videoUri};
     } else if (ACTION_VIEW_LIST.equals(action)) {
       uris = parseToUriList(uriStrings);
-    } else {
+    } else if (vastUrlString == null) {
       showToast(getString(R.string.unexpected_intent_action, action));
       finish();
     }
 
-    boolean showGeekStats = getIntent().getBooleanExtra(SHOW_GEEK_STATS, true);
+    boolean showGeekStats = intent.getBooleanExtra(SHOW_GEEK_STATS, true);
     if (!showGeekStats) {
       geekStats.toggleVisible();
     }
 
-    boolean enableTunneling = getIntent().getBooleanExtra(ENABLE_TUNNELED_PLAYBACK, false);
+    boolean enableTunneling = intent.getBooleanExtra(ENABLE_TUNNELED_PLAYBACK, false);
     exoPlayerFactory.setTunnelingMode(enableTunneling);
     // TODO chunkless should come from a properties file (so we can switch it when it's supported)
-    boolean enableChunkless = getIntent().getBooleanExtra(CHUNKLESS_PREPARE, false);
+    boolean enableChunkless = intent.getBooleanExtra(CHUNKLESS_PREPARE, false);
 
     showErrorRecoveryWhisper(null, null);
     stopPlaybackIfPlaying();
 
-    boolean fast_resync = getIntent().hasExtra(FAST_RESYNC);
+    boolean fast_resync = intent.hasExtra(FAST_RESYNC);
     TrackSelector trackSelector = exoPlayerFactory.getTrackSelector();
     if (trackSelector instanceof SyncVideoTrackSelector) {
       SyncVideoTrackSelector syncVideoTrackSelector = (SyncVideoTrackSelector) trackSelector;
@@ -851,41 +908,62 @@ public class ViewActivity extends AppCompatActivity {
     }
     mediaHealthMetricsTest(true);
 
-    long seekTo = getIntent().getIntExtra(INITIAL_SEEK, C.POSITION_UNSET);
-    boolean playWhenReady = getIntent().getBooleanExtra(START_PLAYING, true);
+    long seekTo = intent.getIntExtra(INITIAL_SEEK, C.POSITION_UNSET);
+    boolean playWhenReady = intent.getBooleanExtra(START_PLAYING, true);
+    Uri vastUrl = null;
+    if (vastUrlString != null) {
+      Log.d(TAG, "adding VAST URL: " + vastUrlString);
+      vastUrl = Uri.parse(vastUrlString);
+    }
+
     playbacks.clear();
-    usePlaylist = getIntent().getBooleanExtra(URI_LIST_AS_PLAYLIST, false) && uris.length > 1;
+    usePlaylist = intent.getBooleanExtra(URI_LIST_AS_PLAYLIST, false) && uris.length > 1;
     if (uris.length == 1) {
       Log.d(TAG, "playUri() playUri: '" + uris[0] + "' - chunkless: " + enableChunkless + " initialPos: " + seekTo + " playWhenReady: "
           + playWhenReady);
-    } else {
+    } else if (uris.length > 0) {
       Log.d(TAG,
           "playUri() play " + uris.length + " channels, start with: '" + uris[0] + "' - chunkless: " + enableChunkless
               + " usePlaylist: " + usePlaylist + " initialPos: " + seekTo + " playWhenReady: " + playWhenReady);
+    } else if (vastUrl != null) {
+      vastPlaybackStartTime = SystemClock.elapsedRealtime();
+      Log.d(TAG, "play VAST only with no content");
     }
 
-    byte[] seed = new SecureRandom().generateSeed(20); // 20 bytes of seed
-    nextChannelRamdomizer = new Random(new BigInteger(seed).longValue());
-    channelList = null;
-    MediaItem[] channels = new MediaItem[uris.length];
-    int index = 0;
-    for (Uri uri : uris) {
-      MediaItem.Builder builder = new MediaItem.Builder();
-      builder.setUri(uri);
-      MediaItemHelper.populateDrmPropertiesFromIntent(builder, intent, this);
-      channels[index++] = builder.build();
-    }
+    MediaItem[] mediaItemsToPlay;
 
-    usePlaylist = getIntent().getBooleanExtra(URI_LIST_AS_PLAYLIST, false) && uris.length > 1;
-    if (usePlaylist) {
-      exoPlayerFactory.playMediaItems(seekTo, playWhenReady, channels);
+    // Are we just playing a trailer?
+    if (vastUrl != null && uris.length == 0) {
+      mediaItemsToPlay = new MediaItem[1];
+      mediaItemsToPlay[0] = imaSdkHelper.createTrailerMediaItem(player, vastUrl)
+          .build();
     } else {
-      channelList = channels;
-      exoPlayerFactory.playMediaItems(seekTo, playWhenReady, channels[0]);
+      byte[] seed = new SecureRandom().generateSeed(20); // 20 bytes of seed
+      nextChannelRamdomizer = new Random(new BigInteger(seed).longValue());
+      channelList = null;
+      mediaItemsToPlay = new MediaItem[uris.length];
+      int index = 0;
+      for (Uri uri : uris) {
+        MediaItem.Builder builder = new MediaItem.Builder();
+        builder.setUri(uri);
+        if (vastUrl != null) {
+          imaSdkHelper.includeAdsWithMediaItem(player, builder, vastUrl, null);
+        }
+        MediaItemHelper.populateDrmPropertiesFromIntent(builder, intent, this);
+        mediaItemsToPlay[index++] = builder.build();
+      }
+    }
+
+    usePlaylist = intent.getBooleanExtra(URI_LIST_AS_PLAYLIST, false) && uris.length > 1;
+    if (usePlaylist) {
+      exoPlayerFactory.playMediaItems(seekTo, playWhenReady, mediaItemsToPlay);
+    } else {
+      channelList = mediaItemsToPlay;
+      exoPlayerFactory.playMediaItems(seekTo, playWhenReady, mediaItemsToPlay[0]);
     }
 
 
-    int shuffle_every = getIntent().getIntExtra("shuffle_every", 0);
+    int shuffle_every = intent.getIntExtra("shuffle_every", 0);
     if (shuffle_every > 0) {
       if (usePlaylist) {
         player.setRepeatMode(Player.REPEAT_MODE_ALL);

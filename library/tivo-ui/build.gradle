@@ -42,6 +42,7 @@ dependencies {
     implementation project(modulePrefix + 'library-trickplay')
     implementation project(modulePrefix + 'library-ui')
     implementation project(path: ':library-dash')
+    implementation project(path: ':extension-ima')
     testImplementation project(modulePrefix + 'testutils')
     testImplementation 'org.robolectric:robolectric:' + robolectricVersion
     testImplementation project(path: ':robolectricutils')
