@@ -161,7 +161,9 @@ public class ManagePlaybackMetrics implements PlaybackMetricsManagerApi {
             playbackStatsListener.onPositionDiscontinuity(eventTime, lastTrickPlayStartPosition, getCurrentPositionInfo(), DISCONTINUITY_REASON_SEEK);
             playbackStatsListener.onEvents(currentPlayer, createEventsAtSameEventTime(eventTime, EVENT_POSITION_DISCONTINUITY));
             currentPlayer.addAnalyticsListener(playbackStatsListener);
-            playerStatisticsHelper.exitTrickPlay(currentPlayer.getVideoDecoderCounters());
+            if (currentPlayer != null && currentPlayer.getVideoDecoderCounters() != null) {
+                playerStatisticsHelper.exitTrickPlay(currentPlayer.getVideoDecoderCounters());
+            }
             parentListener.exitingTrickPlayMeasurement();
         }
     }
