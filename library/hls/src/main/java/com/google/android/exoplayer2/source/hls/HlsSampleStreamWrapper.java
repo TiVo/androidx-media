@@ -1643,6 +1643,9 @@ import org.checkerframework.checker.nullness.qual.RequiresNonNull;
      private long minAllowedSampleTimeUs;
      private long maxAllowedSampleTimeUs;
 
+     // This flag prevents excessive timestamp-out-of-range logging
+     private boolean timestampOutOfRangeReported = false;
+
     private final Map<String, DrmInitData> overridingDrmInitData;
     @Nullable private DrmInitData drmInitData;
 
@@ -1658,6 +1661,7 @@ import org.checkerframework.checker.nullness.qual.RequiresNonNull;
 
     public void setSourceChunk(HlsMediaChunk chunk) {
       sourceId(chunk.uid);
+      timestampOutOfRangeReported = false;
 
       // TODO: Uncomment this to reject samples with unexpected timestamps. See
       // https://github.com/google/ExoPlayer/issues/7030.
@@ -1740,7 +1744,8 @@ import org.checkerframework.checker.nullness.qual.RequiresNonNull;
         int offset,
         @Nullable CryptoData cryptoData) {
 
-       if (timeUs < minAllowedSampleTimeUs || timeUs > maxAllowedSampleTimeUs) {
+       if (!timestampOutOfRangeReported && (timeUs < minAllowedSampleTimeUs || timeUs > maxAllowedSampleTimeUs)) {
+         timestampOutOfRangeReported = true;
          Log.w(TAG, "timestamp in segment out of range, deltaUs: " + (sourceChunk.startTimeUs - timeUs) + "  timeUs: " + timeUs
              + " start/end: " + sourceChunk.startTimeUs + "/" + sourceChunk.endTimeUs
              + " url: " + sourceChunk.dataSpec.toString());
