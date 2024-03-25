@@ -734,6 +734,17 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
     playMediaItems(startPosMs, startPlaying, builder.build());
   }
 
+  /**
+   * Same as {@link #playUrl(Uri, DrmInfo, long)}} only allows changing the default for playWhenReady that
+   * was specified in the call to {@link #createPlayer(boolean, boolean)}.  Note this change to playWhenReady
+   * is persistent.
+   *
+   * @param startPosMs - starting position (milliseconds) must be 0 - duration of playlist (or live offset)
+   *                   specifying {@link C#TIME_UNSET} will start at the default position
+   * @param startPlaying - override the the initial setting for playWhenReady, if false will start paused
+   * @param mediaItems - one or more {@link MediaItem}'s to play.  If multiple they are played in sequence in
+   *                   a <a href="https://developer.android.com/media/media3/exoplayer/playlists">Playlist</a>
+   */
   public void playMediaItems(long startPosMs, boolean startPlaying, MediaItem... mediaItems) {
     assert player != null;
     player.setPlayWhenReady(startPlaying);

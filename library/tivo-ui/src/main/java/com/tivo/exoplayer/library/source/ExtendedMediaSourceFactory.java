@@ -39,8 +39,10 @@ import com.tivo.exoplayer.library.SourceFactoriesCreated;
 import com.tivo.exoplayer.library.TivoCryptDrmInfo;
 import com.tivo.exoplayer.library.VcasDrmInfo;
 import com.tivo.exoplayer.tivocrypt.TivoCryptDataSourceFactory;
+import com.tivo.exoplayer.vcas.VerimatrixDataSourceFactory;
 import java.io.File;
 import java.lang.reflect.Constructor;
+import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
 
 /**
  * ExoPlayer moved to making the {@link MediaItem} front and center as the host object for
@@ -67,6 +69,7 @@ public class ExtendedMediaSourceFactory implements MediaSourceFactory {
   private String userAgentPrefix = "TiVoExoPlayer";
   @Nullable private DefaultMediaSourceFactory.AdsLoaderProvider adsLoaderProvider;
   @Nullable private AdViewProvider adViewProvider;
+  @MonotonicNonNull private VerimatrixDataSourceFactory singletonVerimatrixDataSourceFactory;
 
   /**
    * Provides {@link AdsLoader} instances for media items that have {@link
@@ -89,6 +92,7 @@ public class ExtendedMediaSourceFactory implements MediaSourceFactory {
   public ExtendedMediaSourceFactory(Context context, HlsPlaylistParserFactory hlsPlaylistParserFactory) {
     this.context = context;
     this.hlsPlaylistParserFactory = hlsPlaylistParserFactory;
+    singletonVerimatrixDataSourceFactory = null;
   }
 
   @NonNull
@@ -169,10 +173,11 @@ public class ExtendedMediaSourceFactory implements MediaSourceFactory {
 
   /**
    * Call this when the Android {@link android.app.Activity} is stopped to release
-   * anything held by this object.
+   * anything held by this object, that simply nulling the reference to it would not take
+   * care of.
    */
   public void releaseResources() {
-
+    singletonVerimatrixDataSourceFactory = null;  // TODO any native cleanup needed here?
   }
 
   private MediaSource maybeWrapWithAdsMediaSource(MediaItem mediaItem, MediaSource mediaSource) {
@@ -275,56 +280,12 @@ public class ExtendedMediaSourceFactory implements MediaSourceFactory {
 
       VcasDrmInfo info = (VcasDrmInfo) mediaItem.playbackProperties.tag;
       assert info != null;
-      if (Build.VERSION.SDK_INT >= 22) {
-        // Create the singleton "Verimatrix DRM" data source factory
-        Class<?> clazz =
-                null;
-        try {
-          clazz = Class.forName("com.tivo.exoplayer.vcas.VerimatrixDataSourceFactory");
-          Constructor<?> constructor =
-                  clazz.getConstructor(
-                          DataSource.Factory.class,
-                          String.class, String.class,
-                          String.class, String.class,
-                          String.class, boolean.class);
-
-          String filesDir = info.getStoreDir();
-          File folder = new File(filesDir);
-          if (!folder.exists()) {
-            folder.mkdirs();
-          }
-
-          String sourceDir = context.getApplicationInfo().sourceDir;
-          // AAB install will place the libs in split directory. Look for
-          // matching directory with pattern armeabi. We are exporting
-          // armeabi_v7a only
-          String[] splitSourceDirs = context.getApplicationInfo().splitSourceDirs;
-          if (splitSourceDirs != null) {
-              for (String splitSourceDir : splitSourceDirs) {
-                  if (splitSourceDir.contains(".armeabi")) {
-                      sourceDir = splitSourceDir;
-                  }
-              }
-          }
-
-          factory = (DataSource.Factory) constructor
-                  .newInstance(upstreamFactory,
-                          filesDir,
-                          context.getApplicationInfo().nativeLibraryDir,
-                          sourceDir,
-                          info.getCaId(),
-                          info.getBootAddr(),
-                          info.isDebugOn());
-        } catch (ClassNotFoundException e) {
-          Log.e(TAG, "Couldn't instantiate VCAS factory");
-          throw new RuntimeException("error creating VerimatrixDataSourceFactory object", e);
-        } catch (NoSuchMethodException e) {
-          Log.e(TAG, "No matching VCAS constructor");
-          throw new RuntimeException("error creating VerimatrixDataSourceFactory object", e);
-        } catch (Exception e) {
-          Log.e(TAG, "VCAS instantiation failed: ", e);
-          throw new RuntimeException("error creating VerimatrixDataSourceFactory object", e);
-        }
+      factory = singletonVerimatrixDataSourceFactory;
+      if (factory == null) {
+        singletonVerimatrixDataSourceFactory = createVerimatrixDataSourceFactory(upstreamFactory, info);
+        factory = singletonVerimatrixDataSourceFactory;
+      } else {
+        singletonVerimatrixDataSourceFactory.prepareForPlayback(info.getCaId(), info.getBootAddr());
       }
     } else if (TIVO_CRYPT_UUID.equals(drmConfiguration.uuid)) {
       TivoCryptDrmInfo info = (TivoCryptDrmInfo) mediaItem.playbackProperties.tag;
@@ -334,6 +295,49 @@ public class ExtendedMediaSourceFactory implements MediaSourceFactory {
     } else {
       throw new RuntimeException("no support for UUID " + drmConfiguration.uuid);
     }
+    return factory;
+  }
+
+  @NonNull
+  private VerimatrixDataSourceFactory createVerimatrixDataSourceFactory(HttpDataSource.Factory upstreamFactory, VcasDrmInfo info) {
+    VerimatrixDataSourceFactory factory;
+    try {
+
+      String filesDir = info.getStoreDir();
+      File folder = new File(filesDir);
+      if (!folder.exists()) {
+        folder.mkdirs();
+      }
+
+      String sourceDir = context.getApplicationInfo().sourceDir;
+      // AAB install will place the libs in split directory. Look for
+      // matching directory with pattern armeabi. We are exporting
+      // armeabi_v7a only
+      String[] splitSourceDirs = context.getApplicationInfo().splitSourceDirs;
+      if (splitSourceDirs != null) {
+          for (String splitSourceDir : splitSourceDirs) {
+              if (splitSourceDir.contains(".armeabi")) {
+                  sourceDir = splitSourceDir;
+              }
+          }
+      }
+
+      factory = new VerimatrixDataSourceFactory(
+          upstreamFactory,
+          filesDir,
+          context.getApplicationInfo().nativeLibraryDir,
+          sourceDir,
+          info.getCaId(),
+          info.getBootAddr(),
+          info.isDebugOn());
+    } catch (SecurityException e) {
+      Log.e(TAG, "failed creating store dir for Verimatrix, path: " + info.getStoreDir(), e);
+      throw new RuntimeException("error creating VerimatrixDataSourceFactory object", e);
+    } catch (Exception e) {
+      Log.e(TAG, "VCAS instantiation failed: ", e);
+      throw new RuntimeException("error creating VerimatrixDataSourceFactory object", e);
+    }
+    Log.d(TAG, "created singletion VerimatrixDataSourceFactory " + factory.toString());
     return factory;
   }
 

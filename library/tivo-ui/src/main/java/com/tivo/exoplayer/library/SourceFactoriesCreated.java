@@ -41,8 +41,14 @@ public interface SourceFactoriesCreated {
 
   /**
    * Called when the {@link MediaSourceFactory} needed to create {@link MediaSource}'s for the
-   * indicated {@link MediaItem} is created.  Either of both of these can be inspected and altered, with the
-   * obvious limitation that the content type is fixed to what is reported as "type"
+   * indicated {@link MediaItem} is determined just before it is used to create a MediaSource for
+   * playback of the MediaItem.
+   *
+   * <p>The callee can alter attributes of the MediaItem using the copy pattern (e.g. {@link MediaItem#buildUpon()}) as
+   * well as properties of the {@link MediaSourceFactory}</p>.   Note the MediaSourceFactory is likely
+   * a singleton, so any alterated property should be coded to alter on every call, for example, for something like
+   * {@link HlsMediaSource.Factory#setAllowChunklessPreparation(boolean)},  call it each time with a toggled
+   * boolean value.
    *
    * @param type contentType of the item/factory.  This is immutable and may be used to determine the
    *             class of the "factory" and "item"

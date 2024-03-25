@@ -27,7 +27,7 @@ android {
         buildConfigField "String", "BUILD_NUMBER", "\"${buildNumber}\""
         buildConfigField "String", "GIT_HASH", "\"${gitCommitHash}\""
         vectorDrawables.useSupportLibrary = "true"
-        minSdkVersion 21
+        minSdkVersion 22
     }
 
     lintOptions {
@@ -46,6 +46,9 @@ dependencies {
     testImplementation 'org.robolectric:robolectric:' + robolectricVersion
     testImplementation project(path: ':robolectricutils')
     compileOnly 'org.checkerframework:checker-qual:' + checkerframeworkVersion
+    // Only required for the prepareForPlayback() method, can use different version, library clients
+    // can (and must) include the actual implementation version they need (which can be different)
+    api 'com.tivo.android.exoplayer:verimatrix:5.0.0.1-1.0'
 }
 
 ext {

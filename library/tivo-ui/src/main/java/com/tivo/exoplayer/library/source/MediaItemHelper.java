@@ -2,7 +2,6 @@ package com.tivo.exoplayer.library.source;
 
 import android.content.Context;
 import android.content.Intent;
-import android.support.v4.media.MediaBrowserCompat;
 import android.util.Log;
 import androidx.annotation.Nullable;
 import com.google.android.exoplayer2.C;
@@ -33,13 +32,6 @@ public class MediaItemHelper {
   public static final String DRM_WV_PROXY = "wv_proxy";
   public static final String DRM_VCAS_VUID = "vcas_vuid";
 
-  public static MediaItem.Builder addVcasDrmConfig(MediaItem.Builder builder, VcasDrmInfo vcasDrmInfo) {
-    builder
-        .setDrmUuid(VcasDrmInfo.VCAS_UUID)
-        .setTag(vcasDrmInfo);
-    return builder;
-  }
-
   public static MediaItem.Builder populateDrmPropertiesFromIntent(MediaItem.Builder builder, Intent intent, Context context) {
     @Nullable String drmSchemeExtra = intent.getStringExtra(DRM_SCHEME);
     if (drmSchemeExtra == null) {
@@ -65,25 +57,46 @@ public class MediaItemHelper {
       case DRM_SCHEME_VCAS:
         String vcasAddr = intent.getStringExtra(DRM_VCAS_ADDR);
         String vcasCaId = intent.getStringExtra(DRM_VCAS_CA_ID);
-        String storeDir = "/sdcard/demoVR";
-        File vcasStoreDir = context.getExternalFilesDir("VCAS");
-        if (! vcasStoreDir.exists()) {
-          vcasStoreDir.mkdirs();
-        }
-        try {
-          storeDir = vcasStoreDir.getCanonicalPath();
-        } catch (IOException e) {
-          Log.e(TAG, "Failed to open VCAS storage directory.", e);
-        }
-
-        Log.d(TAG, String.format("Requested Verimatrix DRM with addr:%s CAID:%s storage:%s", vcasAddr, vcasCaId, storeDir));
-        DrmInfo drmInfo = new VcasDrmInfo(vcasAddr, vcasCaId, storeDir, true);
-        builder
-            .setDrmUuid(DrmInfo.VCAS_UUID)
-            .setTag(drmInfo);
+        addVcasDrmToMediaItemBuilder(builder, context, vcasAddr, vcasCaId, true);
         break;
     }
     return builder;
+  }
+
+  /**
+   * Set the {@link MediaItem} to enable using VCAS DRM
+   *
+   * <p>Initializes the VCAS storage directory in a place appropriate that is private to the
+   * application and sets the DRM info needed for the {@link VerimatrixDataSourceFactory}</p>
+   *
+   * @param builder builder for the {@link MediaItem} to use
+   * @param context application context (used for storage access)
+   * @param vcasAddr ViewRight server to use
+   * @param vcasCaId Device ID to set for VCAS
+   * @param debugOn log client info to VR_client.log.
+   */
+  public static void addVcasDrmToMediaItemBuilder(MediaItem.Builder builder, Context context, String vcasAddr, String vcasCaId,
+      boolean debugOn) {
+    File vcasStoreDir = context.getExternalFilesDir("VCAS");
+    if (vcasStoreDir == null) {
+      vcasStoreDir = new File(context.getFilesDir(), "VCAS");
+    }
+    if (! vcasStoreDir.exists()) {
+      vcasStoreDir.mkdirs();
+    }
+    try {
+      String storeDir = vcasStoreDir.getCanonicalPath();
+
+      Log.d(TAG, String.format("Requested Verimatrix DRM with addr:%s CAID:%s storage:%s, debug:%s"
+          , vcasAddr, vcasCaId, storeDir, debugOn));
+      DrmInfo drmInfo = new VcasDrmInfo(vcasAddr, vcasCaId, storeDir, debugOn);
+      builder
+          .setDrmUuid(DrmInfo.VCAS_UUID)
+          .setTag(drmInfo);
+    } catch (IOException e) {
+      Log.e(TAG, "Failed to open VCAS storage directory.", e);
+      throw new RuntimeException("Failed to access storage for VCAS in vcasStoreDir = " + vcasStoreDir, e);
+    }
   }
 
   public static MediaItem.Builder populateDrmFromDrmInfo(MediaItem.Builder builder, DrmInfo drmInfo) {
