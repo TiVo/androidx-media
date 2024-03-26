@@ -22,7 +22,6 @@ import com.google.android.exoplayer2.PlaybackException;
 import com.google.android.exoplayer2.Player;
 import com.google.android.exoplayer2.SimpleExoPlayer;
 import com.google.android.exoplayer2.analytics.AnalyticsListener;
-import com.google.android.exoplayer2.source.MediaSourceFactory;
 import com.google.android.exoplayer2.source.TrackGroup;
 import com.google.android.exoplayer2.source.TrackGroupArray;
 import com.google.android.exoplayer2.source.UnrecognizedInputFormatException;
@@ -566,8 +565,9 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
     LoadControl loadControl = trickPlayControl.createLoadControl(controlBuilder.createDefaultLoadControl());
 
     mediaSourceFactory =
-        new ExtendedMediaSourceFactory(context, hlsPlaylistParserFactory)
-            .setSourceFactoriesCreatedCallback(factoriesCreatedCallback);
+        new ExtendedMediaSourceFactory(context)
+            .setSourceFactoriesCreatedCallback(factoriesCreatedCallback)
+            .setHlsPlaylistParserFactory(hlsPlaylistParserFactory);
 
     // Wrap default with our own version that logs useful bits, TODO factory method for default
     LivePlaybackSpeedControl livePlaybackSpeedControl =

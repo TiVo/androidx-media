@@ -22,6 +22,7 @@ import com.google.android.exoplayer2.source.ads.AdsLoader;
 import com.google.android.exoplayer2.source.ads.AdsMediaSource;
 import com.google.android.exoplayer2.source.dash.DashMediaSource;
 import com.google.android.exoplayer2.source.hls.HlsMediaSource;
+import com.google.android.exoplayer2.source.hls.playlist.DefaultHlsPlaylistParserFactory;
 import com.google.android.exoplayer2.source.hls.playlist.HlsPlaylistParserFactory;
 import com.google.android.exoplayer2.ui.AdViewProvider;
 import com.google.android.exoplayer2.upstream.DataSource;
@@ -61,7 +62,7 @@ import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
 public class ExtendedMediaSourceFactory implements MediaSourceFactory {
   private static final String TAG = "ExtendedMediaSourceFactory";
   private final Context context;
-  private final HlsPlaylistParserFactory hlsPlaylistParserFactory;
+  private HlsPlaylistParserFactory hlsPlaylistParserFactory;
   private SourceFactoriesCreated factoriesCreated = new SourceFactoriesCreated() {};
   @Nullable private DrmSessionManagerProvider drmSessionManagerProvider;
   private LoadErrorHandlingPolicy mainMediaSourceLoadErrorHandlerPolicy;
@@ -89,10 +90,10 @@ public class ExtendedMediaSourceFactory implements MediaSourceFactory {
     AdsLoader getAdsLoader(MediaItem.AdsConfiguration adsConfiguration);
   }
 
-  public ExtendedMediaSourceFactory(Context context, HlsPlaylistParserFactory hlsPlaylistParserFactory) {
+  public ExtendedMediaSourceFactory(Context context) {
     this.context = context;
-    this.hlsPlaylistParserFactory = hlsPlaylistParserFactory;
     singletonVerimatrixDataSourceFactory = null;
+    hlsPlaylistParserFactory = new DefaultHlsPlaylistParserFactory();   // Note dual-mode does not work with this.
   }
 
   @NonNull
@@ -138,6 +139,18 @@ public class ExtendedMediaSourceFactory implements MediaSourceFactory {
   @Override
   public ExtendedMediaSourceFactory setLoadErrorHandlingPolicy(@Nullable LoadErrorHandlingPolicy loadErrorHandlingPolicy) {
     mainMediaSourceLoadErrorHandlerPolicy = loadErrorHandlingPolicy;
+    return this;
+  }
+
+  /**
+   * Set the current HlsPlaylistParserFactory to use, the {@link com.google.android.exoplayer2.trickplay.hls.DualModeHlsPlaylistParserFactory}
+   * is requried for visual trickplay and must be created using {@link com.google.android.exoplayer2.trickplay.TrickPlayControl#createHlsPlaylistParserFactory(boolean)}
+   *
+   * @param playlistParserFactory the HlsPlaylistParserFactory to use
+   * @return self for chaining
+   */
+  public ExtendedMediaSourceFactory setHlsPlaylistParserFactory(@Nullable HlsPlaylistParserFactory playlistParserFactory) {
+    hlsPlaylistParserFactory = playlistParserFactory;
     return this;
   }
 
