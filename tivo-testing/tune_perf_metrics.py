@@ -43,9 +43,9 @@ class TunePerfStats() :
         self.moduleMap = \
         {
             'ExoPlayerPlayer'           : self.ExoPlayerPlayerGroup,
+            'ExoPlayerImpl'             : self.ExoPlayerImpl,
             'HlsMediaPeriod'            : self.HlsMediaPeriod,
             'EventLogger'               : self.EventLogger,
-            'executeProvisionRequest'   : self.ExecuteProvisionRequest,
             'executeKeyRequest'         : self.ExecuteKeyRequest
         }
 
@@ -54,15 +54,16 @@ class TunePerfStats() :
         {
             "channelUrl"                : None,
             "dateTime"                  : None,
+            "deviceType"                : None,
+            "deviceVer"                 : None,
+            "playerVer"                 : None,
             "drmType"                   : None,
             "chunklessUsed"             : None,
             "tunnelingUsed"             : None,
-            "provisionRequest"          : None,
             "keyRequest"                : None,
             "drmSessionAcquired"        : None,
             "videoDecoderInitialized"   : None,
             "audioDecoderInitialized"   : None,
-            "renderedFirstFrame"        : None,
             "isPlaying"                 : None,
             "loadCompletedPlaylist"     : None,
             "loadCompletedMedia"        : None
@@ -105,7 +106,6 @@ class TunePerfStats() :
 
         if  self.tuneMetrics[ "channelUrl" ]         != None \
         and self.tuneMetrics[ "isPlaying" ]          != None \
-        and self.tuneMetrics[ "renderedFirstFrame" ] != None \
         and self.vidoSegmentAdded \
         and self.audioSegmentAdded :
 
@@ -122,18 +122,47 @@ class TunePerfStats() :
         status = TpsStatus.CONTINUE
         data   = None
 
-        ### tunneling ###
+        ### Device & Version ###
+        baseIndex = self._GetBaseIndex( 'Device', fields )
+        if baseIndex != None :
+
+            value = self._GetPositionalValues( [baseIndex + 1], fields )
+            self.tuneMetrics[ "deviceType" ] = value
+
+            baseIndex = self._GetBaseIndex( 'Version', fields )
+            if baseIndex != None :
+
+                value = self._GetPositionalValues( [baseIndex + 1], fields )
+                self.tuneMetrics[ "deviceVer" ] = value
+
+            return status, data
+
+        ### Player Revision ###
+        baseIndex = self._GetBaseIndex( 'Device', fields )
+        if baseIndex != None :
+
+            value = self._GetPositionalValues( [baseIndex + 1], fields )
+            self.tuneMetrics[ "deviceType" ] = value
+
+            baseIndex = self._GetBaseIndex( 'Version', fields )
+            if baseIndex != None :
+
+                value = self._GetPositionalValues( [baseIndex + 1], fields )
+                self.tuneMetrics[ "deviceVer" ] = value
+
+            return status, data
+
+        ### Tunneling mode ###
         baseIndex = self._GetBaseIndex( 'Using', fields )
         if baseIndex != None :
 
-            indexes = [ i + baseIndex for i in range( 1,4 ) ]
+            indexes = [ i + baseIndex for i in range( 1,5 ) ]
             value = self._GetPositionalValues( indexes, fields )
 
-            if value == "tunneling mode on" : self.tuneMetrics[ "tunnelingUsed" ] = True
+            if value == "tunneling mode on platform" : self.tuneMetrics[ "tunnelingUsed" ] = True
             return status, data
 
         ### tune request ###
-
         baseIndex = self._GetBaseIndex( 'play', fields )
         if baseIndex == None : return status, data
 
@@ -156,6 +185,18 @@ class TunePerfStats() :
         # Add channel url
         self.tuneMetrics[ "channelUrl" ] = channelUrl
         return status, data
+
+    #----------------------------------------------------------------------------------------------
+    def ExoPlayerImpl( self, fields ) :
+
+        baseIndex = self._GetBaseIndex( 'Init', fields )
+        if baseIndex == None : return TpsStatus.CONTINUE, None
+
+        value = self._GetPositionalValues( [baseIndex + 2], fields )
+        try    : self.tuneMetrics[ "playerVer" ] = value.split( '/' )[ 1 ]
+        except : self.tuneMetrics[ "playerVer" ] = 'unknown'
+
+        return TpsStatus.CONTINUE, None
 
     #----------------------------------------------------------------------------------------------
     def HlsMediaPeriod( self, fields ) :
@@ -184,11 +225,8 @@ class TunePerfStats() :
         baseIndex = self._GetBaseIndex( 'drmSessionAcquired', fields )
         if baseIndex != None :
 
-            if self.tuneMetrics[ "drmSessionAcquired" ] == None :
-                self.tuneMetrics[ "drmSessionAcquired" ] = [ 0, eventTime ]
-            else :
-                message = "Line {}: drmSessionAcquired already set!".format( self.lineNo )
-
+            # There are two events of this type per ch.change so the later will be captured
+            self.tuneMetrics[ "drmSessionAcquired" ] = [ 0, eventTime ]
             return TpsStatus.CONTINUE, message
 
         ### videoDecoderInitialized ###
@@ -212,18 +250,6 @@ class TunePerfStats() :
                 self.tuneMetrics[ "audioDecoderInitialized" ] = [ 0, eventTime ]
             else :
                 message = "Line {}: audioDecoderInitialized already set!".format( self.lineNo )
-
-            return TpsStatus.CONTINUE, message
-
-        ### renderedFirstFrame ###
-
-        baseIndex = self._GetBaseIndex( 'renderedFirstFrame', fields )
-        if baseIndex != None :
-
-            if self.tuneMetrics[ "renderedFirstFrame" ] == None :
-                self.tuneMetrics[ "renderedFirstFrame" ] = [ 0, eventTime ]
-            else :
-                message = "Line {}: renderedFirstFrame already set!".format( self.lineNo )
 
             return TpsStatus.CONTINUE, message
 
@@ -305,24 +331,6 @@ class TunePerfStats() :
 
 
         return TpsStatus.CONTINUE, message
-
-    #----------------------------------------------------------------------------------------------
-    def ExecuteProvisionRequest( self, fields ) :
-
-        baseIndex = self._GetBaseIndex( 'completed', fields )
-        if baseIndex == None : return TpsStatus.CONTINUE, None
-
-        value = self._GetKeyValue( 'time', fields )
-        if value != None :
-
-            try : duration = int( value ) / 1000
-            except : return TpsStatus.CONTINUE, \
-                   "Line {}: Can't get DRM provision request duration!".format( self.lineNo )
-
-            self.tuneMetrics[ "provisionRequest" ] = \
-                [ round( self.timeDelta - duration, 3 ), duration ]
-
-        return TpsStatus.CONTINUE, None
 
     #----------------------------------------------------------------------------------------------
     def ExecuteKeyRequest( self, fields ) :
