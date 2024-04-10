@@ -31,8 +31,10 @@ public class MediaItemHelper {
   public static final String DRM_SCHEME_WIDEVINE = "widevine";
   public static final String DRM_WV_PROXY = "wv_proxy";
   public static final String DRM_VCAS_VUID = "vcas_vuid";
+  private static final String VCAS_DEBUG = "vcas_debug";
 
   public static MediaItem.Builder populateDrmPropertiesFromIntent(MediaItem.Builder builder, Intent intent, Context context) {
+    boolean vcasDebug = intent.getBooleanExtra(VCAS_DEBUG, false);
     @Nullable String drmSchemeExtra = intent.getStringExtra(DRM_SCHEME);
     if (drmSchemeExtra == null) {
       return builder;
@@ -57,7 +59,7 @@ public class MediaItemHelper {
       case DRM_SCHEME_VCAS:
         String vcasAddr = intent.getStringExtra(DRM_VCAS_ADDR);
         String vcasCaId = intent.getStringExtra(DRM_VCAS_CA_ID);
-        addVcasDrmToMediaItemBuilder(builder, context, vcasAddr, vcasCaId, true);
+        addVcasDrmToMediaItemBuilder(builder, context, vcasAddr, vcasCaId, vcasDebug);
         break;
     }
     return builder;
