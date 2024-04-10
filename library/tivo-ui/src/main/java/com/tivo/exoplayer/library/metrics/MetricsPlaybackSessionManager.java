@@ -1,8 +1,11 @@
 package com.tivo.exoplayer.library.metrics;
 
+import android.net.Uri;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
+import com.google.android.exoplayer2.MediaItem;
+import com.google.android.exoplayer2.source.SilenceMediaSource;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -10,7 +13,6 @@ import com.google.android.exoplayer2.Timeline;
 import com.google.android.exoplayer2.analytics.AnalyticsListener;
 import com.google.android.exoplayer2.analytics.PlaybackSessionManager;
 import com.google.android.exoplayer2.source.MediaSource;
-import com.google.android.exoplayer2.source.hls.HlsManifest;
 import com.google.android.exoplayer2.util.Log;
 
 public class MetricsPlaybackSessionManager implements PlaybackSessionManager {
@@ -70,6 +72,7 @@ public class MetricsPlaybackSessionManager implements PlaybackSessionManager {
 
         @Override
         public void onAdPlaybackStarted(AnalyticsListener.EventTime eventTime, String contentSessionId, String adSessionId) {
+            Log.d(TAG, "Ad playback started, adSessionId: " + adSessionId + " content sessionId: " + contentSessionId + " " + timelineDebugString(eventTime));
             delegateListener.onAdPlaybackStarted(eventTime, contentSessionId, adSessionId);
         }
 
@@ -121,9 +124,9 @@ public class MetricsPlaybackSessionManager implements PlaybackSessionManager {
         Timeline timeline = eventTime.timeline;
         if (timeline == Timeline.EMPTY) {
             Log.d(TAG, "timelineUpdated - was reset to EMPTY, eventTime: " + eventTime.realtimeMs + " sessionId: " + currentSessionId);
-        } else {
-            String url = getUrlFromTimeline(timeline);
-            Log.d(TAG, "timelineUpdated - with URL: " + url + " , eventTime: " + eventTime.realtimeMs + " sessionId: " + currentSessionId);
+        } else if (currentSessionId == null){
+            String mediaItemId = getMediaItemDescription(timeline);
+            Log.d(TAG, "timelineUpdated - no current session, MediaItem: " + mediaItemId + " , eventTime: " + eventTime.realtimeMs + " sessionId: " + currentSessionId);
         }
         delegate.updateSessionsWithTimelineChange(eventTime);
     }
@@ -144,10 +147,31 @@ public class MetricsPlaybackSessionManager implements PlaybackSessionManager {
         delegate.finishAllSessions(eventTime);
     }
 
+    private MediaItem getMediaItem(Timeline timeline) {
+        Timeline.Window window = timeline.getWindow(0, new Timeline.Window());
+        return window.mediaItem;
+    }
 
     private String getUrlFromTimeline(Timeline timeline) {
-        Timeline.Window window = timeline.getWindow(0, new Timeline.Window());
-        return window.mediaItem.mediaId;
+        MediaItem mediaItem = getMediaItem(timeline);
+        Uri uri = mediaItem.playbackProperties != null
+            ? mediaItem.playbackProperties.uri
+            : null;
+        return uri != null ? String.valueOf(uri) : mediaItem.mediaId;
+    }
+
+    @NonNull
+    private String getMediaItemDescription(Timeline timeline) {
+        String value = "MediaItem [";
+        MediaItem mediaItem = getMediaItem(timeline);
+        if (! mediaItem.mediaId.equals(MediaItem.DEFAULT_MEDIA_ID)) {
+            value += "mediaId: " + mediaItem.mediaId;
+        } else if (mediaItem.playbackProperties != null) {
+            value += "URI: " + mediaItem.playbackProperties.uri;
+        } else {
+            value = mediaItem.toString();
+        }
+        return value + "]";
     }
 
     private String timelineDebugString(AnalyticsListener.EventTime eventTime) {
@@ -156,18 +180,8 @@ public class MetricsPlaybackSessionManager implements PlaybackSessionManager {
         if (timeline.isEmpty()) {
             value = "empty timeline, at realtimeMs: " + eventTime.realtimeMs;
         } else {
-            Timeline.Window window = timeline.getWindow(0, new Timeline.Window());
-
-            value = "active timeline, at realtimeMs: " + eventTime.realtimeMs;
-
-            String url = getUrlFromTimeline(timeline);
-            if (url == null) {
-                value += " no URL";
-            } else {
-                value += " " + url;
-            }
+            value = "active timeline, at realtimeMs: " + eventTime.realtimeMs + " " + getMediaItemDescription(timeline);
         }
         return value;
-
     }
 }

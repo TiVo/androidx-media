@@ -268,12 +268,13 @@ public class ManagePlaybackMetrics implements PlaybackMetricsManagerApi {
         MetricsPlaybackSessionManager.SessionInformation sessionInformation =
                 sessionManager.getSessionInformationFor(sessionStartTime.realtimeMs);
 
-        Map<String, Object> loggedStats = playbackMetrics.getMetricsAsMap();
+        if (sessionInformation != null) {
+            Map<String, Object> loggedStats = playbackMetrics.getMetricsAsMap();
+            JSONObject jsonObject = new JSONObject(loggedStats);
+            Log.i(TAG, "session end stats, URL: " + sessionInformation.getSessionUrl() + " stats: " + jsonObject.toString());
+            eventListener.playbackMetricsAvailable(playbackMetrics, sessionInformation.getSessionUrl());
+        }
 
-
-        JSONObject jsonObject = new JSONObject(loggedStats);
-        Log.i(TAG, "session end stats, URL: " + sessionInformation.getSessionUrl() + " stats: " + jsonObject.toString());
-        eventListener.playbackMetricsAvailable(playbackMetrics, sessionInformation.getSessionUrl());
     }
 
     static String eventDebug(AnalyticsListener.EventTime first) {
