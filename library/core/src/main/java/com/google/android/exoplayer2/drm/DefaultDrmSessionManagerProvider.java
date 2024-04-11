@@ -25,6 +25,7 @@ import com.google.android.exoplayer2.MediaItem;
 import com.google.android.exoplayer2.upstream.DefaultHttpDataSource;
 import com.google.android.exoplayer2.upstream.DefaultHttpDataSourceFactory;
 import com.google.android.exoplayer2.upstream.HttpDataSource;
+import com.google.android.exoplayer2.upstream.LoadErrorHandlingPolicy;
 import com.google.android.exoplayer2.util.Util;
 import com.google.common.primitives.Ints;
 import java.util.Map;
@@ -43,6 +44,7 @@ public final class DefaultDrmSessionManagerProvider implements DrmSessionManager
 
   @Nullable private HttpDataSource.Factory drmHttpDataSourceFactory;
   @Nullable private String userAgent;
+  @Nullable private LoadErrorHandlingPolicy drmLoadErrorHandlingPolicy;
 
   public DefaultDrmSessionManagerProvider() {
     lock = new Object();
@@ -71,6 +73,16 @@ public final class DefaultDrmSessionManagerProvider implements DrmSessionManager
    */
   public void setDrmUserAgent(@Nullable String userAgent) {
     this.userAgent = userAgent;
+  }
+
+  /**
+   * Set a load error handling policy to user for the {@link DefaultDrmSessionManager}'s created
+   * by this provider
+   *
+   * @param drmLoadErrorHandlingPolicy - LoadErrorHandlingPolicy for DRM session management
+   */
+  public void setDrmLoadErrorHandlingPolicy(LoadErrorHandlingPolicy drmLoadErrorHandlingPolicy) {
+    this.drmLoadErrorHandlingPolicy = drmLoadErrorHandlingPolicy;
   }
 
   @Override
@@ -105,14 +117,17 @@ public final class DefaultDrmSessionManagerProvider implements DrmSessionManager
     for (Map.Entry<String, String> entry : drmConfiguration.requestHeaders.entrySet()) {
       httpDrmCallback.setKeyRequestProperty(entry.getKey(), entry.getValue());
     }
-    DefaultDrmSessionManager drmSessionManager =
+    DefaultDrmSessionManager.Builder drmSessionManagerBuilder =
         new DefaultDrmSessionManager.Builder()
             .setUuidAndExoMediaDrmProvider(
                 drmConfiguration.uuid, FrameworkMediaDrm.DEFAULT_PROVIDER)
             .setMultiSession(drmConfiguration.multiSession)
             .setPlayClearSamplesWithoutKeys(drmConfiguration.playClearContentWithoutKey)
-            .setUseDrmSessionsForClearContent(Ints.toArray(drmConfiguration.sessionForClearTypes))
-            .build(httpDrmCallback);
+            .setUseDrmSessionsForClearContent(Ints.toArray(drmConfiguration.sessionForClearTypes));
+    if (drmLoadErrorHandlingPolicy != null) {
+      drmSessionManagerBuilder.setLoadErrorHandlingPolicy(drmLoadErrorHandlingPolicy);
+    }
+    DefaultDrmSessionManager drmSessionManager = drmSessionManagerBuilder.build(httpDrmCallback);
     drmSessionManager.setMode(MODE_PLAYBACK, drmConfiguration.getKeySetId());
     return drmSessionManager;
   }
