@@ -60,6 +60,7 @@ import com.streamingmediainsights.smiclientsdk.SMIClientSdk;
 import com.streamingmediainsights.smiclientsdk.SMIEventCallbackListener;
 import com.streamingmediainsights.smiclientsdk.SMISimpleExoPlayer;
 import com.tivo.android.utils.SystemUtils;
+import com.tivo.exoplayer.library.errorhandlers.DrmLoadErrorHandlerPolicy;
 import com.tivo.exoplayer.library.errorhandlers.PlayerErrorHandlerListener;
 import com.tivo.exoplayer.library.ima.ImaSDKHelper;
 import com.tivo.exoplayer.library.source.MediaItemHelper;
@@ -422,6 +423,12 @@ public class ViewActivity extends AppCompatActivity {
     }
     setFocusChangeListeners(activityView);
 
+    exoPlayerFactory.getMediaSourceFactory()
+        .setDrmHttpDataSourceFactory(
+            new DefaultHttpDataSource.Factory()
+                .setReadTimeoutMs(2_000)
+        )
+        .setDrmLoadErrorHandlerPolicy(new DrmLoadErrorHandlerPolicy());
     ImaSDKHelper.DEBUG_MODE_ENABLED = true;
 
     imaSdkHelper = new ImaSDKHelper.Builder(playerView, exoPlayerFactory.getMediaSourceFactory(), getApplicationContext())

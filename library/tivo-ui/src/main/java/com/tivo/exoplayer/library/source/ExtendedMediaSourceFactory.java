@@ -78,6 +78,7 @@ public class ExtendedMediaSourceFactory implements MediaSourceFactory {
   @Nullable private DefaultMediaSourceFactory.AdsLoaderProvider adsLoaderProvider;
   @Nullable private AdViewProvider adViewProvider;
   @MonotonicNonNull private VerimatrixDataSourceFactory singletonVerimatrixDataSourceFactory;
+  private LoadErrorHandlingPolicy drmLoadErrorHandlerPolicy;
 
   /**
    * Provides {@link AdsLoader} instances for media items that have {@link
@@ -101,6 +102,17 @@ public class ExtendedMediaSourceFactory implements MediaSourceFactory {
     this.context = context;
     singletonVerimatrixDataSourceFactory = null;
     hlsPlaylistParserFactory = new DefaultHlsPlaylistParserFactory();   // Note dual-mode does not work with this.
+  }
+
+
+  /**
+   * Sets the {@link LoadErrorHandlingPolicy} for key and provisioning requests.
+   *
+   * @param loadErrorHandlingPolicy A {@link LoadErrorHandlingPolicy}.
+   * @return This builder.
+   */
+  public void setDrmLoadErrorHandlerPolicy(LoadErrorHandlingPolicy loadErrorHandlingPolicy) {
+    drmLoadErrorHandlerPolicy = loadErrorHandlingPolicy;
   }
 
   @NonNull
@@ -276,6 +288,7 @@ public class ExtendedMediaSourceFactory implements MediaSourceFactory {
       defaultDrmSessionManagerProvider.setDrmHttpDataSourceFactory(drmHttpDataSourceFactory);
       defaultDrmSessionManagerProvider.setFreeKeepAliveSessionsOnRelease(false);
 //      defaultDrmSessionManagerProvider.setLoadErrorHandlingPolicy(new DrmLoadErrorHandlerPolicy());
+      defaultDrmSessionManagerProvider.setDrmLoadErrorHandlingPolicy(drmLoadErrorHandlerPolicy);
     }
     factory.setDrmSessionManagerProvider(drmSessionManagerProvider);
     MediaSource mediaSource = factory.createMediaSource(mediaItem);
