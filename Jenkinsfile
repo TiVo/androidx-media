@@ -164,6 +164,21 @@ pipeline {
                 }
               }
             }
+            stage("Build IMA Extension") {
+              options {
+                skipDefaultCheckout()
+              }
+
+              steps {
+                script {
+                  try {
+                    sh "./gradlew extension-ima:${gradle_target}"
+                  } finally {
+                    junit allowEmptyResults: true, testResults: 'extension/mediasession/buildout/test-results/testReleaseUnitTest/TEST-*.xml'
+                  }
+                }
+              }
+            }
           }
         }
 
@@ -204,7 +219,7 @@ pipeline {
             sh '''
             version="$(./gradlew -q -b gradle_util.gradle resolveProperties --prop=rootProject.releaseVersion)"
             echo "Publishing release build from branch: $BRANCH_NAME - version: $version"
-            ./gradlew library-core:publish library-common:publish library-extractor:publish library-hls:publish library-dash:publish library-ui:publish library-tivo-ui:publish library-trickplay:publish demo-tenfoot:publish extension-mediasession:publish -PREPO_USER_NAME=build -PREPO_PASSWORD=buildcode
+            ./gradlew library-core:publish library-common:publish library-extractor:publish library-hls:publish library-dash:publish library-ui:publish library-tivo-ui:publish library-trickplay:publish demo-tenfoot:publish extension-mediasession:publish extension-ima:publish -PREPO_USER_NAME=build -PREPO_PASSWORD=buildcode
             '''
           }
         }
