@@ -662,7 +662,8 @@ public class ViewActivity extends AppCompatActivity {
       int currentState = currentPlayer.getPlaybackState();
       if (currentState == Player.STATE_BUFFERING || currentState == Player.STATE_READY) {
         Log.d(TAG, "Stopping playback with player in state: " + currentState);
-        currentPlayer.stop(true);   // stop and reset position and state to idle
+        player.clearMediaItems();         // reset the current playlist to empty
+        player.stop();                    // stop (set playback state to IDLE) and clear the error state
         mediaHealthMetricsTest(false);
       }
     }
@@ -941,6 +942,8 @@ public class ViewActivity extends AppCompatActivity {
     boolean enableChunkless = intent.getBooleanExtra(CHUNKLESS_PREPARE, false);
 
     showErrorRecoveryWhisper(null, null);
+
+    // TODO this should maybe at least end the metrics session?
     stopPlaybackIfPlaying();
 
     boolean fast_resync = intent.hasExtra(FAST_RESYNC);
@@ -1104,11 +1107,9 @@ public class ViewActivity extends AppCompatActivity {
 
 
   private void showErrorDialogWithRecoveryOption(PlaybackException error, String title) {
-    title += " - " + error.getLocalizedMessage();
-
     AlertDialog alertDialog = new AlertDialog.Builder(this)
         .setTitle("Error - " + error.errorCode)
-        .setMessage(title)
+        .setMessage(title + " - " + " Playing: " + getNowPlaying() + " Error: " + error.getLocalizedMessage())
         .setPositiveButton("Retry", (dialog, which) -> {
           player.seekToDefaultPosition();
           player.prepare();   // Attempt recovery with simple re-prepare using current MediaItem
@@ -1126,6 +1127,17 @@ public class ViewActivity extends AppCompatActivity {
     alertDialog.show();
   }
 
+  private String getNowPlaying() {
+    MediaItem mediaItem = player.getCurrentMediaItem();
+    String nowPlaying = "none";
+    if (mediaItem != null) {
+      Uri uri = mediaItem.playbackProperties != null
+          ? mediaItem.playbackProperties.uri
+          : null;
+      nowPlaying = uri != null ? String.valueOf(uri) : mediaItem.mediaId;
+    }
+    return nowPlaying;
+  }
   private void showToast(String message) {
     Toast.makeText(getApplicationContext(), message, Toast.LENGTH_LONG).show();
   }
