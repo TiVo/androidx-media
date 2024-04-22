@@ -504,7 +504,7 @@ public interface ExoPlayer extends Player {
    * The default timeout for calls to {@link #release} and {@link #setForegroundMode}, in
    * milliseconds.
    */
-  long DEFAULT_RELEASE_TIMEOUT_MS = 500;
+  long DEFAULT_RELEASE_TIMEOUT_MS = 1000;
 
   /**
    * A listener for audio offload events.
