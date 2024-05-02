@@ -88,7 +88,7 @@ public abstract class AbstractBasePlaybackMetrics {
         avgVideoBitrate = bpsToMbps(playbackStats.getMeanVideoFormatBitrate());
         avgAudioBitrate = bpsToMbps(playbackStats.getMeanAudioFormatBitrate());
         avgNetworkBitrateMbps = bpsToMbps(playbackStats.getMeanBandwidth());
-        profileShiftCount = playbackStats.videoFormatHistory.size();
+        profileShiftCount = captureProfileShifts(playbackStats);
         droppedFramesCount = playbackStats.totalDroppedFrames;
         totalRebufferingTime = playbackStats.getTotalRebufferTimeMs();
         rebufferCount = playbackStats.getMeanRebufferCount();
@@ -183,6 +183,19 @@ public abstract class AbstractBasePlaybackMetrics {
         return loggedStats;
     }
 
+    /**
+     * Number of profile shifts, we don't want to count the first video format selected and
+     * are only interested in the shifts starting with the first
+     * @param pbstats      used to compute the metric values
+     * @return count of profile shifts since session began
+     */
+    private int captureProfileShifts(PlaybackStats pbstats) {
+
+        if (pbstats.videoFormatHistory.size() > 0) {
+            return pbstats.videoFormatHistory.size() - 1;
+        }
+        return 0;
+    }
     /**
      * Number of number of decoded video frames dropped.  Frames are dropped because they are decoded to late (more than
      * 30ms past the current render time) for their time to render.

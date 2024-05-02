@@ -316,7 +316,7 @@ public class ManagePlaybackMetricsTest {
         assertThat(results.get(formats[0])).isNotNull();
         assertThat(results.get(formats[0])).isEqualTo(playbackTimePlusTrickPlayTime - expectedTrickPlayTime);
 
-        assertThat(metrics.getProfileShiftCount()).isEqualTo(1);
+        assertThat(metrics.getProfileShiftCount()).isEqualTo(0);
     }
 
     @Ignore("needs analytics listener onEvent")
