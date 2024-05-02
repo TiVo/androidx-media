@@ -12,6 +12,15 @@
 
 - Update CONTRIBUTING-TIVO.md with instructions on regular releases.
 
+#### Google Module Changes
+
+Section documents our cherry-picks or other unshared changes to Google libraries (core, dash, HLS, extractor, etc)
+
+##### Cherry-pick and Back-port
+
+* From AndroidX/Media3 `main` branch
+  * "Cherry-pick" commit  *Postpone AdTagLoader listener deregistration to receive final error* - [androidx/media#7cf2fd9](https://github.com/androidx/media/commit/7cf2fd9486b44301200c4d96908a6ba3aaaa3a6e) fix for bug  [andriodx/media#1334](https://github.com/androidx/media/issues/1334).   This allows playback errors during IMA SDK Ad playback to be reported as IMA events
+
 ### 2.15.1-2.0 (2024-01-30)
 
 #### New Features

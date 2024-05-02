@@ -380,7 +380,8 @@ import java.util.Map;
     lastAdProgress = getAdVideoProgressUpdate();
     lastContentProgress = getContentVideoProgressUpdate();
 
-    player.removeListener(this);
+    // Post release of listener so that we can report any already pending errors via onPlayerError.
+    handler.post(() -> player.removeListener(this));
     this.player = null;
   }
 
@@ -451,12 +452,12 @@ import java.util.Map;
 
   @Override
   public void onTimelineChanged(Timeline timeline, @Player.TimelineChangeReason int reason) {
-    if (timeline.isEmpty()) {
+    if (timeline.isEmpty() || player == null) {
       // The player is being reset or contains no media.
       return;
     }
+    Player player = this.player;
     this.timeline = timeline;
-    Player player = checkNotNull(this.player);
     long contentDurationUs = timeline.getPeriod(player.getCurrentPeriodIndex(), period).durationUs;
     contentDurationMs = C.usToMs(contentDurationUs);
     if (contentDurationUs != adPlaybackState.contentDurationUs) {
