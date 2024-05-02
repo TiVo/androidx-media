@@ -1,9 +1,7 @@
 package com.tivo.exoplayer.library.ima;
 
-import android.app.Activity;
 import android.content.Context;
 import android.net.Uri;
-import android.os.Bundle;
 import android.view.ViewGroup;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -20,16 +18,17 @@ import com.google.android.exoplayer2.ui.PlayerView;
 import com.google.android.exoplayer2.util.Log;
 import com.tivo.exoplayer.library.source.ExtendedMediaSourceFactory;
 import java.util.UUID;
+import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
 
 /**
  * Encapsulates access to the IMA SDK For Android ExoPlayer integration in a single simple to use object
  *
- * <p>This ImaSDKHelper manages creating and destroing the ExoPLayer IMA Extensions {@link ImaAdsLoader}
+ * <p>This ImaSDKHelper manages creating and destroying the ExoPLayer IMA Extensions {@link ImaAdsLoader}
  * in order to both display ads with content or display a standalone trailer ad expressed via a VAST document.
  * </p>
  *
  * <p>Usage is quite simple, instantiate the {@link ImaSDKHelper.Builder} with listeners, if needed, in your
- * Activity's {@link android.app.Activity#onCreate(Bundle)} method then use {@link #createTrailerMediaItem(Player, Uri)}
+ * Activity's onCreate() method then use {@link #createTrailerMediaItem(Player, AdsConfiguration)}
  * to create a MediaItem for playing back a VAST ad as a standalone trailer.</p>
  *
  */
@@ -45,11 +44,17 @@ public class ImaSDKHelper {
 
   private @Nullable ImaAdsLoader currentAdsLoader;
 
+  private @Nullable AdsConfiguration currentPlayingAd;
+  private @Nullable AdListenerAdapter adListenerAdapter;
+// True when deprecated methods removed
+//  private @MonotonicNonNull AdListenerAdapter adListenerAdapter;
+
   public static class Builder {
 
     private final ImaSDKHelper sdkHelper;
     private final Context context;
     private boolean warmStartImaSDK;
+    private @Nullable AdProgressListener adProgressListener;
 
     public Builder(PlayerView playerView, ExtendedMediaSourceFactory mediaSourceFactory, Context context) {
       sdkHelper = new ImaSDKHelper(playerView, mediaSourceFactory, context);
@@ -61,9 +66,11 @@ public class ImaSDKHelper {
      * Provide an {@link com.google.ads.interactivemedia.v3.api.AdEvent.AdEventListener} for
      * use each time the ImaAdsLoader is created by {@link ImaSDKHelper}
      *
+     * // Deprecated - use {@link #setAdProgressListener(AdProgressListener)}
      * @param eventListener the listener callback.
      * @return {@link Builder} for chaining.
      */
+    @Deprecated
     public Builder setAdEventListener(AdEvent.AdEventListener eventListener) {
       sdkHelper.adsLoaderBuilder.setAdEventListener(eventListener);
       return this;
@@ -73,11 +80,25 @@ public class ImaSDKHelper {
      * Provide an {@link com.google.ads.interactivemedia.v3.api.AdErrorEvent.AdErrorListener} for
      * use each time the ImaAdsLoader is created by {@link ImaSDKHelper}
      *
+     * // Deprecated - use {@link #setAdProgressListener(AdProgressListener)}
      * @param eventListener the listener callback.
      * @return {@link Builder} for chaining.
      */
+    @Deprecated
     public Builder setAdErrorListener(AdErrorEvent.AdErrorListener eventListener) {
       sdkHelper.adsLoaderBuilder.setAdErrorListener(eventListener);
+      return this;
+    }
+
+    /**
+     * The {@link AdProgressListener} interface simply combines both AdEvent and AdError
+     * listeners and includes an callback for playback errors as well.
+     *
+     * @param progressListener AdProgressListener to use for callback
+     * @return {@link Builder} for chaining.
+     */
+    public Builder setAdProgressListener(AdProgressListener progressListener) {
+      adProgressListener = progressListener;
       return this;
     }
 
@@ -97,7 +118,7 @@ public class ImaSDKHelper {
      * Builds the {@link ImaSDKHelper}, this only needs to be done once in the Activity's
      * create method after creating the {@link PlayerView} and {@link ExtendedMediaSourceFactory}
      *
-     * <p>In {@link Activity#onStop()} just call the {@link #release()} method and drop the reference
+     * <p>In Activity.onStop() just call the {@link #release()} method and drop the reference
      * to ImaSDKHelper.</p>
      *
      * @return the newly built ImaSDKHelper
@@ -106,6 +127,12 @@ public class ImaSDKHelper {
       if (warmStartImaSDK) {
         warmStartIMA(context);
         warmStartImaSDK = false;
+      }
+
+      if (adProgressListener != null) {
+        AdListenerAdapter listenerAdapter = sdkHelper.createAdListenerAdapter(adProgressListener);
+        sdkHelper.adsLoaderBuilder.setAdErrorListener(listenerAdapter);
+        sdkHelper.adsLoaderBuilder.setAdEventListener(listenerAdapter);
       }
       return sdkHelper;
     }
@@ -138,6 +165,91 @@ public class ImaSDKHelper {
     }
   }
 
+  /**
+   * Listen for any events or errors related to ad playback with a final call-back when the
+   * ad playback completes.
+   */
+  public interface AdProgressListener {
+
+    /**
+     * Same set of errors as would be reported by {@link AdErrorEvent.AdErrorListener} but
+     * with an identifier for the VAST request that produced the event
+     *
+     * @param playingAd AdsConfiguration for the VAST request that triggered error
+     * @param adErrorEvent same as reported by AdErrorEvent.AdErrorListener
+     */
+    default void onAdError(AdsConfiguration playingAd, AdErrorEvent adErrorEvent) { }
+
+    /**
+     * Same set of events as would be reported by {@link AdEvent.AdEventListener} but
+     * with an identifier for the VAST request that produced the event
+     *
+     * @param playingAd AdsConfiguration for the VAST request that triggered event
+     * @param adEvent same as reported by AdEvent as reported by AdEvent.AdEventListener
+     */
+    default void onAdEvent(AdsConfiguration playingAd, AdEvent adEvent) { }
+
+    /**
+     * Single callback for completion of VAST request.  This is called after
+     * a call to {@link #onAdError(AdsConfiguration, AdErrorEvent)} )} or the final call to
+     * {@link #onAdEvent(AdsConfiguration, AdEvent)}
+     * 
+     * @param completedAd - the identifier of the completing ad
+     * @param adErrorEvent - an AdErrorEvent if the ad completed because of an error
+     */
+    void onAdsCompleted(AdsConfiguration completedAd, @Nullable AdErrorEvent adErrorEvent);
+  }
+
+  /**
+   * Adapts {@link AdEvent.AdEventListener} and {@link AdErrorEvent.AdErrorListener} to 
+   * an {@link AdProgressListener}.
+   */
+  private class AdListenerAdapter implements AdErrorEvent.AdErrorListener, AdEvent.AdEventListener {
+    private final AdProgressListener delegate;
+
+    private AdListenerAdapter(AdProgressListener delegate) {
+      this.delegate = delegate;
+    }
+
+    @Override
+    public void onAdError(AdErrorEvent adErrorEvent) {
+      delegate.onAdError(currentPlayingAd, adErrorEvent);
+    }
+
+    @Override
+    public void onAdEvent(AdEvent adEvent) {
+      delegate.onAdEvent(currentPlayingAd, adEvent);
+      if (adEvent.getType() == AdEvent.AdEventType.ALL_ADS_COMPLETED) {
+        delegate.onAdsCompleted(currentPlayingAd, null);
+        currentPlayingAd = null;
+      }
+    }
+
+    private void adPlaybackAborted() {
+      delegate.onAdsCompleted(currentPlayingAd, null);
+    }
+  }
+
+  /**
+   * Identifies the playing ad (note this will be MediaItem.AdsConfiguration once that
+   * is made pubilc (AndroidX)
+   */
+  public static class AdsConfiguration {
+    /** The ad tag URI to load. */
+    public final Uri adTagUri;
+    /**
+     * An opaque identifier for ad playback state associated with this item, or {@code null} if the
+     * combination of the {@link MediaItem.Builder#setMediaId(String) media ID} and {@link #adTagUri
+     * ad tag URI} should be used as the ads identifier.
+     */
+    @Nullable public final Object adsId;
+
+    public AdsConfiguration(Uri adTagUri, @Nullable Object adsId) {
+      this.adTagUri = adTagUri;
+      this.adsId = adsId;
+    }
+  }
+  
   private ImaSDKHelper(PlayerView playerView, ExtendedMediaSourceFactory mediaSourceFactory, Context context) {
     this.playerView = playerView;
     this.mediaSourceFactory = mediaSourceFactory;
@@ -159,6 +271,12 @@ public class ImaSDKHelper {
     mediaSourceFactory.setAdViewProvider(playerView);
   }
 
+
+  private AdListenerAdapter createAdListenerAdapter(AdProgressListener progressListener) {
+    adListenerAdapter = new AdListenerAdapter(progressListener);
+    return adListenerAdapter;
+  }
+
   // External API methods
 
   public void activityPaused() {
@@ -170,18 +288,55 @@ public class ImaSDKHelper {
   }
 
   /**
+   * Returns the unique id of the current playing ad or null if no ad is playing.
+   *
+   * <p>Note {@link Player#isPlayingAd()} will also be true once this ad has
+   * actually begun playback.  Also if
+   * {@link com.google.android.exoplayer2.analytics.AnalyticsListener.EventTime#currentMediaPeriodId} had
+   * an {@link com.google.android.exoplayer2.source.MediaPeriodId#adGroupIndex that is not INDEX_UNSET
+   * then the player is playing an ad.</p>
+   *
+   * @return {@link AdsConfiguration} of current playing ad.
+   */
+  public @Nullable AdsConfiguration getCurrentPlayingAd() {
+    return currentPlayingAd;
+  }
+
+  /**
    * Creates a {@link MediaItem.Builder} that will build a {@link MediaItem}
    * that plays the VAST document from vastUri along with empty content.
    *
+   * // Deprecated use {@link #createTrailerMediaItem(Player, AdsConfiguration)}
    * @param player - the current {@link Player} instance
    * @param vastUri - Uri to fetch the VAST document with the trailer
    * @return {@link MediaItem.Builder} ready to call build() and pass to player
    */
+  @Deprecated
   public MediaItem.Builder createTrailerMediaItem(Player player, Uri vastUri) {
+    AdsConfiguration adsConfiguration = new AdsConfiguration(vastUri, UUID.randomUUID());
+    return createTrailerMediaItem(player, adsConfiguration);
+  }
+
+  /**
+   * Creates a {@link MediaItem.Builder} that will build a {@link MediaItem}
+   * that plays the VAST document from vastUri along with empty content.
+   *
+   * @param player - the current {@link Player} instance
+   * @param adsConfiguration - AdsConfiguration specifying the VAST Url and an adsId
+   * @return {@link MediaItem.Builder} ready to call build() and pass to player
+   */
+  public MediaItem.Builder createTrailerMediaItem(Player player, AdsConfiguration adsConfiguration) {
     setupAdsLoader(player);
+    if (adsConfiguration.adsId == null) {
+      adsConfiguration = new AdsConfiguration(adsConfiguration.adTagUri, UUID.randomUUID());
+    }
+    if (currentPlayingAd != null && adListenerAdapter != null) {
+      adListenerAdapter.adPlaybackAborted();
+    }
+    currentPlayingAd = adsConfiguration;
     return new MediaItem.Builder()
         .setUri(ExtendedMediaSourceFactory.SILENCE_URI)
-        .setAdTagUri(vastUri, UUID.randomUUID());
+        .setAdTagUri(currentPlayingAd.adTagUri, currentPlayingAd.adsId);
   }
 
   /**
@@ -189,22 +344,46 @@ public class ImaSDKHelper {
    * attributes to enable playing the content with the ads expressed by the
    * VAST document specified by the vastUri.
    *
+   * // Deprecated use {@link #includeAdsWithMediaItem(Player, MediaItem.Builder, AdsConfiguration)}
    * @param player - the current {@link Player} instance
    * @param builder - {@link MediaItem.Builder} to decorate with the Ad
    * @param vastUri - URI for the VAST document describing the ads
    * @param adsId - optional (nullable) AdsID to use for suspend resume
    */
+  @Deprecated
   public void includeAdsWithMediaItem(
       Player player,
       @NonNull MediaItem.Builder builder,
       @NonNull Uri vastUri,
       @Nullable Object adsId) {
-    setupAdsLoader(player);   // TODO, investigate keeping the currentAdsLoader to note what ads have already played
-    builder.setAdTagUri(vastUri, adsId);
+    includeAdsWithMediaItem(player, builder, new AdsConfiguration(vastUri, adsId));
   }
 
   /**
-   * Call release() in our {@link Activity#onStop()} method then drop the
+   * Setups up the IMA SDK and decorates the input @link MediaItem.Builder} with
+   * attributes to enable playing the content with the ads expressed by adsConfiguration
+   *
+   * @param player - the current {@link Player} instance
+   * @param builder - {@link MediaItem.Builder} that will be decorated with the ad to play
+   * @param adsConfiguration - AdsConfiguration specifying the VAST Url and an adsId
+   */
+  public void includeAdsWithMediaItem(
+      Player player,
+      @NonNull MediaItem.Builder builder,
+      AdsConfiguration adsConfiguration) {
+    setupAdsLoader(player);   // TODO, investigate keeping the currentAdsLoader to note what ads have already played
+    if (adsConfiguration.adsId == null) {
+      adsConfiguration = new AdsConfiguration(adsConfiguration.adTagUri, UUID.randomUUID());
+    }
+    if (currentPlayingAd != null && adListenerAdapter != null) {
+      adListenerAdapter.adPlaybackAborted();
+    }
+    currentPlayingAd = adsConfiguration;
+    builder.setAdTagUri(adsConfiguration.adTagUri, adsConfiguration.adsId);
+  }
+
+  /**
+   * Call release() in our Activity.onStop() method then drop the
    * reference.
    */
   public void release() {

@@ -28,6 +28,7 @@ import com.google.android.exoplayer2.C;
 import com.google.android.exoplayer2.DefaultLoadControl;
 import com.google.android.exoplayer2.DefaultRenderersFactory;
 import com.google.android.exoplayer2.ExoPlaybackException;
+import com.google.android.exoplayer2.ExoPlayer;
 import com.google.android.exoplayer2.Format;
 import com.google.android.exoplayer2.LivePlaybackSpeedControl;
 import com.google.android.exoplayer2.LoadControl;
@@ -114,7 +115,6 @@ public class ViewActivity extends AppCompatActivity {
   private boolean isShowingTrackSelectionDialog;
 
   private SimpleExoPlayerFactory exoPlayerFactory;
-  private DrmInfo drmInfo;
 
   public static final Integer DEFAULT_LOG_LEVEL = com.google.android.exoplayer2.util.Log.LOG_LEVEL_ALL;
 
@@ -434,33 +434,44 @@ public class ViewActivity extends AppCompatActivity {
 
 
     imaSdkHelper = new ImaSDKHelper.Builder(playerView, exoPlayerFactory.getMediaSourceFactory(), getApplicationContext())
-        .setAdEventListener(new AdEvent.AdEventListener() {
+        .setAdProgressListener(new ImaSDKHelper.AdProgressListener() {
           @Override
-          public void onAdEvent(AdEvent adEvent) {
+          public void onAdError(ImaSDKHelper.AdsConfiguration playingAd, AdErrorEvent adErrorEvent) {
+            Log.d(TAG, "IMA Error: " + adErrorEvent.getError().getMessage() + " adsId: " + playingAd.adsId);
+          }
+
+          @Override
+          public void onAdEvent(ImaSDKHelper.AdsConfiguration playingAd, AdEvent adEvent) {
             long deltaTime = SystemClock.elapsedRealtime() - vastPlaybackStartTime;
             AdEvent.AdEventType eventType = adEvent.getType();
             switch (eventType) {
               case AD_PROGRESS: // PROGRESS is very chatty
                 break;
 
+              case PAUSED:
+              case STARTED:
+              case RESUMED:
+                Log.d(TAG, "IMA Event at " + deltaTime + "(ms) " + eventType + " Ad: " + adEvent.getAd());
+                break;
+
               case LOADED:
-                Log.d(TAG, "IMA Event: LOADED - elapsed(ms): " + deltaTime + " Ad Id: " + adEvent.getAd().getAdId());
+                Log.d(TAG, "IMA Event at " + deltaTime + "(ms) " + eventType + " Ad Id: " + adEvent.getAd().getAdId());
                 break;
 
               default:
                 Ad ad = adEvent.getAd();
-                Log.d(TAG, "IMA Event: " + eventType
+                Log.d(TAG, "IMA Event at " + deltaTime + "(ms) " + eventType
                     + " - elapsed(ms): " + deltaTime
                     + " data: " + adEvent.getAdData()
                     + (ad == null ? "" : " Ad Id: " + ad.getAdId())
+                    + " adsId: " + playingAd.adsId
                 );
             }
-          }
-        })
-        .setAdErrorListener(new AdErrorEvent.AdErrorListener() {
+        }
+
           @Override
-          public void onAdError(AdErrorEvent adErrorEvent) {
-            Log.d(TAG, "IMA Error: " + adErrorEvent.getError().getMessage());
+          public void onAdsCompleted(ImaSDKHelper.AdsConfiguration completedAd, @Nullable AdErrorEvent adErrorEvent) {
+            Log.d(TAG, "IMA Event: All Ads completed - adsId: " + completedAd.adsId);
           }
         })
         .build();
@@ -926,7 +937,6 @@ public class ViewActivity extends AppCompatActivity {
           "playUri() play " + uris.length + " channels, start with: '" + uris[0] + "' - chunkless: " + enableChunkless
               + " usePlaylist: " + usePlaylist + " initialPos: " + seekTo + " playWhenReady: " + playWhenReady);
     } else if (vastUrl != null) {
-      vastPlaybackStartTime = SystemClock.elapsedRealtime();
       Log.d(TAG, "play VAST only with no content");
     }
 
@@ -935,8 +945,11 @@ public class ViewActivity extends AppCompatActivity {
     // Are we just playing a trailer?
     if (vastUrl != null && uris.length == 0) {
       mediaItemsToPlay = new MediaItem[1];
-      mediaItemsToPlay[0] = imaSdkHelper.createTrailerMediaItem(player, vastUrl)
+      ImaSDKHelper.AdsConfiguration adsConfiguration =
+          new ImaSDKHelper.AdsConfiguration(vastUrl, UUID.randomUUID());
+      mediaItemsToPlay[0] = imaSdkHelper.createTrailerMediaItem(player, adsConfiguration)
           .build();
+      vastPlaybackStartTime = SystemClock.elapsedRealtime();
     } else {
       byte[] seed = new SecureRandom().generateSeed(20); // 20 bytes of seed
       nextChannelRamdomizer = new Random(new BigInteger(seed).longValue());
@@ -947,7 +960,10 @@ public class ViewActivity extends AppCompatActivity {
         MediaItem.Builder builder = new MediaItem.Builder();
         builder.setUri(uri);
         if (vastUrl != null) {
-          imaSdkHelper.includeAdsWithMediaItem(player, builder, vastUrl, null);
+          ImaSDKHelper.AdsConfiguration adsConfiguration =
+              new ImaSDKHelper.AdsConfiguration(vastUrl, UUID.randomUUID());
+          imaSdkHelper.includeAdsWithMediaItem(player, builder, adsConfiguration);
+          vastPlaybackStartTime = SystemClock.elapsedRealtime();
         }
         MediaItemHelper.populateDrmPropertiesFromIntent(builder, intent, this);
         mediaItemsToPlay[index++] = builder.build();
