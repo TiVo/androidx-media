@@ -35,6 +35,9 @@ public class DefaultExoPlayerErrorHandler implements Player.Listener {
 
   @Nullable private final PlayerErrorHandlerListener playerErrorHandlerListener;
 
+  // NOTE this is nullable only till the deprecated constructor is removed.
+  @Nullable private final Player player;
+
   @Nullable private DefaultTrackSelector trackSelector;
 
   /**
@@ -43,12 +46,33 @@ public class DefaultExoPlayerErrorHandler implements Player.Listener {
    * list.  Most all common errors that ExoPlayer indicates can be recovered are handled
    * (eg. {@link com.google.android.exoplayer2.source.BehindLiveWindowException}
    *
+   * // DEPRECATED - used the method that passes in the player for optimal operation
    * @param handlers ordred list of {@link PlaybackExceptionRecovery} handlers
    * @param playerErrorHandlerListener optional (but recommended) callback for error handling.
    */
-  public DefaultExoPlayerErrorHandler(List<PlaybackExceptionRecovery> handlers, @Nullable PlayerErrorHandlerListener playerErrorHandlerListener) {
+  @Deprecated
+  public DefaultExoPlayerErrorHandler(List<PlaybackExceptionRecovery> handlers,
+      @Nullable PlayerErrorHandlerListener playerErrorHandlerListener) {
+    this(handlers, null, playerErrorHandlerListener);
+  }
+
+  /**
+   * If you subclass implement this method. You can choose to add to the list of
+   * {@link PlaybackExceptionRecovery} handlers, it is recommmeded you add to the end of the
+   * list.  Most all common errors that ExoPlayer indicates can be recovered are handled
+   * (eg. {@link com.google.android.exoplayer2.source.BehindLiveWindowException}
+   *
+   * @param handlers ordered list of {@link PlaybackExceptionRecovery} handlers
+   * @param exoPlayer the current ExoPlayer instance the handler is listening to errors for.
+   * @param playerErrorHandlerListener optional (but recommended) callback for error handling.
+   */
+  public DefaultExoPlayerErrorHandler(
+      List<PlaybackExceptionRecovery> handlers,
+      @Nullable Player exoPlayer,
+      @Nullable PlayerErrorHandlerListener playerErrorHandlerListener) {
     this.handlers = handlers;
     this.playerErrorHandlerListener = playerErrorHandlerListener;
+    player = exoPlayer;
   }
 
   public void releaseResources() {
@@ -87,6 +111,8 @@ public class DefaultExoPlayerErrorHandler implements Player.Listener {
     //
     if (error.errorCode == PlaybackException.ERROR_CODE_TIMEOUT) {
      Log.e(TAG, "release timeout error, bypass error recovery as not possible.", error);
+    } else if (player != null && player.isPlayingAd()) {
+      Log.i(TAG, "onPlayerError() - error during ad playback ignored, already reported via IMA SDK");
     } else {
       for (PlaybackExceptionRecovery handler : handlers) {
         if (handler.recoverFrom(error)) {

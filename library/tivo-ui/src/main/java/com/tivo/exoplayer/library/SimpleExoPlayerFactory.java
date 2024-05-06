@@ -161,6 +161,7 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
   private AlternatePlayerFactory alternatePlayerFactory;
   private TrackSelectorFactory trackSelectorFactory;
   private ExtendedMediaSourceFactory mediaSourceFactory;
+  private PlaybackExceptionRecoveryListFactory playbackExceptionRecoveryListFactory;
 
   /**
    * Simple callback to produce an AnalyticsListener for logging purposes.
@@ -179,9 +180,7 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
      * @param trackSelector - track selector for use only in the constructor for EventLogger
      * @return null or an logger that implements {@link AnalyticsListener}
      */
-    default AnalyticsListener createEventLogger(MappingTrackSelector trackSelector) {
-      return new ExtendedEventLogger(trackSelector);
-    }
+    AnalyticsListener createEventLogger(MappingTrackSelector trackSelector);
   }
 
   /**
@@ -214,13 +213,29 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
   /**
    * Callback to allow creation of a sub-class of {@link DefaultTrackSelector}.
    *
-   * It is strongly recommended the callee should not retain a reference to the created object,
-   * as it will leak a reference to a {@link Player} object.
+   * <p>It is strongly recommended the callee should not retain a reference to the created object,
+   * as it will leak a reference to a {@link Player} object.</p>
    */
   public interface TrackSelectorFactory {
-    default DefaultTrackSelector createTrackSelector(Context context, ExoTrackSelection.Factory trackSelectionFactory) {
-      return new DefaultTrackSelector(context, trackSelectionFactory);
-    }
+    DefaultTrackSelector createTrackSelector(Context context, ExoTrackSelection.Factory trackSelectionFactory);
+  }
+
+  /**
+   * Callback to allow callee to specify the list of {@link PlaybackExceptionRecovery} to use when the
+   * {@link DefaultExoPlayerErrorHandler} is created.  The default simply returns the
+   * {@link SimpleExoPlayerFactory#getDefaultPlaybackExceptionHandlers()} list.
+   *
+   * <p>For example:</p>
+   * <pre>
+   *   SimpleExoPlayerFactory.Builder builder = new SimpleExoPlayerFactory.Builder(context)
+   *     .setPlaybackExceptionRecoveryListFactory(playerFactory -> playerFactory.getDefaultPlaybackExceptionHandlers().add(myHandler))
+   *
+   * </pre>
+   * <p>The call-back will be called each time the player is created by {@link SimpleExoPlayerFactory#createPlayer()}
+   * </p>
+   */
+  public interface PlaybackExceptionRecoveryListFactory {
+    List<PlaybackExceptionRecovery> getPlaybackExceptionRecoveryList(SimpleExoPlayerFactory playerFactory);
   }
 
   /**
@@ -239,10 +254,13 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
     private boolean nonDefaultMediaCodecOperationMode = false;
     private AlternatePlayerFactory alternatePlayerFactory = null;
     private TrackSelectorFactory trackSelectorFactory;
+    private PlaybackExceptionRecoveryListFactory playbackExceptionRecoveryListFactory;
 
     public Builder(Context context) {
       this.context = context;
-      this.factory = new EventListenerFactory() {};
+      factory = trackSelector -> new ExtendedEventLogger(trackSelector);
+      trackSelectorFactory = (contextArg, trackSelectionFactory) -> new DefaultTrackSelector(contextArg, trackSelectionFactory);
+      playbackExceptionRecoveryListFactory = SimpleExoPlayerFactory::getDefaultPlaybackExceptionHandlers;
     }
 
     /**
@@ -262,6 +280,10 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
     /**
      * Allows client a hook to create their own {@link AnalyticsListener} for logging to replace the
      * default {@link EventLogger} created by the {@link SimpleExoPlayerFactory}
+     *
+     * <p>The default {@link EventListenerFactory} produces an {@link ExtendedEventLogger}.  Note
+     * caller may provide an {@link EventListenerFactory} that returns null in which case no
+     * logging {@link AnalyticsListener} will be set.</p>
      *
      * @param factory - call back for creating the event logger
      * @return this builder for chaining
@@ -323,6 +345,18 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
     }
 
     /**
+     * Clients can use this call to provide a callback factory that will produce this list of {@link PlaybackExceptionRecovery}
+     * error recovery handlers.  The default simply returns {@link #getDefaultPlaybackExceptionHandlers()}
+     *
+     * @param factory factory callback to provide list other than {@link #getDefaultPlaybackExceptionHandlers()} of handlers
+     * @return this builder for chaining
+     */
+    public Builder setPlaybackExceptionRecoveryListFactory(PlaybackExceptionRecoveryListFactory factory) {
+      playbackExceptionRecoveryListFactory = factory;
+      return this;
+    }
+
+    /**
      * Set to use MediaCodec in asynchronous mode for audio and video along with threading options
      * to improve performance of 60 FPS video content.  If not est the default is used.
      *
@@ -345,6 +379,7 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
       simpleExoPlayerFactory.nonDefaultMediaCodecOperationMode = nonDefaultMediaCodecOperationMode;
       simpleExoPlayerFactory.mediaCodecAsyncMode = mediaCodecAsyncMode;
       simpleExoPlayerFactory.trackSelectorFactory = trackSelectorFactory;
+      simpleExoPlayerFactory.playbackExceptionRecoveryListFactory = playbackExceptionRecoveryListFactory;
       return simpleExoPlayerFactory;
     }
   }
@@ -412,8 +447,10 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
    * own error handling or reporting extend this class and return your class here.  Make sure
    * to honor the @CallSuper annotations to ensure proper error recovery operation.
    *
+   * // Deprecated, discouraging subclassing the DefaultExoPlayerErrorHandler, will provide factory method for error handlers
    * @return default returns {@link DefaultExoPlayerErrorHandler}, return a subclass thereof if you override
    */
+  @Deprecated
   protected DefaultExoPlayerErrorHandler createPlayerErrorHandler() {
     List<PlaybackExceptionRecovery> errorHandlers = getDefaultPlaybackExceptionHandlers();
 
@@ -423,28 +460,15 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
   }
 
   /**
-   * If you override {@link #createPlayerErrorHandler()}, use this method to get
-   * the default set of {@link PlaybackExceptionRecovery}
-   * handlers to pass to the {@link DefaultExoPlayerErrorHandler} you have extended.  For example:
+   * Returns a list (mutable) of the default set of error recovery handlers for
+   * {@link PlaybackException}'s.  Clients can add to there own handlers to this list
+   * and use it with the factory method {@link Builder#setPlaybackExceptionRecoveryListFactory(PlaybackExceptionRecoveryListFactory)}.
    *
-   * <pre>
-   *   ...
-   *
-   *   protected AnalyticsListener createPlayerErrorHandler() {
-   *     return new MyExoPlayerErrorHanlder(getDefaultPlaybackExceptionHandlers();
-   *   }
-   *
-   *   protected void playerErrorProcessed(EventTime eventTime, ExoPlaybackException error, boolean recovered) {
-   *     log the error, pass to your clients, etc...
-   *   }
-   *
-   *   ...
-   * </pre>
-   *
+   * <p>See the example code in {@link PlaybackExceptionRecoveryListFactory}</p>
    *
    * @return the default list of playback error handlers.
    */
-  protected List<PlaybackExceptionRecovery> getDefaultPlaybackExceptionHandlers() {
+  public List<PlaybackExceptionRecovery> getDefaultPlaybackExceptionHandlers() {
     ArrayList<PlaybackExceptionRecovery> handlers = new ArrayList<>(Arrays.asList(
         new AudioTrackInitPlayerErrorHandler(this),
         new BehindLiveWindowExceptionRecovery(this),
@@ -598,7 +622,11 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
     if (logger != null) {
       player.addAnalyticsListener(logger);
     }
-    playerErrorHandler = createPlayerErrorHandler();
+    playerErrorHandler =
+        new DefaultExoPlayerErrorHandler(
+            playbackExceptionRecoveryListFactory.getPlaybackExceptionRecoveryList(this),
+            player,
+            playerErrorHandlerListener);
     playerErrorHandler.setCurrentTrackSelector(trackSelector);
     player.addListener(playerErrorHandler);
     player.setPlayWhenReady(playWhenReady);

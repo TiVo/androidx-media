@@ -334,20 +334,9 @@ public class ViewActivity extends AppCompatActivity {
     }
 
     SimpleExoPlayerFactory.Builder builder = new SimpleExoPlayerFactory.Builder(context)
-            .setPlaybackErrorHandlerListener(new PlaybackErrorHandlerCallback())
-            .setEventListenerFactory(new SimpleExoPlayerFactory.EventListenerFactory() {
-              @Override
-              public AnalyticsListener createEventLogger(MappingTrackSelector trackSelector) {
-                return new ExtendedEventLogger(trackSelector);
-              }
-            })
-           .setSourceFactoriesCreatedCallback(new FactoriesCreatedCallback())
-           .setTrackSelectorFactory(new SimpleExoPlayerFactory.TrackSelectorFactory() {
-             @Override
-             public DefaultTrackSelector createTrackSelector(Context context, ExoTrackSelection.Factory trackSelectionFactory) {
-                return new SyncVideoTrackSelector(context, trackSelectionFactory);
-             }
-           });
+        .setPlaybackErrorHandlerListener(new PlaybackErrorHandlerCallback())
+        .setSourceFactoriesCreatedCallback(new FactoriesCreatedCallback())
+        .setTrackSelectorFactory((contextArg, trackSelectionFactory) -> new SyncVideoTrackSelector(contextArg, trackSelectionFactory));
 
     if (isSMIPlayer) {
       builder.setAlternatePlayerFactory(new SimpleExoPlayerFactory.AlternatePlayerFactory() {
