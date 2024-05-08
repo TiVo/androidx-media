@@ -18,7 +18,6 @@ import com.google.android.exoplayer2.ui.PlayerView;
 import com.google.android.exoplayer2.util.Log;
 import com.tivo.exoplayer.library.source.ExtendedMediaSourceFactory;
 import java.util.UUID;
-import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
 
 /**
  * Encapsulates access to the IMA SDK For Android ExoPlayer integration in a single simple to use object
@@ -173,7 +172,11 @@ public class ImaSDKHelper {
 
     /**
      * Same set of errors as would be reported by {@link AdErrorEvent.AdErrorListener} but
-     * with an identifier for the VAST request that produced the event
+     * with an identifier for the VAST request that produced the event.
+     *
+     * <p>Note an error any single ad, in an ad POD, may report an error but playback
+     * will simply transition to the next ad, ad playback does not stop. Eventually,
+     * {@link #onAdsCompleted(AdsConfiguration, boolean)} is always called.
      *
      * @param playingAd AdsConfiguration for the VAST request that triggered error
      * @param adErrorEvent same as reported by AdErrorEvent.AdErrorListener
@@ -191,42 +194,118 @@ public class ImaSDKHelper {
 
     /**
      * Single callback for completion of VAST request.  This is called after
-     * a call to {@link #onAdError(AdsConfiguration, AdErrorEvent)} )} or the final call to
-     * {@link #onAdEvent(AdsConfiguration, AdEvent)}
+     * the final call to {@link #onAdEvent(AdsConfiguration, AdEvent)} ({@link AdEvent.AdEventType#ALL_ADS_COMPLETED})
+     * or if the ad playback is aborted for any reason.
      * 
      * @param completedAd - the identifier of the completing ad
-     * @param adErrorEvent - an AdErrorEvent if the ad completed because of an error
+     * @param wasAborted - if ad playback was canceled or aborted before final AdEvent delivered
      */
-    void onAdsCompleted(AdsConfiguration completedAd, @Nullable AdErrorEvent adErrorEvent);
+    void onAdsCompleted(AdsConfiguration completedAd, boolean wasAborted);
   }
 
   /**
    * Adapts {@link AdEvent.AdEventListener} and {@link AdErrorEvent.AdErrorListener} to 
    * an {@link AdProgressListener}.
    */
-  private class AdListenerAdapter implements AdErrorEvent.AdErrorListener, AdEvent.AdEventListener {
+  private class AdListenerAdapter
+      implements AdErrorEvent.AdErrorListener, AdEvent.AdEventListener, Player.Listener {
     private final AdProgressListener delegate;
+    private @Nullable Player currentPlayer;
+    private @Nullable AdEvent delayedPause;
+    private boolean isTrailer;
+    private boolean isStartedReceived;
 
     private AdListenerAdapter(AdProgressListener delegate) {
       this.delegate = delegate;
     }
 
+    // AdErrorListener
+
     @Override
     public void onAdError(AdErrorEvent adErrorEvent) {
+      resetStateOnAdChanged();
       delegate.onAdError(currentPlayingAd, adErrorEvent);
     }
 
+    // AdEventListener
+
     @Override
     public void onAdEvent(AdEvent adEvent) {
-      delegate.onAdEvent(currentPlayingAd, adEvent);
-      if (adEvent.getType() == AdEvent.AdEventType.ALL_ADS_COMPLETED) {
-        delegate.onAdsCompleted(currentPlayingAd, null);
-        currentPlayingAd = null;
+      switch (adEvent.getType()) {
+        case STARTED:
+          isStartedReceived = true;
+          removePlayerListener();
+          delegate.onAdEvent(currentPlayingAd, adEvent);
+          break;
+
+        case PAUSED:
+          if (isShouldDelayPauseEvent()) {
+            delayedPause = adEvent;
+          } else if (delayedPause == null) {
+            delegate.onAdEvent(currentPlayingAd, adEvent);
+          } else {
+            throw new IllegalStateException("onAdEvent() second PAUSE with delayed PAUSE pending");
+          }
+          break;
+
+        case ALL_ADS_COMPLETED:
+          delegate.onAdEvent(currentPlayingAd, adEvent);
+          delegate.onAdsCompleted(currentPlayingAd, false);
+          currentPlayingAd = null;
+          break;
+
+        default:
+          delegate.onAdEvent(currentPlayingAd, adEvent);
+          break;
+      }
+    }
+
+    // Player.Listener
+
+    @Override
+    public void onPlaybackStateChanged(@Player.State int playbackState) {
+      Log.d(TAG, "onPlaybackStateChanged() - state: " + playbackState);
+      if (isDelayedPauseEventDeliverable(playbackState)) {
+        delegate.onAdEvent(currentPlayingAd, delayedPause);
+        delayedPause = null;
+      }
+
+    }
+
+    private boolean isShouldDelayPauseEvent() {
+      return currentPlayer != null && isTrailer && !isStartedReceived;
+    }
+
+    private boolean isDelayedPauseEventDeliverable(@Player.State int playbackState) {
+      return playbackState == Player.STATE_READY && delayedPause != null;
+    }
+
+    private void setPlayer(Player player, boolean isTrailer) {
+      resetStateOnAdChanged();
+      this.isTrailer = isTrailer;
+      if (isTrailer) {
+        currentPlayer = player;
+        currentPlayer.addListener(this);
+      }
+    }
+
+    private void resetStateOnAdChanged() {
+      removePlayerListener();
+      delayedPause = null;
+      isTrailer = false;
+      isStartedReceived = false;
+    }
+
+    private void removePlayerListener() {
+      if (currentPlayer != null) {
+        currentPlayer.removeListener(this);
+        currentPlayer = null;
       }
     }
 
     private void adPlaybackAborted() {
-      delegate.onAdsCompleted(currentPlayingAd, null);
+      resetStateOnAdChanged();
+      delegate.onAdsCompleted(currentPlayingAd, true);
     }
   }
 
@@ -256,9 +335,13 @@ public class ImaSDKHelper {
     adsLoaderBuilder = new ImaAdsLoader.Builder(context);
   }
 
-  private void setupAdsLoader(Player currentPlayer) {
+  private void setupAdsLoader(Player currentPlayer, boolean isTrailer) {
     if (currentAdsLoader != null) {
       currentAdsLoader.release();
+    }
+
+    if (adListenerAdapter != null) {
+      adListenerAdapter.setPlayer(currentPlayer, isTrailer);
     }
 
     currentAdsLoader = adsLoaderBuilder
@@ -326,12 +409,12 @@ public class ImaSDKHelper {
    * @return {@link MediaItem.Builder} ready to call build() and pass to player
    */
   public MediaItem.Builder createTrailerMediaItem(Player player, AdsConfiguration adsConfiguration) {
-    setupAdsLoader(player);
-    if (adsConfiguration.adsId == null) {
-      adsConfiguration = new AdsConfiguration(adsConfiguration.adTagUri, UUID.randomUUID());
-    }
     if (currentPlayingAd != null && adListenerAdapter != null) {
       adListenerAdapter.adPlaybackAborted();
+    }
+    setupAdsLoader(player, true);
+    if (adsConfiguration.adsId == null) {
+      adsConfiguration = new AdsConfiguration(adsConfiguration.adTagUri, UUID.randomUUID());
     }
     currentPlayingAd = adsConfiguration;
     return new MediaItem.Builder()
@@ -371,12 +454,12 @@ public class ImaSDKHelper {
       Player player,
       @NonNull MediaItem.Builder builder,
       AdsConfiguration adsConfiguration) {
-    setupAdsLoader(player);   // TODO, investigate keeping the currentAdsLoader to note what ads have already played
-    if (adsConfiguration.adsId == null) {
-      adsConfiguration = new AdsConfiguration(adsConfiguration.adTagUri, UUID.randomUUID());
-    }
     if (currentPlayingAd != null && adListenerAdapter != null) {
       adListenerAdapter.adPlaybackAborted();
+    }
+    setupAdsLoader(player, false);   // TODO, investigate keeping the currentAdsLoader to note what ads have already played
+    if (adsConfiguration.adsId == null) {
+      adsConfiguration = new AdsConfiguration(adsConfiguration.adTagUri, UUID.randomUUID());
     }
     currentPlayingAd = adsConfiguration;
     builder.setAdTagUri(adsConfiguration.adTagUri, adsConfiguration.adsId);

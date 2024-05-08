@@ -87,6 +87,7 @@ import com.tivo.exoplayer.library.util.AccessibilityHelper;
 import java.math.BigInteger;
 import java.security.SecureRandom;
 import java.util.ArrayList;
+import java.util.Formatter;
 import java.util.Map;
 import java.util.Random;
 import java.util.UUID;
@@ -421,9 +422,12 @@ public class ViewActivity extends AppCompatActivity {
     }
     setFocusChangeListeners(activityView);
 
+    ImaSDKHelper.DEBUG_MODE_ENABLED = true;
 
     imaSdkHelper = new ImaSDKHelper.Builder(playerView, exoPlayerFactory.getMediaSourceFactory(), getApplicationContext())
         .setAdProgressListener(new ImaSDKHelper.AdProgressListener() {
+          private boolean isSeenStart;
+
           @Override
           public void onAdError(ImaSDKHelper.AdsConfiguration playingAd, AdErrorEvent adErrorEvent) {
             Log.d(TAG, "IMA Error: " + adErrorEvent.getError().getMessage() + " adsId: " + playingAd.adsId);
@@ -438,12 +442,32 @@ public class ViewActivity extends AppCompatActivity {
                 break;
 
               case PAUSED:
+                Log.d(TAG, "IMA Event at " + deltaTime + "(ms) " + eventType + " Ad: " + adEvent.getAd());
+                boolean startedPaused = !getIntent().getBooleanExtra(START_PLAYING, true);
+                if (startedPaused && ! isSeenStart) {
+                  AlertDialog alertDialog = new AlertDialog.Builder(ViewActivity.this).create();
+                  alertDialog.setTitle("Ad Paused");
+                  StringBuilder message = new StringBuilder();
+                  Formatter formatter = new Formatter(message);
+                  formatter.format("Ad started in paused state, time to ready %2.3f seconds",  deltaTime / 1000.0f);
+                  alertDialog.setMessage(message.toString());
+                  alertDialog.setButton(AlertDialog.BUTTON_POSITIVE, "OK", (dialog, which) -> {
+                    player.setPlayWhenReady(true);
+                    dialog.dismiss();
+                  });
+                  alertDialog.setButton(AlertDialog.BUTTON_NEGATIVE, "Cancel", (dialog, which) -> dialog.dismiss());
+                  alertDialog.show();
+                }
+                break;
+
               case STARTED:
+                isSeenStart = true;
               case RESUMED:
                 Log.d(TAG, "IMA Event at " + deltaTime + "(ms) " + eventType + " Ad: " + adEvent.getAd());
                 break;
 
               case LOADED:
+                isSeenStart = false;
                 Log.d(TAG, "IMA Event at " + deltaTime + "(ms) " + eventType + " Ad Id: " + adEvent.getAd().getAdId());
                 break;
 
@@ -456,11 +480,11 @@ public class ViewActivity extends AppCompatActivity {
                     + " adsId: " + playingAd.adsId
                 );
             }
-        }
+          }
 
           @Override
-          public void onAdsCompleted(ImaSDKHelper.AdsConfiguration completedAd, @Nullable AdErrorEvent adErrorEvent) {
-            Log.d(TAG, "IMA Event: All Ads completed - adsId: " + completedAd.adsId);
+          public void onAdsCompleted(ImaSDKHelper.AdsConfiguration completedAd, boolean wasAborted) {
+            Log.d(TAG, "IMA Event: All Ads completed - adsId: " + completedAd.adsId + " aborted: " + wasAborted);
           }
         })
         .build();
