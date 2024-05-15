@@ -1,7 +1,10 @@
 package com.tivo.exoplayer.library.ima;
 
+import static com.google.ads.interactivemedia.v3.api.UiElement.*;
+
 import android.content.Context;
 import android.net.Uri;
+import android.view.View;
 import android.view.ViewGroup;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -11,12 +14,17 @@ import com.google.ads.interactivemedia.v3.api.AdEvent;
 import com.google.ads.interactivemedia.v3.api.AdsLoader;
 import com.google.ads.interactivemedia.v3.api.ImaSdkFactory;
 import com.google.ads.interactivemedia.v3.api.ImaSdkSettings;
+import com.google.ads.interactivemedia.v3.api.UiElement;
 import com.google.android.exoplayer2.MediaItem;
 import com.google.android.exoplayer2.Player;
 import com.google.android.exoplayer2.ext.ima.ImaAdsLoader;
 import com.google.android.exoplayer2.ui.PlayerView;
 import com.google.android.exoplayer2.util.Log;
 import com.tivo.exoplayer.library.source.ExtendedMediaSourceFactory;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -45,6 +53,7 @@ public class ImaSDKHelper {
 
   private @Nullable AdsConfiguration currentPlayingAd;
   private @Nullable AdListenerAdapter adListenerAdapter;
+  private boolean hideAdControlsForTrailer;
 // True when deprecated methods removed
 //  private @MonotonicNonNull AdListenerAdapter adListenerAdapter;
 
@@ -54,6 +63,7 @@ public class ImaSDKHelper {
     private final Context context;
     private boolean warmStartImaSDK;
     private @Nullable AdProgressListener adProgressListener;
+    private boolean hideAdControlsForTrailer;
 
     public Builder(PlayerView playerView, ExtendedMediaSourceFactory mediaSourceFactory, Context context) {
       sdkHelper = new ImaSDKHelper(playerView, mediaSourceFactory, context);
@@ -114,6 +124,21 @@ public class ImaSDKHelper {
     }
 
     /**
+     * This is a work-around for trailers authored with VAST elements we don't want to show
+     * (like Why This Ad button).  It simply hides the entire {@link PlayerView#getAdViewGroup()}
+     *
+     * <p>Note, this is not a clean way to accomplish this, the side affects are unknown.  The best
+     * solution is proper authoring</p>
+     *
+     * @param hideAdControlsForTrailer -- set to true to enable the workaround, default is false
+     * @return {@link Builder} for chaining.
+     */
+    public Builder setHideAdControlsForTrailer(boolean hideAdControlsForTrailer) {
+      this.hideAdControlsForTrailer = hideAdControlsForTrailer;
+      return this;
+    }
+
+    /**
      * Builds the {@link ImaSDKHelper}, this only needs to be done once in the Activity's
      * create method after creating the {@link PlayerView} and {@link ExtendedMediaSourceFactory}
      *
@@ -133,6 +158,7 @@ public class ImaSDKHelper {
         sdkHelper.adsLoaderBuilder.setAdErrorListener(listenerAdapter);
         sdkHelper.adsLoaderBuilder.setAdEventListener(listenerAdapter);
       }
+      sdkHelper.hideAdControlsForTrailer = hideAdControlsForTrailer;
       return sdkHelper;
     }
 
@@ -340,12 +366,20 @@ public class ImaSDKHelper {
       currentAdsLoader.release();
     }
 
+    if (hideAdControlsForTrailer) {
+      playerView.getAdViewGroup().setVisibility(isTrailer ? View.INVISIBLE : View.VISIBLE);
+    }
+
     if (adListenerAdapter != null) {
       adListenerAdapter.setPlayer(currentPlayer, isTrailer);
     }
 
+    Set<UiElement> adUiElements = isTrailer
+        ? Collections.emptySet()
+        : new HashSet<>(Arrays.asList(AD_ATTRIBUTION, COUNTDOWN));
     currentAdsLoader = adsLoaderBuilder
         .setDebugModeEnabled(DEBUG_MODE_ENABLED)
+        .setAdUiElements(adUiElements)
         .build();
     currentAdsLoader.setPlayer(currentPlayer);
 
