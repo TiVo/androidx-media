@@ -938,6 +938,8 @@ public class ViewActivity extends AppCompatActivity {
     if (vastUrlString != null) {
       Log.d(TAG, "adding VAST URL: " + vastUrlString);
       vastUrl = Uri.parse(vastUrlString);
+    } else {  // Else there are no ads in the play request, reset the IMA SDK UI
+      imaSdkHelper.reset();
     }
 
     playbacks.clear();

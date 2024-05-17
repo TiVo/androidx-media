@@ -405,6 +405,27 @@ public class ImaSDKHelper {
   }
 
   /**
+   * Resets state, cleaning up any UiElements left behind by the IMA SDK if playback
+   * of an ad was terminated while ad playback was in progress.   This should have been
+   * done by the {@link ImaAdsLoader} but unfortunately it is left to the caller.
+   *
+   * <p>This method should be called prior to any playback that does not use ads, that
+   * is does not call {@link #createTrailerMediaItem(Player, AdsConfiguration)} or
+   * {@link #includeAdsWithMediaItem(Player, MediaItem.Builder, AdsConfiguration)} prior to
+   * calling playing the {@link MediaItem}</p>
+   */
+  public void reset() {
+    if (currentAdsLoader != null) {
+      currentAdsLoader.release();
+    }
+    playerView.getAdViewGroup().removeAllViews();
+
+    if (hideAdControlsForTrailer) {
+      playerView.getAdViewGroup().setVisibility(View.VISIBLE);
+    }
+  }
+
+  /**
    * Returns the unique id of the current playing ad or null if no ad is playing.
    *
    * <p>Note {@link Player#isPlayingAd()} will also be true once this ad has
@@ -500,13 +521,14 @@ public class ImaSDKHelper {
   }
 
   /**
-   * Call release() in our Activity.onStop() method then drop the
+   * Call this method in your Activity.onStop() method then drop the
    * reference.
+   *
+   * <p>Similar to {@link #reset()} except, after calling this method the caller must drop
+   * the reference to this {@link ImaSDKHelper} and recreate it again in Activity.onStart() or onRestart()</p>
    */
   public void release() {
-    if (currentAdsLoader != null) {
-      currentAdsLoader.release();
-    }
+    reset();
     currentAdsLoader = null;
   }
 }
