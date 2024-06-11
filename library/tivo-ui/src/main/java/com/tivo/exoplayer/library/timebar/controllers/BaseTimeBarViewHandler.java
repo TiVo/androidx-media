@@ -526,7 +526,7 @@ public abstract class BaseTimeBarViewHandler implements DualModeTimeBar.KeyEvent
         long pixelOffset = (long) (position * pixelsPerMs);
         LinearLayout.LayoutParams lp = (LinearLayout.LayoutParams) currentTimeHolder.getLayoutParams();
         long xCenter = currentTimeHolder.getWidth() / 2;
-        Log.d(TAG, "onProgressUpdate - position: " + position + " duration: " + durationMs + " width: " + width + " timeWidth: " + currentTime.getWidth() + " xCenter: " + xCenter + " pixelOffset: " + pixelOffset);
+//        Log.d(TAG, "onProgressUpdate - position: " + position + " duration: " + durationMs + " width: " + width + " timeWidth: " + currentTime.getWidth() + " xCenter: " + xCenter + " pixelOffset: " + pixelOffset);
         if (pixelOffset > xCenter) {
           lp.leftMargin = (int) ((int) pixelOffset - xCenter);
         } else {

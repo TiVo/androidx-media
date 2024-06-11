@@ -392,16 +392,16 @@ public class GeekStatsOverlay implements AnalyticsListener, Runnable {
       if (! timeline.isEmpty()) {
         int windowIndex = player.getCurrentWindowIndex();
         Timeline.Window currentWindow = timeline.getWindow(windowIndex, new Timeline.Window());
-        if (currentWindow.windowStartTimeMs == C.TIME_UNSET) {    // VOD
-          formatter.format("%1$tT.%1$tL (%1$d)", position);
+        if (currentWindow.windowStartTimeMs == C.TIME_UNSET || !currentWindow.isDynamic ) {    // VOD or ended Socu
+          float positionSeconds = position / 1000.0f;
+          long positionSecondsTruncated = (long) positionSeconds;
+          formatter.format("%d:%02d:%02d (%d)",
+              positionSecondsTruncated / 3600,
+              (positionSecondsTruncated % 3600) / 60,
+              positionSecondsTruncated % 60,
+              position);
         } else if (currentWindow.isLive()) {
           formatter.format("%1$tF %1$tT.%1$tL [live - %3$.3f] (%2$d)",
-              currentWindow.windowStartTimeMs + position,
-              position,
-              player.getCurrentLiveOffset() / 1000.0
-          );
-        } else {
-          formatter.format("%1$tF %1$tT.%1$tL [ended live] (%2$d)",
               currentWindow.windowStartTimeMs + position,
               position,
               player.getCurrentLiveOffset() / 1000.0
