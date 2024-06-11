@@ -180,9 +180,7 @@ public final class H265Reader implements ElementaryStreamReader {
   @Override
   public void endOfStream() {
     if (sampleReader != null) {
-      if (sampleReader.endOfStream(hasOutputFormat, totalBytesWritten)) {
-        hasOutputFormat = false;  // don't write again till after next AUD read
-      }
+      sampleReader.endOfStream(hasOutputFormat, totalBytesWritten);
     }
   }
 
@@ -478,6 +476,9 @@ public final class H265Reader implements ElementaryStreamReader {
     private long samplePosition;
     private long sampleTimeUs;
     private boolean sampleIsKeyframe;
+    // Indicates that the actual sample has been released in the endOfStream() handler
+    // as opposed to been pushed by the next NAL_UNIT_TYPE_AUD or forced by detectAccessUnits
+    private boolean sampleReleasedByEndOfStream;
 
     public SampleReader(TrackOutput output) {
       this.output = output;
@@ -529,27 +530,21 @@ public final class H265Reader implements ElementaryStreamReader {
       }
     }
 
-    public boolean endOfStream(boolean hasOutputFormat, long totalBytesWritten) {
+    public void endOfStream(boolean hasOutputFormat, long totalBytesWritten) {
       // If we're still holding on to the first iframe sample output it now.  This allows for an
       // iFrame only segment that ends with a single VCL NUT that is complete (has format, prefix, and is
       // a key frame
       sampleIsKeyframe =  readingPrefix && isFirstSlice && nalUnitHasKeyframeData;
       boolean shouldOutputSample = hasOutputFormat
-          && readingSample
-          && sampleIsKeyframe;
+              && readingSample
+              && sampleIsKeyframe;
       if (shouldOutputSample) {
-        // Add the 'trailing_zero_8bits' to the end of the access unit, as specified by
-        // ISO/IEC H.256 202108-1 Annex B.1.2) after the nal_unit data.  Here we are falling
-        // out of the "while( more_data_in_byte_stream( ) &&..." loop without seeing another NAL
-        // start
-        output.sampleData(new ParsableByteArray(new byte[] {0x00}), 1);   // zero_byte
-        totalBytesWritten++;
-        int accessUnitLength = (int) (totalBytesWritten - samplePosition);
-        output.sampleMetadata(sampleTimeUs, C.BUFFER_FLAG_KEY_FRAME, accessUnitLength, 0, null);
+        output.sampleMetadata(sampleTimeUs, C.BUFFER_FLAG_KEY_FRAME,
+                (int)(totalBytesWritten - samplePosition), 0, null);
+
+        sampleReleasedByEndOfStream = true;
         readingSample = false;
       }
-      return shouldOutputSample;
-
     }
 
     public void endNalUnit(long position, int offset, boolean hasOutputFormat) {
@@ -559,11 +554,12 @@ public final class H265Reader implements ElementaryStreamReader {
         readingPrefix = false;
       } else if (isFirstPrefixNalUnit || isFirstSlice) {
         // This NAL unit is at the start of a new sample (access unit).
-        if (hasOutputFormat && readingSample) {
+        if (hasOutputFormat && readingSample && !sampleReleasedByEndOfStream) {
           // Output the sample ending before this NAL unit.
           int nalUnitLength = (int) (position - nalUnitPosition);
           outputSample(offset + nalUnitLength);
         }
+        sampleReleasedByEndOfStream = false;
         samplePosition = nalUnitPosition;
         sampleTimeUs = nalUnitTimeUs;
         sampleIsKeyframe = nalUnitHasKeyframeData;

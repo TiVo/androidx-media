@@ -131,8 +131,226 @@ public class TsExtractorHlsTest {
     trackOutput.assertSampleCount(1);
     assertThat(trackOutput.getSampleTimeUs(0)).isEqualTo(firstSampleTimestampUs);
     byte[] sampleData = trackOutput.getSampleData(0);
-    assertThat(sampleData.length).isEqualTo(245324);
-    assertThat(Arrays.hashCode(sampleData)).isEqualTo(0x33B5B32E);
+    assertThat(sampleData.length).isEqualTo(245323);
+    assertThat(Arrays.hashCode(sampleData)).isEqualTo(0x4D1DE20C);
+  }
+
+  @Test
+  public void consumeThreeH264IFrames() throws IOException {
+    TsPayloadReader.Factory factory = new DefaultTsPayloadReaderFactory();
+    TsExtractor tsExtractor =
+            new TsExtractor(TsExtractor.MODE_HLS, new TimestampAdjuster(0), factory);
+    FakeExtractorOutput output = new FakeExtractorOutput();
+    tsExtractor.init(output);
+
+    FakeExtractorInput initInput =
+            new FakeExtractorInput.Builder()
+                    .setData(
+                            TestUtil.getByteArray(
+                                    ApplicationProvider.getApplicationContext(),
+                                    "media/ts/sample_h264_Ateme_iframe_init.ts"))
+                    .setSimulateIOErrors(false)
+                    .setSimulateUnknownLength(false)
+                    .setSimulatePartialReads(false)
+                    .build();
+
+    PositionHolder seekPositionHolder = new PositionHolder();
+
+    int readResult = Extractor.RESULT_CONTINUE;
+    while (readResult != Extractor.RESULT_END_OF_INPUT) {
+      readResult = tsExtractor.read(initInput, seekPositionHolder);
+    }
+
+    FakeExtractorInput streamInput =
+            new FakeExtractorInput.Builder()
+                    .setData(
+                            TestUtil.getByteArray(
+                                    ApplicationProvider.getApplicationContext(),
+                                    "media/ts/sample_h264_Ateme_iframe_1.ts"))
+                    .setSimulateIOErrors(false)
+                    .setSimulateUnknownLength(false)
+                    .setSimulatePartialReads(false)
+                    .build();
+
+    readResult = Extractor.RESULT_CONTINUE;
+    while (readResult != Extractor.RESULT_END_OF_INPUT) {
+      readResult = tsExtractor.read(streamInput, seekPositionHolder);
+    }
+
+    FakeTrackOutput trackOutput = output.trackOutputs.get(27);
+    trackOutput.assertSampleCount(1);
+    assertThat(trackOutput.getSampleTimeUs(0)).isEqualTo(0);
+
+    streamInput =
+            new FakeExtractorInput.Builder()
+                    .setData(
+                            TestUtil.getByteArray(
+                                    ApplicationProvider.getApplicationContext(),
+                                    "media/ts/sample_h264_Ateme_iframe_2.ts"))
+                    .setSimulateIOErrors(false)
+                    .setSimulateUnknownLength(false)
+                    .setSimulatePartialReads(false)
+                    .build();
+
+    readResult = Extractor.RESULT_CONTINUE;
+    while (readResult != Extractor.RESULT_END_OF_INPUT) {
+      readResult = tsExtractor.read(streamInput, seekPositionHolder);
+    }
+
+    trackOutput.assertSampleCount(2);
+    assertThat(trackOutput.getSampleTimeUs(1)).isEqualTo(2002000);
+
+    streamInput =
+            new FakeExtractorInput.Builder()
+                    .setData(
+                            TestUtil.getByteArray(
+                                    ApplicationProvider.getApplicationContext(),
+                                    "media/ts/sample_h264_Ateme_iframe_3.ts"))
+                    .setSimulateIOErrors(false)
+                    .setSimulateUnknownLength(false)
+                    .setSimulatePartialReads(false)
+                    .build();
+
+    readResult = Extractor.RESULT_CONTINUE;
+    while (readResult != Extractor.RESULT_END_OF_INPUT) {
+      readResult = tsExtractor.read(streamInput, seekPositionHolder);
+    }
+
+    trackOutput.assertSampleCount(3);
+    assertThat(trackOutput.getSampleTimeUs(2)).isEqualTo(4004000);
+  }
+  @Test
+  public void consumeThreeH265IFrames() throws IOException {
+    TsPayloadReader.Factory factory = new DefaultTsPayloadReaderFactory();
+    TsExtractor tsExtractor =
+            new TsExtractor(TsExtractor.MODE_HLS, new TimestampAdjuster(0), factory);
+    FakeExtractorOutput output = new FakeExtractorOutput();
+    tsExtractor.init(output);
+
+    FakeExtractorInput initInput =
+            new FakeExtractorInput.Builder()
+                    .setData(
+                            TestUtil.getByteArray(
+                                    ApplicationProvider.getApplicationContext(),
+                                    "media/ts/sample_h265_Ateme_iframe_init.ts"))
+                    .setSimulateIOErrors(false)
+                    .setSimulateUnknownLength(false)
+                    .setSimulatePartialReads(false)
+                    .build();
+
+    PositionHolder seekPositionHolder = new PositionHolder();
+
+    int readResult = Extractor.RESULT_CONTINUE;
+    while (readResult != Extractor.RESULT_END_OF_INPUT) {
+      readResult = tsExtractor.read(initInput, seekPositionHolder);
+    }
+
+    FakeExtractorInput streamInput =
+            new FakeExtractorInput.Builder()
+                    .setData(
+                            TestUtil.getByteArray(
+                                    ApplicationProvider.getApplicationContext(),
+                                    "media/ts/sample_h265_Ateme_iframe_1.ts"))
+                    .setSimulateIOErrors(false)
+                    .setSimulateUnknownLength(false)
+                    .setSimulatePartialReads(false)
+                    .build();
+
+    readResult = Extractor.RESULT_CONTINUE;
+    while (readResult != Extractor.RESULT_END_OF_INPUT) {
+      readResult = tsExtractor.read(streamInput, seekPositionHolder);
+    }
+
+    FakeTrackOutput trackOutput = output.trackOutputs.get(36);
+    trackOutput.assertSampleCount(1);
+    long timeBaseUs = trackOutput.getSampleTimeUs(0);
+
+    streamInput =
+            new FakeExtractorInput.Builder()
+                    .setData(
+                            TestUtil.getByteArray(
+                                    ApplicationProvider.getApplicationContext(),
+                                    "media/ts/sample_h265_Ateme_iframe_2.ts"))
+                    .setSimulateIOErrors(false)
+                    .setSimulateUnknownLength(false)
+                    .setSimulatePartialReads(false)
+                    .build();
+
+    readResult = Extractor.RESULT_CONTINUE;
+    while (readResult != Extractor.RESULT_END_OF_INPUT) {
+      readResult = tsExtractor.read(streamInput, seekPositionHolder);
+    }
+
+    trackOutput.assertSampleCount(2);
+    assertThat(trackOutput.getSampleTimeUs(1)).isEqualTo(timeBaseUs + 6006000);
+
+    streamInput =
+            new FakeExtractorInput.Builder()
+                    .setData(
+                            TestUtil.getByteArray(
+                                    ApplicationProvider.getApplicationContext(),
+                                    "media/ts/sample_h265_Ateme_iframe_3.ts"))
+                    .setSimulateIOErrors(false)
+                    .setSimulateUnknownLength(false)
+                    .setSimulatePartialReads(false)
+                    .build();
+
+    readResult = Extractor.RESULT_CONTINUE;
+    while (readResult != Extractor.RESULT_END_OF_INPUT) {
+      readResult = tsExtractor.read(streamInput, seekPositionHolder);
+    }
+
+    trackOutput.assertSampleCount(3);
+    assertThat(trackOutput.getSampleTimeUs(2)).isEqualTo(timeBaseUs + 12012000);
+  }
+
+  @Test
+  public void consumeTwoH264Segments() throws IOException {
+    TsPayloadReader.Factory factory = new DefaultTsPayloadReaderFactory();
+    TsExtractor tsExtractor =
+            new TsExtractor(TsExtractor.MODE_HLS, new TimestampAdjuster(0), factory);
+    FakeExtractorOutput output = new FakeExtractorOutput();
+    tsExtractor.init(output);
+
+    FakeExtractorInput streamInput =
+            new FakeExtractorInput.Builder()
+                    .setData(
+                            TestUtil.getByteArray(
+                                    ApplicationProvider.getApplicationContext(),
+                                    "media/ts/sample_h264_Ateme_180_frames_1.ts"))
+                    .setSimulateIOErrors(false)
+                    .setSimulateUnknownLength(false)
+                    .setSimulatePartialReads(false)
+                    .build();
+
+    PositionHolder seekPositionHolder = new PositionHolder();
+    int readResult = Extractor.RESULT_CONTINUE;
+    while (readResult != Extractor.RESULT_END_OF_INPUT) {
+      readResult = tsExtractor.read(streamInput, seekPositionHolder);
+    }
+
+    FakeTrackOutput trackOutput = output.trackOutputs.get(27);
+    trackOutput.assertSampleCount(180);
+    long openingPTS = trackOutput.getSampleTimeUs(0);
+
+    streamInput =
+            new FakeExtractorInput.Builder()
+                    .setData(
+                            TestUtil.getByteArray(
+                                    ApplicationProvider.getApplicationContext(),
+                                    "media/ts/sample_h264_Ateme_180_frames_2.ts"))
+                    .setSimulateIOErrors(false)
+                    .setSimulateUnknownLength(false)
+                    .setSimulatePartialReads(false)
+                    .build();
+
+    readResult = Extractor.RESULT_CONTINUE;
+    while (readResult != Extractor.RESULT_END_OF_INPUT) {
+      readResult = tsExtractor.read(streamInput, seekPositionHolder);
+    }
+
+    trackOutput.assertSampleCount(360);
+    assertThat(trackOutput.getSampleTimeUs(180) - openingPTS).isEqualTo(6006000);
   }
 
   @Test
@@ -204,8 +422,8 @@ public class TsExtractorHlsTest {
     trackOutput.assertSampleCount(1);
     assertThat(trackOutput.getSampleTimeUs(0)).isEqualTo(33489);
     byte[] sampleData = trackOutput.getSampleData(0);
-    assertThat(sampleData.length).isEqualTo(34919);
-    assertThat(Arrays.hashCode(sampleData)).isEqualTo(0x5E499512);
+    assertThat(sampleData.length).isEqualTo(34918);
+    assertThat(Arrays.hashCode(sampleData)).isEqualTo(0xF28680AE);
 
     // Subsequent iFrame only segment loads, on the same TsExtractor, should only
     // commit their sample, that is the opening AUD does not double commit the previous iFrame Sample
@@ -236,8 +454,8 @@ public class TsExtractorHlsTest {
     trackOutput.assertSampleCount(2);
     assertThat(trackOutput.getSampleTimeUs(1)).isEqualTo(6039489);
     sampleData = trackOutput.getSampleData(1);
-    assertThat(sampleData.length).isEqualTo(35186);
-    assertThat(Arrays.hashCode(sampleData)).isEqualTo(0x6A29915D);
+    assertThat(sampleData.length).isEqualTo(35185);
+    assertThat(Arrays.hashCode(sampleData)).isEqualTo(0xD1E04F03);
   }
 
   @Test
@@ -289,8 +507,8 @@ public class TsExtractorHlsTest {
     trackOutput.assertSampleCount(1);
     assertThat(trackOutput.getSampleTimeUs(0)).isEqualTo(firstSampleTimestampUs);
     byte[] sampleData = trackOutput.getSampleData(0);
-    assertThat(sampleData.length).isEqualTo(46777);
-    assertThat(Arrays.hashCode(sampleData)).isEqualTo(0xC97875E7);
+    assertThat(sampleData.length).isEqualTo(46776);
+    assertThat(Arrays.hashCode(sampleData)).isEqualTo(0xAA71C7C9);
   }
 
   @Test
@@ -342,7 +560,7 @@ public class TsExtractorHlsTest {
     trackOutput.assertSampleCount(1);
     assertThat(trackOutput.getSampleTimeUs(0)).isEqualTo(firstSampleTimestampUs);
     byte[] sampleData = trackOutput.getSampleData(0);
-    assertThat(sampleData.length).isEqualTo(55162);
-    assertThat(Arrays.hashCode(sampleData)).isEqualTo(0x3C1C6695);
+    assertThat(sampleData.length).isEqualTo(55161);
+    assertThat(Arrays.hashCode(sampleData)).isEqualTo(0x1FCF80F3);
   }
 }

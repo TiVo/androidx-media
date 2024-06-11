@@ -172,10 +172,7 @@ public final class H264Reader implements ElementaryStreamReader {
   @Override
   public void endOfStream() {
     if (sampleReader != null) {
-      if (sampleReader.endOfStream(hasOutputFormat, totalBytesWritten)) {
-        randomAccessIndicator = false;
-        hasOutputFormat = false;  // don't write again till after next AUD read
-      }
+      sampleReader.endOfStream(hasOutputFormat, totalBytesWritten);
     }
   }
 
@@ -302,6 +299,9 @@ public final class H264Reader implements ElementaryStreamReader {
     private long samplePosition;
     private long sampleTimeUs;
     private boolean sampleIsKeyframe;
+    // Indicates that the actual sample has been released in the endOfStream() handler
+    // as opposed to been pushed by the next NAL_UNIT_TYPE_AUD or forced by detectAccessUnits
+    private boolean sampleReleasedByEndOfStream;
 
     public SampleReader(
         TrackOutput output, boolean allowNonIdrKeyframes, boolean detectAccessUnits) {
@@ -491,10 +491,11 @@ public final class H264Reader implements ElementaryStreamReader {
       if (nalUnitType == NAL_UNIT_TYPE_AUD
           || (detectAccessUnits && sliceHeader.isFirstVclNalUnitOfPicture(previousSliceHeader))) {
         // If the NAL unit ending is the start of a new sample, output the previous one.
-        if (hasOutputFormat && readingSample) {
+        if (hasOutputFormat && readingSample && !sampleReleasedByEndOfStream) {
           int nalUnitLength = (int) (position - nalUnitStartPosition);
           outputSample(offset + nalUnitLength);
         }
+        sampleReleasedByEndOfStream = false;
         samplePosition = nalUnitStartPosition;
         sampleTimeUs = nalUnitTimeUs;
         sampleIsKeyframe = false;
@@ -511,21 +512,21 @@ public final class H264Reader implements ElementaryStreamReader {
     /**
      *
      * @param hasOutputFormat Output format of the current sample
-     * @param totalBytesWritten The size of the current sample
-     * @return true if the current sample was output
      */
-    public boolean endOfStream(boolean hasOutputFormat, long totalBytesWritten) {
+    public void endOfStream(boolean hasOutputFormat, long totalBytesWritten) {
       // If we're still holding on to the first iframe sample output it now.
       // This is allows iframe track trick play to download a single iframe per seek.
       boolean shouldOutputSample = hasOutputFormat
           && readingSample
           && (sampleIsKeyframe || nalUnitType == NAL_UNIT_TYPE_IDR
-            || (!detectAccessUnits && nalUnitType == NAL_UNIT_TYPE_NON_IDR ))
-          && (samplePosition == 1); // it's the only sample in the stream
+            || (!detectAccessUnits && nalUnitType == NAL_UNIT_TYPE_NON_IDR ));
+
       if (shouldOutputSample) {
-        output.sampleMetadata(sampleTimeUs, C.BUFFER_FLAG_KEY_FRAME, (int)totalBytesWritten, 0, null);
+        output.sampleMetadata(sampleTimeUs, C.BUFFER_FLAG_KEY_FRAME,
+                (int)(totalBytesWritten - samplePosition), 0, null);
+
+        sampleReleasedByEndOfStream = true;
       }
-      return shouldOutputSample;
     }
 
     private void outputSample(int offset) {
