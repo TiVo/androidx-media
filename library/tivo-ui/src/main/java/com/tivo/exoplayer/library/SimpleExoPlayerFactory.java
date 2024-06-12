@@ -952,8 +952,8 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
    */
   public List<TrackInfo> getSelectableTrackInfoForTrackType(int trackType) {
     List<TrackInfo> availableTracks = Collections.emptyList();
-    if (trackSelector != null || player == null) {
-      availableTracks = getSelectableTrackInfoForTrackType(trackType, trackSelector, player);
+    if (trackSelector != null && player != null) {
+        availableTracks = getSelectableTrackInfoForTrackType(trackType, trackSelector, player);
     }
 
     return availableTracks;
