@@ -1919,6 +1919,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
         Pair<Object, Long> oldPositionZero = playbackInfo.timeline.getPeriodPosition(oldWindow, new Timeline.Period(), windowIndex, 0);
         Pair<Object, Long> newPositionZero = timeline.getPeriodPosition(newWindow, new Timeline.Period(), windowIndex, 0);
         periodPositionDeltaUs = oldPositionZero.second - newPositionZero.second;
+        if (periodPositionDeltaUs > 0) {
+          Log.d(TAG, "adjusting for dynamic to static period position jump, position delta " + C.usToMs(periodPositionDeltaUs) + "ms");
+        }
       }
     }
     return periodPositionDeltaUs;
