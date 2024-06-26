@@ -2,8 +2,8 @@ package com.google.android.exoplayer2.extractor.ts;
 
 import androidx.test.core.app.ApplicationProvider;
 
+import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.UnsupportedEncodingException;
 import java.util.Arrays;
 
 import org.junit.Test;
@@ -111,7 +111,6 @@ public class TsExtractorHlsTest {
 //    Dumper dumper = new Dumper();
 //    output.dump(dumper);
 //    System.out.print(dumper.toString());
-
     assertThat(output.numberOfTracks).isEqualTo(2);
     FakeTrackOutput trackOutput = output.trackOutputs.get(27);
     assertThat(trackOutput).isNotNull();
@@ -215,7 +214,6 @@ public class TsExtractorHlsTest {
     while (readResult != Extractor.RESULT_END_OF_INPUT) {
       readResult = tsExtractor.read(streamInput, seekPositionHolder);
     }
-
     trackOutput.assertSampleCount(3);
     assertThat(trackOutput.getSampleTimeUs(2)).isEqualTo(4004000);
   }
@@ -330,7 +328,9 @@ public class TsExtractorHlsTest {
     }
 
     FakeTrackOutput trackOutput = output.trackOutputs.get(27);
-    trackOutput.assertSampleCount(180);
+    final int samplesPerSegment = 180;
+    final int orphanedSamplesEachSegment = 1; // TODO - once AndroidX version of extractor library is used this should be 0
+    trackOutput.assertSampleCount(samplesPerSegment - orphanedSamplesEachSegment);
     long openingPTS = trackOutput.getSampleTimeUs(0);
 
     streamInput =
@@ -349,8 +349,8 @@ public class TsExtractorHlsTest {
       readResult = tsExtractor.read(streamInput, seekPositionHolder);
     }
 
-    trackOutput.assertSampleCount(360);
-    assertThat(trackOutput.getSampleTimeUs(180) - openingPTS).isEqualTo(6006000);
+    trackOutput.assertSampleCount((samplesPerSegment * 2 ) - orphanedSamplesEachSegment);
+    assertThat(trackOutput.getSampleTimeUs(samplesPerSegment) - openingPTS).isEqualTo(6006000);
   }
 
   @Test
@@ -503,6 +503,8 @@ public class TsExtractorHlsTest {
             .build();
     assertThat(actualFormat).isEqualTo(expectedFormat);
 
+    saveOutAsFiles(trackOutput);
+
     // One sample, with the Access Unit containing the IDR and associated NALU is present
     trackOutput.assertSampleCount(1);
     assertThat(trackOutput.getSampleTimeUs(0)).isEqualTo(firstSampleTimestampUs);
@@ -562,5 +564,21 @@ public class TsExtractorHlsTest {
     byte[] sampleData = trackOutput.getSampleData(0);
     assertThat(sampleData.length).isEqualTo(55161);
     assertThat(Arrays.hashCode(sampleData)).isEqualTo(0x1FCF80F3);
+  }
+
+  public static void saveOutAsFiles(FakeTrackOutput trackOutput) {
+    for (int i=0; i < trackOutput.getSampleCount(); i++) {
+      // File path to write the byte array
+      String filePath = "output-frame-" + i + ".h264";
+      byte[] sampleData = trackOutput.getSampleData(i);
+
+      // Write byte array to binary file
+      try (FileOutputStream fos = new FileOutputStream(filePath)) {
+        fos.write(sampleData);
+        System.out.println("Byte array has been written to the file successfully.");
+      } catch (IOException e) {
+        e.printStackTrace();
+      }
+    }
   }
 }
