@@ -1,25 +1,76 @@
 # Release notes #
 
-### 2.15.1-2.1-dev (not yet released)
+### 2.15.1-2.1 (2024-07-03)
 
 #### New Features
+
+* *Support for One Ad / Home Page Takeover* &mdash; Incorporated the Google IMA SDK including our `ImaSDKHelper` to simplify the interface to ExoPlayer's IMA Plugin.  The work is in [pull request 418](https://github.com/tivocorp/exoplayerprvt/pull/418), and also includes the following changes
+  * [b19a22166c -- Includes `ImaSDKHelper.reset()` method to remove UI leftovers](https://github.com/tivocorp/exoplayerprvt/commit/b19a22166c)
+  * [a808500c93 -- Hides the ad "COUNTDOWN" for trailer ads](https://github.com/tivocorp/exoplayerprvt/commit/a808500c93)
+  * [23e1674982 -- Reports IMA `PAUSED` only after `Player.STATE_READY`](https://github.com/tivocorp/exoplayerprvt/commit/23e1674982)
+  * [ff096f0bca -- The DefaultExoPlayerErrorHandler ingores errors in ad playback](https://github.com/tivocorp/exoplayerprvt/commit/ff096f0bca)
+  * [c7ba09d33f -- Updates ImaSDKHelper with new `ImaSDKHelper.AdProgressListener` API](https://github.com/tivocorp/exoplayerprvt/commit/c7ba09d33f)
+* *Widevine DRM Logging* &mdash; log errors for load errors and performance of DRM Proxy access, the AndriodX pull request for this is  [Adds load info to DrmSession...](https://github.com/androidx/media/pull/1134). Our changes for this (temporary) are in the Google Module Changes section
 
 #### Xperi Code Base Changes
 
 ##### Bug Fixes
 
+* **Velocix DASH SoCu Issue** &mdash; Fix for issue [WSIPCL-19084](https://jira.xperi.com/browse/WSIPCL-19084),  transition from dynamic to static MPD while playing a SoCu asset cases it to end early.  This is also reported in [AndroidX/media #1441](https://github.com/androidx/media/issues/1441).  See Google Module Changes section for our fix for this.
+* **Profile shift QoE off-by-one** &mdash;  [WSIPCL-19422](https://jira.xperi.com/browse/WSIPCL-19422) - fix issue where initial playback profile was counted as a profile change,[19684171c7 -- `PlaybackMetrics.getProfileShiftCount()` only shows changes](https://github.com/tivocorp/exoplayerprvt/commit/19684171c7)
+* **Exclude Trickplay frames from QoE presented count** &mdash; [07c0365208 -- Exclude Trickplay frames from the PlaybackMetrics videoFramesPresented metric](https://github.com/tivocorp/exoplayerprvt/commit/07c0365208)
+* **Video Freezes with Widevine** &mdash; fix for [PARTDEFECT-20000](https://jira.xperi.com/browse/PARTDEFECT-20000), the root cause of the issue was incorrect position reporting from the `AudioTrack` with Widevine playback would cause the player to think audio was buffered when it was not, see the Cherry-picks section for the commits.
+* **NPE In `getSelectableTrackInfoForTrackType()`** &mdash; this fix is for an API used by the mobile clients, the commit is [3c7faef](https://github.com/tivocorp/exoplayerprvt/commit/3c7faef7dd)
+* **Fix Excessive "timestamp out of range" logging** &mdash; The change  for [IPTV-30314](https://jira.xperi.com/browse/IPTV-30314), commit [48b8c704f3](https://github.com/tivocorp/exoplayerprvt/commit/48b8c704f3), works around the issue, fix to root cause (extractor) is comming next ExoPlayer release.
+
 ##### Other Changes
 
 - Update CONTRIBUTING-TIVO.md with instructions on regular releases.
+- Deprecate the library-tivo-ui `SimpleExoPlayerFactory` API's for playing a `URL`, this allows transititon to using `MediaItem`, done in support of Home Page Takeover and Widevine DRM Session Cachings.  The following commits describe the deprecations, these methods will be removed in the next .0 release.  Look at the `ViewActivity` for how to migrate to the new API's:
+  - [Factory method to set user-agent added](https://github.com/tivocorp/exoplayerprvt/commit/b108dbbb814a91413a2af00fce50d0f5abd6c9e3)
+  - [Migrates from URL's to `MediaItem` for starting playback](https://github.com/tivocorp/exoplayerprvt/commit/69d84032d7)
+  - [Allow setting HlsPlaylistParserFactory after create](https://github.com/tivocorp/exoplayerprvt/commit/b86f91a0e1)
+  - [ExtendedMediaSourceFactory makes VerimatrixDataSource a singleton](https://github.com/tivocorp/exoplayerprvt/commit/40a6dc1bba)
 
 #### Google Module Changes
 
 Section documents our cherry-picks or other unshared changes to Google libraries (core, dash, HLS, extractor, etc)
 
+##### CORE (library-core)
+
+* Our local fix for SoCu Bug ([AndroidX/media #1441](https://github.com/androidx/media/issues/1441))
+  * [8eea761596 -- Adds debug log for SoCu Position Shift](https://github.com/tivocorp/exoplayerprvt/commit/8eea761596)
+  * [c551a0299f -- Fix bug where start-over ends early for DASH](https://github.com/tivocorp/exoplayerprvt/commit/c551a0299f)
+
+* Increase the timeout for `MediaCodec.release()`
+  * [aa78069a35 -- Increase DEFAULT_RELEASE_TIMEOUT to 1 sec](https://github.com/tivocorp/exoplayerprvt/commit/aa78069a35)
+  
+* Local changes for logging DRM Session, these will be replaced in AndroidX with this pull request [Adds load info to DrmSession...](https://github.com/androidx/media/pull/1134).
+  
+  * [8b00d67d21 -- Only logs proxy url if debug level](https://github.com/tivocorp/exoplayerprvt/commit/8b00d67d21)
+  * [844a076715 -- Add logging of retries for DRM License](https://github.com/tivocorp/exoplayerprvt/commit/844a076715)
+  * [0d40809372 -- Logs license and provision request times](https://github.com/tivocorp/exoplayerprvt/commit/0d40809372)
+* Support custom DRM `LoadErrorHandlingPolicy`,  this has been merged as [AndroidX/Pull 1272](https://github.com/androidx/media/pull/1272), post AndroidX/Media version 1.4.
+
+
+##### HLS (library-hls)
+
+* Work around issue causing excessive "out of range" logging, bug [IPTV-30314](https://jira.xperi.com/browse/IPTV-30314).  Once the change to the library-extractor to fix the root cause is merged this change can be reverted:
+
+  * [48b8c704f3 -- Suppress excessive timestamp-out-of-range log messages](https://github.com/tivocorp/exoplayerprvt/commit/48b8c704f3)
+
+  
+
 ##### Cherry-pick and Back-port
 
 * From AndroidX/Media3 `main` branch
   * "Cherry-pick" commit  *Postpone AdTagLoader listener deregistration to receive final error* - [androidx/media#7cf2fd9](https://github.com/androidx/media/commit/7cf2fd9486b44301200c4d96908a6ba3aaaa3a6e) fix for bug  [andriodx/media#1334](https://github.com/androidx/media/issues/1334).   This allows playback errors during IMA SDK Ad playback to be reported as IMA events
+* Audio Hang Bug, our [pull request 425](https://github.com/tivocorp/exoplayerprvt/pull/425), the cherry-picked changes (from [r2.19.1](https://github.com/google/ExoPlayer/releases/tag/r2.19.1) and below) are:
+  * [Use current position code when checking if AudioTrack has pending data](https://github.com/google/ExoPlayer/commit/fe710871aad3e4e6b4e0798f1cf762d5ecfebedb)
+  * [Ensure getPlaybackHeadPosition isn't called if not needed](https://github.com/google/ExoPlayer/commit/4cf7d3c7acc7244bcbf2998f9fdb43c100ce51e1)
+  * [Reduce number of calls to AudioTrack.getPlaybackHeadPosition](https://github.com/google/ExoPlayer/commit/829b49d724ed220e7d58397dfdf97752aac73696)
+  * [Fix AudioTrackPositionTracker logic for playback speed adjustments](https://github.com/google/ExoPlayer/commit/4ede931c2a7ad11003194cb0ee638535ecab7f31)
+
 
 ### 2.15.1-2.0 (2024-01-30)
 

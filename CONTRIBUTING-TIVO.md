@@ -47,7 +47,7 @@ ExoPlayer is not a TiVo product, this is the mind set we want, the vast majority
 
 ### Public Changes ###
 To share code back with Google, use the workflow in [Making Public Changes](#making-public-changes).  These changes fall into the following categories:
- 
+
 * _Bug Fixes_ &mdash; The vast majority of what we will do.  These should first be documented and reproducible.  Follow Google's template, [bug.md](https://github.com/google/ExoPlayer/tree/release-v2/.github/ISSUE_TEMPLATE/bug.md).
 * _Extension Hooks_ &mdash; these are changes to the core of ExoPlayer that allow us to extend it or to add changes that may or may not be of interest to the community (proprietary DRM like VCAS).  An example is this change to enable VCAS (Commit [c4bb819](https://github.com/tivocorp/exoplayerprvt/commit/c4bb819192271a3650f6764e2c485738ce05081a)).  These are a long term liability if we cannot get the code to *upstream* so we should keep these to a minimum.
 * _Non-Proprietary Enhancements_ &mdash; new features for ExoPlayer, for example HLS I-Frame only playlist parsing. Here we follow Google's template, [feature_request.md](https://github.com/google/ExoPlayer/tree/release-v2/.github/ISSUE_TEMPLATE/feature_request.md).  For these it is important to document the design copiously and include Google early and often in the process.  As an example, look at the enhancement for i-Frame only playlist, [Issue 474](https://github.com/google/ExoPlayer/issues/474) 
@@ -155,12 +155,27 @@ The reported version is in two places in the ExoPlayer code:
 
 Both of these must be updated to the same number.  Specific steps are:
 
-1. Create a new topic branch, `t-update-version-maj.min.micro-patch`. Only patch should change for TiVo code change releases
-1. Update `ExoPlayerLibraryInfo.java` and `constants.gradle` (see above)
-1. Use git history (`git log --pretty=format:"%h %ad | %s%d [%an]" --graph --date=short release`) to update the [RELEASENOTES](https://github.com/tivocorp/exoplayerprvt/blob/release/RELEASENOTES.md), follow the pattern
-1. Submit the branch with a pull request, only these three files should be in the pull request
+1. Tag the `HEAD` of the release branch you are versioning, tag should be the current `-dev` version with the `-dev` suffix removed, eg. `releaseVersion = '2.15.1-2.1-dev'` will tag as `r2.15.1-2.1`  use an annotated tag, e.g.  
+    `````bash
+    git tag -a r2.15.1-2.1 -m "Release for streamer-1-20"
+    git push tivo-pvt r2.16.1-2.1
+    `````
+
+2. Create a new release update topic branch, `t-update-version-2.15.1-2.1`. for the file updates.
+
+3. Update `ExoPlayerLibraryInfo.java` and `constants.gradle` (see above)
+
+4. Use git history and highlight the significant new features and bug fixes to update the [RELEASENOTES](https://github.com/tivocorp/exoplayerprvt/blob/release/RELEASENOTES.md).  Follow the pattern in the RELEASENOTES file.   The command below logs the changes between two tags in markdown list format:
+
+    ```bash
+    git log --pretty=format:"* [%h -- %s](https://github.com/tivocorp/exoplayerprvt/commit/%h)" r2.15.1-2.0..r2.15.1-2.1
+    ```
+
+5. Submit the branch with a pull request, only these three files should be in the pull request
+
+6. Create a second branch, you can base it from the release update topic branch and in it update the  `ExoPlayerLibraryInfo.java` and `constants.gradle` in it to the **next** open version number as a dev version,  eg. `2.15.1-2.2-dev`.  This makes sure merges that follow the release don't tigger a build that overwrites the release artifact
 1. Once the pull request is complete, create a new release. Use [releases](https://github.com/tivocorp/exoplayerprvt/releases) 
-1. Verify the Jenkins build has run successfully and published the artifact
+1. Verify the Jenkins build has run successfully, for this check the [release branch commits](https://github.com/tivocorp/exoplayerprvt/commits/release/)  and follow the green check mark to the Jenkins build, it must have a succesful publish step.
 1. Update `//d-flash/clientcore/mainline/platform/video/video/lib/dependencies/android/gradle.properties` locally and verify client-core build.
 1. Code-collab and checkin this `gradle.properties`
 1. Notify the [`#exoplayer-dev`](https://xperi.slack.com/archives/CMDELMCUC) Slack group.
@@ -341,11 +356,10 @@ Rebase is required by the Google team for pull requests, it re-writes history in
 1. Rebase to `dev-v2`
   * same first two steps.
   * `git rebase upstream/dev-v2` 
-  
+
 The first (merge) will require you to resolve all the conflicts once, and keep history the same (an additional merge commit[s] will appear in your branch each time you bring in the changes in `dev-v2`
 
 The second, rebase, forces you to merge and continue (`git rebase --continue`) for **every** commit in your branch.  Basically what it does is reset the branch point for your branch to the current HEAD of `upstream/dev-v2` and guide you through re-writing all your patches (commits) to fix any conflicts.
-
 
 
 
