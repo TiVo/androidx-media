@@ -1,5 +1,17 @@
 # Release notes #
 
+### 2.15.1-2.2-dev (not yet released)
+
+#### New Features
+
+* ...
+
+#### Bug Fixes
+
+Section includes bugs fixed either in the Xperi code base (e.g. library-tivo-ui) or in the Google supplied portions of ExoPlayer.
+
+* Fix issue [PARTDEFECT-20789](https://jira.xperi.com/browse/PARTDEFECT-20789) - the root cause of this was an error in the `library-extactor` logic for MPEG-TS iFrame only segment sample commits to the sample queue.    Pull request is [Fixes in H264 and H265 TS extractors to commit I-frame sample upon EOS](https://github.com/tivocorp/exoplayerprvt/pull/430)
+
 ### 2.15.1-2.1 (2024-07-03)
 
 #### New Features
