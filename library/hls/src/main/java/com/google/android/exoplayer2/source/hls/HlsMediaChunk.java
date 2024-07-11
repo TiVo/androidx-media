@@ -33,6 +33,7 @@ import com.google.android.exoplayer2.source.hls.playlist.HlsMediaPlaylist;
 import com.google.android.exoplayer2.upstream.DataSource;
 import com.google.android.exoplayer2.upstream.DataSpec;
 import com.google.android.exoplayer2.util.Assertions;
+import com.google.android.exoplayer2.util.Log;
 import com.google.android.exoplayer2.util.ParsableByteArray;
 import com.google.android.exoplayer2.util.TimestampAdjuster;
 import com.google.android.exoplayer2.util.UriUtil;
@@ -275,6 +276,7 @@ import org.checkerframework.checker.nullness.qual.RequiresNonNull;
   private ImmutableList<Integer> sampleQueueFirstSampleIndices;
   private boolean extractorInvalidated;
   private boolean isPublished;
+  private static final String TAG = "HlsMediaChunk";
 
   private HlsMediaChunk(
       HlsExtractorFactory extractorFactory,
@@ -391,7 +393,9 @@ import org.checkerframework.checker.nullness.qual.RequiresNonNull;
     }
     maybeLoadInitData();
     if (!loadCanceled) {
-      if (!hasGapTag) {
+      if (hasGapTag) {
+        Log.i(TAG, "GAP segment - time: " + C.usToMs(startTimeUs) + " duration: " + C.usToMs(getDurationUs()) + "  format: " + Format.toLogString(trackFormat));
+      } else {
         loadMedia();
       }
       loadCompleted = !loadCanceled;
