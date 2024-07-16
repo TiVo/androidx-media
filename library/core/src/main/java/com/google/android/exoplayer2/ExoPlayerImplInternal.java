@@ -877,7 +877,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
   }
 
   private void attemptRendererErrorRecovery() throws ExoPlaybackException {
-    reselectTracksInternalAndSeek();
+    seekToCurrentPosition(/* sendDiscontinuity= */ true);
   }
 
   private void updatePlaybackPositions() throws ExoPlaybackException {
