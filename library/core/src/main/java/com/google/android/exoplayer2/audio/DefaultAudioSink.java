@@ -859,8 +859,6 @@ public final class DefaultAudioSink implements AudioSink {
       if (listener != null) {
         listener.onAudioSinkError(e);
       }
-      // Change to the audio capabilities supported by all the devices during the error recovery.
-      audioCapabilities = DEFAULT_AUDIO_CAPABILITIES;
       throw e;
     }
   }
@@ -965,8 +963,6 @@ public final class DefaultAudioSink implements AudioSink {
         listener.onAudioSinkError(e);
       }
       if (e.isRecoverable) {
-        // Change to the audio capabilities supported by all the devices during the error recovery.
-        audioCapabilities = DEFAULT_AUDIO_CAPABILITIES;
         throw e; // Do not delay the exception if it can be recovered at higher level.
       }
       writeExceptionPendingExceptionHolder.throwExceptionIfDeadlineIsReached(e);
