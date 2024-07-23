@@ -195,7 +195,7 @@ pipeline {
                 sh "./gradlew library-trickplay:${gradle_target}"
               } finally {
                 junit allowEmptyResults: true, testResults: 'library/trickplay/buildout/test-results/testReleaseUnitTest/TEST-*.xml'
-                junit allowEmptyResults: true, testResults: 'library/trickplay/tivo-ui/test-results/testReleaseUnitTest/TEST-*.xml'
+                junit allowEmptyResults: true, testResults: 'library/tivo-ui/buildout/test-results/testReleaseUnitTest/TEST-*.xml'
               }
             }
           }
