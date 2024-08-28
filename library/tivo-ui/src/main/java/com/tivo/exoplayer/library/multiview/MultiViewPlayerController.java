@@ -1,0 +1,95 @@
+package com.tivo.exoplayer.library.multiview;
+
+import android.content.Context;
+import android.util.Pair;
+import androidx.annotation.Nullable;
+import com.google.android.exoplayer2.C;
+import com.google.android.exoplayer2.DefaultLoadControl;
+import com.google.android.exoplayer2.ExoPlaybackException;
+import com.google.android.exoplayer2.MediaItem;
+import com.google.android.exoplayer2.SimpleExoPlayer;
+import com.google.android.exoplayer2.audio.AudioAttributes;
+import com.google.android.exoplayer2.source.TrackGroupArray;
+import com.google.android.exoplayer2.trackselection.ExoTrackSelection;
+import com.google.android.exoplayer2.trackselection.TrackSelector;
+import com.google.android.exoplayer2.ui.PlayerView;
+import com.tivo.exoplayer.library.SimpleExoPlayerFactory;
+import com.tivo.exoplayer.library.tracks.SyncVideoTrackSelector;
+
+/**
+ * Encapsulates a single {@link com.google.android.exoplayer2.ExoPlayer} and it's factory in the
+ * context of a set of players in a {@link MultiExoPlayerView}
+ */
+public class MultiViewPlayerController {
+
+  private final SimpleExoPlayerFactory exoPlayerFactory;
+  private boolean selected;
+
+  /**
+   * Manages ExoPlayer selected tracks for the players in the multiview set.
+   */
+  private class MultiViewTrackSelector extends SyncVideoTrackSelector {
+
+    public MultiViewTrackSelector(Context context, ExoTrackSelection.Factory trackSelectionFactory) {
+      super(context, trackSelectionFactory);
+    }
+
+    @Nullable
+    @Override
+    protected Pair<ExoTrackSelection.Definition, AudioTrackScore> selectAudioTrack(TrackGroupArray groups, int[][] formatSupport,
+        int mixedMimeTypeAdaptationSupports, Parameters params, boolean enableAdaptiveTrackSelection) throws ExoPlaybackException {
+      return MultiViewPlayerController.this.selected
+          ? super.selectAudioTrack(groups, formatSupport, mixedMimeTypeAdaptationSupports, params, enableAdaptiveTrackSelection)
+          : null;
+    }
+
+    private void selectionStateChanged() {
+      invalidate();
+    }
+  }
+
+  public MultiViewPlayerController(SimpleExoPlayerFactory.Builder builder, boolean selected) {
+    this.selected = selected;
+
+    builder.setTrackSelectorFactory((context, trackSelectionFactory) -> new MultiViewTrackSelector(context, trackSelectionFactory));
+
+    this.exoPlayerFactory = builder.build();
+  }
+
+  public void setSelected(boolean selected) {
+    if (selected != this.selected) {
+      TrackSelector trackSelector = exoPlayerFactory.getTrackSelector();
+      if (trackSelector instanceof MultiViewTrackSelector) {
+        MultiViewTrackSelector multiViewTrackSelector = (MultiViewTrackSelector) trackSelector;
+        multiViewTrackSelector.selectionStateChanged();
+      }
+    }
+    this.selected = selected;
+  }
+
+  public void handleStop() {
+    exoPlayerFactory.releasePlayer();
+  }
+
+  public void playMediaItem(boolean fastResync, MediaItem currentItem) {
+    TrackSelector trackSelector = exoPlayerFactory.getTrackSelector();
+    if (trackSelector instanceof SyncVideoTrackSelector) {
+      SyncVideoTrackSelector syncVideoTrackSelector = (SyncVideoTrackSelector) trackSelector;
+      syncVideoTrackSelector.setEnableTrackFiltering(fastResync);
+    }
+    exoPlayerFactory.playMediaItems(C.POSITION_UNSET, true, currentItem);
+  }
+
+  public SimpleExoPlayer createPlayer() {
+    DefaultLoadControl.Builder builder = new DefaultLoadControl.Builder();
+    builder.setBufferDurationsMs(
+        DefaultLoadControl.DEFAULT_MIN_BUFFER_MS,
+        DefaultLoadControl.DEFAULT_MAX_BUFFER_MS,
+        1000,   // Faster channel change
+        DefaultLoadControl.DEFAULT_BUFFER_FOR_PLAYBACK_AFTER_REBUFFER_MS);
+
+    SimpleExoPlayer player = exoPlayerFactory.createPlayer(true, false, builder);
+    player.setAudioAttributes(AudioAttributes.DEFAULT, false);
+    return player;
+  }
+}
