@@ -32,6 +32,7 @@ import java.util.Map;
 import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
 
 /** Default implementation of {@link DrmSessionManagerProvider}. */
+@RequiresApi(18)
 public final class DefaultDrmSessionManagerProvider implements DrmSessionManagerProvider {
 
   private final Object lock;
@@ -45,6 +46,7 @@ public final class DefaultDrmSessionManagerProvider implements DrmSessionManager
   @Nullable private HttpDataSource.Factory drmHttpDataSourceFactory;
   @Nullable private String userAgent;
   @Nullable private LoadErrorHandlingPolicy drmLoadErrorHandlingPolicy;
+  @Nullable private ExoMediaDrm.Provider exoMediaDrmProvider;
   private boolean freeKeepAliveSessionsOnRelease;
 
   public DefaultDrmSessionManagerProvider() {
@@ -84,6 +86,20 @@ public final class DefaultDrmSessionManagerProvider implements DrmSessionManager
    */
   public void setDrmLoadErrorHandlingPolicy(LoadErrorHandlingPolicy drmLoadErrorHandlingPolicy) {
     this.drmLoadErrorHandlingPolicy = drmLoadErrorHandlingPolicy;
+  }
+
+  /**
+   * Set the ExoMediaDrm.Provider, this allows for a hook to influence the {@link ExoMediaDrm} that
+   * is created for playback of a given DRM UUID.
+   *
+   * <p>For example, you could override the platform default for widevine to not use the hardware
+   * decode path (L1) when the content is known to require only L3</p>
+   *
+   * @param exoMediaDrmProvider - the factory method for {@link ExoMediaDrm}, default
+   *                            is {@link FrameworkMediaDrm#DEFAULT_PROVIDER}
+   */
+  public void setExoMediaDrmProvider(ExoMediaDrm.Provider exoMediaDrmProvider) {
+    this.exoMediaDrmProvider = exoMediaDrmProvider;
   }
 
   /**
@@ -141,7 +157,7 @@ public final class DefaultDrmSessionManagerProvider implements DrmSessionManager
     DefaultDrmSessionManager.Builder drmSessionManagerBuilder =
         new DefaultDrmSessionManager.Builder()
             .setUuidAndExoMediaDrmProvider(
-                drmConfiguration.uuid, FrameworkMediaDrm.DEFAULT_PROVIDER)
+                drmConfiguration.uuid, exoMediaDrmProvider == null ? FrameworkMediaDrm.DEFAULT_PROVIDER : exoMediaDrmProvider)
             .setMultiSession(drmConfiguration.multiSession)
             .setPlayClearSamplesWithoutKeys(drmConfiguration.playClearContentWithoutKey)
             .setUseDrmSessionsForClearContent(Ints.toArray(drmConfiguration.sessionForClearTypes))
