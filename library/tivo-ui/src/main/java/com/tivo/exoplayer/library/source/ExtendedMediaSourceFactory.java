@@ -228,7 +228,7 @@ public class ExtendedMediaSourceFactory implements MediaSourceFactory {
         ? adsConfiguration.adsId
         : ImmutableList.of(
             mediaItem.mediaId, mediaItem.playbackProperties.uri, adsConfiguration.adTagUri),
-        /* adMediaSourceFactory= */ this,
+        /* adMediaSourceFactory= */ new DefaultMediaSourceFactory(context),
         adsLoader,
         adViewProvider);
   }

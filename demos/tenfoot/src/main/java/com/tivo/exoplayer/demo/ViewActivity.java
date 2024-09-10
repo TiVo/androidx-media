@@ -710,7 +710,7 @@ public class ViewActivity extends AppCompatActivity {
               playerView.hideController();
               handled = true;
             }
-          } else if (!isTrickPlaybarShowing && timeBarViewHandler.showForEvent(event)) {
+          } else if (!isTrickPlaybarShowing && shouldShowTrickPlayContorlsForEvent(event)) {
             playerView.showController();
             playerControlView.requestFocus();
             handled = true;
@@ -723,6 +723,18 @@ public class ViewActivity extends AppCompatActivity {
       handled = super.dispatchKeyEvent(event);
     }
     return handled;
+  }
+
+  /**
+   * Check if our trickplay bar controller {@link #timeBarViewHandler} indicates the event
+   * should trigger showing the trickplay bar unless another higher priority view (like Ad's WebView) has focus.
+   *
+   * @param event - Event to check
+   * @return true if trickplay bar (controller) should transiton to visible and take focus
+   */
+  private boolean shouldShowTrickPlayContorlsForEvent(KeyEvent event) {
+    return (getCurrentFocus() == null || getCurrentFocus() == playerView)   // Focused view is our PlayerView, or nothing.
+        && timeBarViewHandler.showForEvent(event);
   }
 
   private boolean processActivityGlobalKey(KeyEvent event) {
