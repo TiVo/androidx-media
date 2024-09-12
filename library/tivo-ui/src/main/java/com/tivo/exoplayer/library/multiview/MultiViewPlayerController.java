@@ -1,5 +1,7 @@
 package com.tivo.exoplayer.library.multiview;
 
+import static com.google.android.exoplayer2.C.WIDEVINE_UUID;
+
 import android.content.Context;
 import android.util.Pair;
 import androidx.annotation.Nullable;
@@ -9,12 +11,20 @@ import com.google.android.exoplayer2.ExoPlaybackException;
 import com.google.android.exoplayer2.MediaItem;
 import com.google.android.exoplayer2.SimpleExoPlayer;
 import com.google.android.exoplayer2.audio.AudioAttributes;
+import com.google.android.exoplayer2.drm.DrmSessionManagerProvider;
+import com.google.android.exoplayer2.drm.DummyExoMediaDrm;
+import com.google.android.exoplayer2.drm.ExoMediaDrm;
+import com.google.android.exoplayer2.drm.FrameworkMediaDrm;
+import com.google.android.exoplayer2.drm.UnsupportedDrmException;
 import com.google.android.exoplayer2.source.TrackGroupArray;
 import com.google.android.exoplayer2.trackselection.ExoTrackSelection;
 import com.google.android.exoplayer2.trackselection.TrackSelector;
 import com.google.android.exoplayer2.ui.PlayerView;
+import com.google.android.exoplayer2.util.Log;
 import com.tivo.exoplayer.library.SimpleExoPlayerFactory;
+import com.tivo.exoplayer.library.source.ExtendedMediaSourceFactory;
 import com.tivo.exoplayer.library.tracks.SyncVideoTrackSelector;
+import java.util.UUID;
 
 /**
  * Encapsulates a single {@link com.google.android.exoplayer2.ExoPlayer} and it's factory in the
@@ -53,7 +63,22 @@ public class MultiViewPlayerController {
 
     builder.setTrackSelectorFactory((context, trackSelectionFactory) -> new MultiViewTrackSelector(context, trackSelectionFactory));
 
-    this.exoPlayerFactory = builder.build();
+    exoPlayerFactory = builder.build();
+
+    // setup to only use L3 DRM (L1 only supports maybe two views)
+    ExtendedMediaSourceFactory mediaSourceFactory = exoPlayerFactory.getMediaSourceFactory();
+    assert mediaSourceFactory != null;
+    mediaSourceFactory.setExoMediaDrmProvider(uuid -> {
+      try {
+        FrameworkMediaDrm mediaDrm = FrameworkMediaDrm.newInstance(uuid);
+        if (WIDEVINE_UUID.equals(uuid)) {
+          mediaDrm.setPropertyString("securityLevel", "L3");
+        }
+        return mediaDrm;
+      } catch (UnsupportedDrmException e) {
+        return new DummyExoMediaDrm();
+      }
+    });
   }
 
   public void setSelected(boolean selected) {

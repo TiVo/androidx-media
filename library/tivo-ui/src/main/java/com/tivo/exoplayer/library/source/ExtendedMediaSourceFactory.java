@@ -14,6 +14,8 @@ import com.google.android.exoplayer2.MediaItem;
 import com.google.android.exoplayer2.drm.DefaultDrmSessionManagerProvider;
 import com.google.android.exoplayer2.drm.DrmSessionManager;
 import com.google.android.exoplayer2.drm.DrmSessionManagerProvider;
+import com.google.android.exoplayer2.drm.ExoMediaDrm;
+import com.google.android.exoplayer2.drm.FrameworkMediaDrm;
 import com.google.android.exoplayer2.source.DefaultMediaSourceFactory;
 import com.google.android.exoplayer2.source.MediaSource;
 import com.google.android.exoplayer2.source.MediaSourceFactory;
@@ -78,6 +80,7 @@ public class ExtendedMediaSourceFactory implements MediaSourceFactory {
   @Nullable private DefaultMediaSourceFactory.AdsLoaderProvider adsLoaderProvider;
   @Nullable private AdViewProvider adViewProvider;
   @MonotonicNonNull private VerimatrixDataSourceFactory singletonVerimatrixDataSourceFactory;
+  @Nullable private ExoMediaDrm.Provider exoMediaDrmProvider;
   private LoadErrorHandlingPolicy drmLoadErrorHandlerPolicy;
 
   /**
@@ -197,6 +200,20 @@ public class ExtendedMediaSourceFactory implements MediaSourceFactory {
     return this;
   }
 
+  /**
+   * Set the ExoMediaDrm.Provider, see {@link com.google.android.exoplayer2.drm.DefaultDrmSessionManagerProvider#setExoMediaDrmProvider(ExoMediaDrm.Provider)}
+   * for a description of why this may be useful.
+   *
+   * @param exoMediaDrmProvider - the factory method for {@link ExoMediaDrm}, default
+   *                            is {@link FrameworkMediaDrm#DEFAULT_PROVIDER}
+   * @return This factory, for convenience.
+   */
+  public ExtendedMediaSourceFactory setExoMediaDrmProvider(ExoMediaDrm.Provider exoMediaDrmProvider) {
+    this.exoMediaDrmProvider = exoMediaDrmProvider;
+    return this;
+  }
+
+
   @NonNull
   @Override
   public int[] getSupportedTypes() {
@@ -287,9 +304,11 @@ public class ExtendedMediaSourceFactory implements MediaSourceFactory {
       drmSessionManagerProvider = defaultDrmSessionManagerProvider;
       defaultDrmSessionManagerProvider.setDrmHttpDataSourceFactory(drmHttpDataSourceFactory);
       defaultDrmSessionManagerProvider.setFreeKeepAliveSessionsOnRelease(false);
+      defaultDrmSessionManagerProvider.setExoMediaDrmProvider(exoMediaDrmProvider);
 //      defaultDrmSessionManagerProvider.setLoadErrorHandlingPolicy(new DrmLoadErrorHandlerPolicy());
       defaultDrmSessionManagerProvider.setDrmLoadErrorHandlingPolicy(drmLoadErrorHandlerPolicy);
     }
+
     factory.setDrmSessionManagerProvider(drmSessionManagerProvider);
     MediaSource mediaSource = factory.createMediaSource(mediaItem);
     return maybeWrapWithAdsMediaSource(mediaItem, mediaSource);
@@ -298,8 +317,8 @@ public class ExtendedMediaSourceFactory implements MediaSourceFactory {
   /**
    * Construct and return the Factory class for {@link DataSource} objects.
    *
-   * The DataSource is used to build a {@link MediaSource} for loading and playing a
-   * URL.
+   * <p>The DataSource is used to build a {@link MediaSource} for loading and playing a
+   * URL.</p>
    *
    * @param mediaItem - has DRM specific metadata to create DRM aware data source factory
    *
