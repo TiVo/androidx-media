@@ -8,23 +8,23 @@ import androidx.annotation.Nullable;
 import com.google.android.exoplayer2.C;
 import com.google.android.exoplayer2.DefaultLoadControl;
 import com.google.android.exoplayer2.ExoPlaybackException;
+import com.google.android.exoplayer2.Format;
 import com.google.android.exoplayer2.MediaItem;
 import com.google.android.exoplayer2.SimpleExoPlayer;
 import com.google.android.exoplayer2.audio.AudioAttributes;
-import com.google.android.exoplayer2.drm.DrmSessionManagerProvider;
 import com.google.android.exoplayer2.drm.DummyExoMediaDrm;
-import com.google.android.exoplayer2.drm.ExoMediaDrm;
 import com.google.android.exoplayer2.drm.FrameworkMediaDrm;
 import com.google.android.exoplayer2.drm.UnsupportedDrmException;
 import com.google.android.exoplayer2.source.TrackGroupArray;
+import com.google.android.exoplayer2.trackselection.DefaultTrackSelector;
 import com.google.android.exoplayer2.trackselection.ExoTrackSelection;
 import com.google.android.exoplayer2.trackselection.TrackSelector;
-import com.google.android.exoplayer2.ui.PlayerView;
-import com.google.android.exoplayer2.util.Log;
+import com.google.common.primitives.Ints;
 import com.tivo.exoplayer.library.SimpleExoPlayerFactory;
 import com.tivo.exoplayer.library.source.ExtendedMediaSourceFactory;
 import com.tivo.exoplayer.library.tracks.SyncVideoTrackSelector;
-import java.util.UUID;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Encapsulates a single {@link com.google.android.exoplayer2.ExoPlayer} and it's factory in the
@@ -34,6 +34,7 @@ public class MultiViewPlayerController {
 
   private final SimpleExoPlayerFactory exoPlayerFactory;
   private boolean selected;
+  @Nullable private MultiExoPlayerView.OptimalVideoSize optimalVideoSize;
 
   /**
    * Manages ExoPlayer selected tracks for the players in the multiview set.
@@ -51,6 +52,30 @@ public class MultiViewPlayerController {
       return MultiViewPlayerController.this.selected
           ? super.selectAudioTrack(groups, formatSupport, mixedMimeTypeAdaptationSupports, params, enableAdaptiveTrackSelection)
           : null;
+    }
+
+    @Nullable
+    @Override
+    protected ExoTrackSelection.Definition selectVideoTrack(TrackGroupArray groups, int[][] formatSupport,
+        int mixedMimeTypeAdaptationSupports, Parameters params, boolean enableAdaptiveTrackSelection) throws ExoPlaybackException {
+      ExoTrackSelection.Definition definition = super.selectVideoTrack(groups, formatSupport, mixedMimeTypeAdaptationSupports, params,
+          enableAdaptiveTrackSelection);
+
+      List<Integer> filteredTrackIndices = new ArrayList<>();
+
+      if (definition != null && optimalVideoSize != null) {
+        for (int selectedTrack : definition.tracks) {
+          Format format = definition.group.getFormat(selectedTrack);
+          if (optimalVideoSize.meetsOptimalSize(format) && (format.roleFlags & C.ROLE_FLAG_TRICK_PLAY) == 0) {
+            filteredTrackIndices.add(selectedTrack);
+          }
+        }
+        if (!filteredTrackIndices.isEmpty()) {
+          definition = new ExoTrackSelection.Definition(definition.group, Ints.toArray(filteredTrackIndices), definition.type);
+        }
+      }
+
+      return definition;
     }
 
     private void selectionStateChanged() {
@@ -79,6 +104,18 @@ public class MultiViewPlayerController {
         return new DummyExoMediaDrm();
       }
     });
+  }
+
+  public void setOptimalVideoSize(MultiExoPlayerView.OptimalVideoSize optimalSize) {
+    optimalVideoSize = optimalSize;
+
+    // Declaritive track selection would be the best path, however viewport sizing does not
+    // work exactly like we want for this feature.
+    // TODO - we may want to optimize bitrate as well
+//    DefaultTrackSelector.Parameters current = exoPlayerFactory.getCurrentParameters();
+//    exoPlayerFactory.setCurrentParameters(current.buildUpon()
+//        .setViewportSize(optimalSize.width, optimalSize.height, false)
+//        .build());
   }
 
   public void setSelected(boolean selected) {

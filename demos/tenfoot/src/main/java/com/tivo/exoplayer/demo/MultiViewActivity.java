@@ -35,8 +35,8 @@ import java.util.List;
  * Example player that uses a "ten foot" UI, that is majority of the UX is controlled by
  * media controls on an Android STB remote.
  *
- * The activity plays either a single URL (intent data is simply a string with the URL) or a list of URL's
- * (intent data "uri_list" is a list of URL's).  Switching URL's is via the channel up/down buttons (
+ * <p>The activity plays either a single URL (intent data is simply a string with the URL) or a list of URL's
+ * (intent data "uri_list" is a list of URL's).  Switching URL's is via the channel up/down buttons</p>
  */
 public class MultiViewActivity extends AppCompatActivity {
 
@@ -45,29 +45,27 @@ public class MultiViewActivity extends AppCompatActivity {
   public static final Integer DEFAULT_LOG_LEVEL = com.google.android.exoplayer2.util.Log.LOG_LEVEL_ALL;
 
   // Intents
-  public static final String ACTION_VIEW = "com.tivo.exoplayer.action.VIEW";
-  public static final String ACTION_VIEW_LIST = "com.tivo.exoplayer.action.VIEW_LIST";
-  public static final String ACTION_GEEK_STATS = "com.tivo.exoplayer.action.GEEK_STATS";
+  public static final String ACTION_VIEW_LIST = ViewActivity.ACTION_VIEW_LIST;
+  public static final String ACTION_VIEW = ViewActivity.ACTION_VIEW;
 
   // Intent data
-  public static final String URI_LIST_EXTRA = "uri_list";
-  public static final String PLAYBACK_COUNT = "player_count";
-  public static final String ENABLE_ASYNC_RENDER = "enable_async_renderer";
+  public static final String URI_LIST_EXTRA = ViewActivity.URI_LIST_EXTRA;
+  public static final String ENABLE_ASYNC_RENDER = ViewActivity.ENABLE_ASYNC_RENDER;
 
   // Fast re-sync
-  public static final String LIVE_OFFSET = "live_offset";
-  public static final String FAST_RESYNC = "fast_resync";
+  public static final String LIVE_OFFSET = ViewActivity.LIVE_OFFSET;
+  public static final String FAST_RESYNC = ViewActivity.FAST_RESYNC;
 
-  // Constrols size of the Mosaic, default is 2x2
+  // Constrols size of the Mosaic, default is 2x2 and count of players to create
   public static final String GRID_ROWS = "grid_rows";
   public static final String GRID_COLUMNS = "grid_columns";
+  public static final String PLAYBACK_COUNT = "player_count";
 
+  @Nullable private Intent newIntent;
   private Toast errorRecoveryToast;
 
   private MultiExoPlayerView mainView;
 
-  private int viewCount;
-  private Intent newIntent;
   private SimpleExoPlayerFactory.Builder simpleExoPlayerFactoryBuilder;
 
   /**
@@ -207,6 +205,10 @@ public class MultiViewActivity extends AppCompatActivity {
   public void onResume() {
     super.onResume();
     Log.d(TAG, "onResume() called");
+    if (newIntent != null) {
+      processIntent(newIntent);
+      newIntent = null;
+    }
   }
 
   @Override
@@ -259,6 +261,7 @@ public class MultiViewActivity extends AppCompatActivity {
     int columns = getIntent().getIntExtra(GRID_COLUMNS, 2);
 
     mainView.createExoPlayerViews(rows, columns, simpleExoPlayerFactoryBuilder);
+    MultiExoPlayerView.OptimalVideoSize optimalSize = mainView.calculateOptimalVideoSizes(false);
 
     Iterator<MediaItem> it = mediaItemsToPlay.iterator();
     MediaItem currentItem = null;
@@ -269,6 +272,7 @@ public class MultiViewActivity extends AppCompatActivity {
       currentItem = it.hasNext() ? it.next() : currentItem;
       if (currentItem != null) {
         MultiViewPlayerController playerController = mainView.getPlayerController(i);
+        playerController.setOptimalVideoSize(optimalSize);
         playerController.playMediaItem(fast_resync, currentItem);
       }
     }

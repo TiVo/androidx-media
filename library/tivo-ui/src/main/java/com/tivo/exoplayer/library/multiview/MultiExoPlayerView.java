@@ -2,10 +2,12 @@ package com.tivo.exoplayer.library.multiview;
 
 import android.content.Context;
 import android.util.AttributeSet;
+import android.util.DisplayMetrics;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.GridLayout;
+import com.google.android.exoplayer2.Format;
 import com.google.android.exoplayer2.ui.PlayerView;
 import com.google.android.exoplayer2.util.Log;
 import com.google.common.collect.ImmutableList;
@@ -32,6 +34,24 @@ public class MultiExoPlayerView extends GridLayout {
   private MultiViewPlayerController[] playerControllers;
   private final Context context;
   private int viewCount;
+
+  public static class OptimalVideoSize {
+    public final int width;
+    public final int height;
+
+    public OptimalVideoSize(int width, int height) {
+      this.width = width;
+      this.height = height;
+    }
+
+    public boolean meetsOptimalSize(Format format) {
+      boolean meets = format.height == Format.NO_VALUE || format.width == Format.NO_VALUE;
+      if (!meets) {
+        meets = format.width <= width && format.height < height;
+      }
+      return meets;
+    }
+  }
 
   public MultiExoPlayerView(Context context) {
     this(context, null);
@@ -108,6 +128,33 @@ public class MultiExoPlayerView extends GridLayout {
         row++;
       }
     }
+  }
+
+  /**
+   * Video is sized to fit by {@link com.google.android.exoplayer2.ui.AspectRatioFrameLayout} such as to
+   * preserve the aspect ratio of the content.  This is sized to fit this view, filling each grid cell
+   * with some minor amount of UX (padding/margins).
+   *
+   * <p>This method determines the optimal width/height to restrict the video content to in order to
+   * reduce the bandwidth used while not requiring excessive scaling</p>
+   *
+   * <p>Note: only valid after call to {@link #createExoPlayerViews(int, int, SimpleExoPlayerFactory.Builder)}
+   * sets the rows/columns</p>
+   *
+   * @param includeDensity - if true, consider display density (if UI is double pixeled)
+   * @return OptimalVideoSize
+   */
+  public OptimalVideoSize calculateOptimalVideoSizes(boolean includeDensity) {
+
+    // Using the DisplayMetrics is an upper limit, assuming this View fills the entire screen (which it
+    // doesn't)
+    DisplayMetrics metrics = context.getResources().getDisplayMetrics();
+    int optimalWidth = metrics.widthPixels / getColumnCount();
+    int optimalHeight = metrics.heightPixels / getRowCount();
+
+    return includeDensity
+        ? new OptimalVideoSize((int) (optimalWidth * metrics.density), (int) (optimalHeight * metrics.density))
+        : new OptimalVideoSize(optimalWidth, optimalHeight);
   }
 
   private void childPlayerSelectedChanged(int i, boolean hasFocus) {
