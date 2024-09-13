@@ -881,14 +881,14 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
   /**
    * Update the current parameters with any external changes.
    *
-   * The preferred method is to use track selection API methods like {@link #setPreferredAudioLanguage(String)}.
+   * <p>The preferred method is to use track selection API methods like {@link #setPreferredAudioLanguage(String)}.
    * However if you do use {@link #getCurrentParameters()}, mutate them, then call this method, your
-   * mutations are merged into the parameters/
+   * mutations are merged into the parameters</p>
    *
    * @param parameters used to update the last saved parameters
    */
   public void setCurrentParameters(DefaultTrackSelector.Parameters parameters) {
-    this.currentParameters = parameters.buildUpon().build();
+    commitTrackSelectionParameters(parameters.buildUpon());
   }
 
   /**
