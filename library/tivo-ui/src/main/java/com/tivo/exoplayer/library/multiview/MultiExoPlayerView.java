@@ -34,6 +34,7 @@ public class MultiExoPlayerView extends GridLayout {
   private MultiViewPlayerController[] playerControllers;
   private final Context context;
   private int viewCount;
+  private MultiViewPlayerController selectedController;
 
   public static class OptimalVideoSize {
     public final int width;
@@ -50,6 +51,36 @@ public class MultiExoPlayerView extends GridLayout {
         meets = format.width <= width && format.height < height;
       }
       return meets;
+    }
+  }
+
+  public static class GridLocation {
+    private final int row;
+    private final int column;
+    private final int viewIndex;
+
+    public GridLocation(int row, int column, int viewIndex) {
+      this.row = row;
+      this.column = column;
+      this.viewIndex = viewIndex;
+    }
+
+    /**
+     * Location of the Grid Cell, 0..number of cells.  Independent of
+     * if creation order is row or column major format.
+     *
+     * @return index of this Grid Cell
+     */
+    public int getViewIndex() {
+      return viewIndex;
+    }
+
+    @Override
+    public String toString() {
+      return "GridLocation{" +
+          "row=" + row +
+          ", column=" + column +
+          '}';
     }
   }
 
@@ -120,7 +151,10 @@ public class MultiExoPlayerView extends GridLayout {
           childPlayerSelectedChanged(viewIndex, hasFocus);
         }
       });
-      MultiViewPlayerController multiViewPlayerController = new MultiViewPlayerController(builder, selected);
+      MultiViewPlayerController multiViewPlayerController = new MultiViewPlayerController(builder, selected, new GridLocation(row, column, viewIndex));
+      if (selected) {
+        selectedController = multiViewPlayerController;
+      }
       playerView.setPlayer(multiViewPlayerController.createPlayer());
       playerControllers[i] = multiViewPlayerController;
       if (++column == columnCount) {
@@ -158,11 +192,16 @@ public class MultiExoPlayerView extends GridLayout {
   }
 
   private void childPlayerSelectedChanged(int i, boolean hasFocus) {
-    playerControllers[i].setSelected(hasFocus);
+    selectedController = playerControllers[i];
+    selectedController.setSelected(hasFocus);
   }
 
   public int getViewCount() {
     return viewCount;
+  }
+
+  public MultiViewPlayerController getSelectedController() {
+    return selectedController;
   }
 
   public MultiViewPlayerController getPlayerController(int index) {

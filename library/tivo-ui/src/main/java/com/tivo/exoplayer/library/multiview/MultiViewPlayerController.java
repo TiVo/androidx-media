@@ -10,15 +10,18 @@ import com.google.android.exoplayer2.DefaultLoadControl;
 import com.google.android.exoplayer2.ExoPlaybackException;
 import com.google.android.exoplayer2.Format;
 import com.google.android.exoplayer2.MediaItem;
+import com.google.android.exoplayer2.Player;
 import com.google.android.exoplayer2.SimpleExoPlayer;
+import com.google.android.exoplayer2.analytics.AnalyticsListener;
 import com.google.android.exoplayer2.audio.AudioAttributes;
 import com.google.android.exoplayer2.drm.DummyExoMediaDrm;
 import com.google.android.exoplayer2.drm.FrameworkMediaDrm;
 import com.google.android.exoplayer2.drm.UnsupportedDrmException;
 import com.google.android.exoplayer2.source.TrackGroupArray;
-import com.google.android.exoplayer2.trackselection.DefaultTrackSelector;
 import com.google.android.exoplayer2.trackselection.ExoTrackSelection;
 import com.google.android.exoplayer2.trackselection.TrackSelector;
+import com.google.android.exoplayer2.util.Log;
+import com.google.android.exoplayer2.video.VideoSize;
 import com.google.common.primitives.Ints;
 import com.tivo.exoplayer.library.SimpleExoPlayerFactory;
 import com.tivo.exoplayer.library.source.ExtendedMediaSourceFactory;
@@ -30,11 +33,35 @@ import java.util.List;
  * Encapsulates a single {@link com.google.android.exoplayer2.ExoPlayer} and it's factory in the
  * context of a set of players in a {@link MultiExoPlayerView}
  */
-public class MultiViewPlayerController {
+public class MultiViewPlayerController implements Player.Listener {
+  public static final String TAG = "MultiViewPlayerController";
 
   private final SimpleExoPlayerFactory exoPlayerFactory;
-  private boolean selected;
+  private final MultiExoPlayerView.GridLocation gridLocation;   // Location in the multiplayer view (row/column)
+  private boolean selected;           // If this player is "selected" (has focus)
   @Nullable private MultiExoPlayerView.OptimalVideoSize optimalVideoSize;
+
+
+  /**
+   * Logs useful info on playback state for the player in the cell
+   */
+  private static class MultiViewDebugLogging implements AnalyticsListener {
+    private final MultiExoPlayerView.GridLocation gridLocation;
+
+    public MultiViewDebugLogging(MultiExoPlayerView.GridLocation gridLocation) {
+      this.gridLocation = gridLocation;
+    }
+
+    @Override
+    public void onVideoSizeChanged(EventTime eventTime, VideoSize videoSize) {
+      Log.d(TAG, gridLocation + " - videoSizeChanged " + videoSize.width + "x" + videoSize.height);
+    }
+
+    @Override
+    public void onSurfaceSizeChanged(EventTime eventTime, int width, int height) {
+      Log.d(TAG, gridLocation + " - surfaceSizeChanged " + width + "x" + height);
+    }
+  }
 
   /**
    * Manages ExoPlayer selected tracks for the players in the multiview set.
@@ -83,8 +110,9 @@ public class MultiViewPlayerController {
     }
   }
 
-  public MultiViewPlayerController(SimpleExoPlayerFactory.Builder builder, boolean selected) {
+  public MultiViewPlayerController(SimpleExoPlayerFactory.Builder builder, boolean selected, MultiExoPlayerView.GridLocation gridLocation) {
     this.selected = selected;
+    this.gridLocation = gridLocation;
 
     builder.setTrackSelectorFactory((context, trackSelectionFactory) -> new MultiViewTrackSelector(context, trackSelectionFactory));
 
@@ -116,6 +144,10 @@ public class MultiViewPlayerController {
 //    exoPlayerFactory.setCurrentParameters(current.buildUpon()
 //        .setViewportSize(optimalSize.width, optimalSize.height, false)
 //        .build());
+  }
+
+  public MultiExoPlayerView.GridLocation getGridLocation() {
+    return gridLocation;
   }
 
   public void setSelected(boolean selected) {
@@ -151,6 +183,7 @@ public class MultiViewPlayerController {
         DefaultLoadControl.DEFAULT_BUFFER_FOR_PLAYBACK_AFTER_REBUFFER_MS);
 
     SimpleExoPlayer player = exoPlayerFactory.createPlayer(true, false, builder);
+    player.addAnalyticsListener(new MultiViewDebugLogging(gridLocation));
     player.setAudioAttributes(AudioAttributes.DEFAULT, false);
     return player;
   }

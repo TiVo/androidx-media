@@ -7,10 +7,13 @@ import android.content.Intent;
 import android.net.Uri;
 import android.os.Bundle;
 import android.util.Log;
+import android.view.KeyEvent;
 import android.view.View;
 import android.widget.Toast;
+import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.webkit.internal.ApiFeature;
 import com.google.android.exoplayer2.C;
 import com.google.android.exoplayer2.ExoPlaybackException;
 import com.google.android.exoplayer2.Format;
@@ -20,6 +23,7 @@ import com.google.android.exoplayer2.source.MediaSourceFactory;
 import com.google.android.exoplayer2.source.hls.playlist.DefaultHlsPlaylistTracker;
 import com.google.android.exoplayer2.upstream.DefaultHttpDataSource;
 import com.google.android.exoplayer2.upstream.HttpDataSource;
+import com.google.common.collect.ImmutableList;
 import com.tivo.exoplayer.library.SimpleExoPlayerFactory;
 import com.tivo.exoplayer.library.SourceFactoriesCreated;
 import com.tivo.exoplayer.library.errorhandlers.PlaybackExceptionRecovery;
@@ -28,6 +32,7 @@ import com.tivo.exoplayer.library.multiview.MultiExoPlayerView;
 import com.tivo.exoplayer.library.multiview.MultiViewPlayerController;
 import com.tivo.exoplayer.library.source.MediaItemHelper;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 
@@ -63,10 +68,14 @@ public class MultiViewActivity extends AppCompatActivity {
 
   @Nullable private Intent newIntent;
   private Toast errorRecoveryToast;
-
   private MultiExoPlayerView mainView;
-
   private SimpleExoPlayerFactory.Builder simpleExoPlayerFactoryBuilder;
+
+
+  // Channel up/down support
+  @NonNull private ImmutableList<MediaItem> channelList =   // All MediaItem's created from URI_LIST_EXTRA
+    ImmutableList.of();
+  private int[] currentChannelForCell;                     // Current playing channel for each multi-view grid cell
 
   /**
    * Callback class for when each MediaItem and it's MediaSource is created.  This allows
@@ -114,6 +123,10 @@ public class MultiViewActivity extends AppCompatActivity {
   private class PlaybackErrorHandlerCallback implements PlayerErrorHandlerListener {
     @Override
     public void playerErrorProcessed(PlaybackException error, HandlingStatus status) {
+      if (error == null) {
+        Log.d(TAG, "null error!");
+        return;
+      }
       switch (status) {
         case IN_PROGRESS:
           Log.d(TAG, "playerErrorProcessed() - error: " + error.getMessage() + " status: " + status);
@@ -207,6 +220,7 @@ public class MultiViewActivity extends AppCompatActivity {
     Log.d(TAG, "onResume() called");
     if (newIntent != null) {
       processIntent(newIntent);
+      setIntent(newIntent);
       newIntent = null;
     }
   }
@@ -254,11 +268,14 @@ public class MultiViewActivity extends AppCompatActivity {
       MediaItemHelper.populateDrmPropertiesFromIntent(builder, intent, this);
       mediaItemsToPlay.add(builder.build());
     }
+
     boolean fast_resync = intent.hasExtra(FAST_RESYNC);
-
-
     int rows = getIntent().getIntExtra(GRID_ROWS, 2);
     int columns = getIntent().getIntExtra(GRID_COLUMNS, 2);
+
+    channelList = ImmutableList.copyOf(mediaItemsToPlay);
+    currentChannelForCell = new int[rows * columns];
+    Arrays.fill(currentChannelForCell, 0);
 
     mainView.createExoPlayerViews(rows, columns, simpleExoPlayerFactoryBuilder);
     MultiExoPlayerView.OptimalVideoSize optimalSize = mainView.calculateOptimalVideoSizes(false);
@@ -271,8 +288,10 @@ public class MultiViewActivity extends AppCompatActivity {
     for (int i = 0; i < playbackCount; i++) {
       currentItem = it.hasNext() ? it.next() : currentItem;
       if (currentItem != null) {
+        currentChannelForCell[i] = i;
         MultiViewPlayerController playerController = mainView.getPlayerController(i);
         playerController.setOptimalVideoSize(optimalSize);
+        Log.d(TAG, "Position " + i + " MediaItem: " + currentItem.playbackProperties.uri);
         playerController.playMediaItem(fast_resync, currentItem);
       }
     }
@@ -286,6 +305,42 @@ public class MultiViewActivity extends AppCompatActivity {
       uris[i] = Uri.parse(uriStrings[i]);
     }
     return uris;
+  }
+
+
+  private boolean channelUpDown(boolean isChannelUp) {
+    MultiViewPlayerController playerController = mainView.getSelectedController();
+    int selectedControllerIndex = playerController.getGridLocation().getViewIndex();
+
+    int currentChannel = currentChannelForCell[selectedControllerIndex];
+    int nextChannel = isChannelUp ? currentChannel + 1 : currentChannel - 1;
+    currentChannel = (nextChannel + channelList.size()) % channelList.size();
+    currentChannelForCell[selectedControllerIndex] = currentChannel;
+
+    boolean fast_resync = getIntent().hasExtra(FAST_RESYNC);
+    playerController.playMediaItem(fast_resync, channelList.get(currentChannel));
+    return true;
+  }
+
+  @Override
+  public boolean dispatchKeyEvent(KeyEvent event) {
+    boolean handled = false;
+
+    if (event.getAction() == KeyEvent.ACTION_DOWN) {
+      int keyCode = event.getKeyCode();
+
+      switch (keyCode) {
+        case KeyEvent.KEYCODE_CHANNEL_UP:
+          handled = channelUpDown(true);
+          break;
+
+        case KeyEvent.KEYCODE_CHANNEL_DOWN:
+          handled = channelUpDown(false);
+          break;
+      }
+    }
+
+    return handled || super.dispatchKeyEvent(event);
   }
 
   private void showErrorRecoveryWhisper(@Nullable String message, @Nullable PlaybackException error) {
