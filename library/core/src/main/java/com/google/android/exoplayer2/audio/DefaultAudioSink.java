@@ -659,7 +659,7 @@ public final class DefaultAudioSink implements AudioSink {
     // initialization of the audio track to fail.
     releasingConditionVariable.block();
 
-    audioTrack = buildAudioTrack();
+    audioTrack = buildAudioTrackWithRetry();
     if (isOffloadedPlayback(audioTrack)) {
       registerStreamEventCallbackV29(audioTrack);
       if (offloadMode != OFFLOAD_MODE_ENABLED_GAPLESS_DISABLED) {
@@ -735,6 +735,7 @@ public final class DefaultAudioSink implements AudioSink {
 
     if (!isAudioTrackInitialized()) {
       try {
+        Log.w(TAG, "AudiTrack is NULL");
         initializeAudioTrack();
       } catch (InitializationException e) {
         if (e.isRecoverable) {
@@ -848,6 +849,32 @@ public final class DefaultAudioSink implements AudioSink {
     }
 
     return false;
+  }
+
+  private AudioTrack buildAudioTrackWithRetry() throws InitializationException {
+      if (tunneling) {
+          try {
+              Log.w(TAG, "buildAudioTrack with 100msec inital delay");
+              Thread.sleep(/* millis= */ 100);
+          } catch (Exception e) {}
+      }
+
+      try {
+          return buildAudioTrack();
+      } catch (InitializationException initialFailure) {
+          // Retry with a smaller buffer size.
+          Log.w(TAG, "buildAudioTrack after FISRT FAILURE with 100msec delay");
+          try {
+              Thread.sleep(/* millis= */ 100);
+              return buildAudioTrack();
+          } catch (InitializationException retryFailure) {
+              initialFailure.addSuppressed(retryFailure);
+          } catch (Exception e) {
+              // NOP
+          }
+          maybeDisableOffload();
+          throw initialFailure;
+      }
   }
 
   private AudioTrack buildAudioTrack() throws InitializationException {
