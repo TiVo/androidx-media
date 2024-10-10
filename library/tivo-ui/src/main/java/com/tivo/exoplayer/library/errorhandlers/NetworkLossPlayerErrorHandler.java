@@ -5,7 +5,10 @@ import android.content.Intent;
 import android.content.BroadcastReceiver;
 import android.content.IntentFilter;
 import android.net.ConnectivityManager;
+import android.net.Network;
+import android.net.NetworkCapabilities;
 import android.net.NetworkInfo;
+import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
 import androidx.annotation.NonNull;
@@ -57,16 +60,30 @@ public class NetworkLossPlayerErrorHandler implements PlaybackExceptionRecovery,
     @Override
     public void onReceive(Context context, Intent intent) {
       Log.d(TAG, "onReceive() - intent: " + intent);
-      boolean isConnected = isNetworkConnected();
-      if (isConnected) {
-        Log.d(TAG, "Connected to the internet");
-        attemptRecovery();
-      } else {
-        Log.d(TAG, "Still no network connection");
-      }
+      retryIfNetworkActive();
     }
   }
+
+
   private @Nullable NetworkChangeReceiver networkChangeReceiver;
+
+  private class NetworkChangeCallback extends ConnectivityManager.NetworkCallback {
+
+    @Override
+    public void onCapabilitiesChanged(@NonNull Network network, @NonNull NetworkCapabilities networkCapabilities) {
+      super.onCapabilitiesChanged(network, networkCapabilities);
+      Log.d(TAG, "NetworkChangeCallback.onCapabilitiesChanged() - calling to retry");
+      retryIfNetworkActive();
+    }
+
+    @Override
+    public void onLost(@NonNull Network network) {
+      super.onLost(network);
+      Log.d(TAG, "network lost");
+    }
+  }
+  private ConnectivityManager.NetworkCallback networkChangeCallback;
+
 
   private class TimedRetryAction implements Runnable {
     @Override
@@ -270,11 +287,37 @@ public class NetworkLossPlayerErrorHandler implements PlaybackExceptionRecovery,
         errorCode == PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT;
   }
 
+  private void retryIfNetworkActive() {
+    boolean isConnected = isNetworkConnected();
+    if (isConnected) {
+      Log.d(TAG, "Connected to the internet");
+      attemptRecovery();
+    } else {
+      Log.d(TAG, "Still no network connection");
+    }
+  }
+
   private boolean isNetworkConnected() {
     ConnectivityManager connectivityManager = (ConnectivityManager) androidContext.getSystemService(Context.CONNECTIVITY_SERVICE);
-    NetworkInfo activeNetwork = connectivityManager.getActiveNetworkInfo();
-    boolean isConnected = activeNetwork != null && activeNetwork.isConnectedOrConnecting();
-    Log.d(TAG, "ConnectivityManager - networkInfo: " + activeNetwork);
+    boolean isConnected = false;
+    // getActiveNetworkInfo was deprecated in Android Q, getNetworkCapabilities has been around since M
+    // and is the preferred method
+    if (Build.VERSION.SDK_INT > Build.VERSION_CODES.M) {
+      Network activeNetowrk = connectivityManager.getActiveNetwork();
+      if (activeNetowrk == null) {
+        Log.d(TAG, "isNetworkConnected() - getActiveNetwork() is null, so no connectivity");
+      } else {
+        NetworkCapabilities networkCapabilities = connectivityManager.getNetworkCapabilities(activeNetowrk);
+        isConnected = networkCapabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED);
+        Log.d(TAG, "isNetworkConnected() - isConnected: " + isConnected + " network: " + networkCapabilities.toString());
+
+      }
+    } else {
+      NetworkInfo activeNetwork = connectivityManager.getActiveNetworkInfo();
+      isConnected = activeNetwork != null && activeNetwork.isConnectedOrConnecting();
+      Log.d(TAG, "isNetworkConnected() - networkInfo: " + activeNetwork);
+    }
+
     return isConnected;
   }
 
@@ -309,9 +352,22 @@ public class NetworkLossPlayerErrorHandler implements PlaybackExceptionRecovery,
   private void registerNetworkChangeReceiver() {
     unregisterNetworkChangeReceiver();
     Log.d(TAG, "registerNetworkChangeReceiver() - recoveryInProgress: " + isRecoveryInProgress());
-    networkChangeReceiver = new NetworkChangeReceiver();
-    IntentFilter intentFilter = new IntentFilter(ConnectivityManager.CONNECTIVITY_ACTION);
-    androidContext.registerReceiver(networkChangeReceiver, intentFilter);
+    // registerDefaultNetworkCallback was added in Android O,  Android N deprecated CONNECTIVITY_ACTION
+    if (Build.VERSION.SDK_INT > Build.VERSION_CODES.O) {
+      SimpleExoPlayer player = errorRecoverable.getCurrentPlayer();
+      if (player == null) {
+        Log.w(TAG, "registerNetworkChangeReceiver() - Player null on error, ignoring.");
+      } else {
+        player.getApplicationLooper();
+        networkChangeCallback = new NetworkChangeCallback();
+        ConnectivityManager connectivityManager = (ConnectivityManager) androidContext.getSystemService(Context.CONNECTIVITY_SERVICE);
+        connectivityManager.registerDefaultNetworkCallback(networkChangeCallback, new Handler(player.getApplicationLooper()));
+      }
+    } else {
+      networkChangeReceiver = new NetworkChangeReceiver();
+      IntentFilter intentFilter = new IntentFilter(ConnectivityManager.CONNECTIVITY_ACTION);
+      androidContext.registerReceiver(networkChangeReceiver, intentFilter);
+    }
   }
 
   private void unregisterNetworkChangeReceiver() {
@@ -319,6 +375,10 @@ public class NetworkLossPlayerErrorHandler implements PlaybackExceptionRecovery,
       Log.d(TAG, "unregisterNetworkChangeReceiver() - recoveryInProgress: " + isRecoveryInProgress());
       androidContext.unregisterReceiver(networkChangeReceiver);
       networkChangeReceiver = null;
+    } else if (networkChangeCallback != null) {
+      ConnectivityManager connectivityManager = (ConnectivityManager) androidContext.getSystemService(Context.CONNECTIVITY_SERVICE);
+      connectivityManager.unregisterNetworkCallback(networkChangeCallback);
+      networkChangeCallback = null;
     }
   }
 
