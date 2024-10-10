@@ -860,7 +860,7 @@ public class ViewActivity extends AppCompatActivity {
       handled = true;
     } else if (channelList != null) {
       int nextChannel = isChannelUp ? currentChannel + 1 : currentChannel - 1;
-      currentChannel = nextChannel % channelList.length;
+      currentChannel =  (nextChannel + channelList.length) % channelList.length;
       long seekTo = getIntent().getIntExtra(INITIAL_SEEK, C.POSITION_UNSET);
       boolean playWhenReady = getIntent().getBooleanExtra(START_PLAYING, true);
       exoPlayerFactory.playMediaItems(seekTo, playWhenReady, channelList[currentChannel]);

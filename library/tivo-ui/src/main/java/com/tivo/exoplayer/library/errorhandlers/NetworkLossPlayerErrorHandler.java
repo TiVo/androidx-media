@@ -8,8 +8,10 @@ import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
 import android.os.Handler;
 import android.os.Looper;
+import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import com.google.android.exoplayer2.C;
+import com.google.android.exoplayer2.MediaItem;
 import com.google.android.exoplayer2.PlaybackException;
 import com.google.android.exoplayer2.Player;
 import com.google.android.exoplayer2.SimpleExoPlayer;
@@ -20,6 +22,7 @@ import java.net.SocketException;
 import java.net.SocketTimeoutException;
 import java.net.UnknownHostException;
 import java.security.SecureRandom;
+import java.util.Objects;
 import java.util.Random;
 
 /**
@@ -40,10 +43,12 @@ public class NetworkLossPlayerErrorHandler implements PlaybackExceptionRecovery,
 
   private final PlayerErrorRecoverable errorRecoverable;
   private final Context androidContext;
+  private final RetryEnabledHandler retryEnabledHandler;
   private PlaybackException currentError;
   private long positionAtError;
   private Timeline.Window windowAtError;
   private final Random retryRandomizer;
+  private boolean shouldRetry;
 
   private Handler timedRetryHandler = new Handler(Looper.getMainLooper());
 
@@ -72,14 +77,49 @@ public class NetworkLossPlayerErrorHandler implements PlaybackExceptionRecovery,
   }
   private final TimedRetryAction timedRetryAction = new TimedRetryAction();
 
+  private class RetryEnabledHandler implements Player.Listener {
+    @Override
+    public void onMediaItemTransition(@Nullable MediaItem mediaItem, int reason) {
+      String uri = "none";
+      if (mediaItem != null && mediaItem.playbackProperties != null) {
+        uri = String.valueOf(mediaItem.playbackProperties.uri);
+      }
+      Log.d(TAG, "MediaItem changed to: " + uri + " shouldRetry set false, was: " + shouldRetry);
+      shouldRetry = false;
+    }
+
+    @Override
+    public void onTimelineChanged(@NonNull Timeline timeline,  @Player.TimelineChangeReason int reason) {
+      if (!shouldRetry) {
+        Log.d(TAG, "onTimelineChanged() - reason: " + reason + " shouldRetry was false, setting true");
+      }
+      shouldRetry = true;
+    }
+  }
+
   public NetworkLossPlayerErrorHandler(PlayerErrorRecoverable playerErrorRecoverable, Context context) {
+    this(playerErrorRecoverable, context, false);
+  }
+
+  public NetworkLossPlayerErrorHandler(PlayerErrorRecoverable playerErrorRecoverable, Context context, boolean retryFirstError) {
     errorRecoverable = playerErrorRecoverable;
     androidContext = context;
     byte[] seed = new SecureRandom().generateSeed(20); // 20 bytes of seed
     retryRandomizer = new Random(new BigInteger(seed).longValue());
+
+    Log.i(TAG, "contruct - retryFirstError: " + retryFirstError);
+
+    if (retryFirstError) {
+      shouldRetry = true;
+      retryEnabledHandler = null;
+    } else {
+      shouldRetry = false;
+      retryEnabledHandler = new RetryEnabledHandler();
+      Objects.requireNonNull(playerErrorRecoverable.getCurrentPlayer()).addListener(retryEnabledHandler);
+    }
   }
 
-  // implement PlaybackExceptionRecovery
+    // implement PlaybackExceptionRecovery
 
   /**
    * Recovers for network error codes that indicate the path to the CDN/Origin was lost
@@ -107,7 +147,7 @@ public class NetworkLossPlayerErrorHandler implements PlaybackExceptionRecovery,
    */
   @Override
   public boolean recoverFrom(PlaybackException error) {
-    boolean handled = isHandledPlaybackException(error);
+    boolean handled = isHandledPlaybackException(error) && shouldRetry;
     if (handled && ! isRecoveryInProgress()) {
       currentError = error;
       addPlayerListener();
@@ -152,6 +192,10 @@ public class NetworkLossPlayerErrorHandler implements PlaybackExceptionRecovery,
   @Override
   public void releaseResources() {
     recoveryIsCompleted();
+    SimpleExoPlayer player = errorRecoverable.getCurrentPlayer();
+    if (player != null) {
+      player.removeListener(retryEnabledHandler);
+    }
   }
 
   // Implement Player.Listener
@@ -164,11 +208,11 @@ public class NetworkLossPlayerErrorHandler implements PlaybackExceptionRecovery,
    * If a tune away happens then the playlist will change so we abort any error recovery.
    *
    * @param timeline The latest timeline. Never null, but may be empty.
-   * @param reason The {@link TimelineChangeReason} responsible for this timeline change.
+   * @param reason The {@link Player.TimelineChangeReason} responsible for this timeline change.
    */
   @Override
   public void onTimelineChanged(Timeline timeline, @Player.TimelineChangeReason int reason) {
-    Log.d(TAG, "onTimelineChanged() - timeline empty: " + timeline.isEmpty() + " reason: " + reason);
+    Log.d(TAG, "onTimelineChanged() - timeline empty: " + timeline.isEmpty() + " reason: " + reason + " shouldRetry: " + shouldRetry);
     switch (reason) {
       case Player.TIMELINE_CHANGE_REASON_PLAYLIST_CHANGED:
         abortRecovery();
@@ -253,7 +297,9 @@ public class NetworkLossPlayerErrorHandler implements PlaybackExceptionRecovery,
   }
 
   private void recoveryIsCompleted() {
-    Log.d(TAG, "recoveryIsCompleted()");
+    if (currentError != null) {
+      Log.d(TAG, "recoveryIsCompleted()");
+    }
     currentError = null;
     timedRetryHandler.removeCallbacks(timedRetryAction);
     unregisterNetworkChangeReceiver();
