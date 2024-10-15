@@ -106,9 +106,19 @@ public class NetworkLossPlayerErrorHandler implements PlaybackExceptionRecovery,
     }
 
     @Override
-    public void onTimelineChanged(@NonNull Timeline timeline,  @Player.TimelineChangeReason int reason) {
+    public void onPlaybackStateChanged(@Player.State int playbackState) {
+      if (playbackState == Player.STATE_READY) {
+        if (!shouldRetry) {
+          Log.d(TAG, "onPlaybackStateChanged() - state READY shouldRetry was false, setting true");
+        }
+        shouldRetry = true;
+      }
+    }
+
+    @Override
+    public void onRenderedFirstFrame() {
       if (!shouldRetry) {
-        Log.d(TAG, "onTimelineChanged() - reason: " + reason + " shouldRetry was false, setting true");
+        Log.d(TAG, "onRenderedFirstFrame() - shouldRetry was false, setting true");
       }
       shouldRetry = true;
     }
