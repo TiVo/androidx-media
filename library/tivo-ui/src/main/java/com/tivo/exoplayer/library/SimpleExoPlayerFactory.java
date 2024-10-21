@@ -585,7 +585,7 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
     if (nonDefaultMediaCodecOperationMode) {
       renderersFactory.experimentalSetAsynchronousBufferQueueingEnabled(mediaCodecAsyncMode);
       boolean forceAsyncQueueingSynchronizationWorkaround =
-          !Util.MANUFACTURER.toLowerCase().contains("amazon") && mediaCodecAsyncMode;
+          !(Util.MANUFACTURER.toLowerCase().contains("amazon") || Util.MANUFACTURER.toLowerCase().contains("sei robotics")) && mediaCodecAsyncMode;
       renderersFactory.experimentalSetForceAsyncQueueingSynchronizationWorkaround(forceAsyncQueueingSynchronizationWorkaround);
     }
 
