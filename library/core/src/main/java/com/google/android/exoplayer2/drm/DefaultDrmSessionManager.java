@@ -50,6 +50,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import org.checkerframework.checker.nullness.qual.EnsuresNonNull;
@@ -79,6 +80,7 @@ public class DefaultDrmSessionManager implements DrmSessionManager {
     private boolean playClearSamplesWithoutKeys;
     private LoadErrorHandlingPolicy loadErrorHandlingPolicy;
     private long sessionKeepaliveMs;
+    private boolean freeKeepAliveSessionsOnRelease;
 
     /**
      * Creates a builder with default values. The default values are:
@@ -102,6 +104,7 @@ public class DefaultDrmSessionManager implements DrmSessionManager {
       loadErrorHandlingPolicy = new DefaultLoadErrorHandlingPolicy();
       useDrmSessionsForClearContentTrackTypes = new int[0];
       sessionKeepaliveMs = DEFAULT_SESSION_KEEPALIVE_MS;
+      freeKeepAliveSessionsOnRelease = true;
     }
 
     /**
@@ -220,6 +223,15 @@ public class DefaultDrmSessionManager implements DrmSessionManager {
       return this;
     }
 
+    /**
+     * Sets the flag to enable {@link DrmSession DrmSessions} caching.
+     * <p>It is useful to keep sessions around during quick channel changes.
+     */
+    public Builder setFreeKeepAliveSessionsOnRelease(boolean enable) {
+      this.freeKeepAliveSessionsOnRelease = enable;
+        return this;
+    }
+
     /** Builds a {@link DefaultDrmSessionManager} instance. */
     public DefaultDrmSessionManager build(MediaDrmCallback mediaDrmCallback) {
       return new DefaultDrmSessionManager(
@@ -231,7 +243,8 @@ public class DefaultDrmSessionManager implements DrmSessionManager {
           useDrmSessionsForClearContentTrackTypes,
           playClearSamplesWithoutKeys,
           loadErrorHandlingPolicy,
-          sessionKeepaliveMs);
+          sessionKeepaliveMs,
+          freeKeepAliveSessionsOnRelease);
     }
   }
 
@@ -289,6 +302,8 @@ public class DefaultDrmSessionManager implements DrmSessionManager {
   private final LoadErrorHandlingPolicy loadErrorHandlingPolicy;
   private final ReferenceCountListenerImpl referenceCountListener;
   private final long sessionKeepaliveMs;
+  private boolean freeKeepAliveSessionsOnRelease;
+  private boolean isFinalRelease;
 
   private final List<DefaultDrmSession> sessions;
   private final Set<PreacquiredSessionReference> preacquiredSessionReferences;
@@ -398,6 +413,31 @@ public class DefaultDrmSessionManager implements DrmSessionManager {
       boolean playClearSamplesWithoutKeys,
       LoadErrorHandlingPolicy loadErrorHandlingPolicy,
       long sessionKeepaliveMs) {
+
+    this(
+        uuid,
+        exoMediaDrmProvider,
+        callback,
+        keyRequestParameters,
+        multiSession,
+        useDrmSessionsForClearContentTrackTypes,
+        playClearSamplesWithoutKeys,
+        loadErrorHandlingPolicy,
+        sessionKeepaliveMs,
+        true);
+  }
+
+  private DefaultDrmSessionManager(
+        UUID uuid,
+        ExoMediaDrm.Provider exoMediaDrmProvider,
+        MediaDrmCallback callback,
+        HashMap<String, String> keyRequestParameters,
+        boolean multiSession,
+        int[] useDrmSessionsForClearContentTrackTypes,
+        boolean playClearSamplesWithoutKeys,
+        LoadErrorHandlingPolicy loadErrorHandlingPolicy,
+        long sessionKeepaliveMs,
+        boolean freeKeepAliveSessionsOnRelease) {
     checkNotNull(uuid);
     checkArgument(!C.COMMON_PSSH_UUID.equals(uuid), "Use C.CLEARKEY_UUID instead");
     this.uuid = uuid;
@@ -415,8 +455,8 @@ public class DefaultDrmSessionManager implements DrmSessionManager {
     preacquiredSessionReferences = Sets.newIdentityHashSet();
     keepaliveSessions = Sets.newIdentityHashSet();
     this.sessionKeepaliveMs = sessionKeepaliveMs;
+    this.freeKeepAliveSessionsOnRelease = freeKeepAliveSessionsOnRelease;
   }
-
   /**
    * Sets the mode, which determines the role of sessions acquired from the instance. This must be
    * called before {@link #acquireSession(Looper, DrmSessionEventListener.EventDispatcher, Format)}
@@ -470,21 +510,45 @@ public class DefaultDrmSessionManager implements DrmSessionManager {
 
   @Override
   public final void release() {
-    if (--prepareCallsCount != 0) {
-      return;
-    }
-    // Release all keepalive acquisitions if keepalive is enabled.
-    if (sessionKeepaliveMs != C.TIME_UNSET) {
-      // Make a local copy, because sessions are removed from this.sessions during release (via
-      // callback).
-      List<DefaultDrmSession> sessions = new ArrayList<>(this.sessions);
-      for (int i = 0; i < sessions.size(); i++) {
-        sessions.get(i).release(/* eventDispatcher= */ null);
+    if (freeKeepAliveSessionsOnRelease) {
+        if (--prepareCallsCount != 0) {
+            return;
+        }
+      releaseKeepAliveSessionsIfEnabled();
+    } else if (isFinalRelease) {
+
+      while (!sessions.isEmpty() || !keepaliveSessions.isEmpty()) {
+        // Release all keepalive acquisitions if keepalive is enabled.
+        releaseKeepAliveSessionsIfEnabled();
       }
+      prepareCallsCount = 0;
     }
     releaseAllPreacquiredSessions();
 
     maybeReleaseMediaDrm();
+
+    if (isFinalRelease) {
+      assert exoMediaDrm == null;
+    }
+  }
+
+  private void releaseKeepAliveSessionsIfEnabled() {
+    // Release all keepalive acquisitions if keepalive is enabled.
+    if (sessionKeepaliveMs != C.TIME_UNSET) {
+        // Make a local copy, because sessions are removed from this.sessions during release (via
+        // callback).
+        List<DefaultDrmSession> sessions = new ArrayList<>(this.sessions);
+        for (int i = 0; i < sessions.size(); i++) {
+            sessions.get(i).release(/* eventDispatcher= */ null);
+        }
+    }
+  }
+
+  /**
+   * Releases all the sessions. This is called from onStop()
+   */
+  public void releaseAllSessions() {
+    isFinalRelease = true;
   }
 
   @Override
@@ -687,6 +751,7 @@ public class DefaultDrmSessionManager implements DrmSessionManager {
     // If we're short on DRM session resources, first try eagerly releasing all our keepalive
     // sessions and then retry the acquisition.
     if (acquisitionFailedIndicatingResourceShortage(session) && !keepaliveSessions.isEmpty()) {
+      Log.w(TAG, "aquire resource shortage and keepaliveSession size: " + keepaliveSessions.size());
       releaseAllKeepaliveSessions();
       undoAcquisition(session, eventDispatcher);
       session = createAndAcquireSession(schemeDatas, isPlaceholderSession, eventDispatcher);
@@ -698,6 +763,8 @@ public class DefaultDrmSessionManager implements DrmSessionManager {
     if (acquisitionFailedIndicatingResourceShortage(session)
         && shouldReleasePreacquiredSessionsBeforeRetrying
         && !preacquiredSessionReferences.isEmpty()) {
+      Log.w(TAG, "aquire resource shortage and preacquiredSessionReferences size: " + preacquiredSessionReferences.size());
+
       releaseAllPreacquiredSessions();
       if (!keepaliveSessions.isEmpty()) {
         // Some preacquired sessions released above are now in their keepalive timeout phase. We
@@ -914,7 +981,10 @@ public class DefaultDrmSessionManager implements DrmSessionManager {
     public void onReferenceCountIncremented(DefaultDrmSession session, int newReferenceCount) {
       if (sessionKeepaliveMs != C.TIME_UNSET) {
         // The session has been acquired elsewhere so we want to cancel our timeout.
-        keepaliveSessions.remove(session);
+        boolean removed = keepaliveSessions.remove(session);
+        if (removed) {
+          Log.i(TAG, "Using cached session, ref count: " + newReferenceCount + ", session: " + session);
+        }
         checkNotNull(playbackHandler).removeCallbacksAndMessages(session);
       }
     }
@@ -925,10 +995,14 @@ public class DefaultDrmSessionManager implements DrmSessionManager {
         // Only the internal keep-alive reference remains, so we can start the timeout. We only
         // do this if the manager isn't released, because a released manager has already released
         // all its internal session keep-alive references.
+        Log.d(TAG, "Add session to keepaliveSessions, session: " + session);
         keepaliveSessions.add(session);
         checkNotNull(playbackHandler)
             .postAtTime(
-                () -> session.release(/* eventDispatcher= */ null),
+                () -> {
+                  Log.i(TAG, "keepAlive expired for session: " + session);
+                  session.release(/* eventDispatcher= */ null);
+                },
                 session,
                 /* uptimeMillis= */ SystemClock.uptimeMillis() + sessionKeepaliveMs);
       } else if (newReferenceCount == 0) {
@@ -939,6 +1013,14 @@ public class DefaultDrmSessionManager implements DrmSessionManager {
         }
         if (noMultiSessionDrmSession == session) {
           noMultiSessionDrmSession = null;
+        }
+        ImmutableSet<PreacquiredSessionReference> references =
+            ImmutableSet.copyOf(preacquiredSessionReferences);
+        for (PreacquiredSessionReference reference : references) {
+          if (reference.session == session) {
+            reference.isReleased = true;
+            preacquiredSessionReferences.remove(reference);
+          }
         }
         provisioningManagerImpl.onSessionFullyReleased(session);
         if (sessionKeepaliveMs != C.TIME_UNSET) {

@@ -100,6 +100,14 @@ public interface DrmSessionManager {
   }
 
   /**
+   * Releases all the aquired resources if default is set to preserve keepAlive on
+   * {@link #release()}. This is called from the Activity's onStop()
+   */
+  default void releaseAllSessions() {
+    // Do nothing.
+  }
+
+  /**
    * Pre-acquires a DRM session for the specified {@link Format}.
    *
    * <p>This notifies the manager that a subsequent call to {@link #acquireSession(Looper,

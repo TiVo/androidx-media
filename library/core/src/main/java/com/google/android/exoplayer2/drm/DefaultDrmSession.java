@@ -43,6 +43,7 @@ import com.google.android.exoplayer2.util.CopyOnWriteMultiset;
 import com.google.android.exoplayer2.util.Log;
 import com.google.android.exoplayer2.util.Util;
 import java.io.IOException;
+import java.nio.charset.Charset;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -405,6 +406,7 @@ import org.checkerframework.checker.nullness.qual.RequiresNonNull;
       return;
     }
     byte[] sessionId = Util.castNonNull(this.sessionId);
+    Log.i(TAG, "doLicense() - allowRetry: " + allowRetry + " session: [" + this + "]");
     switch (mode) {
       case DefaultDrmSessionManager.MODE_PLAYBACK:
       case DefaultDrmSessionManager.MODE_QUERY:
@@ -546,6 +548,24 @@ import org.checkerframework.checker.nullness.qual.RequiresNonNull;
     for (DrmSessionEventListener.EventDispatcher eventDispatcher : eventDispatchers.elementSet()) {
       event.accept(eventDispatcher);
     }
+  }
+
+  @Override
+  public String toString() {
+    StringBuilder str =  new StringBuilder("DefaultDrmSession - state: " + state + " mode: " + mode + " refCount: " + referenceCount);
+    if (sessionId != null) {
+      str.append(" sessionId: "); str.append(new String(sessionId, Charset.defaultCharset()));
+    }
+
+    if (schemeDatas != null) {
+      str.append(" schemaDatas: [");
+      for (SchemeData schemeData : schemeDatas) {
+        str.append(schemeData);
+        str.append(", ");
+      }
+      str.append("]");
+    }
+    return str.toString();
   }
 
   // Internal classes.

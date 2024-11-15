@@ -198,6 +198,10 @@ public class ExtendedMediaSourceFactory implements MediaSourceFactory {
    */
   public void releaseResources() {
     singletonVerimatrixDataSourceFactory = null;  // TODO any native cleanup needed here?
+    if (this.drmSessionManagerProvider != null &&
+        this.drmSessionManagerProvider instanceof DefaultDrmSessionManagerProvider) {
+        ((DefaultDrmSessionManagerProvider) this.drmSessionManagerProvider).releaseDrmSession();
+    }
   }
 
   private MediaSource maybeWrapWithAdsMediaSource(MediaItem mediaItem, MediaSource mediaSource) {
@@ -270,6 +274,7 @@ public class ExtendedMediaSourceFactory implements MediaSourceFactory {
       DefaultDrmSessionManagerProvider defaultDrmSessionManagerProvider = new DefaultDrmSessionManagerProvider();
       drmSessionManagerProvider = defaultDrmSessionManagerProvider;
       defaultDrmSessionManagerProvider.setDrmHttpDataSourceFactory(drmHttpDataSourceFactory);
+      defaultDrmSessionManagerProvider.setFreeKeepAliveSessionsOnRelease(false);
 //      defaultDrmSessionManagerProvider.setLoadErrorHandlingPolicy(new DrmLoadErrorHandlerPolicy());
     }
     factory.setDrmSessionManagerProvider(drmSessionManagerProvider);

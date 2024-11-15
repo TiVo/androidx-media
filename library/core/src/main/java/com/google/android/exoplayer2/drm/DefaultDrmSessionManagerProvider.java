@@ -45,6 +45,7 @@ public final class DefaultDrmSessionManagerProvider implements DrmSessionManager
   @Nullable private HttpDataSource.Factory drmHttpDataSourceFactory;
   @Nullable private String userAgent;
   @Nullable private LoadErrorHandlingPolicy drmLoadErrorHandlingPolicy;
+  private boolean freeKeepAliveSessionsOnRelease;
 
   public DefaultDrmSessionManagerProvider() {
     lock = new Object();
@@ -85,6 +86,23 @@ public final class DefaultDrmSessionManagerProvider implements DrmSessionManager
     this.drmLoadErrorHandlingPolicy = drmLoadErrorHandlingPolicy;
   }
 
+  /**
+   * Set the flag to indicate {@link DefaultDrmSessionManager} to cache the DrmSessions
+   * @param enable - true means caching ie enabled, false is the default behaviour
+   */
+  public void setFreeKeepAliveSessionsOnRelease(boolean enable) {
+    this.freeKeepAliveSessionsOnRelease = enable;
+  }
+
+  /**
+   * Releases all the cached sessions in {@link DrmSessionManager}
+   */
+  public void releaseDrmSession() {
+    if (this.manager != null) {
+      manager.releaseAllSessions();
+    }
+  }
+
   @Override
   public DrmSessionManager get(MediaItem mediaItem) {
     checkNotNull(mediaItem.playbackProperties);
@@ -97,6 +115,9 @@ public final class DefaultDrmSessionManagerProvider implements DrmSessionManager
     synchronized (lock) {
       if (!Util.areEqual(drmConfiguration, this.drmConfiguration)) {
         this.drmConfiguration = drmConfiguration;
+        if (manager != null) {
+            manager.releaseAllSessions();
+        }
         this.manager = createManager(drmConfiguration);
       }
       return checkNotNull(this.manager);
@@ -123,7 +144,8 @@ public final class DefaultDrmSessionManagerProvider implements DrmSessionManager
                 drmConfiguration.uuid, FrameworkMediaDrm.DEFAULT_PROVIDER)
             .setMultiSession(drmConfiguration.multiSession)
             .setPlayClearSamplesWithoutKeys(drmConfiguration.playClearContentWithoutKey)
-            .setUseDrmSessionsForClearContent(Ints.toArray(drmConfiguration.sessionForClearTypes));
+            .setUseDrmSessionsForClearContent(Ints.toArray(drmConfiguration.sessionForClearTypes))
+            .setFreeKeepAliveSessionsOnRelease(freeKeepAliveSessionsOnRelease);
     if (drmLoadErrorHandlingPolicy != null) {
       drmSessionManagerBuilder.setLoadErrorHandlingPolicy(drmLoadErrorHandlingPolicy);
     }
