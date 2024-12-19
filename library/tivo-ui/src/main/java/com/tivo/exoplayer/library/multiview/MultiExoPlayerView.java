@@ -7,6 +7,8 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.GridLayout;
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 import com.google.android.exoplayer2.Format;
 import com.google.android.exoplayer2.ui.PlayerView;
 import com.google.android.exoplayer2.util.Log;
@@ -14,6 +16,7 @@ import com.google.common.collect.ImmutableList;
 import com.tivo.exoplayer.library.R;
 import com.tivo.exoplayer.library.SimpleExoPlayerFactory;
 import java.util.Arrays;
+import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
 
 /**
  * A GridLayout (mosaic view) that contains and manages a set of N-PlayerView's and the {@link MultiViewPlayerController}'s for
@@ -31,10 +34,11 @@ public class MultiExoPlayerView extends GridLayout {
 
   private static final String TAG = "MultiExoPlayerView";
 
-  private MultiViewPlayerController[] playerControllers;
+  private @Nullable MultiViewPlayerController[] playerControllers;
   private final Context context;
   private int viewCount;
-  private MultiViewPlayerController selectedController;
+  private @MonotonicNonNull MultiViewPlayerController selectedController;
+  private FocusedPlayerListener focusedPlayerListener;
 
   public static class OptimalVideoSize {
     public final int width;
@@ -84,6 +88,23 @@ public class MultiExoPlayerView extends GridLayout {
     }
   }
 
+  /**
+   * Clients of the {@link MultiExoPlayerView} use this call-back to be notified when the
+   * focused cell changes.
+   */
+  public static interface FocusedPlayerListener {
+
+    /**
+     * Called with "focused" true for the grid cell selection.  Subsequent changes call this method back
+     * twice, with the cell loosing focus (focused is false) and then the cell gaining focus
+     *
+     * @param view       the {@PlayerView} of the cell (the player is exposed via {@link PlayerView#getPlayer()})
+     * @param controller the {@link MultiViewPlayerController} for the cell gaining/loosing focus
+     * @param focused    true if cell gained focus, false if it lost it
+     */
+    default void focusedPlayerChanged(PlayerView view, MultiViewPlayerController controller, boolean focused) {};
+  }
+
   public MultiExoPlayerView(Context context) {
     this(context, null);
   }
@@ -104,16 +125,25 @@ public class MultiExoPlayerView extends GridLayout {
   }
 
   public void createExoPlayerViews(int rowCount, int columnCount, SimpleExoPlayerFactory.Builder builder) {
-    if (playerControllers != null) {
-      for (int i = 0; i < playerControllers.length; i++) {
-        MultiViewPlayerController playerController = playerControllers[i];
-        playerController.handleStop();
-        PlayerView playerView = (PlayerView) getChildAt(i);
-        playerView.setPlayer(null);
-      }
+    createExoPlayerViews(rowCount, columnCount, builder, new FocusedPlayerListener() {});
+  }
 
-      removeAllViews();
-    }
+  /**
+   * Creates {@link com.google.android.exoplayer2.Player} instances, then creates and associates them with
+   * {@link PlayerView}'s for each grid cell.  rowCount * columnCount cells are created.
+   *
+   * <p>Each cell has an associated {@link MultiViewPlayerController} to use to set the {@link com.google.android.exoplayer2.MediaItem}
+   * to play in the cell.</p>
+   *
+   * @param rowCount - number of rows of player grid cells
+   * @param columnCount - number of columns of player grid cells
+   * @param builder - the {@link SimpleExoPlayerFactory.Builder} to use to create the players.
+   * @param listener - call back listener for when focus changes.
+   */
+  public void createExoPlayerViews(int rowCount, int columnCount, SimpleExoPlayerFactory.Builder builder, FocusedPlayerListener listener) {
+    focusedPlayerListener = listener;
+
+    stopAllPlayerViews();
 
     viewCount = rowCount * columnCount;
     setRowCount(rowCount);
@@ -151,18 +181,32 @@ public class MultiExoPlayerView extends GridLayout {
           childPlayerSelectedChanged(viewIndex, hasFocus);
         }
       });
-      MultiViewPlayerController multiViewPlayerController = new MultiViewPlayerController(builder, selected, new GridLocation(row, column, viewIndex));
-      if (selected) {
-        selectedController = multiViewPlayerController;
-      }
+      GridLocation gridLocation = new GridLocation(row, column, viewIndex);
+      MultiViewPlayerController multiViewPlayerController = new MultiViewPlayerController(builder, selected, gridLocation);
       playerView.setPlayer(multiViewPlayerController.createPlayer());
       playerControllers[i] = multiViewPlayerController;
+
+      if (selected) {
+        selectedController = multiViewPlayerController;
+        focusedPlayerListener.focusedPlayerChanged(playerView, multiViewPlayerController, true);
+      }
+
       if (++column == columnCount) {
         column = 0;
         row++;
       }
     }
   }
+
+  private void childPlayerSelectedChanged(int i, boolean hasFocus) {
+    if (playerControllers != null) {
+      selectedController = playerControllers[i];
+      selectedController.setSelected(hasFocus);
+      PlayerView playerView = (PlayerView) getChildAt(i);
+      focusedPlayerListener.focusedPlayerChanged(playerView, selectedController, true);
+    }
+  }
+
 
   /**
    * Video is sized to fit by {@link com.google.android.exoplayer2.ui.AspectRatioFrameLayout} such as to
@@ -191,28 +235,64 @@ public class MultiExoPlayerView extends GridLayout {
         : new OptimalVideoSize(optimalWidth, optimalHeight);
   }
 
-  private void childPlayerSelectedChanged(int i, boolean hasFocus) {
-    selectedController = playerControllers[i];
-    selectedController.setSelected(hasFocus);
-  }
-
+  /**
+   * Get the number of {@link PlayerView} cells in the layout
+   *
+   * @return count of cells.
+   */
   public int getViewCount() {
     return viewCount;
   }
 
-  public MultiViewPlayerController getSelectedController() {
+  /**
+   * Only one cell is "selected" at a time, the player in the selected cell has audio focus,
+   * the remaining players do not load or play their audio track.   There is always one and
+   * only one selected controller once {@link #createExoPlayerViews(int, int, SimpleExoPlayerFactory.Builder)}
+   * has been called.
+   *
+   * @return the {@link MultiViewPlayerController} for the current selected controller
+   */
+  public @NonNull MultiViewPlayerController getSelectedController() {
     return selectedController;
   }
 
-  public MultiViewPlayerController getPlayerController(int index) {
-    return playerControllers[index];
+  /**
+   * Returns the {@link MultiViewPlayerController} at the specified index (grid indexes
+   * are in row-major order)
+   *
+   * @param index index of controller to select
+   * @return {@link MultiViewPlayerController} or null if {@link #stopAllPlayerViews()} called clearing contorller list
+   */
+  public @Nullable MultiViewPlayerController getPlayerController(int index) {
+    return playerControllers == null ? null : playerControllers[index];
   }
 
   public ImmutableList<MultiViewPlayerController> getPlayerControllers() {
     return playerControllers == null
         ? ImmutableList.of()
-        : new ImmutableList.Builder()
+        : new ImmutableList.Builder<MultiViewPlayerController>()
             .addAll(Arrays.asList(playerControllers))
             .build();
+  }
+
+
+  /**
+   * Call this method to stop all the players and remove the child {@link PlayerView}'s
+   *
+   * <p>This should be called when the activity is stopped or when navigating away from an
+   * active multi-view.</p>
+   */
+  public void stopAllPlayerViews() {
+    if (playerControllers != null) {
+      for (int i = 0; i < playerControllers.length; i++) {
+        MultiViewPlayerController playerController = playerControllers[i];
+        playerController.handleStop();
+        PlayerView playerView = (PlayerView) getChildAt(i);
+        playerView.setPlayer(null);
+      }
+
+      removeAllViews();
+      playerControllers = null;
+    }
   }
 }

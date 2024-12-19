@@ -21,6 +21,7 @@ import com.google.android.exoplayer2.MediaItem;
 import com.google.android.exoplayer2.PlaybackException;
 import com.google.android.exoplayer2.source.MediaSourceFactory;
 import com.google.android.exoplayer2.source.hls.playlist.DefaultHlsPlaylistTracker;
+import com.google.android.exoplayer2.ui.PlayerView;
 import com.google.android.exoplayer2.upstream.DefaultHttpDataSource;
 import com.google.android.exoplayer2.upstream.HttpDataSource;
 import com.google.common.collect.ImmutableList;
@@ -277,7 +278,12 @@ public class MultiViewActivity extends AppCompatActivity {
     currentChannelForCell = new int[rows * columns];
     Arrays.fill(currentChannelForCell, 0);
 
-    mainView.createExoPlayerViews(rows, columns, simpleExoPlayerFactoryBuilder);
+    mainView.createExoPlayerViews(rows, columns, simpleExoPlayerFactoryBuilder, new MultiExoPlayerView.FocusedPlayerListener() {
+      @Override
+      public void focusedPlayerChanged(PlayerView view, MultiViewPlayerController controller, boolean focused) {
+        Log.d(TAG, "focusedPlayerChanged: view: " + view + " location: " + controller.getGridLocation() + " focused: " + focused);
+      }
+    });
     MultiExoPlayerView.OptimalVideoSize optimalSize = mainView.calculateOptimalVideoSizes(false);
 
     Iterator<MediaItem> it = mediaItemsToPlay.iterator();

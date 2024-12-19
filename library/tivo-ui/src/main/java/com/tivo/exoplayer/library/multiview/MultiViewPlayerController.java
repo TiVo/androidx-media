@@ -174,7 +174,7 @@ public class MultiViewPlayerController implements Player.Listener {
     exoPlayerFactory.playMediaItems(C.POSITION_UNSET, true, currentItem);
   }
 
-  public SimpleExoPlayer createPlayer() {
+  SimpleExoPlayer createPlayer() {
     DefaultLoadControl.Builder builder = new DefaultLoadControl.Builder();
     builder.setBufferDurationsMs(
         DefaultLoadControl.DEFAULT_MIN_BUFFER_MS,
