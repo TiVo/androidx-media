@@ -13,7 +13,6 @@ import android.widget.Toast;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.webkit.internal.ApiFeature;
 import com.google.android.exoplayer2.C;
 import com.google.android.exoplayer2.ExoPlaybackException;
 import com.google.android.exoplayer2.Format;
@@ -235,7 +234,7 @@ public class MultiViewActivity extends AppCompatActivity {
   public void onStop() {
     super.onStop();
     for (MultiViewPlayerController controller : mainView.getPlayerControllers()) {
-      controller.handleStop();
+      controller.releasePlayer();
     }
   }
 

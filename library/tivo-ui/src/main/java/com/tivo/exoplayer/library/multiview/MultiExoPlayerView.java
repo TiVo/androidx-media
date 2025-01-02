@@ -10,6 +10,7 @@ import android.widget.GridLayout;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import com.google.android.exoplayer2.Format;
+import com.google.android.exoplayer2.Player;
 import com.google.android.exoplayer2.ui.PlayerView;
 import com.google.android.exoplayer2.util.Log;
 import com.google.common.collect.ImmutableList;
@@ -143,7 +144,7 @@ public class MultiExoPlayerView extends GridLayout {
   public void createExoPlayerViews(int rowCount, int columnCount, SimpleExoPlayerFactory.Builder builder, FocusedPlayerListener listener) {
     focusedPlayerListener = listener;
 
-    stopAllPlayerViews();
+    removeAllPlayerViews();
 
     viewCount = rowCount * columnCount;
     setRowCount(rowCount);
@@ -257,11 +258,39 @@ public class MultiExoPlayerView extends GridLayout {
   }
 
   /**
+   * The {@link PlayerView} for the selected cell.  See {@link #getSelectedController()}.
+   *
+   * @return the {@link PlayerView} that is currently selected, or null if {@link #removeAllPlayerViews()} was called
+   */
+  public PlayerView getSelectedPlayerView() {
+    PlayerView selected = null;
+    if (selectedController != null && playerControllers != null) {
+      for (int i = 0; i < playerControllers.length && selected == null; i++) {
+        MultiViewPlayerController controller = playerControllers[i];
+        if (controller == selectedController) {
+          selected = (PlayerView) getChildAt(i);
+        }
+      }
+    }
+    return selected;
+  }
+
+  /**
+   * Set the player in the indicated cell as "selected".  This focuses the {@link PlayerView}
+   * in that grid cell and that triggers its player to have audio focus.
+   *
+   * @param index - grid location (row major index form) of the cell to select.
+   */
+  public void setSelectedPlayerView(int index) {
+    getChildAt(index).requestFocus();
+  }
+
+  /**
    * Returns the {@link MultiViewPlayerController} at the specified index (grid indexes
    * are in row-major order)
    *
    * @param index index of controller to select
-   * @return {@link MultiViewPlayerController} or null if {@link #stopAllPlayerViews()} called clearing contorller list
+   * @return {@link MultiViewPlayerController} or null if {@link #removeAllPlayerViews()} called clearing contorller list
    */
   public @Nullable MultiViewPlayerController getPlayerController(int index) {
     return playerControllers == null ? null : playerControllers[index];
@@ -275,18 +304,36 @@ public class MultiExoPlayerView extends GridLayout {
             .build();
   }
 
-
   /**
-   * Call this method to stop all the players and remove the child {@link PlayerView}'s
+   * This method can be called to switch out the multi-view for a single player view.
+   * It calls {@link Player#stop()} to free up the memory associated with the players
+   * for each view but leaves the player in place with any DRM session caching it may
+   * contain.
    *
-   * <p>This should be called when the activity is stopped or when navigating away from an
-   * active multi-view.</p>
+   * TODO - may want to detach the player from it's MultiPlayerView child if we want to use it elseware
    */
   public void stopAllPlayerViews() {
     if (playerControllers != null) {
       for (int i = 0; i < playerControllers.length; i++) {
         MultiViewPlayerController playerController = playerControllers[i];
-        playerController.handleStop();
+        playerController.stopPlayer();
+      }
+    }
+  }
+
+  /**
+   * Call this method to stop all the players and remove the child {@link PlayerView}'s
+   * and calls {@link MultiViewPlayerController#releasePlayer()} on each of the players.
+   * Once this method is called this {@link MultiExoPlayerView} is effectively destroyed.
+   *
+   * <p>This should be called when the activity is stopped.  See {@link #stopAllPlayerViews()}
+   * for a method to just release memory held without completely destroying the players</p>
+   */
+  public void removeAllPlayerViews() {
+    if (playerControllers != null) {
+      for (int i = 0; i < playerControllers.length; i++) {
+        MultiViewPlayerController playerController = playerControllers[i];
+        playerController.releasePlayer();
         PlayerView playerView = (PlayerView) getChildAt(i);
         playerView.setPlayer(null);
       }

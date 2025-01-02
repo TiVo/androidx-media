@@ -161,8 +161,15 @@ public class MultiViewPlayerController implements Player.Listener {
     this.selected = selected;
   }
 
-  public void handleStop() {
+  public void releasePlayer() {
     exoPlayerFactory.releasePlayer();
+  }
+
+  public void stopPlayer() {
+    Player player = exoPlayerFactory.getCurrentPlayer();
+    if (player != null) {
+      player.stop();
+    }
   }
 
   public void playMediaItem(boolean fastResync, MediaItem currentItem) {

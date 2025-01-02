@@ -393,7 +393,7 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
    *
    * @param context - android ApplicationContext
    */
-  public SimpleExoPlayerFactory(Context context) {
+  private SimpleExoPlayerFactory(Context context) {
     this.context = context;
     currentParameters = new DefaultTrackSelector.ParametersBuilder(context).build();
 
@@ -405,7 +405,7 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
    * Construct the factory, including specifying an event listener that will be called for
    * playback errors (either recovered from internally or not).
    *
-   * DEPRECATED use
+   * <p>DEPRECATED use {@link SimpleExoPlayerFactory.Builder()}</p>
    * @param context - android ApplicationContext
    * @param listener - error listener
    */
@@ -641,9 +641,12 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
    *   getMediaSourceFactory().setAdsLoaderProvider(...)
    * </pre>
    *
-   * @return null or current MediaSourceFactory in use by player
+   * @return current MediaSourceFactory in use by player, or creates one that will be used by next {@link #createPlayer()}
    */
-  public @Nullable ExtendedMediaSourceFactory getMediaSourceFactory() {
+  public ExtendedMediaSourceFactory getMediaSourceFactory() {
+    if (mediaSourceFactory == null) {
+      mediaSourceFactory = new ExtendedMediaSourceFactory(context);
+    }
     return mediaSourceFactory;
   }
 
