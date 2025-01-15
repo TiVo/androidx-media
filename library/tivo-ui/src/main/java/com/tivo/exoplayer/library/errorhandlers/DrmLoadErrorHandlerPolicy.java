@@ -43,8 +43,8 @@ import java.util.Random;
 public class DrmLoadErrorHandlerPolicy implements LoadErrorHandlingPolicy {
   public static final String TAG = "DrmLoadErrorHandlerPolicy";
 
-  public static final long MAX_TIME_TO_RETRY = 3000;    // 3 second limit on retries at this level
-  public static final int MIN_RETRY_DELAY = 200;       // 200ms min delay
+  public static final long MAX_RETRY_COUNT = 3;    // 3 times limit on retries at this level
+  public static final int MIN_RETRY_DELAY = 200;   // 200ms min delay
   private final Random retryRandomizer;
 
   static class ActiveRetryState {
@@ -137,13 +137,22 @@ public class DrmLoadErrorHandlerPolicy implements LoadErrorHandlingPolicy {
 
     if (exception instanceof HttpDataSource.InvalidResponseCodeException) {
       HttpDataSource.InvalidResponseCodeException invalidResponseCodeException = (HttpDataSource.InvalidResponseCodeException) exception;
+      Log.d(TAG, "handleDataSourceException() HTTP response: " + invalidResponseCodeException.responseCode);
       switch (invalidResponseCodeException.responseCode) {
         case 429:   // To Many Requests (see https://www.rfc-editor.org/rfc/rfc6585#section-4)
           delayFor = toManyRequestsDelayTime(loadErrorInfo, retryState);
           break;
-
+        case 500:
+        case 503:
+          if (retryState.errorCount <= MAX_RETRY_COUNT) {
+            delayFor = retryRandomizer.nextInt(
+                    (int) ((retryState.errorCount * 1000 - MIN_RETRY_DELAY) + 1)) + 
+                    (MIN_RETRY_DELAY + ((retryState.errorCount > 0) ? (retryState.errorCount - 1) * 1000 : 1000));
+          }
+          break;
       }
     }
+    Log.i(TAG, "handleDataSourceException(): delayFor " + delayFor);
     return delayFor;
   }
 
@@ -159,8 +168,13 @@ public class DrmLoadErrorHandlerPolicy implements LoadErrorHandlingPolicy {
     }
 
     if (retryDelay == C.TIME_UNSET) {
-      int maxDelay = retryState.errorCount * 1000;
-      retryDelay = retryRandomizer.nextInt((int) ((maxDelay - MIN_RETRY_DELAY) + 1)) + MIN_RETRY_DELAY;
+        // If the "Retry-After" is not set in the response header, limit the
+        // number of retries to MAX_RETRY_COUNT to avoid indefinite retry loop
+        if (retryState.errorCount <= MAX_RETRY_COUNT) {
+            int maxDelay = retryState.errorCount * 1000;
+            retryDelay = retryRandomizer.nextInt((int) ((maxDelay - MIN_RETRY_DELAY) + 1)) + 
+                (MIN_RETRY_DELAY + ((retryState.errorCount > 0) ? (retryState.errorCount - 1) * 1000 : 1000));
+        }
     }
     return retryDelay;
   }
