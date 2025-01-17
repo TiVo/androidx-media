@@ -29,8 +29,10 @@ public class MediaItemHelper {
   public static final String DRM_VCAS_ADDR = "vcas_addr";
 
   public static final String DRM_SCHEME_WIDEVINE = "widevine";
+  public static final String DRM_SCHEME_WIDEVINE_TIVODRM = "tivo_drm";
   public static final String DRM_WV_PROXY = "wv_proxy";
   public static final String DRM_VCAS_VUID = "vcas_vuid";
+  public static final String DRM_WV_AUTH = "auth";
   private static final String VCAS_DEBUG = "vcas_debug";
 
   public static MediaItem.Builder populateDrmPropertiesFromIntent(MediaItem.Builder builder, Intent intent, Context context) {
@@ -39,15 +41,27 @@ public class MediaItemHelper {
     if (drmSchemeExtra == null) {
       return builder;
     }
+    Map<String, String> keyRequestProperties = new HashMap<>();
+
     switch (drmSchemeExtra) {
       case DRM_SCHEME_WIDEVINE:
-
-        Map<String, String> keyRequestProperties = new HashMap<>();
         String vuid = intent.getStringExtra(DRM_VCAS_VUID);
         if (vuid != null) {
           keyRequestProperties.put("deviceId", vuid);
         }
+        break;
 
+      case DRM_SCHEME_WIDEVINE_TIVODRM:
+        String auth = intent.getStringExtra(DRM_WV_AUTH);
+        if (auth != null) {
+          keyRequestProperties.put("Authorization", auth);
+        }
+
+    }
+
+    switch (drmSchemeExtra) {
+      case DRM_SCHEME_WIDEVINE:
+      case DRM_SCHEME_WIDEVINE_TIVODRM:
         builder
             .setDrmUuid(C.WIDEVINE_UUID)
             .setDrmLicenseUri(intent.getStringExtra(DRM_WV_PROXY))
