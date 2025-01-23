@@ -20,10 +20,12 @@ import com.google.android.exoplayer2.Player;
 import com.google.android.exoplayer2.ext.ima.ImaAdsLoader;
 import com.google.android.exoplayer2.ui.PlayerView;
 import com.google.android.exoplayer2.util.Log;
+import com.google.android.exoplayer2.util.MimeTypes;
 import com.tivo.exoplayer.library.source.ExtendedMediaSourceFactory;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 
@@ -54,6 +56,8 @@ public class ImaSDKHelper {
   private @Nullable AdsConfiguration currentPlayingAd;
   private @Nullable AdListenerAdapter adListenerAdapter;
   private boolean hideAdControlsForTrailer;
+  private List<String> supportedAdMediaMimeTypes;
+
 // True when deprecated methods removed
 //  private @MonotonicNonNull AdListenerAdapter adListenerAdapter;
 
@@ -64,6 +68,10 @@ public class ImaSDKHelper {
     private boolean warmStartImaSDK;
     private @Nullable AdProgressListener adProgressListener;
     private boolean hideAdControlsForTrailer;
+    private List<String> supportedAdMediaMimeTypes = Arrays.asList(
+        MimeTypes.APPLICATION_MP4,
+        MimeTypes.APPLICATION_M3U8
+    );
 
     public Builder(PlayerView playerView, ExtendedMediaSourceFactory mediaSourceFactory, Context context) {
       sdkHelper = new ImaSDKHelper(playerView, mediaSourceFactory, context);
@@ -124,6 +132,20 @@ public class ImaSDKHelper {
     }
 
     /**
+     * Set the supported Ad media mime types to only the values in the list, default
+     * is to allow all media in the VAST document.
+     *
+     * <p>This affects the setting {@link ImaAdsLoader.Builder#setAdMediaMimeTypes(List)} etAdMediaMimeTypes}</p>
+     *
+     * @param supportedTypes - limits supported types to listed values, null opens to all
+     * @return {@link Builder} for chaining.
+     */
+    public Builder setSupportedAdMediaMimeTypes(@Nullable List<String> supportedTypes) {
+      this.supportedAdMediaMimeTypes = supportedTypes;
+      return this;
+    }
+
+    /**
      * This is a work-around for trailers authored with VAST elements we don't want to show
      * (like Why This Ad button).  It simply hides the entire {@link PlayerView#getAdViewGroup()}
      *
@@ -159,6 +181,7 @@ public class ImaSDKHelper {
         sdkHelper.adsLoaderBuilder.setAdEventListener(listenerAdapter);
       }
       sdkHelper.hideAdControlsForTrailer = hideAdControlsForTrailer;
+      sdkHelper.supportedAdMediaMimeTypes = supportedAdMediaMimeTypes;
       return sdkHelper;
     }
 
@@ -378,6 +401,7 @@ public class ImaSDKHelper {
         ? Collections.emptySet()
         : new HashSet<>(Arrays.asList(AD_ATTRIBUTION, COUNTDOWN));
     currentAdsLoader = adsLoaderBuilder
+        .setAdMediaMimeTypes(supportedAdMediaMimeTypes)
         .setDebugModeEnabled(DEBUG_MODE_ENABLED)
         .setAdUiElements(adUiElements)
         .build();
