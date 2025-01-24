@@ -53,7 +53,7 @@ public class MultiExoPlayerView extends GridLayout {
     public boolean meetsOptimalSize(Format format) {
       boolean meets = format.height == Format.NO_VALUE || format.width == Format.NO_VALUE;
       if (!meets) {
-        meets = format.width <= width && format.height < height;
+        meets = format.width <= width && format.height <= height;
       }
       return meets;
     }

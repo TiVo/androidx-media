@@ -18,6 +18,7 @@ import com.google.android.exoplayer2.drm.DummyExoMediaDrm;
 import com.google.android.exoplayer2.drm.FrameworkMediaDrm;
 import com.google.android.exoplayer2.drm.UnsupportedDrmException;
 import com.google.android.exoplayer2.source.TrackGroupArray;
+import com.google.android.exoplayer2.trackselection.DefaultTrackSelector;
 import com.google.android.exoplayer2.trackselection.ExoTrackSelection;
 import com.google.android.exoplayer2.trackselection.TrackSelector;
 import com.google.android.exoplayer2.util.Log;
@@ -35,6 +36,16 @@ import java.util.List;
  */
 public class MultiViewPlayerController implements Player.Listener {
   public static final String TAG = "MultiViewPlayerController";
+
+  /**
+   * The default duration of media that the player will attempt to ensure is buffered at all
+   * times, in milliseconds.
+   */
+
+  private static final int MIN_BUFFER_MS = 12_000;
+  private static final int MAX_BUFFER_MS = 12_000;
+  private static final int MAX_FRAME_RATE = 30;
+  private static final int MAX_BITRATE = 3_000_000;
 
   private final SimpleExoPlayerFactory exoPlayerFactory;
   private final MultiExoPlayerView.GridLocation gridLocation;   // Location in the multiplayer view (row/column)
@@ -117,6 +128,11 @@ public class MultiViewPlayerController implements Player.Listener {
     builder.setTrackSelectorFactory((context, trackSelectionFactory) -> new MultiViewTrackSelector(context, trackSelectionFactory));
 
     exoPlayerFactory = builder.build();
+    exoPlayerFactory.setCurrentParameters(exoPlayerFactory.getCurrentParameters().buildUpon()
+        .setMaxVideoFrameRate(MAX_FRAME_RATE)
+        .setMaxVideoBitrate(MAX_BITRATE)
+        .setExceedVideoConstraintsIfNecessary(true)
+        .build());
 
     // setup to only use L3 DRM (L1 only supports maybe two views)
     ExtendedMediaSourceFactory mediaSourceFactory = exoPlayerFactory.getMediaSourceFactory();
@@ -136,14 +152,11 @@ public class MultiViewPlayerController implements Player.Listener {
 
   public void setOptimalVideoSize(MultiExoPlayerView.OptimalVideoSize optimalSize) {
     optimalVideoSize = optimalSize;
-
-    // Declaritive track selection would be the best path, however viewport sizing does not
-    // work exactly like we want for this feature.
-    // TODO - we may want to optimize bitrate as well
-//    DefaultTrackSelector.Parameters current = exoPlayerFactory.getCurrentParameters();
-//    exoPlayerFactory.setCurrentParameters(current.buildUpon()
-//        .setViewportSize(optimalSize.width, optimalSize.height, false)
-//        .build());
+    Log.d(TAG, gridLocation + " - setOptimalVideoSize " + optimalSize.width + "x" + optimalSize.height);
+    DefaultTrackSelector.Parameters current = exoPlayerFactory.getCurrentParameters();
+    exoPlayerFactory.setCurrentParameters(current.buildUpon()
+        .setMaxVideoSize(optimalSize.width, optimalSize.height)
+        .build());
   }
 
   public MultiExoPlayerView.GridLocation getGridLocation() {
@@ -184,8 +197,8 @@ public class MultiViewPlayerController implements Player.Listener {
   SimpleExoPlayer createPlayer() {
     DefaultLoadControl.Builder builder = new DefaultLoadControl.Builder();
     builder.setBufferDurationsMs(
-        DefaultLoadControl.DEFAULT_MIN_BUFFER_MS,
-        DefaultLoadControl.DEFAULT_MAX_BUFFER_MS,
+        MIN_BUFFER_MS,
+        MAX_BUFFER_MS,
         1000,   // Faster channel change
         DefaultLoadControl.DEFAULT_BUFFER_FOR_PLAYBACK_AFTER_REBUFFER_MS);
 
