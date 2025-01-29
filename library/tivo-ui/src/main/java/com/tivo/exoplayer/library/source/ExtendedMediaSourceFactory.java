@@ -347,7 +347,7 @@ public class ExtendedMediaSourceFactory implements MediaSourceFactory {
         singletonVerimatrixDataSourceFactory = createVerimatrixDataSourceFactory(upstreamFactory, info);
         factory = singletonVerimatrixDataSourceFactory;
       } else {
-        singletonVerimatrixDataSourceFactory.prepareForPlayback(info.getCaId(), info.getBootAddr());
+        singletonVerimatrixDataSourceFactory.prepareForPlayback(info.getCaId(), info.getBootAddr(), upstreamFactory);
       }
     } else if (TIVO_CRYPT_UUID.equals(drmConfiguration.uuid)) {
       TivoCryptDrmInfo info = (TivoCryptDrmInfo) mediaItem.playbackProperties.tag;
