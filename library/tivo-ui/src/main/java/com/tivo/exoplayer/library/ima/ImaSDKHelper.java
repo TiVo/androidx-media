@@ -70,7 +70,15 @@ public class ImaSDKHelper {
     private boolean hideAdControlsForTrailer;
     private List<String> supportedAdMediaMimeTypes = Arrays.asList(
         MimeTypes.APPLICATION_MP4,
-        MimeTypes.APPLICATION_M3U8
+        MimeTypes.APPLICATION_M3U8,
+        MimeTypes.VIDEO_MP4,
+        MimeTypes.VIDEO_H263,
+        MimeTypes.VIDEO_H264,
+        MimeTypes.VIDEO_H265,
+        MimeTypes.AUDIO_MP4,
+        MimeTypes.AUDIO_MPEG,
+        MimeTypes.AUDIO_AAC,
+        MimeTypes.AUDIO_WAV
     );
 
     public Builder(PlayerView playerView, ExtendedMediaSourceFactory mediaSourceFactory, Context context) {
