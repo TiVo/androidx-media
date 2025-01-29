@@ -35,6 +35,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * Example player that uses a "ten foot" UI, that is majority of the UX is controlled by
@@ -228,14 +229,15 @@ public class MultiViewActivity extends AppCompatActivity {
   @Override
   public void onPause() {
     super.onPause();
+    Log.d(TAG, "onPause() called");
+    mainView.stopAllPlayerViews();
   }
 
   @Override
   public void onStop() {
     super.onStop();
-    for (MultiViewPlayerController controller : mainView.getPlayerControllers()) {
-      controller.releasePlayer();
-    }
+    Log.d(TAG, "onStop() called");
+    mainView.removeAllPlayerViews();
   }
 
   @Override
@@ -281,6 +283,27 @@ public class MultiViewActivity extends AppCompatActivity {
       @Override
       public void focusedPlayerChanged(PlayerView view, MultiViewPlayerController controller, boolean focused) {
         Log.d(TAG, "focusedPlayerChanged: view: " + view + " location: " + controller.getGridLocation() + " focused: " + focused);
+      }
+
+      @Override
+      public void focusPlayerClicked(PlayerView view, MultiViewPlayerController controller) {
+        Log.d(TAG, "focusPlayerClicked: view: " + view + " location: " + controller.getGridLocation());
+        MediaItem mediaItem = Objects.requireNonNull(view.getPlayer()).getCurrentMediaItem();
+        MediaItem.PlaybackProperties properties = mediaItem.playbackProperties;
+        if (properties != null) {
+
+          Intent currentIntent = getIntent();
+          Intent intent = new Intent(MultiViewActivity.this, ViewActivity.class);
+          intent.setAction(ViewActivity.ACTION_VIEW);
+          intent.setData(properties.uri);
+
+          // Copy extras from the current intent
+          if (currentIntent.getExtras() != null) {
+            intent.putExtras(currentIntent.getExtras());
+          }
+
+          startActivity(intent);
+        }
       }
     });
     MultiExoPlayerView.OptimalVideoSize optimalSize = mainView.calculateOptimalVideoSizes(false);

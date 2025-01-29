@@ -870,6 +870,20 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
   }
 
   /**
+   * Sets audio playback enabled/disabled.  This setting persists across player releases.
+   *
+   * @param enable true to enable audio (the default), false to disable audio
+   * @return true if the setting was changed, false if it was already set to the requested value
+   */
+  public boolean setAudioEnabled(boolean enable) {
+    DefaultTrackSelector.ParametersBuilder builder = setRendererState(C.TRACK_TYPE_AUDIO, !enable);
+    if (builder != null) {
+      commitTrackSelectionParameters(builder);
+    }
+    return builder != null;
+  }
+
+  /**
    * Get the current parameters for track selection.   These start out as matching
    * {@link DefaultTrackSelector.Parameters#DEFAULT}, then any changes to the track selection
    * by this objects track selection API methods updates them
@@ -923,18 +937,22 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
    * This change is not remembered in the {@link #getCurrentParameters()}
    *
    * @param trackType the track to disable rendering for, one of the {@link C} TRACK_TYPE_x constants
-   * @param trackState true to render, false to disable rendering
+   * @param trackState false to render, true to disable rendering
+   * @return the new parameters if the state was changed, null if it was already set
    */
-  public void setRendererState(int trackType, boolean trackState) {
+  public DefaultTrackSelector.ParametersBuilder setRendererState(int trackType, boolean trackState) {
     DefaultTrackSelector.ParametersBuilder builder = currentParameters.buildUpon();
+    boolean changed = false;
     if (trackSelector != null) {
       for (int i = 0; i < player.getRendererCount(); i++) {
         if (player.getRendererType(i) == trackType) {
             builder.setRendererDisabled(i, trackState);
+            changed = true;
         }
       }
       trackSelector.setParameters(builder);
     }
+    return changed ? builder : null;
   }
 
   /**

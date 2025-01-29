@@ -3,6 +3,7 @@ package com.tivo.exoplayer.library.multiview;
 import android.content.Context;
 import android.util.AttributeSet;
 import android.util.DisplayMetrics;
+import android.view.KeyEvent;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -11,6 +12,7 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import com.google.android.exoplayer2.Format;
 import com.google.android.exoplayer2.Player;
+import com.google.android.exoplayer2.SimpleExoPlayer;
 import com.google.android.exoplayer2.ui.PlayerView;
 import com.google.android.exoplayer2.util.Log;
 import com.google.common.collect.ImmutableList;
@@ -40,6 +42,7 @@ public class MultiExoPlayerView extends GridLayout {
   private int viewCount;
   private @MonotonicNonNull MultiViewPlayerController selectedController;
   private FocusedPlayerListener focusedPlayerListener;
+  private final MultiPlayerAudioFocusManager audioFocusManager;
 
   public static class OptimalVideoSize {
     public final int width;
@@ -90,8 +93,8 @@ public class MultiExoPlayerView extends GridLayout {
   }
 
   /**
-   * Clients of the {@link MultiExoPlayerView} use this call-back to be notified when the
-   * focused cell changes.
+   * Clients of the {@link MultiExoPlayerView} use this call-back to be notified of events on the
+   * focused {}
    */
   public static interface FocusedPlayerListener {
 
@@ -104,6 +107,14 @@ public class MultiExoPlayerView extends GridLayout {
      * @param focused    true if cell gained focus, false if it lost it
      */
     default void focusedPlayerChanged(PlayerView view, MultiViewPlayerController controller, boolean focused) {};
+
+    /**
+     * Called when a {@link PlayerView} in the multi-view is clicked, by definition it has focus.
+     *
+     * @param view  the {@PlayerView} of the clicked cell (the player is exposed via {@link PlayerView#getPlayer()})
+     * @param controller the {@link MultiViewPlayerController} for the clicked cell
+     */
+    default void focusPlayerClicked(PlayerView view, MultiViewPlayerController controller) {}
   }
 
   public MultiExoPlayerView(Context context) {
@@ -123,6 +134,7 @@ public class MultiExoPlayerView extends GridLayout {
 
     LayoutInflater.from(context).inflate(R.layout.multi_view_player_container, this, true);
     this.context = context;
+    this.audioFocusManager = new MultiPlayerAudioFocusManager(context);
   }
 
   public void createExoPlayerViews(int rowCount, int columnCount, SimpleExoPlayerFactory.Builder builder) {
@@ -182,21 +194,48 @@ public class MultiExoPlayerView extends GridLayout {
           childPlayerSelectedChanged(viewIndex, hasFocus);
         }
       });
+
+      selectableView.setOnKeyListener(new OnKeyListener() {
+        @Override
+        public boolean onKey(View v, int keyCode, KeyEvent event) {
+          if (event.getAction() == KeyEvent.ACTION_UP && keyCode == KeyEvent.KEYCODE_DPAD_CENTER) {
+            selectedPlayerViewClicked(viewIndex, event);
+          }
+          return false;
+        }
+      });
+
       GridLocation gridLocation = new GridLocation(row, column, viewIndex);
-      MultiViewPlayerController multiViewPlayerController = new MultiViewPlayerController(builder, selected, gridLocation);
-      playerView.setPlayer(multiViewPlayerController.createPlayer());
+      MultiViewPlayerController multiViewPlayerController = new MultiViewPlayerController(builder, selected, gridLocation, audioFocusManager);
+      SimpleExoPlayer player = multiViewPlayerController.createPlayer();
+      playerView.setPlayer(player);
       playerControllers[i] = multiViewPlayerController;
 
       if (selected) {
         selectedController = multiViewPlayerController;
+        audioFocusManager.setSelectedPlayer(player);
         focusedPlayerListener.focusedPlayerChanged(playerView, multiViewPlayerController, true);
+      } else {
+        focusedPlayerListener.focusedPlayerChanged(playerView, multiViewPlayerController, false);
       }
+      multiViewPlayerController.setSelected(selected);
 
       if (++column == columnCount) {
         column = 0;
         row++;
       }
     }
+  }
+
+  private boolean selectedPlayerViewClicked(int viewIndex, KeyEvent event) {
+    boolean handled = false;
+    if (playerControllers != null) {
+      selectedController = playerControllers[viewIndex];
+      PlayerView playerView = (PlayerView) getChildAt(viewIndex);
+      focusedPlayerListener.focusPlayerClicked(playerView, selectedController);
+      handled = true;
+    }
+    return handled;
   }
 
   private void childPlayerSelectedChanged(int i, boolean hasFocus) {
@@ -331,6 +370,7 @@ public class MultiExoPlayerView extends GridLayout {
    */
   public void removeAllPlayerViews() {
     if (playerControllers != null) {
+      audioFocusManager.setSelectedPlayer(null);
       for (int i = 0; i < playerControllers.length; i++) {
         MultiViewPlayerController playerController = playerControllers[i];
         playerController.releasePlayer();

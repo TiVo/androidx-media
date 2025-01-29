@@ -3,7 +3,6 @@ package com.tivo.exoplayer.library.multiview;
 import static com.google.android.exoplayer2.C.WIDEVINE_UUID;
 
 import android.content.Context;
-import android.util.Pair;
 import androidx.annotation.Nullable;
 import com.google.android.exoplayer2.C;
 import com.google.android.exoplayer2.DefaultLoadControl;
@@ -14,6 +13,8 @@ import com.google.android.exoplayer2.Player;
 import com.google.android.exoplayer2.SimpleExoPlayer;
 import com.google.android.exoplayer2.analytics.AnalyticsListener;
 import com.google.android.exoplayer2.audio.AudioAttributes;
+import com.google.android.exoplayer2.decoder.DecoderCounters;
+import com.google.android.exoplayer2.decoder.DecoderReuseEvaluation;
 import com.google.android.exoplayer2.drm.DummyExoMediaDrm;
 import com.google.android.exoplayer2.drm.FrameworkMediaDrm;
 import com.google.android.exoplayer2.drm.UnsupportedDrmException;
@@ -41,7 +42,6 @@ public class MultiViewPlayerController implements Player.Listener {
    * The default duration of media that the player will attempt to ensure is buffered at all
    * times, in milliseconds.
    */
-
   private static final int MIN_BUFFER_MS = 12_000;
   private static final int MAX_BUFFER_MS = 12_000;
   private static final int MAX_FRAME_RATE = 30;
@@ -49,6 +49,7 @@ public class MultiViewPlayerController implements Player.Listener {
 
   private final SimpleExoPlayerFactory exoPlayerFactory;
   private final MultiExoPlayerView.GridLocation gridLocation;   // Location in the multiplayer view (row/column)
+  private final MultiPlayerAudioFocusManager audioFocusManager;
   private boolean selected;           // If this player is "selected" (has focus)
   @Nullable private MultiExoPlayerView.OptimalVideoSize optimalVideoSize;
 
@@ -72,6 +73,22 @@ public class MultiViewPlayerController implements Player.Listener {
     public void onSurfaceSizeChanged(EventTime eventTime, int width, int height) {
       Log.d(TAG, gridLocation + " - surfaceSizeChanged " + width + "x" + height);
     }
+
+    @Override
+    public void onAudioEnabled(EventTime eventTime, DecoderCounters decoderCounters) {
+      Log.d(TAG, gridLocation + " - audioEnabled");
+    }
+
+    @Override
+    public void onAudioDecoderInitialized(EventTime eventTime, String decoderName, long initializedTimestampMs,
+        long initializationDurationMs) {
+      Log.d(TAG, gridLocation + " - audioDecoderInitialized " + decoderName);
+    }
+
+    @Override
+    public void onAudioInputFormatChanged(EventTime eventTime, Format format, @Nullable DecoderReuseEvaluation decoderReuseEvaluation) {
+      Log.d(TAG, gridLocation + " - audioInputFormatChanged " + Format.toLogString(format));
+    }
   }
 
   /**
@@ -81,15 +98,6 @@ public class MultiViewPlayerController implements Player.Listener {
 
     public MultiViewTrackSelector(Context context, ExoTrackSelection.Factory trackSelectionFactory) {
       super(context, trackSelectionFactory);
-    }
-
-    @Nullable
-    @Override
-    protected Pair<ExoTrackSelection.Definition, AudioTrackScore> selectAudioTrack(TrackGroupArray groups, int[][] formatSupport,
-        int mixedMimeTypeAdaptationSupports, Parameters params, boolean enableAdaptiveTrackSelection) throws ExoPlaybackException {
-      return MultiViewPlayerController.this.selected
-          ? super.selectAudioTrack(groups, formatSupport, mixedMimeTypeAdaptationSupports, params, enableAdaptiveTrackSelection)
-          : null;
     }
 
     @Nullable
@@ -115,15 +123,13 @@ public class MultiViewPlayerController implements Player.Listener {
 
       return definition;
     }
-
-    private void selectionStateChanged() {
-      invalidate();
-    }
   }
 
-  public MultiViewPlayerController(SimpleExoPlayerFactory.Builder builder, boolean selected, MultiExoPlayerView.GridLocation gridLocation) {
+  MultiViewPlayerController(SimpleExoPlayerFactory.Builder builder, boolean selected, MultiExoPlayerView.GridLocation gridLocation,
+      MultiPlayerAudioFocusManager audioFocusManager) {
     this.selected = selected;
     this.gridLocation = gridLocation;
+    this.audioFocusManager = audioFocusManager;
 
     builder.setTrackSelectorFactory((context, trackSelectionFactory) -> new MultiViewTrackSelector(context, trackSelectionFactory));
 
@@ -163,27 +169,10 @@ public class MultiViewPlayerController implements Player.Listener {
     return gridLocation;
   }
 
-  public void setSelected(boolean selected) {
-    if (selected != this.selected) {
-      TrackSelector trackSelector = exoPlayerFactory.getTrackSelector();
-      if (trackSelector instanceof MultiViewTrackSelector) {
-        MultiViewTrackSelector multiViewTrackSelector = (MultiViewTrackSelector) trackSelector;
-        multiViewTrackSelector.selectionStateChanged();
-      }
-    }
-    this.selected = selected;
-  }
-
   public void releasePlayer() {
     exoPlayerFactory.releasePlayer();
   }
 
-  public void stopPlayer() {
-    Player player = exoPlayerFactory.getCurrentPlayer();
-    if (player != null) {
-      player.stop();
-    }
-  }
 
   public void playMediaItem(boolean fastResync, MediaItem currentItem) {
     TrackSelector trackSelector = exoPlayerFactory.getTrackSelector();
@@ -191,7 +180,40 @@ public class MultiViewPlayerController implements Player.Listener {
       SyncVideoTrackSelector syncVideoTrackSelector = (SyncVideoTrackSelector) trackSelector;
       syncVideoTrackSelector.setEnableTrackFiltering(fastResync);
     }
-    exoPlayerFactory.playMediaItems(C.POSITION_UNSET, true, currentItem);
+
+    // Start playing, if our player is selected or if we already have focus.  Otherwise
+    // the selected player needs to wait for audio focus before beginning playback.
+    //
+    boolean playWhenReady = audioFocusManager.hasAudioFocus() || !selected;
+    exoPlayerFactory.playMediaItems(C.POSITION_UNSET, playWhenReady, currentItem);
+  }
+
+  // Internal APIs
+
+  /**
+   * Stops playback without releasing the player for the player associated with this controller.
+   *
+   * <p>The external client API for this is {@link MultiExoPlayerView#stopAllPlayerViews()}</p>
+   */
+  void stopPlayer() {
+    Player player = exoPlayerFactory.getCurrentPlayer();
+    if (player != null) {
+      player.stop();
+      player.clearMediaItems();
+    }
+  }
+
+  /**
+   * Only the selected player has audio enabled.  Note, this is an intenal API
+   * the API {@link MultiExoPlayerView#setSelectedPlayerView(int)} should be used
+   * by external clients
+   *
+   * @param selected true if the player is selected
+   */
+  void setSelected(boolean selected) {
+    boolean changed = exoPlayerFactory.setAudioEnabled(selected);
+    Log.d(TAG, gridLocation + " - setSelected " + selected + " changed=" + changed);
+    this.selected = selected;
   }
 
   SimpleExoPlayer createPlayer() {
