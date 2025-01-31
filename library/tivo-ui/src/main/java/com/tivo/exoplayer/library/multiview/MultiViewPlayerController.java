@@ -1,12 +1,14 @@
 package com.tivo.exoplayer.library.multiview;
 
+import static com.google.android.exoplayer2.C.ROLE_FLAG_TRICK_PLAY;
 import static com.google.android.exoplayer2.C.WIDEVINE_UUID;
+import static com.google.android.exoplayer2.Format.NO_VALUE;
 
-import android.content.Context;
+import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import com.google.android.exoplayer2.C;
 import com.google.android.exoplayer2.DefaultLoadControl;
-import com.google.android.exoplayer2.ExoPlaybackException;
+import com.google.android.exoplayer2.ExoPlayer;
 import com.google.android.exoplayer2.Format;
 import com.google.android.exoplayer2.MediaItem;
 import com.google.android.exoplayer2.Player;
@@ -18,18 +20,16 @@ import com.google.android.exoplayer2.decoder.DecoderReuseEvaluation;
 import com.google.android.exoplayer2.drm.DummyExoMediaDrm;
 import com.google.android.exoplayer2.drm.FrameworkMediaDrm;
 import com.google.android.exoplayer2.drm.UnsupportedDrmException;
+import com.google.android.exoplayer2.source.TrackGroup;
 import com.google.android.exoplayer2.source.TrackGroupArray;
-import com.google.android.exoplayer2.trackselection.DefaultTrackSelector;
-import com.google.android.exoplayer2.trackselection.ExoTrackSelection;
+import com.google.android.exoplayer2.trackselection.TrackSelectionArray;
 import com.google.android.exoplayer2.trackselection.TrackSelector;
 import com.google.android.exoplayer2.util.Log;
+import com.google.android.exoplayer2.util.MimeTypes;
 import com.google.android.exoplayer2.video.VideoSize;
-import com.google.common.primitives.Ints;
 import com.tivo.exoplayer.library.SimpleExoPlayerFactory;
 import com.tivo.exoplayer.library.source.ExtendedMediaSourceFactory;
 import com.tivo.exoplayer.library.tracks.SyncVideoTrackSelector;
-import java.util.ArrayList;
-import java.util.List;
 
 /**
  * Encapsulates a single {@link com.google.android.exoplayer2.ExoPlayer} and it's factory in the
@@ -44,8 +44,6 @@ public class MultiViewPlayerController implements Player.Listener {
    */
   private static final int MIN_BUFFER_MS = 12_000;
   private static final int MAX_BUFFER_MS = 12_000;
-  private static final int MAX_FRAME_RATE = 30;
-  private static final int MAX_BITRATE = 3_000_000;
 
   private final SimpleExoPlayerFactory exoPlayerFactory;
   private final MultiExoPlayerView.GridLocation gridLocation;   // Location in the multiplayer view (row/column)
@@ -57,7 +55,7 @@ public class MultiViewPlayerController implements Player.Listener {
   /**
    * Logs useful info on playback state for the player in the cell
    */
-  private static class MultiViewDebugLogging implements AnalyticsListener {
+  private class MultiViewDebugLogging implements AnalyticsListener {
     private final MultiExoPlayerView.GridLocation gridLocation;
 
     public MultiViewDebugLogging(MultiExoPlayerView.GridLocation gridLocation) {
@@ -65,63 +63,29 @@ public class MultiViewPlayerController implements Player.Listener {
     }
 
     @Override
-    public void onVideoSizeChanged(EventTime eventTime, VideoSize videoSize) {
+    public void onVideoSizeChanged(@NonNull EventTime eventTime, VideoSize videoSize) {
       Log.d(TAG, gridLocation + " - videoSizeChanged " + videoSize.width + "x" + videoSize.height);
     }
 
     @Override
-    public void onSurfaceSizeChanged(EventTime eventTime, int width, int height) {
+    public void onSurfaceSizeChanged(@NonNull EventTime eventTime, int width, int height) {
       Log.d(TAG, gridLocation + " - surfaceSizeChanged " + width + "x" + height);
     }
 
     @Override
-    public void onAudioEnabled(EventTime eventTime, DecoderCounters decoderCounters) {
+    public void onAudioEnabled(@NonNull EventTime eventTime, @NonNull DecoderCounters decoderCounters) {
       Log.d(TAG, gridLocation + " - audioEnabled");
     }
 
     @Override
-    public void onAudioDecoderInitialized(EventTime eventTime, String decoderName, long initializedTimestampMs,
+    public void onAudioDecoderInitialized(@NonNull EventTime eventTime, @NonNull String decoderName, long initializedTimestampMs,
         long initializationDurationMs) {
       Log.d(TAG, gridLocation + " - audioDecoderInitialized " + decoderName);
     }
 
     @Override
-    public void onAudioInputFormatChanged(EventTime eventTime, Format format, @Nullable DecoderReuseEvaluation decoderReuseEvaluation) {
+    public void onAudioInputFormatChanged(@NonNull EventTime eventTime, @NonNull Format format, @Nullable DecoderReuseEvaluation decoderReuseEvaluation) {
       Log.d(TAG, gridLocation + " - audioInputFormatChanged " + Format.toLogString(format));
-    }
-  }
-
-  /**
-   * Manages ExoPlayer selected tracks for the players in the multiview set.
-   */
-  private class MultiViewTrackSelector extends SyncVideoTrackSelector {
-
-    public MultiViewTrackSelector(Context context, ExoTrackSelection.Factory trackSelectionFactory) {
-      super(context, trackSelectionFactory);
-    }
-
-    @Nullable
-    @Override
-    protected ExoTrackSelection.Definition selectVideoTrack(TrackGroupArray groups, int[][] formatSupport,
-        int mixedMimeTypeAdaptationSupports, Parameters params, boolean enableAdaptiveTrackSelection) throws ExoPlaybackException {
-      ExoTrackSelection.Definition definition = super.selectVideoTrack(groups, formatSupport, mixedMimeTypeAdaptationSupports, params,
-          enableAdaptiveTrackSelection);
-
-      List<Integer> filteredTrackIndices = new ArrayList<>();
-
-      if (definition != null && optimalVideoSize != null) {
-        for (int selectedTrack : definition.tracks) {
-          Format format = definition.group.getFormat(selectedTrack);
-          if (optimalVideoSize.meetsOptimalSize(format) && (format.roleFlags & C.ROLE_FLAG_TRICK_PLAY) == 0) {
-            filteredTrackIndices.add(selectedTrack);
-          }
-        }
-        if (!filteredTrackIndices.isEmpty()) {
-          definition = new ExoTrackSelection.Definition(definition.group, Ints.toArray(filteredTrackIndices), definition.type);
-        }
-      }
-
-      return definition;
     }
   }
 
@@ -134,11 +98,6 @@ public class MultiViewPlayerController implements Player.Listener {
     builder.setTrackSelectorFactory((context, trackSelectionFactory) -> new MultiViewTrackSelector(context, trackSelectionFactory));
 
     exoPlayerFactory = builder.build();
-    exoPlayerFactory.setCurrentParameters(exoPlayerFactory.getCurrentParameters().buildUpon()
-        .setMaxVideoFrameRate(MAX_FRAME_RATE)
-        .setMaxVideoBitrate(MAX_BITRATE)
-        .setExceedVideoConstraintsIfNecessary(true)
-        .build());
 
     // setup to only use L3 DRM (L1 only supports maybe two views)
     ExtendedMediaSourceFactory mediaSourceFactory = exoPlayerFactory.getMediaSourceFactory();
@@ -159,10 +118,6 @@ public class MultiViewPlayerController implements Player.Listener {
   public void setOptimalVideoSize(MultiExoPlayerView.OptimalVideoSize optimalSize) {
     optimalVideoSize = optimalSize;
     Log.d(TAG, gridLocation + " - setOptimalVideoSize " + optimalSize.width + "x" + optimalSize.height);
-    DefaultTrackSelector.Parameters current = exoPlayerFactory.getCurrentParameters();
-    exoPlayerFactory.setCurrentParameters(current.buildUpon()
-        .setMaxVideoSize(optimalSize.width, optimalSize.height)
-        .build());
   }
 
   public MultiExoPlayerView.GridLocation getGridLocation() {
@@ -175,11 +130,12 @@ public class MultiViewPlayerController implements Player.Listener {
 
 
   public void playMediaItem(boolean fastResync, MediaItem currentItem) {
-    TrackSelector trackSelector = exoPlayerFactory.getTrackSelector();
-    if (trackSelector instanceof SyncVideoTrackSelector) {
-      SyncVideoTrackSelector syncVideoTrackSelector = (SyncVideoTrackSelector) trackSelector;
-      syncVideoTrackSelector.setEnableTrackFiltering(fastResync);
-    }
+    Log.d(TAG, gridLocation + " - playMediaItem " + mediaItemDebugString(currentItem) + " fastResync=" + fastResync);
+    MultiViewTrackSelector trackSelector = (MultiViewTrackSelector) exoPlayerFactory.getTrackSelector();
+    assert trackSelector != null;
+    trackSelector.setEnableTrackFiltering(fastResync);
+    trackSelector.setOptimalVideoSize(optimalVideoSize);
+    trackSelector.setGridLocation(gridLocation);
 
     // Start playing, if our player is selected or if we already have focus.  Otherwise
     // the selected player needs to wait for audio focus before beginning playback.
@@ -189,6 +145,14 @@ public class MultiViewPlayerController implements Player.Listener {
   }
 
   // Internal APIs
+
+  private String mediaItemDebugString(@NonNull MediaItem currentItem) {
+    if (currentItem.playbackProperties == null) {
+      return currentItem.mediaId;
+    } else {
+      return currentItem.mediaId + " " + currentItem.playbackProperties.uri;
+    }
+  }
 
   /**
    * Stops playback without releasing the player for the player associated with this controller.
