@@ -15,9 +15,11 @@ import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 import com.google.android.exoplayer2.C;
 import com.google.android.exoplayer2.ExoPlaybackException;
+import com.google.android.exoplayer2.ExoPlayer;
 import com.google.android.exoplayer2.Format;
 import com.google.android.exoplayer2.MediaItem;
 import com.google.android.exoplayer2.PlaybackException;
+import com.google.android.exoplayer2.Player;
 import com.google.android.exoplayer2.source.MediaSourceFactory;
 import com.google.android.exoplayer2.source.hls.playlist.DefaultHlsPlaylistTracker;
 import com.google.android.exoplayer2.ui.PlayerView;
@@ -46,7 +48,7 @@ import java.util.Objects;
  */
 public class MultiViewActivity extends AppCompatActivity {
 
-  public static final String TAG = "ExoDemo";
+  public static final String TAG = "MultiViewActivity";
 
   public static final Integer DEFAULT_LOG_LEVEL = com.google.android.exoplayer2.util.Log.LOG_LEVEL_ALL;
 
@@ -68,10 +70,30 @@ public class MultiViewActivity extends AppCompatActivity {
   public static final String PLAYBACK_COUNT = "player_count";
 
   @Nullable private Intent newIntent;
+  @Nullable private PlaybackState playbackState;
+
   private Toast errorRecoveryToast;
   private MultiExoPlayerView mainView;
   private SimpleExoPlayerFactory.Builder simpleExoPlayerFactoryBuilder;
 
+  private static class PlaybackState {
+    List<MediaItem> mediaItems;
+    int selectedCell;
+
+    public PlaybackState(MultiExoPlayerView mainView) {
+      mediaItems = new ArrayList<>();
+      for (int i = 0; i < mainView.getViewCount(); i++) {
+        PlayerView playerView = (PlayerView) mainView.getChildAt(i);
+        Player player = playerView.getPlayer();
+        if (player != null) {
+          mediaItems.add(player.getCurrentMediaItem());
+        }
+        if (playerView.hasFocus()) {
+          selectedCell = i;
+        }
+      }
+    }
+  }
 
   // Channel up/down support
   @NonNull private ImmutableList<MediaItem> channelList =   // All MediaItem's created from URI_LIST_EXTRA
@@ -216,6 +238,12 @@ public class MultiViewActivity extends AppCompatActivity {
   }
 
   @Override
+  protected void onRestart() {
+    super.onRestart();
+    Log.d(TAG, "onRestart() called");
+  }
+
+  @Override
   public void onResume() {
     super.onResume();
     Log.d(TAG, "onResume() called");
@@ -223,6 +251,12 @@ public class MultiViewActivity extends AppCompatActivity {
       processIntent(newIntent);
       setIntent(newIntent);
       newIntent = null;
+    } else if (playbackState != null) {
+      for (int i=0; i < mainView.getViewCount(); i++) {
+        boolean fast_resync = getIntent().hasExtra(FAST_RESYNC);
+        mainView.getPlayerController(i).playMediaItem(fast_resync, playbackState.mediaItems.get(i));
+      }
+      mainView.setSelectedPlayerView(playbackState.selectedCell);
     }
   }
 
@@ -230,6 +264,7 @@ public class MultiViewActivity extends AppCompatActivity {
   public void onPause() {
     super.onPause();
     Log.d(TAG, "onPause() called");
+    playbackState = new PlaybackState(mainView);
     mainView.stopAllPlayerViews();
   }
 
@@ -238,11 +273,19 @@ public class MultiViewActivity extends AppCompatActivity {
     super.onStop();
     Log.d(TAG, "onStop() called");
     mainView.removeAllPlayerViews();
+    playbackState = null;
   }
 
   @Override
   protected void onDestroy() {
+    Log.d(TAG, "onDestroy() called");
     super.onDestroy();
+  }
+
+  @Override
+  public void onWindowFocusChanged(boolean hasFocus) {
+    super.onWindowFocusChanged(hasFocus);
+    Log.d(TAG, "onWindowFocusChanged() called with: hasFocus = [" + hasFocus + "]");
   }
 
   // Internal methods
@@ -272,8 +315,8 @@ public class MultiViewActivity extends AppCompatActivity {
     }
 
     boolean fast_resync = intent.hasExtra(FAST_RESYNC);
-    int rows = getIntent().getIntExtra(GRID_ROWS, 2);
-    int columns = getIntent().getIntExtra(GRID_COLUMNS, 2);
+    int rows = intent.getIntExtra(GRID_ROWS, 2);
+    int columns = intent.getIntExtra(GRID_COLUMNS, 2);
 
     channelList = ImmutableList.copyOf(mediaItemsToPlay);
     currentChannelForCell = new int[rows * columns];

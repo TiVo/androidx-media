@@ -75,6 +75,8 @@ public class MultiPlayerAudioFocusManager {
       );
     }
 
+    Log.d(TAG, "requestAudioFocus: " + result);
+
     hasAudioFocus = result == AudioManager.AUDIOFOCUS_REQUEST_GRANTED;
     if (hasAudioFocus) {
       selectedPlayer.setPlayWhenReady(true);
@@ -83,6 +85,7 @@ public class MultiPlayerAudioFocusManager {
   }
 
   private void abandonAudioFocus() {
+    Log.d(TAG, "abandonAudioFocus - hasAudioFocus: " + hasAudioFocus + " selectedPlayer: " + selectedPlayer);
     if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
       audioManager.abandonAudioFocusRequest(audioFocusRequest);
     } else {
