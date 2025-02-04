@@ -5,13 +5,14 @@ import android.media.AudioFocusRequest;
 import android.media.AudioManager;
 
 import androidx.annotation.Nullable;
+import com.google.android.exoplayer2.Player;
 import com.google.android.exoplayer2.SimpleExoPlayer;
 import com.google.android.exoplayer2.util.Log;
 
 /**
  * Manages audio focus for multiple players.
  * 
- * <p>To uses this class, create an instance and call {@link #setSelectedPlayer(SimpleExoPlayer)} to select the player
+ * <p>To uses this class, create an instance and call {@link #setSelectedPlayer(Player)} to select the player
  * that will first play audio.  That player should start with playWhenReady false so it will not 
  * begin audio playback until focus is gained.</p>
  * 
@@ -28,7 +29,7 @@ public class MultiPlayerAudioFocusManager {
   private AudioFocusRequest audioFocusRequest;
   private boolean hasAudioFocus = false;
 
-  private @Nullable SimpleExoPlayer selectedPlayer;
+  private @Nullable Player selectedPlayer;
   
   public MultiPlayerAudioFocusManager(Context context) {
     this.audioManager = (AudioManager) context.getSystemService(Context.AUDIO_SERVICE);
@@ -54,7 +55,7 @@ public class MultiPlayerAudioFocusManager {
    * <p>Once there is no selected player, audio focus is released.</p>
    * @param selectedPlayer The player to select, or null to release audio focus.
    */
-  public void setSelectedPlayer(@Nullable SimpleExoPlayer selectedPlayer) {
+  public void setSelectedPlayer(@Nullable Player selectedPlayer) {
     this.selectedPlayer = selectedPlayer;
     if (selectedPlayer != null) {
       requestAudioFocus();

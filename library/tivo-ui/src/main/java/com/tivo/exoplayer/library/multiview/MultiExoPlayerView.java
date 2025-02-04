@@ -243,7 +243,11 @@ public class MultiExoPlayerView extends GridLayout {
       selectedController = playerControllers[i];
       selectedController.setSelected(hasFocus);
       PlayerView playerView = (PlayerView) getChildAt(i);
+      audioFocusManager.setSelectedPlayer(playerView.getPlayer());
       focusedPlayerListener.focusedPlayerChanged(playerView, selectedController, true);
+    } else {
+      Log.d(TAG, "childPlayerSelectedChanged() - no playerControllers, releaseing audio focus");
+      audioFocusManager.setSelectedPlayer(null);
     }
   }
 
