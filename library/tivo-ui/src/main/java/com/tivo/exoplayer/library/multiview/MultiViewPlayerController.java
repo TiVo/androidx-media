@@ -50,6 +50,7 @@ public class MultiViewPlayerController implements Player.Listener {
   private final MultiPlayerAudioFocusManager audioFocusManager;
   private boolean selected;           // If this player is "selected" (has focus)
   @Nullable private MultiExoPlayerView.OptimalVideoSize optimalVideoSize;
+  private boolean useQuickSelect;
 
 
   /**
@@ -115,6 +116,10 @@ public class MultiViewPlayerController implements Player.Listener {
     });
   }
 
+  public void setQuickAudioSelect(boolean useQuickSelect) {
+    this.useQuickSelect = useQuickSelect;
+  }
+
   public void setOptimalVideoSize(MultiExoPlayerView.OptimalVideoSize optimalSize) {
     optimalVideoSize = optimalSize;
     Log.d(TAG, gridLocation + " - setOptimalVideoSize " + optimalSize.width + "x" + optimalSize.height);
@@ -133,7 +138,7 @@ public class MultiViewPlayerController implements Player.Listener {
     Log.d(TAG, gridLocation + " - playMediaItem " + mediaItemDebugString(currentItem) + " fastResync=" + fastResync);
     MultiViewTrackSelector trackSelector = (MultiViewTrackSelector) exoPlayerFactory.getTrackSelector();
     assert trackSelector != null;
-    trackSelector.setEnableTrackFiltering(fastResync);
+    trackSelector.setEnableTrackFiltering(fastResync || useQuickSelect);
     trackSelector.setOptimalVideoSize(optimalVideoSize);
     trackSelector.setGridLocation(gridLocation);
 
@@ -168,14 +173,28 @@ public class MultiViewPlayerController implements Player.Listener {
   }
 
   /**
-   * Only the selected player has audio enabled.  Note, this is an intenal API
+   * Only the selected player has audio enabled.  Note, this is an internal API
    * the API {@link MultiExoPlayerView#setSelectedPlayerView(int)} should be used
    * by external clients
    *
    * @param selected true if the player is selected
    */
   void setSelected(boolean selected) {
-    boolean changed = exoPlayerFactory.setAudioEnabled(selected);
+    boolean changed = selected != this.selected;
+    SimpleExoPlayer player = exoPlayerFactory.getCurrentPlayer();
+    Format audioFormat = player != null ? player.getAudioFormat() : null;
+    if (MultiViewTrackSelector.isSupportedAudioFormatForVolumeMute(audioFormat)) {
+      Log.d(TAG, gridLocation + "setSelected - Use volume mute selected=" + selected + " audioFormat=" + audioFormat);
+      exoPlayerFactory.setAudioEnabled(true);
+      if (changed && selected) {
+        player.setVolume(1.0f);
+      } else if (changed) {
+        player.setVolume(0.0f);
+      }
+    } else {
+      Log.d(TAG, gridLocation + "setSelected - Use renderer disable selected=" + selected + " audioFormat=" + audioFormat);
+      changed = exoPlayerFactory.setAudioEnabled(selected);
+    }
     Log.d(TAG, gridLocation + " - setSelected " + selected + " changed=" + changed);
     this.selected = selected;
   }

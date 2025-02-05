@@ -43,6 +43,7 @@ public class MultiExoPlayerView extends GridLayout {
   private @MonotonicNonNull MultiViewPlayerController selectedController;
   private FocusedPlayerListener focusedPlayerListener;
   private final MultiPlayerAudioFocusManager audioFocusManager;
+  private boolean useQuickSelect;
 
   public static class OptimalVideoSize {
     public final int width;
@@ -207,6 +208,7 @@ public class MultiExoPlayerView extends GridLayout {
 
       GridLocation gridLocation = new GridLocation(row, column, viewIndex);
       MultiViewPlayerController multiViewPlayerController = new MultiViewPlayerController(builder, selected, gridLocation, audioFocusManager);
+      multiViewPlayerController.setQuickAudioSelect(useQuickSelect);
       SimpleExoPlayer player = multiViewPlayerController.createPlayer();
       playerView.setPlayer(player);
       playerControllers[i] = multiViewPlayerController;
@@ -280,6 +282,19 @@ public class MultiExoPlayerView extends GridLayout {
   }
 
   /**
+   * Set the quick audio select mode.
+   *
+   * <p>In quick select mode, track selection will attempt to prioritize audio formats for
+   * audio tracks that allow volume change to mute/un-mute the audio track rather than enable
+   * and disable the renderer.  This greatly speeds up the selection change time</p>
+   *
+   * @param enable true to enable quick select, default is false
+   */
+  public void setQuickAudioSelect(boolean enable) {
+    useQuickSelect = enable;
+  }
+
+  /**
    * Get the number of {@link PlayerView} cells in the layout
    *
    * @return count of cells.
@@ -339,6 +354,16 @@ public class MultiExoPlayerView extends GridLayout {
     return playerControllers == null ? null : playerControllers[index];
   }
 
+  /**
+   * Get the list of {@link MultiViewPlayerController}'s for each grid cell in the layout.
+   *
+   * <p>The returned list is in the same order as the grid cells.  The list is empty if
+   * {@link #removeAllPlayerViews()} was called releasing all the players.  Otherwise, if
+   * {@link #stopAllPlayerViews()} has been called the players are in IDLE state and have
+   * no active {@link com.google.android.exoplayer2.MediaItem}</p>
+   *
+   * @return list of {@link MultiViewPlayerController}'s
+   */
   public ImmutableList<MultiViewPlayerController> getPlayerControllers() {
     return playerControllers == null
         ? ImmutableList.of()

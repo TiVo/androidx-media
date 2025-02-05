@@ -66,6 +66,10 @@ class MultiViewTrackSelector extends SyncVideoTrackSelector {
     super(context, trackSelectionFactory);
   }
 
+  public static boolean isSupportedAudioFormatForVolumeMute(Format audioFormat) {
+    return audioFormat != null && isSupportedAudioFormatForSyncVideo(audioFormat);
+  }
+
 
   /**
    * Set the minimum number of tracks to keep if no tracks meet the optimal video size.

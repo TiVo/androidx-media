@@ -68,6 +68,8 @@ public class MultiViewActivity extends AppCompatActivity {
   public static final String GRID_ROWS = "grid_rows";
   public static final String GRID_COLUMNS = "grid_columns";
   public static final String PLAYBACK_COUNT = "player_count";
+  public static final String SELECT_CELL = "select_cell";
+  public static final String QUICK_AUDIO_SELECT = "quick_audio_select";
 
   @Nullable private Intent newIntent;
   @Nullable private PlaybackState playbackState;
@@ -321,6 +323,7 @@ public class MultiViewActivity extends AppCompatActivity {
     channelList = ImmutableList.copyOf(mediaItemsToPlay);
     currentChannelForCell = new int[rows * columns];
     Arrays.fill(currentChannelForCell, 0);
+    mainView.setQuickAudioSelect(intent.getBooleanExtra(QUICK_AUDIO_SELECT, false));
 
     mainView.createExoPlayerViews(rows, columns, simpleExoPlayerFactoryBuilder, new MultiExoPlayerView.FocusedPlayerListener() {
       @Override
@@ -355,6 +358,8 @@ public class MultiViewActivity extends AppCompatActivity {
     MediaItem currentItem = null;
     int playbackCount = mainView.getViewCount();
     playbackCount = intent.getIntExtra(PLAYBACK_COUNT, playbackCount);
+    int selectCell = intent.getIntExtra(SELECT_CELL, 0);
+    mainView.setSelectedPlayerView(selectCell);
 
     for (int i = 0; i < playbackCount; i++) {
       currentItem = it.hasNext() ? it.next() : currentItem;
