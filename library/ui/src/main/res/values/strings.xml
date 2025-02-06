@@ -13,7 +13,7 @@
      See the License for the specific language governing permissions and
      limitations under the License.
 -->
-<resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
+<resources xmlns:tools="http://schemas.android.com/tools" xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
   <!-- Description for a media player view to indicate that tapping on the view shows the playback controls. [CHAR LIMIT=50] -->
   <string name="exo_controls_show">Show player controls</string>
   <!-- Description for a media player view to indicate that tapping on the view hides the playback controls [CHAR LIMIT=50] -->
@@ -92,11 +92,11 @@
   <!-- Shown in a notification or UI component to indicate downloads are being removed from the device. [CHAR LIMIT=40] -->
   <string name="exo_download_removing">Removing downloads</string>
   <!-- Shown in a notification or UI component to indicate downloads are paused. [CHAR LIMIT=40] -->
-  <string name="exo_download_paused">Downloads paused</string>
+  <string name="exo_download_paused" tools:ignore="MissingTranslation">Downloads paused</string>
   <!-- Shown in a notification or UI component to indicate downloads are paused waiting for network connectivity. [CHAR LIMIT=40] -->
-  <string name="exo_download_paused_for_network">Downloads waiting for network</string>
+  <string name="exo_download_paused_for_network" tools:ignore="MissingTranslation">Downloads waiting for network</string>
   <!-- Shown in a notification or UI component to indicate downloads are paused waiting for WiFi connectivity. [CHAR LIMIT=40] -->
-  <string name="exo_download_paused_for_wifi">Downloads waiting for WiFi</string>
+  <string name="exo_download_paused_for_wifi" tools:ignore="MissingTranslation">Downloads waiting for WiFi</string>
 
   <!-- The title of a track selection view for video tracks. [CHAR LIMIT=20] -->
   <string name="exo_track_selection_title_video">Video</string>
