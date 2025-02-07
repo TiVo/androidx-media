@@ -25,6 +25,8 @@ import com.google.android.exoplayer2.offline.Download;
 import com.google.android.exoplayer2.offline.DownloadManager;
 import com.google.android.exoplayer2.offline.DownloadService;
 import com.google.android.exoplayer2.scheduler.PlatformScheduler;
+import com.google.android.exoplayer2.scheduler.Requirements;
+import com.google.android.exoplayer2.scheduler.Scheduler;
 import com.google.android.exoplayer2.ui.DownloadNotificationHelper;
 import com.google.android.exoplayer2.util.NotificationUtil;
 import com.google.android.exoplayer2.util.Util;
@@ -60,20 +62,22 @@ public class DemoDownloadService extends DownloadService {
   }
 
   @Override
-  protected PlatformScheduler getScheduler() {
+  protected Scheduler getScheduler() {
     return Util.SDK_INT >= 21 ? new PlatformScheduler(this, JOB_ID) : null;
   }
 
   @Override
   @NonNull
-  protected Notification getForegroundNotification(@NonNull List<Download> downloads) {
+  protected Notification getForegroundNotification(
+      @NonNull List<Download> downloads, @Requirements.RequirementFlags int notMetRequirements) {
     return DemoUtil.getDownloadNotificationHelper(/* context= */ this)
         .buildProgressNotification(
             /* context= */ this,
             R.drawable.ic_download,
             /* contentIntent= */ null,
             /* message= */ null,
-            downloads);
+            downloads,
+            notMetRequirements);
   }
 
   /**
