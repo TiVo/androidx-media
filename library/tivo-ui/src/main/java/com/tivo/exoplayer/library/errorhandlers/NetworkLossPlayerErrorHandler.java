@@ -49,7 +49,7 @@ public class NetworkLossPlayerErrorHandler implements PlaybackExceptionRecovery,
   private final RetryEnabledHandler retryEnabledHandler;
   private PlaybackException currentError;
   private long positionAtError;
-  private Timeline.Window windowAtError;
+  private @Nullable Timeline.Window windowAtError;
   private final Random retryRandomizer;
   private boolean shouldRetry;
 
@@ -414,6 +414,7 @@ public class NetworkLossPlayerErrorHandler implements PlaybackExceptionRecovery,
     positionAtError = player == null ? C.TIME_UNSET : player.getCurrentPosition();
   }
 
+  @Nullable
   private static Timeline.Window getCurrentWindow(SimpleExoPlayer player) {
     Timeline.Window currentWindow = null;
     Timeline timeline = player == null ? null : player.getCurrentTimeline();
@@ -458,7 +459,7 @@ public class NetworkLossPlayerErrorHandler implements PlaybackExceptionRecovery,
         + " currentWindow " + windowLogString(currentWindow)
         + " windowAtError " + windowLogString(windowAtError)
     );
-    if (currentWindow.isLive()) {
+    if (windowAtError != null && currentWindow.isLive()) {
       long windowStartDeltaMs = currentWindow.windowStartTimeMs - windowAtError.windowStartTimeMs;
       if (windowStartDeltaMs >= 0) {
         long seekTargetMs = positionAtError - windowStartDeltaMs;
@@ -479,7 +480,8 @@ public class NetworkLossPlayerErrorHandler implements PlaybackExceptionRecovery,
   }
 
   private String windowLogString(Timeline.Window window) {
-    return "[isLive " + window.isLive() + " startTimeMs " + window.windowStartTimeMs + " defaultPositionUs " + window.defaultPositionUs + "]";
+    return (window==null ? "" :
+            "[isLive " + window.isLive() + " startTimeMs " + window.windowStartTimeMs + " defaultPositionUs " + window.defaultPositionUs + "]");
   }
 
 }

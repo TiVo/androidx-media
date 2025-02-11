@@ -367,8 +367,9 @@ public class OutputProtectionMonitor extends Handler {
         private void getHdcpLevelV28()
         {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                MediaDrm widevineDrm = null;
                 try {
-                    MediaDrm widevineDrm = new MediaDrm(C.WIDEVINE_UUID);
+                    widevineDrm = new MediaDrm(C.WIDEVINE_UUID);
                     if (evaluateValidityWidevineKey(widevineDrm)) {
                         hdcpLevel = widevineDrm.getConnectedHdcpLevel();
                     }
@@ -376,7 +377,6 @@ public class OutputProtectionMonitor extends Handler {
                         // Widevine key is not valid, default HDCP to 1_x
                         hdcpLevel = MediaDrm.HDCP_V1;
                     }
-                    widevineDrm.close();
                     isErrorGettingHdcpLevel = false;
                 } catch (UnsupportedSchemeException e) {
                     Log.e(TAG, "Widevine UUID is not supported on this version: " + Build.VERSION.RELEASE);
@@ -384,6 +384,12 @@ public class OutputProtectionMonitor extends Handler {
                     Log.e(TAG, "MediaDrmResetException" + Build.VERSION.RELEASE);
                 } catch (Exception e) {
                     Log.e(TAG, "Unhandled exception :"+e.toString());
+                }
+                finally {
+                    if (widevineDrm != null) {
+                        widevineDrm.close();
+                        widevineDrm = null;
+                    }
                 }
             }
         }
@@ -395,8 +401,9 @@ public class OutputProtectionMonitor extends Handler {
             // Widevine support.
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR2 && 
                 Build.VERSION.SDK_INT < Build.VERSION_CODES.P) {
+                MediaDrm widevineDrm = null;
                 try {
-                    MediaDrm widevineDrm = new MediaDrm(C.WIDEVINE_UUID);
+                    widevineDrm = new MediaDrm(C.WIDEVINE_UUID);
                     String hdcpLevelString = widevineDrm.getPropertyString("hdcpLevel");
                     switch (hdcpLevelString) {
                         case "HDCP-1.x":
@@ -416,10 +423,18 @@ public class OutputProtectionMonitor extends Handler {
                     }
                     // In API versions 18 through 27, MediaDrm release
                     // should be called
-                    widevineDrm.release();
                     isErrorGettingHdcpLevel = false;
                 } catch (UnsupportedSchemeException e) {
                     Log.e(TAG, "Widevine UUID is not supported on this version: " + Build.VERSION.RELEASE);
+                } catch (Exception e) {
+                    Log.e(TAG, "Unhandled exception :"+e.toString());
+                }
+                finally {
+                    if (widevineDrm != null) {
+                        // In API versions 18 through 27, MediaDrm release should be called
+                        widevineDrm.release();
+                        widevineDrm = null;
+                    }
                 }
             } 
         }
