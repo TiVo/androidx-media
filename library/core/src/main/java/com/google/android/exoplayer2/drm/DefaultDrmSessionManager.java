@@ -500,7 +500,6 @@ public class DefaultDrmSessionManager implements DrmSessionManager {
     if (exoMediaDrm == null) {
       exoMediaDrm = exoMediaDrmProvider.acquireExoMediaDrm(uuid);
       exoMediaDrm.setOnEventListener(new MediaDrmEventListener());
-      Log.i(TAG, "Max number of sessions: " + exoMediaDrm.getPropertyString("maxNumberOfSessions"));
     } else if (sessionKeepaliveMs != C.TIME_UNSET) {
       // Re-acquire the keepalive references for any sessions that are still active.
       for (int i = 0; i < sessions.size(); i++) {
@@ -1005,7 +1004,6 @@ public class DefaultDrmSessionManager implements DrmSessionManager {
         // all its internal session keep-alive references.
         Log.d(TAG, "Add session to keepaliveSessions, session: " + session + " keepaliveSessions size: " + keepaliveSessions.size() + " sessions size: " + sessions.size());
         keepaliveSessions.add(session);
-        Log.d(TAG, "Number of Sessions used: " + exoMediaDrm.getPropertyString("numberOfOpenSessions"));
         checkNotNull(playbackHandler)
             .postAtTime(
                 () -> {
