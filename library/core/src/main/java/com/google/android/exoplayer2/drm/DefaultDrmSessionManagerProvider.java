@@ -132,6 +132,9 @@ public final class DefaultDrmSessionManagerProvider implements DrmSessionManager
         this.drmConfiguration = drmConfiguration;
         if (manager != null) {
             manager.releaseAllSessions();
+            // The releaseAllSessions() sets the isFinalRelease flag. The
+            // actual relase happens in manager.release(). 
+            manager.release();
         }
         this.manager = createManager(drmConfiguration);
       }
