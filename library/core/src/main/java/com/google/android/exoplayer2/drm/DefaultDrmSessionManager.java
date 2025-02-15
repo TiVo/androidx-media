@@ -287,7 +287,7 @@ public class DefaultDrmSessionManager implements DrmSessionManager {
   /** Number of times to retry for initial provisioning and key request for reporting error. */
   public static final int INITIAL_DRM_REQUEST_RETRY_COUNT = 3;
   /** Default value for {@link Builder#setSessionKeepaliveMs(long)}. */
-  public static final long DEFAULT_SESSION_KEEPALIVE_MS = 10 * 60 * C.MILLIS_PER_SECOND;
+  public static final long DEFAULT_SESSION_KEEPALIVE_MS = 5 * 60 * C.MILLIS_PER_SECOND;
 
   private static final String TAG = "DefaultDrmSessionMgr";
 
