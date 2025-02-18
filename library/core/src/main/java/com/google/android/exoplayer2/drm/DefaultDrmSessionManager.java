@@ -520,6 +520,13 @@ public class DefaultDrmSessionManager implements DrmSessionManager {
       while (!sessions.isEmpty() || !keepaliveSessions.isEmpty()) {
         // Release all keepalive acquisitions if keepalive is enabled.
         releaseKeepAliveSessionsIfEnabled();
+        if (exoMediaDrm == null) {
+            // exoMediaDrm is also released by onReferenceCountDecremented()
+            // callback from DefaultDrmSession. If its already null means all
+            // the sessions are released. Break the loop in that case to avoid
+            // going into indefinite loop.
+            break;
+        }
       }
       prepareCallsCount = 0;
     }
@@ -995,7 +1002,7 @@ public class DefaultDrmSessionManager implements DrmSessionManager {
         // Only the internal keep-alive reference remains, so we can start the timeout. We only
         // do this if the manager isn't released, because a released manager has already released
         // all its internal session keep-alive references.
-        Log.d(TAG, "Add session to keepaliveSessions, session: " + session);
+        Log.d(TAG, "Add session to keepaliveSessions, session: " + session + " keepaliveSessions size: " + keepaliveSessions.size() + " sessions size: " + sessions.size());
         keepaliveSessions.add(session);
         checkNotNull(playbackHandler)
             .postAtTime(
