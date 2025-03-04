@@ -133,18 +133,14 @@ public class MultiViewPlayerController implements Player.Listener {
 
 
   public void playMediaItem(boolean fastResync, MediaItem currentItem) {
-    Log.d(TAG, gridLocation + " - playMediaItem " + mediaItemDebugString(currentItem) + " fastResync=" + fastResync);
+    Log.i(TAG, "playMediaItem() " + gridLocation + " - playMediaItem " + mediaItemDebugString(currentItem) + " fastResync=" + fastResync);
     MultiViewTrackSelector trackSelector = (MultiViewTrackSelector) exoPlayerFactory.getTrackSelector();
     assert trackSelector != null;
     trackSelector.setEnableTrackFiltering(fastResync || useQuickSelect);
     trackSelector.setOptimalVideoSize(optimalVideoSize);
     trackSelector.setGridLocation(gridLocation);
 
-    // Start playing, if our player is selected or if we already have focus.  Otherwise
-    // the selected player needs to wait for audio focus before beginning playback.
-    //
-    boolean playWhenReady = audioFocusManager.hasAudioFocus() || !selected;
-    exoPlayerFactory.playMediaItems(C.POSITION_UNSET, playWhenReady, currentItem);
+    playMediaItemInternal(currentItem);
   }
 
   // Internal APIs
@@ -155,6 +151,20 @@ public class MultiViewPlayerController implements Player.Listener {
     } else {
       return currentItem.mediaId + " " + currentItem.playbackProperties.uri;
     }
+  }
+
+  void playMediaItemInternal(MediaItem currentItem) {
+    // If we are the selected player, ensure we have audio focus, if not request it.
+    if (selected) {
+      audioFocusManager.setSelectedPlayer(exoPlayerFactory.getCurrentPlayer());
+    }
+
+    // Start playing, if our player is selected or if we already have focus.  Otherwise
+    // the selected player needs to wait for audio focus before beginning playback.
+    //
+    boolean playWhenReady = audioFocusManager.hasAudioFocus() || !selected;
+    Log.i(TAG, "playMediaItemInternal() " + gridLocation + " - playWhenReady=" + playWhenReady + " selected=" + selected);
+    exoPlayerFactory.playMediaItems(C.POSITION_UNSET, playWhenReady, currentItem);
   }
 
   /**
