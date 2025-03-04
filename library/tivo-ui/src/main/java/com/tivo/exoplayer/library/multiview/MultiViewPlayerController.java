@@ -90,9 +90,7 @@ public class MultiViewPlayerController implements Player.Listener {
     }
   }
 
-  MultiViewPlayerController(SimpleExoPlayerFactory.Builder builder, boolean selected, MultiExoPlayerView.GridLocation gridLocation,
-      MultiPlayerAudioFocusManager audioFocusManager) {
-    this.selected = selected;
+  MultiViewPlayerController(SimpleExoPlayerFactory.Builder builder, MultiExoPlayerView.GridLocation gridLocation, MultiPlayerAudioFocusManager audioFocusManager) {
     this.gridLocation = gridLocation;
     this.audioFocusManager = audioFocusManager;
 
@@ -180,22 +178,23 @@ public class MultiViewPlayerController implements Player.Listener {
    * @param selected true if the player is selected
    */
   void setSelected(boolean selected) {
-    boolean changed = selected != this.selected;
     SimpleExoPlayer player = exoPlayerFactory.getCurrentPlayer();
     Format audioFormat = player != null ? player.getAudioFormat() : null;
+    float currentVolume = player != null ? player.getVolume() : -1.0f;
     if (MultiViewTrackSelector.isSupportedAudioFormatForVolumeMute(audioFormat)) {
-      Log.d(TAG, gridLocation + "setSelected - Use volume mute selected=" + selected + " audioFormat=" + audioFormat);
+      Log.d(TAG, gridLocation + " setSelected(" + selected + ") - Using volume mute/unmute "
+          + "current volume: " + currentVolume + " audioFormat=" + audioFormat);
       exoPlayerFactory.setAudioEnabled(true);
-      if (changed && selected) {
+      if (selected) {
         player.setVolume(1.0f);
-      } else if (changed) {
+      } else {
         player.setVolume(0.0f);
       }
     } else {
-      Log.d(TAG, gridLocation + "setSelected - Use renderer disable selected=" + selected + " audioFormat=" + audioFormat);
-      changed = exoPlayerFactory.setAudioEnabled(selected);
+      Log.d(TAG, gridLocation + " setSelected(" + selected + ") - Using renderer disable "
+          + " current volume: " +  currentVolume + " audioFormat=" + audioFormat);
+      exoPlayerFactory.setAudioEnabled(selected);
     }
-    Log.d(TAG, gridLocation + " - setSelected " + selected + " changed=" + changed);
     this.selected = selected;
   }
 

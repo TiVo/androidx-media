@@ -66,27 +66,35 @@ public class MultiPlayerAudioFocusManager {
 
   private boolean requestAudioFocus() {
     int result;
-    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-      result = audioManager.requestAudioFocus(audioFocusRequest);
-    } else {
-      result = audioManager.requestAudioFocus(
-          this::onAudioFocusChange,
-          AudioManager.STREAM_MUSIC,
-          AudioManager.AUDIOFOCUS_GAIN
-      );
-    }
+    if (! hasAudioFocus) {
+      Log.d(TAG, "requestAudioFocus: requesting audio focus");
+      if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+        result = audioManager.requestAudioFocus(audioFocusRequest);
+      } else {
+        result = audioManager.requestAudioFocus(
+            this::onAudioFocusChange,
+            AudioManager.STREAM_MUSIC,
+            AudioManager.AUDIOFOCUS_GAIN
+        );
+      }
 
-    Log.d(TAG, "requestAudioFocus: " + result);
+      Log.d(TAG, "requestAudioFocus: " + result);
 
-    hasAudioFocus = result == AudioManager.AUDIOFOCUS_REQUEST_GRANTED;
-    if (hasAudioFocus) {
-      selectedPlayer.setPlayWhenReady(true);
+      hasAudioFocus = result == AudioManager.AUDIOFOCUS_REQUEST_GRANTED;
+      if (hasAudioFocus) {
+        selectedPlayer.setPlayWhenReady(true);
+        selectedPlayer.setVolume(1.0f);
+      }
     }
     return hasAudioFocus;
   }
 
   private void abandonAudioFocus() {
-    Log.d(TAG, "abandonAudioFocus - hasAudioFocus: " + hasAudioFocus + " selectedPlayer: " + selectedPlayer);
+    if (selectedPlayer == null) {
+      Log.d(TAG, "abandonAudioFocus - hasAudioFocus: " + hasAudioFocus + " no selected player");
+    } else {
+      Log.d(TAG, "abandonAudioFocus - hasAudioFocus: " + hasAudioFocus + " player: " + selectedPlayer + " volume: " + selectedPlayer.getVolume() + " playWhenReady: " + selectedPlayer.getPlayWhenReady());
+    }
     if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
       audioManager.abandonAudioFocusRequest(audioFocusRequest);
     } else {
