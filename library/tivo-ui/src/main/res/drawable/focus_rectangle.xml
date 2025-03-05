@@ -5,7 +5,7 @@
   <item android:state_focused="true">
     <shape android:shape="rectangle">
       <stroke
-        android:width="6dp"
+        android:width="2dp"
         android:color="@android:color/white"/>
       <padding
         android:left="2dp"
