@@ -22,7 +22,7 @@ import com.google.android.exoplayer2.util.Log;
  *  {@link SimpleExoPlayer.Builder#setAudioAttributes(com.google.android.exoplayer2.audio.AudioAttributes, boolean)} to DEFAULT, false.
  *  </p>
  */
-public class MultiPlayerAudioFocusManager {
+public class MultiPlayerAudioFocusManager implements MultiPlayerAudioFocusManagerApi {
 
   public static final String TAG = "MultiPlayerAudioFocusManager";
   private final AudioManager audioManager;
@@ -36,6 +36,25 @@ public class MultiPlayerAudioFocusManager {
     initAudioFocusRequest();
   }
 
+  @Override
+  public void setSelectedPlayer(@Nullable Player selectedPlayer) {
+    this.selectedPlayer = selectedPlayer;
+    if (selectedPlayer != null) {
+      requestAudioFocus();
+    } else {
+      abandonAudioFocus();
+    }
+  }
+
+  @Override
+  public boolean hasAudioFocus() {
+    return hasAudioFocus;
+  }
+
+  ///
+  // Internal methods
+  ///
+
   private void initAudioFocusRequest() {
     if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
       audioFocusRequest = new AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
@@ -45,22 +64,6 @@ public class MultiPlayerAudioFocusManager {
               .build())
           .setOnAudioFocusChangeListener(this::onAudioFocusChange)
           .build();
-    }
-  }
-
-  /**
-   * Set the currently selected player.  The selected player is the one that
-   * will play audio, the remaining players will be "muted" (play with no audio).
-   *
-   * <p>Once there is no selected player, audio focus is released.</p>
-   * @param selectedPlayer The player to select, or null to release audio focus.
-   */
-  public void setSelectedPlayer(@Nullable Player selectedPlayer) {
-    this.selectedPlayer = selectedPlayer;
-    if (selectedPlayer != null) {
-      requestAudioFocus();
-    } else {
-      abandonAudioFocus();
     }
   }
 
@@ -81,7 +84,7 @@ public class MultiPlayerAudioFocusManager {
       Log.d(TAG, "requestAudioFocus: " + result);
 
       hasAudioFocus = result == AudioManager.AUDIOFOCUS_REQUEST_GRANTED;
-      if (hasAudioFocus) {
+      if (hasAudioFocus && selectedPlayer != null) {
         selectedPlayer.setPlayWhenReady(true);
         selectedPlayer.setVolume(1.0f);
       }
@@ -135,7 +138,4 @@ public class MultiPlayerAudioFocusManager {
     }
   }
 
-  public boolean hasAudioFocus() {
-    return hasAudioFocus;
-  }
 }

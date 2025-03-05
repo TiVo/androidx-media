@@ -1,14 +1,11 @@
 package com.tivo.exoplayer.library.multiview;
 
-import static com.google.android.exoplayer2.C.ROLE_FLAG_TRICK_PLAY;
 import static com.google.android.exoplayer2.C.WIDEVINE_UUID;
-import static com.google.android.exoplayer2.Format.NO_VALUE;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import com.google.android.exoplayer2.C;
 import com.google.android.exoplayer2.DefaultLoadControl;
-import com.google.android.exoplayer2.ExoPlayer;
 import com.google.android.exoplayer2.Format;
 import com.google.android.exoplayer2.MediaItem;
 import com.google.android.exoplayer2.Player;
@@ -20,16 +17,10 @@ import com.google.android.exoplayer2.decoder.DecoderReuseEvaluation;
 import com.google.android.exoplayer2.drm.DummyExoMediaDrm;
 import com.google.android.exoplayer2.drm.FrameworkMediaDrm;
 import com.google.android.exoplayer2.drm.UnsupportedDrmException;
-import com.google.android.exoplayer2.source.TrackGroup;
-import com.google.android.exoplayer2.source.TrackGroupArray;
-import com.google.android.exoplayer2.trackselection.TrackSelectionArray;
-import com.google.android.exoplayer2.trackselection.TrackSelector;
 import com.google.android.exoplayer2.util.Log;
-import com.google.android.exoplayer2.util.MimeTypes;
 import com.google.android.exoplayer2.video.VideoSize;
 import com.tivo.exoplayer.library.SimpleExoPlayerFactory;
 import com.tivo.exoplayer.library.source.ExtendedMediaSourceFactory;
-import com.tivo.exoplayer.library.tracks.SyncVideoTrackSelector;
 
 /**
  * Encapsulates a single {@link com.google.android.exoplayer2.ExoPlayer} and it's factory in the
@@ -47,7 +38,7 @@ public class MultiViewPlayerController implements Player.Listener {
 
   private final SimpleExoPlayerFactory exoPlayerFactory;
   private final MultiExoPlayerView.GridLocation gridLocation;   // Location in the multiplayer view (row/column)
-  private final MultiPlayerAudioFocusManager audioFocusManager;
+  private final MultiPlayerAudioFocusManagerApi audioFocusManager;
   private boolean selected;           // If this player is "selected" (has focus)
   @Nullable private MultiExoPlayerView.OptimalVideoSize optimalVideoSize;
   private boolean useQuickSelect;
@@ -90,7 +81,7 @@ public class MultiViewPlayerController implements Player.Listener {
     }
   }
 
-  MultiViewPlayerController(SimpleExoPlayerFactory.Builder builder, MultiExoPlayerView.GridLocation gridLocation, MultiPlayerAudioFocusManager audioFocusManager) {
+  MultiViewPlayerController(SimpleExoPlayerFactory.Builder builder, MultiExoPlayerView.GridLocation gridLocation, MultiPlayerAudioFocusManagerApi audioFocusManager) {
     this.gridLocation = gridLocation;
     this.audioFocusManager = audioFocusManager;
 

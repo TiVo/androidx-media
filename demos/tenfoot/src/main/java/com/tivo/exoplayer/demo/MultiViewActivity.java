@@ -204,6 +204,7 @@ public class MultiViewActivity extends AppCompatActivity {
     setContentView(R.layout.multiview_activity);
     View contentView = findViewById(android.R.id.content);
     mainView = contentView.findViewById(R.id.multi_player_view);
+    mainView.setMultiViewHandlesAudioFocus(true);
     intentPossessed = false;
   }
 

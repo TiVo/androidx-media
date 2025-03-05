@@ -2,7 +2,6 @@ package com.tivo.exoplayer.library.multiview;
 
 import android.app.Activity;
 import android.content.Context;
-import android.opengl.GLSurfaceView;
 import android.os.Build;
 import android.util.AttributeSet;
 import android.util.DisplayMetrics;
@@ -49,7 +48,7 @@ public class MultiExoPlayerView extends GridLayout {
   private int viewCount;
   private @MonotonicNonNull MultiViewPlayerController selectedController;
   private FocusedPlayerListener focusedPlayerListener;
-  private final MultiPlayerAudioFocusManager audioFocusManager;
+  private MultiPlayerAudioFocusManagerApi audioFocusManager;
   private boolean useQuickSelect;
   @Nullable private PlaybackState playbackState;
   private boolean viewsCreated;
@@ -163,7 +162,23 @@ public class MultiExoPlayerView extends GridLayout {
 
     LayoutInflater.from(context).inflate(R.layout.multi_view_player_container, this, true);
     this.context = context;
-    this.audioFocusManager = new MultiPlayerAudioFocusManager(context);
+
+    // TODO - when fixes are made to the library, replace this with the MultiPlayerAudioFocusManager as the default
+//    this.audioFocusManager = new MultiPlayerAudioFocusManager(context);
+    this.audioFocusManager = new NullMultiPlayerAudioFocusManager();
+  }
+
+  /**
+   * Set the audio focus manager to use for the multi-view.  The default is to not handle audio focus and
+   * expect the client to handle it externally.
+   *
+   * <p>This should be called once after the constructor and before {@link #createExoPlayerViews(int, int, SimpleExoPlayerFactory.Builder)}
+   * or not at all to use the default.</p>
+   *
+   * @param handlesAudioFocus if true, the {@link MultiPlayerAudioFocusManager} is used to manage audio focus
+   */
+  public void setMultiViewHandlesAudioFocus(boolean handlesAudioFocus) {
+    this.audioFocusManager = handlesAudioFocus ? new MultiPlayerAudioFocusManager(context) : new NullMultiPlayerAudioFocusManager();
   }
 
   public void createExoPlayerViews(int rowCount, int columnCount, SimpleExoPlayerFactory.Builder builder) {
