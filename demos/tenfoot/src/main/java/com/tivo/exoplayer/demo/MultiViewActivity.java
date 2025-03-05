@@ -72,30 +72,11 @@ public class MultiViewActivity extends AppCompatActivity {
   public static final String QUICK_AUDIO_SELECT = "quick_audio_select";
 
   @Nullable private Intent newIntent;
-  @Nullable private PlaybackState playbackState;
+  private boolean intentPossessed = false;
 
   private Toast errorRecoveryToast;
   private MultiExoPlayerView mainView;
   private SimpleExoPlayerFactory.Builder simpleExoPlayerFactoryBuilder;
-
-  private static class PlaybackState {
-    List<MediaItem> mediaItems;
-    int selectedCell;
-
-    public PlaybackState(MultiExoPlayerView mainView) {
-      mediaItems = new ArrayList<>();
-      for (int i = 0; i < mainView.getViewCount(); i++) {
-        PlayerView playerView = (PlayerView) mainView.getChildAt(i);
-        Player player = playerView.getPlayer();
-        if (player != null) {
-          mediaItems.add(player.getCurrentMediaItem());
-        }
-        if (playerView.hasFocus()) {
-          selectedCell = i;
-        }
-      }
-    }
-  }
 
   // Channel up/down support
   @NonNull private ImmutableList<MediaItem> channelList =   // All MediaItem's created from URI_LIST_EXTRA
@@ -223,6 +204,7 @@ public class MultiViewActivity extends AppCompatActivity {
     setContentView(R.layout.multiview_activity);
     View contentView = findViewById(android.R.id.content);
     mainView = contentView.findViewById(R.id.multi_player_view);
+    intentPossessed = false;
   }
 
   @Override
@@ -235,52 +217,53 @@ public class MultiViewActivity extends AppCompatActivity {
   public void onStart() {
     super.onStart();
     SimpleExoPlayerFactory.initializeLogging(getApplicationContext(), DEFAULT_LOG_LEVEL);
-    Log.d(TAG, "onStart() called");
-    processIntent(getIntent());
+    Log.d(TAG, "onStart() called - intentProcessed: " + intentPossessed);
+    if (!intentPossessed) {
+      processIntent(getIntent());
+      intentPossessed = true;
+    }
   }
 
   @Override
   protected void onRestart() {
     super.onRestart();
     Log.d(TAG, "onRestart() called");
+    if (mainView != null && newIntent== null)  {
+      mainView.restoreStateAndRestart();
+    }
   }
 
   @Override
   public void onResume() {
     super.onResume();
+    mainView.onResume();
     Log.d(TAG, "onResume() called");
     if (newIntent != null) {
       processIntent(newIntent);
       setIntent(newIntent);
       newIntent = null;
-    } else if (playbackState != null) {
-      for (int i=0; i < mainView.getViewCount(); i++) {
-        boolean fast_resync = getIntent().hasExtra(FAST_RESYNC);
-        mainView.getPlayerController(i).playMediaItem(fast_resync, playbackState.mediaItems.get(i));
-      }
-      mainView.setSelectedPlayerView(playbackState.selectedCell);
+      intentPossessed = true;
     }
   }
 
   @Override
   public void onPause() {
     super.onPause();
+    mainView.onPause();
     Log.d(TAG, "onPause() called");
-    playbackState = new PlaybackState(mainView);
-    mainView.stopAllPlayerViews();
   }
 
   @Override
   public void onStop() {
     super.onStop();
     Log.d(TAG, "onStop() called");
-    mainView.removeAllPlayerViews();
-    playbackState = null;
+    mainView.saveStateAndStop();
   }
 
   @Override
   protected void onDestroy() {
     Log.d(TAG, "onDestroy() called");
+    mainView.removeAllPlayerViews();
     super.onDestroy();
   }
 

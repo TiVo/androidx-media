@@ -1,6 +1,9 @@
 package com.tivo.exoplayer.library.multiview;
 
+import android.app.Activity;
 import android.content.Context;
+import android.opengl.GLSurfaceView;
+import android.os.Build;
 import android.util.AttributeSet;
 import android.util.DisplayMetrics;
 import android.view.KeyEvent;
@@ -11,6 +14,7 @@ import android.widget.GridLayout;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import com.google.android.exoplayer2.Format;
+import com.google.android.exoplayer2.MediaItem;
 import com.google.android.exoplayer2.Player;
 import com.google.android.exoplayer2.SimpleExoPlayer;
 import com.google.android.exoplayer2.ui.PlayerView;
@@ -18,7 +22,10 @@ import com.google.android.exoplayer2.util.Log;
 import com.google.common.collect.ImmutableList;
 import com.tivo.exoplayer.library.R;
 import com.tivo.exoplayer.library.SimpleExoPlayerFactory;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
+import java.util.Objects;
 import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
 
 /**
@@ -44,6 +51,27 @@ public class MultiExoPlayerView extends GridLayout {
   private FocusedPlayerListener focusedPlayerListener;
   private final MultiPlayerAudioFocusManager audioFocusManager;
   private boolean useQuickSelect;
+  @Nullable private PlaybackState playbackState;
+  private boolean viewsCreated;
+
+  private static class PlaybackState {
+    List<MediaItem> mediaItems;
+    int selectedCell;
+
+    public PlaybackState(MultiExoPlayerView mainView) {
+      mediaItems = new ArrayList<>();
+      for (int i = 0; i < mainView.getViewCount(); i++) {
+        PlayerView playerView = (PlayerView) mainView.getChildAt(i);
+        Player player = playerView.getPlayer();
+        if (player != null) {
+          mediaItems.add(player.getCurrentMediaItem());
+        }
+        if (playerView.hasFocus()) {
+          selectedCell = i;
+        }
+      }
+    }
+  }
 
   public static class OptimalVideoSize {
     public final int width;
@@ -97,7 +125,7 @@ public class MultiExoPlayerView extends GridLayout {
    * Clients of the {@link MultiExoPlayerView} use this call-back to be notified of events on the
    * focused {}
    */
-  public static interface FocusedPlayerListener {
+  public interface FocusedPlayerListener {
 
     /**
      * Called with "focused" true for the grid cell selection.  Subsequent changes call this method back
@@ -191,23 +219,27 @@ public class MultiExoPlayerView extends GridLayout {
       selectableView.setOnFocusChangeListener(new OnFocusChangeListener() {
         @Override
         public void onFocusChange(View v, boolean hasFocus) {
-          Log.d(TAG, "onFocusChange() - hasFocus: " + hasFocus + " index: " + viewIndex + " view:" + v);
-          childPlayerSelectedChanged(viewIndex, hasFocus);
+          if (viewsCreated) {
+            Log.d(TAG, "onFocusChange() - hasFocus: " + hasFocus + " index: " + viewIndex + " view:" + v);
+            childPlayerSelectedChanged(viewIndex, hasFocus);
+          }
         }
       });
 
       selectableView.setOnKeyListener(new OnKeyListener() {
         @Override
         public boolean onKey(View v, int keyCode, KeyEvent event) {
-          if (event.getAction() == KeyEvent.ACTION_UP && keyCode == KeyEvent.KEYCODE_DPAD_CENTER) {
-            selectedPlayerViewClicked(viewIndex, event);
+          if (viewsCreated) {
+            if (event.getAction() == KeyEvent.ACTION_UP && keyCode == KeyEvent.KEYCODE_DPAD_CENTER) {
+              selectedPlayerViewClicked(viewIndex, event);
+            }
           }
           return false;
         }
       });
 
       GridLocation gridLocation = new GridLocation(row, column, viewIndex);
-      MultiViewPlayerController multiViewPlayerController = new MultiViewPlayerController(builder, selected, gridLocation, audioFocusManager);
+      MultiViewPlayerController multiViewPlayerController = new MultiViewPlayerController(builder, gridLocation, audioFocusManager);
       multiViewPlayerController.setQuickAudioSelect(useQuickSelect);
       SimpleExoPlayer player = multiViewPlayerController.createPlayer();
       playerView.setPlayer(player);
@@ -226,6 +258,61 @@ public class MultiExoPlayerView extends GridLayout {
         column = 0;
         row++;
       }
+    }
+    viewsCreated = true;
+  }
+
+  /**
+   * Should be called when the {@link Activity}'s onResume() method..  This method resumes all the child {@link PlayerView}'s
+   * and, for Android 11 or later, selects the selected cell to restore audio focus.
+   *
+   */
+  public void onResume() {
+    if (playerControllers != null) {
+      for (int i=0; i < getViewCount(); i++) {
+        PlayerView playerView = (PlayerView) getChildAt(i);
+        playerView.onResume();
+        if (Build.VERSION.SDK_INT >= 30) {
+          if (playerView.hasFocus() && !audioFocusManager.hasAudioFocus()) {
+            audioFocusManager.setSelectedPlayer(playerView.getPlayer());
+          }
+        }
+      }
+    }
+  }
+
+  /**
+   * Should be called when the {@link Activity}'s onPause() method..  This method pauses all the child {@link PlayerView}'s*
+   */
+  public void onPause() {
+    if (playerControllers != null) {
+      for (int i=0; i < getViewCount(); i++) {
+        PlayerView playerView = (PlayerView) getChildAt(i);
+        playerView.onPause();
+      }
+    }
+  }
+
+  /**
+   * Should be called when the Activity state indicates the view will be hidden for an
+   * extended period of time.  This will release the audio focus and pause the players.
+   *
+   */
+  public void saveStateAndStop() {
+    playbackState = new PlaybackState(this);
+    stopAllPlayerViews();
+  }
+
+  /**
+   * Should be called when the Activity state restores the multiview.  This will restore the
+   * saved state from {@link #saveStateAndStop()} and restart the players.
+   */
+  public void restoreStateAndRestart() {
+    if (playbackState != null) {
+      for (int i=0; i < getViewCount(); i++) {
+        Objects.requireNonNull(getPlayerController(i)).playMediaItemInternal(playbackState.mediaItems.get(i));
+      }
+      setSelectedPlayerView(playbackState.selectedCell);
     }
   }
 
@@ -398,6 +485,8 @@ public class MultiExoPlayerView extends GridLayout {
    * for a method to just release memory held without completely destroying the players</p>
    */
   public void removeAllPlayerViews() {
+    playbackState = null;
+    viewsCreated = false; // noop the view events
     if (playerControllers != null) {
       audioFocusManager.setSelectedPlayer(null);
       for (int i = 0; i < playerControllers.length; i++) {
