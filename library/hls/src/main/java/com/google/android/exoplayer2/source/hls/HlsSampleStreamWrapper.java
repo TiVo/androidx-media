@@ -316,7 +316,14 @@ import org.checkerframework.checker.nullness.qual.RequiresNonNull;
     assertIsPrepared();
     Assertions.checkNotNull(trackGroupToSampleQueueIndex);
     int sampleQueueIndex = trackGroupToSampleQueueIndex[trackGroupIndex];
-    Assertions.checkState(sampleQueuesEnabledStates[sampleQueueIndex]);
+    if (sampleQueueIndex == C.INDEX_UNSET) {
+        if (!optionalTrackGroups.contains(trackGroups.get(trackGroupIndex))) {
+            Assertions.checkState(sampleQueuesEnabledStates[sampleQueueIndex]);
+        } else {
+            Log.i(TAG, "unbindSampleQueue() sampleQueueIndex is UNSET for optional trackGroupIndex. NON_FATAL");
+            return;
+        }
+    }
     sampleQueuesEnabledStates[sampleQueueIndex] = false;
   }
 
@@ -386,14 +393,21 @@ import org.checkerframework.checker.nullness.qual.RequiresNonNull;
           ((HlsSampleStream) streams[i]).bindSampleQueue();
           // If there's still a chance of avoiding a seek, try and seek within the sample queue.
           if (!seekRequired) {
-            SampleQueue sampleQueue = sampleQueues[trackGroupToSampleQueueIndex[trackGroupIndex]];
-            // A seek can be avoided if we're able to seek to the current playback position in
-            // the sample queue, or if we haven't read anything from the queue since the previous
-            // seek (this case is common for sparse tracks such as metadata tracks). In all other
-            // cases a seek is required.
-            seekRequired =
-                !sampleQueue.seekTo(positionUs, /* allowTimeBeyondBuffer= */ true)
-                    && sampleQueue.getReadIndex() != 0;
+              if (trackGroupToSampleQueueIndex[trackGroupIndex] == C.INDEX_UNSET &&
+                      optionalTrackGroups.contains(trackGroups.get(trackGroupIndex))) {
+                  Log.i(TAG, "selectTracks() sampleQueue is UNSET for optional trackGroupIndex. NON_FATAL");
+                  // This track group is optional, so we don't need to seek to it.
+                  seekRequired = false;
+              } else {
+                  SampleQueue sampleQueue = sampleQueues[trackGroupToSampleQueueIndex[trackGroupIndex]];
+                  // A seek can be avoided if we're able to seek to the current playback position in
+                  // the sample queue, or if we haven't read anything from the queue since the previous
+                  // seek (this case is common for sparse tracks such as metadata tracks). In all other
+                  // cases a seek is required.
+                  seekRequired =
+                      !sampleQueue.seekTo(positionUs, /* allowTimeBeyondBuffer= */ true)
+                      && sampleQueue.getReadIndex() != 0;
+              }
           }
         }
       }
