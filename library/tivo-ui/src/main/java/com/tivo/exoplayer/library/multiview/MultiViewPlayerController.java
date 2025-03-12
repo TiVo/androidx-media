@@ -174,23 +174,34 @@ public class MultiViewPlayerController implements Player.Listener {
   /**
    * Only the selected player has audio enabled.  Note, this is an internal API
    * the API {@link MultiExoPlayerView#setSelectedPlayerView(int)} should be used
-   * by external clients
+   * by external clients.
+   *
+   * <p>When the player is selected, it will have audio on by setting the volume multiplier
+   * set to 1.0f (un-muted).  When the player is not selected, the audio volume multipler
+   * is set to 0.0f (fully muted).   Additionally, for track formats that do not support
+   * audio muting (pass-thru AC3 for example), the renderer is disabled when the
+   * player is not selected, otherwise if the format supports volume mute
+   * the renderer is left enabled to facilitate more rapid selection change</p>
    *
    * @param selected true if the player is selected
    */
   void setSelected(boolean selected) {
     SimpleExoPlayer player = exoPlayerFactory.getCurrentPlayer();
-    Format audioFormat = player != null ? player.getAudioFormat() : null;
-    float currentVolume = player != null ? player.getVolume() : -1.0f;
+    if (player == null) {
+      Log.e(TAG, gridLocation + " setSelected(" + selected + ") - No player");
+      return;
+    }
+    Format audioFormat = player.getAudioFormat();
+    float currentVolume = player.getVolume();
+    if (selected) {
+      player.setVolume(1.0f);
+    } else {
+      player.setVolume(0.0f);
+    }
     if (MultiViewTrackSelector.isSupportedAudioFormatForVolumeMute(audioFormat)) {
       Log.d(TAG, gridLocation + " setSelected(" + selected + ") - Using volume mute/unmute "
           + "current volume: " + currentVolume + " audioFormat=" + audioFormat);
       exoPlayerFactory.setAudioEnabled(true);
-      if (selected) {
-        player.setVolume(1.0f);
-      } else {
-        player.setVolume(0.0f);
-      }
     } else {
       Log.d(TAG, gridLocation + " setSelected(" + selected + ") - Using renderer disable "
           + " current volume: " +  currentVolume + " audioFormat=" + audioFormat);
