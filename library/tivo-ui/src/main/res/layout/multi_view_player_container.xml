@@ -7,13 +7,37 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:padding="2dp"/>
-
 -->
+
 <merge xmlns:android="http://schemas.android.com/apk/res/android"
+  xmlns:app="http://schemas.android.com/apk/res-auto"
+  android:orientation="horizontal">
+  <LinearLayout
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:keepScreenOn="true"
-    android:rowCount="2"
-    android:columnCount="2"
-    android:padding="16dp">
+    android:layout_marginTop="135dp"
+    android:layout_marginBottom="135dp"
+    android:id="@+id/two_player_views_sidebyside">
+
+    <com.google.android.exoplayer2.ui.PlayerView
+      android:id="@+id/player_view_one"
+      android:focusable="true"
+      android:layout_width="0dp"
+      android:layout_height="match_parent"
+      android:layout_weight="1"
+      app:player_layout_id="@layout/multi_exo_player_view"
+      app:show_buffering="when_playing"
+      app:use_controller="false" />
+
+    <com.google.android.exoplayer2.ui.PlayerView
+      android:id="@+id/player_view_two"
+      android:focusable="true"
+      android:layout_width="0dp"
+      android:layout_height="match_parent"
+      android:layout_weight="1"
+      app:player_layout_id="@layout/multi_exo_player_view"
+      app:show_buffering="when_playing"
+      app:use_controller="false" />
+
+  </LinearLayout>
 </merge>

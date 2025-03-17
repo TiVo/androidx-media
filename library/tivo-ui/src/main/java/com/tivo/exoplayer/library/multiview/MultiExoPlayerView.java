@@ -10,6 +10,7 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.GridLayout;
+import android.widget.LinearLayout;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import com.google.android.exoplayer2.Format;
@@ -39,9 +40,11 @@ import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
  * by the users of this library.
  * </p>
  */
-public class MultiExoPlayerView extends GridLayout {
+public class MultiExoPlayerView extends LinearLayout {
 
   private static final String TAG = "MultiExoPlayerView";
+  private final View singleRowView;
+  private final View multiGridView;
 
   private @Nullable MultiViewPlayerController[] playerControllers;
   private final Context context;
@@ -60,7 +63,7 @@ public class MultiExoPlayerView extends GridLayout {
     public PlaybackState(MultiExoPlayerView mainView) {
       mediaItems = new ArrayList<>();
       for (int i = 0; i < mainView.getViewCount(); i++) {
-        PlayerView playerView = (PlayerView) mainView.getChildAt(i);
+        PlayerView playerView = mainView.getPlayerView(i);
         Player player = playerView.getPlayer();
         if (player != null) {
           mediaItems.add(player.getCurrentMediaItem());
@@ -160,7 +163,13 @@ public class MultiExoPlayerView extends GridLayout {
   public MultiExoPlayerView(Context context, AttributeSet attrs, int defStyleAttr, int defStyleRes) {
     super(context, attrs, defStyleAttr, defStyleRes);
 
-    LayoutInflater.from(context).inflate(R.layout.multi_view_player_container, this, true);
+    LayoutInflater inflater = LayoutInflater.from(context);
+    inflater.inflate(R.layout.multi_view_player_container, this, true);
+    singleRowView = getChildAt(getChildCount() - 1);
+
+    inflater.inflate(R.layout.multi_view_player, this, true);
+    multiGridView = getChildAt(getChildCount() - 1);
+    multiGridView.setVisibility(GONE);
     this.context = context;
 
     // TODO - when fixes are made to the library, replace this with the MultiPlayerAudioFocusManager as the default
@@ -199,82 +208,136 @@ public class MultiExoPlayerView extends GridLayout {
    */
   public void createExoPlayerViews(int rowCount, int columnCount, SimpleExoPlayerFactory.Builder builder, FocusedPlayerListener listener) {
     focusedPlayerListener = listener;
+    initializeLayout(rowCount, columnCount);
 
-    removeAllPlayerViews();
-
-    viewCount = rowCount * columnCount;
-    setRowCount(rowCount);
-    setColumnCount(columnCount);
-    LayoutInflater inflater = LayoutInflater.from(context);
-
-    playerControllers = new MultiViewPlayerController[viewCount];
     int row=0;
     int column=0;
-    for (int i = 0; i < viewCount; i++) {
+    playerControllers = new MultiViewPlayerController[viewCount];
+    for (int viewIndex = 0; viewIndex < viewCount; viewIndex++) {
+      PlayerView playerView = getPlayerView(viewIndex);
 
-      // Create a PlayerView in a GridLayout by expanding the multi_view_player which has a single grid cell
-      // update it's layout to the correct row/column
-      ViewGroup multiPlayerView = (ViewGroup) inflater.inflate(R.layout.multi_view_player, this, false);
-      PlayerView playerView = multiPlayerView.findViewById(R.id.player_view_template);
-      LayoutParams layoutParams = (LayoutParams) playerView.getLayoutParams();
-      layoutParams.columnSpec = GridLayout.spec(column, 1.0f);
-      layoutParams.rowSpec = GridLayout.spec(row, 1.0f);
-
-      // Remove the PlayerView from the template layout ViewGroup and insert it in the activity ViewGroup
-      multiPlayerView.removeView(playerView);
-      addView(playerView);
-      View selectableView = playerView.findViewById(R.id.exo_content_frame);
-
-      boolean selected = i == 0;
+      boolean selected = viewIndex == 0;
       if (selected) {
-        selectableView.requestFocus();
+        playerView.requestFocus();
       }
-
-      int viewIndex = i;
-      selectableView.setOnFocusChangeListener(new OnFocusChangeListener() {
-        @Override
-        public void onFocusChange(View v, boolean hasFocus) {
-          if (viewsCreated) {
-            Log.d(TAG, "onFocusChange() - hasFocus: " + hasFocus + " index: " + viewIndex + " view:" + v);
-            childPlayerSelectedChanged(viewIndex, hasFocus);
-          }
-        }
-      });
-
-      selectableView.setOnKeyListener(new OnKeyListener() {
-        @Override
-        public boolean onKey(View v, int keyCode, KeyEvent event) {
-          if (viewsCreated) {
-            if (event.getAction() == KeyEvent.ACTION_UP && keyCode == KeyEvent.KEYCODE_DPAD_CENTER) {
-              selectedPlayerViewClicked(viewIndex, event);
-            }
-          }
-          return false;
-        }
-      });
+      setupListeners(playerView, viewIndex);
 
       GridLocation gridLocation = new GridLocation(row, column, viewIndex);
       MultiViewPlayerController multiViewPlayerController = new MultiViewPlayerController(builder, gridLocation, audioFocusManager);
       multiViewPlayerController.setQuickAudioSelect(useQuickSelect);
       SimpleExoPlayer player = multiViewPlayerController.createPlayer();
       playerView.setPlayer(player);
-      playerControllers[i] = multiViewPlayerController;
+      playerControllers[viewIndex] = multiViewPlayerController;
 
       if (selected) {
         selectedController = multiViewPlayerController;
-        audioFocusManager.setSelectedPlayer(player);
-        focusedPlayerListener.focusedPlayerChanged(playerView, multiViewPlayerController, true);
-      } else {
-        focusedPlayerListener.focusedPlayerChanged(playerView, multiViewPlayerController, false);
       }
-      multiViewPlayerController.setSelected(selected);
+      childPlayerSelectedChanged(viewIndex, selected);
 
       if (++column == columnCount) {
         column = 0;
         row++;
       }
     }
-    viewsCreated = true;
+  }
+
+  private void initializeLayout(int rowCount, int columnCount) {
+
+    // Release any existing players from any prior view (TODO, we could swap them to the new views, if it increases)
+    releaseActivePlayerControllers();
+
+    // Then set the new viewCount and change the layout to match the new row/column count
+    viewCount = rowCount * columnCount;
+    if (viewCount <= 2) {
+      singleRowView.setVisibility(VISIBLE);
+      multiGridView.setVisibility(GONE);
+    } else {
+      singleRowView.setVisibility(GONE);
+      GridLayout gridLayout = multiGridView.findViewById(R.id.player_grid_layout);
+
+      // If the grid layout is not yet created or does not match the desired row/column count, reset it
+      if (gridLayout.getChildCount() != viewCount || gridLayout.getRowCount() != rowCount || gridLayout.getColumnCount() != columnCount) {
+        resetGridLayout(rowCount, columnCount, gridLayout);
+      }
+      multiGridView.setVisibility(VISIBLE);
+    }
+  }
+
+  private void releaseActivePlayerControllers() {
+    if (playerControllers != null) {
+      audioFocusManager.setSelectedPlayer(null);
+      for (int i = 0; i < playerControllers.length; i++) {
+        MultiViewPlayerController playerController = playerControllers[i];
+        playerController.releasePlayer();
+        PlayerView playerView = getPlayerView(i);
+        playerView.setPlayer(null);
+      }
+      playerControllers = null;
+    }
+  }
+
+  /**
+   * Create a GridLayout view with the specified number of rows and columns of PlayerView cells.
+   *
+   * <p>The pre-inflated template layout contains a single grid cell, R.id.player_view_template
+   * which is used to create the PlayerView's for each cell in the grid.  Th inflation process
+   * creates the correct {@link GridLayout.LayoutParams}, based on values in the layout
+   * for each cell in the grid.</p>
+   *
+   * @param rowCount
+   * @param columnCount
+   * @param gridLayout
+   */
+  private void resetGridLayout(int rowCount, int columnCount, GridLayout gridLayout) {
+    gridLayout.removeAllViews();
+    gridLayout.setRowCount(rowCount);
+    gridLayout.setColumnCount(columnCount);
+
+    LayoutInflater inflater = LayoutInflater.from(context);
+
+    // Create the PlayerView's for each cell in the grid by inflating the template layout
+    // then modifying the layout parameters to place the PlayerView in the correct cell
+
+    for (int viewIndex = 0; viewIndex < rowCount * columnCount; viewIndex++) {
+
+      // Inflate the new PlayerView from the template, add it to the parent grid layout
+      inflater.inflate(R.layout.grid_player_view_cell, gridLayout, true);
+
+      // The last added child is the newly inflated PlayerView
+      View playerView = gridLayout.getChildAt(gridLayout.getChildCount() - 1);
+
+      // Retrieve the generated LayoutParams and modify them.  Note we force equal weight for each cell,
+      // as the PlayerView cannot handle multi-pass layouts as the SurfaceView will not be instantiated with
+      // 0x0 size (so you never get a first frame render)
+      GridLayout.LayoutParams layoutParams = (GridLayout.LayoutParams) playerView.getLayoutParams();
+      layoutParams.columnSpec = GridLayout.spec(viewIndex % columnCount, 1.0f);
+      layoutParams.rowSpec = GridLayout.spec(viewIndex / columnCount, 1.0f);
+      playerView.setLayoutParams(layoutParams);
+    }
+  }
+
+  private void setupListeners(View selectableView, int viewIndex) {
+    selectableView.setOnFocusChangeListener(new OnFocusChangeListener() {
+      @Override
+      public void onFocusChange(View v, boolean hasFocus) {
+        if (playerControllers != null) {
+          Log.d(TAG, "onFocusChange() - hasFocus: " + hasFocus + " index: " + viewIndex + " view:" + v);
+          childPlayerSelectedChanged(viewIndex, hasFocus);
+        }
+      }
+    });
+
+    selectableView.setOnKeyListener(new OnKeyListener() {
+      @Override
+      public boolean onKey(View v, int keyCode, KeyEvent event) {
+        if (playerControllers != null) {
+          if (event.getAction() == KeyEvent.ACTION_UP && keyCode == KeyEvent.KEYCODE_DPAD_CENTER) {
+            selectedPlayerViewClicked(viewIndex, event);
+          }
+        }
+        return false;
+      }
+    });
   }
 
   /**
@@ -285,7 +348,7 @@ public class MultiExoPlayerView extends GridLayout {
   public void onResume() {
     if (playerControllers != null) {
       for (int i=0; i < getViewCount(); i++) {
-        PlayerView playerView = (PlayerView) getChildAt(i);
+        PlayerView playerView = getPlayerView(i);
         playerView.onResume();
         if (Build.VERSION.SDK_INT >= 30) {
           if (playerView.hasFocus() && !audioFocusManager.hasAudioFocus()) {
@@ -302,7 +365,7 @@ public class MultiExoPlayerView extends GridLayout {
   public void onPause() {
     if (playerControllers != null) {
       for (int i=0; i < getViewCount(); i++) {
-        PlayerView playerView = (PlayerView) getChildAt(i);
+        PlayerView playerView = getPlayerView(i);
         playerView.onPause();
       }
     }
@@ -335,7 +398,7 @@ public class MultiExoPlayerView extends GridLayout {
     boolean handled = false;
     if (playerControllers != null) {
       selectedController = playerControllers[viewIndex];
-      PlayerView playerView = (PlayerView) getChildAt(viewIndex);
+      PlayerView playerView = getPlayerView(viewIndex);
       focusedPlayerListener.focusPlayerClicked(playerView, selectedController);
       handled = true;
     }
@@ -346,15 +409,34 @@ public class MultiExoPlayerView extends GridLayout {
     if (playerControllers != null) {
       selectedController = playerControllers[i];
       selectedController.setSelected(hasFocus);
-      PlayerView playerView = (PlayerView) getChildAt(i);
+      PlayerView playerView = getPlayerView(i);
       audioFocusManager.setSelectedPlayer(playerView.getPlayer());
+      View focusBorderFrame = playerView.findViewById(R.id.focus_border_frame);
+      focusBorderFrame.setBackgroundResource(hasFocus ? R.drawable.selection_border : android.R.color.transparent);
       focusedPlayerListener.focusedPlayerChanged(playerView, selectedController, true);
     } else {
-      Log.d(TAG, "childPlayerSelectedChanged() - no playerControllers, releaseing audio focus");
+      Log.d(TAG, "childPlayerSelectedChanged() - no playerControllers, releasing audio focus");
       audioFocusManager.setSelectedPlayer(null);
     }
   }
 
+
+  /**
+   * Get the PlayerView child at the specified index.
+   *
+   * @param index - index of the child to get, 0..number of cells (rowCount * columnCount)
+   * @return the {@link PlayerView} at the specified index
+   */
+  private PlayerView getPlayerView(int index) {
+    PlayerView playerView = null;
+    if (viewCount <= 2) {
+      playerView = index == 0 ? findViewById(R.id.player_view_one) : findViewById(R.id.player_view_two);
+    } else {
+      GridLayout gridLayout = findViewById(R.id.player_grid_layout);
+      playerView = (PlayerView) gridLayout.getChildAt(index);
+    }
+    return playerView;
+  }
 
   /**
    * Video is sized to fit by {@link com.google.android.exoplayer2.ui.AspectRatioFrameLayout} such as to
@@ -373,14 +455,31 @@ public class MultiExoPlayerView extends GridLayout {
   public OptimalVideoSize calculateOptimalVideoSizes(boolean includeDensity) {
 
     // Using the DisplayMetrics is an upper limit, assuming this View fills the entire screen (which it
-    // doesn't)
+    // doesn't).  Note single row is centered and letterboxed into the screen so size
+    // is half the full screen height.
     DisplayMetrics metrics = context.getResources().getDisplayMetrics();
     int optimalWidth = metrics.widthPixels / getColumnCount();
-    int optimalHeight = metrics.heightPixels / getRowCount();
+    int optimalHeight = metrics.heightPixels / Math.min(getRowCount(), 2);
 
     return includeDensity
         ? new OptimalVideoSize((int) (optimalWidth * metrics.density), (int) (optimalHeight * metrics.density))
         : new OptimalVideoSize(optimalWidth, optimalHeight);
+  }
+
+  private int getRowCount() {
+    if (getChildCount() > 0 && getChildAt(0) instanceof GridLayout) {
+      return ((GridLayout) getChildAt(0)).getRowCount();
+    } else {
+      return 1;
+    }
+  }
+
+  public int getColumnCount() {
+    if (getChildCount() > 0 && getChildAt(0) instanceof GridLayout) {
+      return ((GridLayout) getChildAt(0)).getColumnCount();
+    } else {
+      return viewCount;
+    }
   }
 
   /**
@@ -428,7 +527,7 @@ public class MultiExoPlayerView extends GridLayout {
       for (int i = 0; i < playerControllers.length && selected == null; i++) {
         MultiViewPlayerController controller = playerControllers[i];
         if (controller == selectedController) {
-          selected = (PlayerView) getChildAt(i);
+          selected = getPlayerView(i);
         }
       }
     }
@@ -442,7 +541,7 @@ public class MultiExoPlayerView extends GridLayout {
    * @param index - grid location (row major index form) of the cell to select.
    */
   public void setSelectedPlayerView(int index) {
-    getChildAt(index).requestFocus();
+    getPlayerView(index).requestFocus();
   }
 
   /**
@@ -501,18 +600,22 @@ public class MultiExoPlayerView extends GridLayout {
    */
   public void removeAllPlayerViews() {
     playbackState = null;
-    viewsCreated = false; // noop the view events
-    if (playerControllers != null) {
-      audioFocusManager.setSelectedPlayer(null);
-      for (int i = 0; i < playerControllers.length; i++) {
-        MultiViewPlayerController playerController = playerControllers[i];
-        playerController.releasePlayer();
-        PlayerView playerView = (PlayerView) getChildAt(i);
-        playerView.setPlayer(null);
-      }
+    releaseActivePlayerControllers();
+    releaseChildPlayerViews(this);
+  }
 
-      removeAllViews();
-      playerControllers = null;
+  private void releaseChildPlayerViews(ViewGroup viewGroup) {
+    for (int i = 0; i < viewGroup.getChildCount(); i++) {
+      View child = viewGroup.getChildAt(i);
+      if (child instanceof PlayerView) {
+        PlayerView playerView = (PlayerView) child;
+        if (playerView.getPlayer() != null) {
+          playerView.getPlayer().release();
+        }
+        playerView.setPlayer(null);
+      } else if (child instanceof ViewGroup) {
+        releaseChildPlayerViews((ViewGroup) child);
+      }
     }
   }
 }

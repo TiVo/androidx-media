@@ -9,17 +9,18 @@ import android.os.Bundle;
 import android.util.Log;
 import android.view.KeyEvent;
 import android.view.View;
+import android.view.ViewGroup;
+import android.widget.GridLayout;
+import android.widget.LinearLayout;
 import android.widget.Toast;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 import com.google.android.exoplayer2.C;
 import com.google.android.exoplayer2.ExoPlaybackException;
-import com.google.android.exoplayer2.ExoPlayer;
 import com.google.android.exoplayer2.Format;
 import com.google.android.exoplayer2.MediaItem;
 import com.google.android.exoplayer2.PlaybackException;
-import com.google.android.exoplayer2.Player;
 import com.google.android.exoplayer2.source.MediaSourceFactory;
 import com.google.android.exoplayer2.source.hls.playlist.DefaultHlsPlaylistTracker;
 import com.google.android.exoplayer2.ui.PlayerView;
@@ -33,6 +34,7 @@ import com.tivo.exoplayer.library.errorhandlers.PlayerErrorHandlerListener;
 import com.tivo.exoplayer.library.multiview.MultiExoPlayerView;
 import com.tivo.exoplayer.library.multiview.MultiViewPlayerController;
 import com.tivo.exoplayer.library.source.MediaItemHelper;
+import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
@@ -212,6 +214,10 @@ public class MultiViewActivity extends AppCompatActivity {
  public void onNewIntent(Intent intent) {
     Log.d(TAG, "onNewIntent() - intent: " + intent);
     super.onNewIntent(intent);
+    if ("dump_view".equals(intent.getAction())) {
+      dumpViewHierarchy((View) mainView.getParent());
+      return;
+    }
     newIntent = intent;
   }
 
@@ -220,7 +226,7 @@ public class MultiViewActivity extends AppCompatActivity {
     SimpleExoPlayerFactory.initializeLogging(getApplicationContext(), DEFAULT_LOG_LEVEL);
     Log.d(TAG, "onStart() called - intentProcessed: " + intentPossessed);
     if (!intentPossessed) {
-      processIntent(getIntent());
+      processIntent();
       intentPossessed = true;
     }
   }
@@ -240,8 +246,8 @@ public class MultiViewActivity extends AppCompatActivity {
     mainView.onResume();
     Log.d(TAG, "onResume() called");
     if (newIntent != null) {
-      processIntent(newIntent);
       setIntent(newIntent);
+      processIntent();
       newIntent = null;
       intentPossessed = true;
     }
@@ -275,8 +281,68 @@ public class MultiViewActivity extends AppCompatActivity {
   }
 
   // Internal methods
+  private static void dumpViewHierarchy(View view) {
+    dumpViewHierarchy(view, 0);
+  }
 
-  private void processIntent(Intent intent) {
+  private static void dumpViewHierarchy(View view, int depth) {
+    if (view instanceof ViewGroup) {
+      ViewGroup viewGroup = (ViewGroup) view;
+      logViewInfo(depth, view);
+      for (int i = 0; i < viewGroup.getChildCount(); i++) {
+        View child = viewGroup.getChildAt(i);
+        if (child.getVisibility() == View.VISIBLE) {
+          // Recursively dump the child view
+          dumpViewHierarchy(child, depth + 1);
+        }
+      }
+    } else if (view.getVisibility() == View.VISIBLE) {
+      logViewInfo(depth, view);
+    }
+  }
+
+  private static void logViewInfo(int depth, View child) {
+    StringBuilder sb = new StringBuilder();
+    for (int j = 0; j < depth; j++) {
+      sb.append("  ");
+    }
+    sb.append(child);
+    callDebugMethod(child);
+//    Log.i(TAG, sb.toString() + " - " + child.getWidth() + "x" + child.getHeight() + " layout: " + debugLayout(child));
+  }
+
+  private static String debugLayout(View child) {
+    ViewGroup.LayoutParams layoutParams = child.getLayoutParams();
+    if (layoutParams instanceof LinearLayout.LayoutParams) {
+      LinearLayout.LayoutParams linearLayoutParams = (LinearLayout.LayoutParams) layoutParams;
+      return linearLayoutParams.debug("[linear: ") + " margins: " + linearLayoutParams.leftMargin + "," + linearLayoutParams.topMargin + "," + linearLayoutParams.rightMargin + "," + linearLayoutParams.bottomMargin + "]";
+    } else if (layoutParams instanceof GridLayout.LayoutParams) {
+      GridLayout.LayoutParams gridLayoutParams = (GridLayout.LayoutParams) layoutParams;
+      return "[Grid, margin: " + gridLayoutParams.leftMargin + "," + gridLayoutParams.topMargin + "," + gridLayoutParams.rightMargin + "," + gridLayoutParams.bottomMargin + "]";
+    } else if (layoutParams instanceof ViewGroup.MarginLayoutParams) {
+      ViewGroup.MarginLayoutParams marginLayoutParams = (ViewGroup.MarginLayoutParams) layoutParams;
+      return "[margin: " + marginLayoutParams.leftMargin + "," + marginLayoutParams.topMargin + "," + marginLayoutParams.rightMargin + "," + marginLayoutParams.bottomMargin + "]";
+    } else if (layoutParams != null) {
+      return "[layout: " + layoutParams.width + "x" + layoutParams.height + "]";
+    } else {
+      return "[no layout]";
+    }
+  }
+
+  private static void callDebugMethod(View view) {
+    try {
+      // Access the debug() method using reflection
+      Method debugMethod = view.getClass().getMethod("debug");
+
+      // Call the debug() method
+      debugMethod.invoke(view);
+    } catch (Exception e) {
+      e.printStackTrace();
+    }
+  }
+
+  private void processIntent() {
+    Intent intent = getIntent();
     Log.d(TAG, "processIntent() - intent: " + intent);
     String action = intent.getAction();
     Uri videoUri = intent.getData();
@@ -300,11 +366,16 @@ public class MultiViewActivity extends AppCompatActivity {
       mediaItemsToPlay.add(builder.build());
     }
 
-    boolean fast_resync = intent.hasExtra(FAST_RESYNC);
     int rows = intent.getIntExtra(GRID_ROWS, 2);
     int columns = intent.getIntExtra(GRID_COLUMNS, 2);
 
     channelList = ImmutableList.copyOf(mediaItemsToPlay);
+    switchViewToSize(rows, columns);
+  }
+
+  private void switchViewToSize(int rows, int columns) {
+    Intent intent = getIntent();
+    boolean fast_resync = intent.hasExtra(FAST_RESYNC);
     currentChannelForCell = new int[rows * columns];
     Arrays.fill(currentChannelForCell, 0);
     mainView.setQuickAudioSelect(intent.getBooleanExtra(QUICK_AUDIO_SELECT, false));
@@ -338,10 +409,9 @@ public class MultiViewActivity extends AppCompatActivity {
     });
     MultiExoPlayerView.OptimalVideoSize optimalSize = mainView.calculateOptimalVideoSizes(false);
 
-    Iterator<MediaItem> it = mediaItemsToPlay.iterator();
+    Iterator<MediaItem> it = channelList.iterator();
     MediaItem currentItem = null;
-    int playbackCount = mainView.getViewCount();
-    playbackCount = intent.getIntExtra(PLAYBACK_COUNT, playbackCount);
+    int playbackCount = intent.getIntExtra(PLAYBACK_COUNT, mainView.getViewCount());
     int selectCell = intent.getIntExtra(SELECT_CELL, 0);
     mainView.setSelectedPlayerView(selectCell);
 
@@ -396,6 +466,14 @@ public class MultiViewActivity extends AppCompatActivity {
 
         case KeyEvent.KEYCODE_CHANNEL_DOWN:
           handled = channelUpDown(false);
+          break;
+
+        case KeyEvent.KEYCODE_2:
+          switchViewToSize(1, 2);
+          break;
+
+        case KeyEvent.KEYCODE_4:
+          switchViewToSize(2, 2);
           break;
       }
     }
