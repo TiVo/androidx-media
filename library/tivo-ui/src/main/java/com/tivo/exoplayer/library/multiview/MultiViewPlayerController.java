@@ -27,7 +27,7 @@ import com.tivo.exoplayer.library.source.ExtendedMediaSourceFactory;
  * Encapsulates a single {@link com.google.android.exoplayer2.ExoPlayer} and it's factory in the
  * context of a set of players in a {@link MultiExoPlayerView}
  */
-public class MultiViewPlayerController implements Player.Listener {
+public class MultiViewPlayerController {
   public static final String TAG = "MultiViewPlayerController";
 
   /**
@@ -43,7 +43,29 @@ public class MultiViewPlayerController implements Player.Listener {
   private boolean selected;           // If this player is "selected" (has focus)
   @Nullable private MultiExoPlayerView.OptimalVideoSize optimalVideoSize;
   private boolean useQuickSelect;
+  @Nullable private MultiExoPlayerView.MultiViewPlayerListener playerEventListener;
+  @Nullable private MultiViewPlayerListenerAdapter playerListenerAdapter; // Store adapter reference
 
+  // Setter for the event listener
+  public void setMultiViewPlayerListener(@Nullable MultiExoPlayerView.MultiViewPlayerListener listener) {
+    this.playerEventListener = listener;
+    
+    // If we already have a player, add the listener adapter to it
+    SimpleExoPlayer player = exoPlayerFactory.getCurrentPlayer();
+    if (player != null) {
+      // Remove any existing listener first
+      if (playerListenerAdapter != null) {
+        player.removeListener(playerListenerAdapter);
+        playerListenerAdapter = null;
+      }
+      
+      // Add new listener if provided
+      if (listener != null) {
+        playerListenerAdapter = new MultiViewPlayerListenerAdapter(gridLocation, listener);
+        player.addListener(playerListenerAdapter);
+      }
+    }
+  }
 
   /**
    * Logs useful info on playback state for the player in the cell
@@ -122,7 +144,6 @@ public class MultiViewPlayerController implements Player.Listener {
   public void releasePlayer() {
     exoPlayerFactory.releasePlayer();
   }
-
 
   public void playMediaItem(boolean fastResync, MediaItem currentItem) {
     Log.i(TAG, "playMediaItem() " + gridLocation + " - playMediaItem " + mediaItemDebugString(currentItem) + " fastResync=" + fastResync);
@@ -222,6 +243,13 @@ public class MultiViewPlayerController implements Player.Listener {
     SimpleExoPlayer player = exoPlayerFactory.createPlayer(true, false, builder);
     player.addAnalyticsListener(new MultiViewDebugLogging(gridLocation));
     player.setAudioAttributes(AudioAttributes.DEFAULT, false);
+    
+    // Add the listener adapter if a listener has been set
+    if (playerEventListener != null) {
+      playerListenerAdapter = new MultiViewPlayerListenerAdapter(gridLocation, playerEventListener);
+      player.addListener(playerListenerAdapter);
+    }
+    
     return player;
   }
 }

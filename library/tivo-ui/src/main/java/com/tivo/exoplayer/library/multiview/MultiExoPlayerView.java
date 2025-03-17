@@ -17,10 +17,15 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import com.google.android.exoplayer2.Format;
 import com.google.android.exoplayer2.MediaItem;
+import com.google.android.exoplayer2.PlaybackException;
 import com.google.android.exoplayer2.Player;
 import com.google.android.exoplayer2.SimpleExoPlayer;
+import com.google.android.exoplayer2.Timeline;
+import com.google.android.exoplayer2.source.TrackGroupArray;
+import com.google.android.exoplayer2.trackselection.TrackSelectionArray;
 import com.google.android.exoplayer2.ui.PlayerView;
 import com.google.android.exoplayer2.util.Log;
+import com.google.android.exoplayer2.video.VideoSize;
 import com.google.common.collect.ImmutableList;
 import com.tivo.exoplayer.library.R;
 import com.tivo.exoplayer.library.SimpleExoPlayerFactory;
@@ -74,6 +79,31 @@ public class MultiExoPlayerView extends LinearLayout {
         if (playerView.hasFocus()) {
           selectedCell = i;
         }
+      }
+    }
+  }
+
+  /**
+   * Listener interface for player events in a MultiView context.
+   */
+  public interface MultiViewPlayerListener {
+    default void onVideoSizeChanged(int multiviewIndex, VideoSize videoSize) { }
+    default void onMediaItemTransition(int multiviewIndex, MediaItem mediaItem,
+        @Player.MediaItemTransitionReason int reason) { }
+    default void onPlayerError(int multiviewIndex, PlaybackException error) { }
+    default void onTimelineChanged(int multiviewIndex, Timeline timeline,
+        @Player.TimelineChangeReason int reason) { }
+    default void onTracksChanged(int multiviewIndex, TrackGroupArray trackGroups,
+        TrackSelectionArray trackSelections) { }
+    default void onRenderedFirstFrame(int multiviewIndex) { }
+    default void onPlaybackStateChanged(int multiviewIndex, @Player.State int playbackState) { }
+    default void onEvents(int multiviewIndex, Player player, Player.Events events) { }
+  }
+
+  public void setMultiViewPlayerListener(MultiViewPlayerListener listener) {
+    if (playerControllers != null) {
+      for (MultiViewPlayerController controller : playerControllers) {
+        controller.setMultiViewPlayerListener(listener);
       }
     }
   }
