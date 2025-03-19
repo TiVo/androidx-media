@@ -20,6 +20,7 @@ import com.google.android.exoplayer2.drm.UnsupportedDrmException;
 import com.google.android.exoplayer2.util.Log;
 import com.google.android.exoplayer2.video.VideoSize;
 import com.tivo.exoplayer.library.SimpleExoPlayerFactory;
+import com.tivo.exoplayer.library.logging.ExtendedEventLogger;
 import com.tivo.exoplayer.library.source.ExtendedMediaSourceFactory;
 
 /**
@@ -86,7 +87,7 @@ public class MultiViewPlayerController implements Player.Listener {
     this.audioFocusManager = audioFocusManager;
 
     builder.setTrackSelectorFactory((context, trackSelectionFactory) -> new MultiViewTrackSelector(context, trackSelectionFactory));
-
+    builder.setEventListenerFactory((trackselector) -> new ExtendedEventLogger(trackselector, "EventLogger-" + gridLocation.getViewIndex()));
     exoPlayerFactory = builder.build();
 
     // setup to only use L3 DRM (L1 only supports maybe two views)
