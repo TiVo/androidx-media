@@ -13,6 +13,8 @@ import android.view.ViewTreeObserver;
 import android.widget.FrameLayout;
 import android.widget.GridLayout;
 import android.widget.LinearLayout;
+import android.widget.TextView;
+
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import com.google.android.exoplayer2.MediaItem;
@@ -590,6 +592,35 @@ public class MultiExoPlayerView extends LinearLayout {
    */
   public void setSelectedPlayerView(int index) {
     getPlayerView(index).requestFocus();
+  }
+
+  /**
+   * Visually mutes each {@link PlayerView} in the multiview grid and adds a centered message to
+   * each grid cell.
+   *
+   * @param doMute - Set to true to obscure each {@link PlayerView} in the multiview grid.
+   * @param msg - Message to display in each {@link PlayerView} when muted. Set null to
+   *            not display a message.
+   */
+  public void muteAllViews(boolean doMute, String msg) {
+    Log.i(TAG, "muteAllViews(" + doMute + ")");
+    int visibility = doMute ? VISIBLE : GONE;
+
+    for (int i = 0; i < getViewCount(); i++) {
+      PlayerView playerView = getPlayerView(i);
+      if (playerView != null) {
+        View shutter = playerView.findViewById(R.id.mute_shutter);
+        TextView msgView  = playerView.findViewById(R.id.mute_error_message);
+        if (shutter != null) {
+          shutter.setVisibility(visibility);
+          if (msg != null && msgView != null) {
+              msgView.setVisibility(VISIBLE);
+              msgView.setText(msg);
+              msgView.setVisibility(visibility);
+          }
+        }
+      }
+    }
   }
 
   /**
