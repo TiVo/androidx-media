@@ -164,10 +164,10 @@ public class MultiExoPlayerView extends LinearLayout {
     super(context, attrs, defStyleAttr, defStyleRes);
 
     LayoutInflater inflater = LayoutInflater.from(context);
-    inflater.inflate(R.layout.multi_view_player_container, this, true);
+    inflater.inflate(R.layout.multi_view_single_row, this, true);
     singleRowView = getChildAt(getChildCount() - 1);
 
-    inflater.inflate(R.layout.multi_view_player, this, true);
+    inflater.inflate(R.layout.multi_view_grid, this, true);
     multiGridView = getChildAt(getChildCount() - 1);
     multiGridView.setVisibility(GONE);
     this.context = context;
@@ -301,7 +301,7 @@ public class MultiExoPlayerView extends LinearLayout {
     for (int viewIndex = 0; viewIndex < rowCount * columnCount; viewIndex++) {
 
       // Inflate the new PlayerView from the template, add it to the parent grid layout
-      inflater.inflate(R.layout.grid_player_view_cell, gridLayout, true);
+      inflater.inflate(R.layout.multi_view_grid_cell, gridLayout, true);
 
       // The last added child is the newly inflated PlayerView
       View playerView = gridLayout.getChildAt(gridLayout.getChildCount() - 1);
