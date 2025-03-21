@@ -1,7 +1,8 @@
-<!-- This layout is used as a template for the ExoPlayer PlayerView GridLayout
- cell.  It is merge inflated into the GridLayout dynamically based on the requested row/column count -->
-
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  The MultiExoPlayerView merge inflates this layout into the multi_view_grid layout for
+  each PlayerView grid cell
+-->
 <merge xmlns:android="http://schemas.android.com/apk/res/android"
   xmlns:app="http://schemas.android.com/apk/res-auto">
 

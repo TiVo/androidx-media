@@ -1,8 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  This is the layout template for a single PlayerView in a MultiExoPlayerView.  The parent
-  GridLayout is only used as a sample container for the player_view_template.  This template
-  is inflated and the resulting PlayerView child is removed and inserted in the MultiExoPlayerView
+  Template (merge) layout for a grid cell in the multi_view_grid layout for the MultiExoPlayerView.
+  To use this declare an instance in your own applications layout like:
+
+    <com.tivo.exoplayer.library.multiview.MultiExoPlayerView
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:padding="2dp"/>
+
+  And specify more than one row of PlayerView's in your MultiPlayerView call to create the
+  grid cells.  The grid cells are dynamically added to the GridLayout in the MultiPlayerView
+  using the template in multi_view_grid_cell.xml.
 -->
 <merge xmlns:android="http://schemas.android.com/apk/res/android"
   xmlns:app="http://schemas.android.com/apk/res-auto"
@@ -20,8 +28,8 @@
       android:layout_width="match_parent"
       android:layout_height="match_parent"
       android:keepScreenOn="true"
-      android:rowCount="2"
-      android:columnCount="2"
+      android:rowCount="0"
+      android:columnCount="0"
       tools:ignore="UselessParent"> <!-- LinearLayout is used to have a common Layout class for MultiPlayerView -->
 
       <!-- cells are added dynamically, based on grid_player_view_cell layout -->

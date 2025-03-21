@@ -9,6 +9,8 @@ import android.view.KeyEvent;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.ViewTreeObserver;
+import android.widget.FrameLayout;
 import android.widget.GridLayout;
 import android.widget.LinearLayout;
 import androidx.annotation.NonNull;
@@ -54,7 +56,8 @@ public class MultiExoPlayerView extends LinearLayout {
   private MultiPlayerAudioFocusManagerApi audioFocusManager;
   private boolean useQuickSelect;
   @Nullable private PlaybackState playbackState;
-  private boolean viewsCreated;
+
+  private @Nullable View measureView; // used to measure the max size of the MultiExoPlayerView
 
   private static class PlaybackState {
     List<MediaItem> mediaItems;
@@ -166,10 +169,14 @@ public class MultiExoPlayerView extends LinearLayout {
     LayoutInflater inflater = LayoutInflater.from(context);
     inflater.inflate(R.layout.multi_view_single_row, this, true);
     singleRowView = getChildAt(getChildCount() - 1);
+    singleRowView.setVisibility(GONE);
 
     inflater.inflate(R.layout.multi_view_grid, this, true);
     multiGridView = getChildAt(getChildCount() - 1);
     multiGridView.setVisibility(GONE);
+
+    determineMaxChildSize(context);
+
     this.context = context;
 
     // TODO - when fixes are made to the library, replace this with the MultiPlayerAudioFocusManager as the default
@@ -239,6 +246,35 @@ public class MultiExoPlayerView extends LinearLayout {
         row++;
       }
     }
+  }
+
+
+  /**
+   * For the single row view, this method determines the maximum height of a child that would requests to
+   * cover the entire view.  This is used to set the top and bottom margins of the single row view.
+   *
+   * @param context the {@link Context} to use to create the temporary view used to measure the height
+   */
+  private void determineMaxChildSize(Context context) {
+    measureView = new View(context);
+    measureView.setLayoutParams(new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+    final ViewTreeObserver.OnGlobalLayoutListener listener = new ViewTreeObserver.OnGlobalLayoutListener() {
+      @Override
+      public void onGlobalLayout() {
+        int height = measureView.getMeasuredHeight();
+        if (measureView.getViewTreeObserver().isAlive()) {
+          measureView.getViewTreeObserver().removeOnGlobalLayoutListener(this);
+        }
+
+        MultiExoPlayerView.this.removeView(measureView);
+        MarginLayoutParams layoutParams = (MarginLayoutParams) singleRowView.getLayoutParams();
+        layoutParams.topMargin = height / 4;
+        layoutParams.bottomMargin = height / 4;
+        singleRowView.setLayoutParams(layoutParams);
+      }
+    };
+    measureView.getViewTreeObserver().addOnGlobalLayoutListener(listener);
+    addView(measureView);
   }
 
   private void initializeLayout(int rowCount, int columnCount) {
