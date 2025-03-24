@@ -223,11 +223,6 @@ public class MultiExoPlayerView extends LinearLayout {
     for (int viewIndex = 0; viewIndex < viewCount; viewIndex++) {
       PlayerView playerView = getPlayerView(viewIndex);
 
-      boolean selected = viewIndex == 0;
-      if (selected) {
-        playerView.requestFocus();
-      }
-      setupListeners(playerView, viewIndex);
 
       GridLocation gridLocation = new GridLocation(row, column, viewIndex);
       MultiViewPlayerController multiViewPlayerController = new MultiViewPlayerController(builder, gridLocation, audioFocusManager);
@@ -235,8 +230,11 @@ public class MultiExoPlayerView extends LinearLayout {
       SimpleExoPlayer player = multiViewPlayerController.createPlayer();
       playerView.setPlayer(player);
       playerControllers[viewIndex] = multiViewPlayerController;
+      setupListeners(playerView, viewIndex);
 
+      boolean selected = viewIndex == 0;
       if (selected) {
+        playerView.requestFocus();
         selectedController = multiViewPlayerController;
       }
       childPlayerSelectedChanged(viewIndex, selected);
