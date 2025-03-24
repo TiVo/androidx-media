@@ -43,11 +43,11 @@ public class MultiViewPlayerController {
   private boolean selected;           // If this player is "selected" (has focus)
   @Nullable private MultiExoPlayerView.OptimalVideoSize optimalVideoSize;
   private boolean useQuickSelect;
-  @Nullable private MultiExoPlayerView.MultiViewPlayerListener playerEventListener;
+  @Nullable private MultiViewPlayerListener playerEventListener;
   @Nullable private MultiViewPlayerListenerAdapter playerListenerAdapter; // Store adapter reference
 
   // Setter for the event listener
-  public void setMultiViewPlayerListener(@Nullable MultiExoPlayerView.MultiViewPlayerListener listener) {
+  public void setMultiViewPlayerListener(@Nullable MultiViewPlayerListener listener) {
     this.playerEventListener = listener;
     
     // If we already have a player, add the listener adapter to it

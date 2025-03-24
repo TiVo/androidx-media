@@ -17,15 +17,10 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import com.google.android.exoplayer2.Format;
 import com.google.android.exoplayer2.MediaItem;
-import com.google.android.exoplayer2.PlaybackException;
 import com.google.android.exoplayer2.Player;
 import com.google.android.exoplayer2.SimpleExoPlayer;
-import com.google.android.exoplayer2.Timeline;
-import com.google.android.exoplayer2.source.TrackGroupArray;
-import com.google.android.exoplayer2.trackselection.TrackSelectionArray;
 import com.google.android.exoplayer2.ui.PlayerView;
 import com.google.android.exoplayer2.util.Log;
-import com.google.android.exoplayer2.video.VideoSize;
 import com.google.common.collect.ImmutableList;
 import com.tivo.exoplayer.library.R;
 import com.tivo.exoplayer.library.SimpleExoPlayerFactory;
@@ -85,80 +80,6 @@ public class MultiExoPlayerView extends LinearLayout {
 
   /**
    * Listener interface for player events in a MultiView context.
-   */
-  public interface MultiViewPlayerListener {
-    default void onVideoSizeChanged(int multiviewIndex, VideoSize videoSize) { }
-    default void onMediaItemTransition(int multiviewIndex, MediaItem mediaItem,
-        @Player.MediaItemTransitionReason int reason) { }
-    default void onPlayerError(int multiviewIndex, PlaybackException error) { }
-    default void onTimelineChanged(int multiviewIndex, Timeline timeline,
-        @Player.TimelineChangeReason int reason) { }
-    default void onTracksChanged(int multiviewIndex, TrackGroupArray trackGroups,
-        TrackSelectionArray trackSelections) { }
-    default void onRenderedFirstFrame(int multiviewIndex) { }
-    default void onPlaybackStateChanged(int multiviewIndex, @Player.State int playbackState) { }
-    default void onEvents(int multiviewIndex, Player player, Player.Events events) { }
-  }
-
-  public void setMultiViewPlayerListener(MultiViewPlayerListener listener) {
-    if (playerControllers != null) {
-      for (MultiViewPlayerController controller : playerControllers) {
-        controller.setMultiViewPlayerListener(listener);
-      }
-    }
-  }
-
-  public static class OptimalVideoSize {
-    public final int width;
-    public final int height;
-
-    public OptimalVideoSize(int width, int height) {
-      this.width = width;
-      this.height = height;
-    }
-
-    public boolean meetsOptimalSize(Format format) {
-      boolean meets = format.height == Format.NO_VALUE || format.width == Format.NO_VALUE;
-      if (!meets) {
-        meets = format.width <= width && format.height <= height;
-      }
-      return meets;
-    }
-  }
-
-  public static class GridLocation {
-    private final int row;
-    private final int column;
-    private final int viewIndex;
-
-    public GridLocation(int row, int column, int viewIndex) {
-      this.row = row;
-      this.column = column;
-      this.viewIndex = viewIndex;
-    }
-
-    /**
-     * Location of the Grid Cell, 0..number of cells.  Independent of
-     * if creation order is row or column major format.
-     *
-     * @return index of this Grid Cell
-     */
-    public int getViewIndex() {
-      return viewIndex;
-    }
-
-    @Override
-    public String toString() {
-      return "GridLocation{" +
-          "row=" + row +
-          ", column=" + column +
-          '}';
-    }
-  }
-
-  /**
-   * Clients of the {@link MultiExoPlayerView} use this call-back to be notified of events on the
-   * focused {}
    */
   public interface FocusedPlayerListener {
 
@@ -680,6 +601,62 @@ public class MultiExoPlayerView extends LinearLayout {
       } else if (child instanceof ViewGroup) {
         releaseChildPlayerViews((ViewGroup) child);
       }
+    }
+  }
+
+  public void setMultiViewPlayerListener(MultiViewPlayerListener listener) {
+    if (playerControllers != null) {
+      for (MultiViewPlayerController controller : playerControllers) {
+        controller.setMultiViewPlayerListener(listener);
+      }
+    }
+  }
+
+  public static class GridLocation {
+    private final int row;
+    private final int column;
+    private final int viewIndex;
+
+    public GridLocation(int row, int column, int viewIndex) {
+      this.row = row;
+      this.column = column;
+      this.viewIndex = viewIndex;
+    }
+
+    /**
+     * Location of the Grid Cell, 0..number of cells.  Independent of
+     * if creation order is row or column major format.
+     *
+     * @return index of this Grid Cell
+     */
+    public int getViewIndex() {
+      return viewIndex;
+    }
+
+    @Override
+    public String toString() {
+      return "GridLocation{" +
+          "row=" + row +
+          ", column=" + column +
+          '}';
+    }
+  }
+
+  public static class OptimalVideoSize {
+    public final int width;
+    public final int height;
+
+    public OptimalVideoSize(int width, int height) {
+      this.width = width;
+      this.height = height;
+    }
+
+    public boolean meetsOptimalSize(Format format) {
+      boolean meets = format.height == Format.NO_VALUE || format.width == Format.NO_VALUE;
+      if (!meets) {
+        meets = format.width <= width && format.height <= height;
+      }
+      return meets;
     }
   }
 }
