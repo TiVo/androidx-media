@@ -38,10 +38,10 @@ public class MultiViewPlayerController {
   private static final int MAX_BUFFER_MS = 12_000;
 
   private final SimpleExoPlayerFactory exoPlayerFactory;
-  private final MultiExoPlayerView.GridLocation gridLocation;   // Location in the multiplayer view (row/column)
+  private final GridLocation gridLocation;   // Location in the multiplayer view (row/column)
   private final MultiPlayerAudioFocusManagerApi audioFocusManager;
   private boolean selected;           // If this player is "selected" (has focus)
-  @Nullable private MultiExoPlayerView.OptimalVideoSize optimalVideoSize;
+  @Nullable private OptimalVideoSize optimalVideoSize;
   private boolean useQuickSelect;
   @Nullable private MultiViewPlayerListener playerEventListener;
   @Nullable private MultiViewPlayerListenerAdapter playerListenerAdapter; // Store adapter reference
@@ -73,9 +73,9 @@ public class MultiViewPlayerController {
    * Logs useful info on playback state for the player in the cell
    */
   private class MultiViewDebugLogging implements AnalyticsListener {
-    private final MultiExoPlayerView.GridLocation gridLocation;
+    private final GridLocation gridLocation;
 
-    public MultiViewDebugLogging(MultiExoPlayerView.GridLocation gridLocation) {
+    public MultiViewDebugLogging(GridLocation gridLocation) {
       this.gridLocation = gridLocation;
     }
 
@@ -106,7 +106,7 @@ public class MultiViewPlayerController {
     }
   }
 
-  MultiViewPlayerController(SimpleExoPlayerFactory.Builder builder, MultiExoPlayerView.GridLocation gridLocation, MultiPlayerAudioFocusManagerApi audioFocusManager, MultiPlayerAccessibilityHelper accessibilityHelper) {
+  MultiViewPlayerController(SimpleExoPlayerFactory.Builder builder, GridLocation gridLocation, MultiPlayerAudioFocusManagerApi audioFocusManager, MultiPlayerAccessibilityHelper accessibilityHelper) {
     this.gridLocation = gridLocation;
     this.audioFocusManager = audioFocusManager;
     this.accessibilityHelper = accessibilityHelper;
@@ -135,12 +135,12 @@ public class MultiViewPlayerController {
     this.useQuickSelect = useQuickSelect;
   }
 
-  public void setOptimalVideoSize(MultiExoPlayerView.OptimalVideoSize optimalSize) {
+  public void setOptimalVideoSize(OptimalVideoSize optimalSize) {
     optimalVideoSize = optimalSize;
     Log.d(TAG, gridLocation + " - setOptimalVideoSize " + optimalSize.width + "x" + optimalSize.height);
   }
 
-  public MultiExoPlayerView.GridLocation getGridLocation() {
+  public GridLocation getGridLocation() {
     return gridLocation;
   }
 

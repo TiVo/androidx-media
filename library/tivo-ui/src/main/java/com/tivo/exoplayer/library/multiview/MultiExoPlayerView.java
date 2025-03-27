@@ -15,7 +15,6 @@ import android.widget.GridLayout;
 import android.widget.LinearLayout;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
-import com.google.android.exoplayer2.Format;
 import com.google.android.exoplayer2.MediaItem;
 import com.google.android.exoplayer2.Player;
 import com.google.android.exoplayer2.SimpleExoPlayer;
@@ -614,54 +613,6 @@ public class MultiExoPlayerView extends LinearLayout {
       for (MultiViewPlayerController controller : playerControllers) {
         controller.setMultiViewPlayerListener(listener);
       }
-    }
-  }
-
-  public static class GridLocation {
-    private final int row;
-    private final int column;
-    private final int viewIndex;
-
-    public GridLocation(int row, int column, int viewIndex) {
-      this.row = row;
-      this.column = column;
-      this.viewIndex = viewIndex;
-    }
-
-    /**
-     * Location of the Grid Cell, 0..number of cells.  Independent of
-     * if creation order is row or column major format.
-     *
-     * @return index of this Grid Cell
-     */
-    public int getViewIndex() {
-      return viewIndex;
-    }
-
-    @Override
-    public String toString() {
-      return "GridLocation{" +
-          "row=" + row +
-          ", column=" + column +
-          '}';
-    }
-  }
-
-  public static class OptimalVideoSize {
-    public final int width;
-    public final int height;
-
-    public OptimalVideoSize(int width, int height) {
-      this.width = width;
-      this.height = height;
-    }
-
-    public boolean meetsOptimalSize(Format format) {
-      boolean meets = format.height == Format.NO_VALUE || format.width == Format.NO_VALUE;
-      if (!meets) {
-        meets = format.width <= width && format.height <= height;
-      }
-      return meets;
     }
   }
 }

@@ -1,6 +1,5 @@
 package com.tivo.exoplayer.library.multiview;
 
-import static com.tivo.exoplayer.library.multiview.MultiExoPlayerView.*;
 import static java.util.Arrays.sort;
 
 import android.content.Context;

@@ -1,6 +1,5 @@
 package com.tivo.exoplayer.library.multiview;
 
-import static com.google.android.exoplayer2.C.FORMAT_HANDLED;
 import static com.google.android.exoplayer2.C.ROLE_FLAG_TRICK_PLAY;
 import static com.google.android.exoplayer2.RendererCapabilities.ADAPTIVE_NOT_SEAMLESS;
 import static com.google.android.exoplayer2.RendererCapabilities.ADAPTIVE_SEAMLESS;
@@ -22,9 +21,7 @@ import com.google.android.exoplayer2.source.TrackGroupArray;
 import com.google.android.exoplayer2.trackselection.DefaultTrackSelector;
 import com.google.android.exoplayer2.trackselection.ExoTrackSelection;
 import com.google.android.exoplayer2.trackselection.ExoTrackSelection.Factory;
-import com.tivo.exoplayer.library.multiview.MultiExoPlayerView.OptimalVideoSize;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import org.junit.Before;
 import org.junit.Test;

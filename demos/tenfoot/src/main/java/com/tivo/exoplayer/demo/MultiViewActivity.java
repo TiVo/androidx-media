@@ -33,6 +33,7 @@ import com.tivo.exoplayer.library.errorhandlers.PlaybackExceptionRecovery;
 import com.tivo.exoplayer.library.errorhandlers.PlayerErrorHandlerListener;
 import com.tivo.exoplayer.library.multiview.MultiExoPlayerView;
 import com.tivo.exoplayer.library.multiview.MultiViewPlayerController;
+import com.tivo.exoplayer.library.multiview.OptimalVideoSize;
 import com.tivo.exoplayer.library.source.MediaItemHelper;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
@@ -407,7 +408,7 @@ public class MultiViewActivity extends AppCompatActivity {
         }
       }
     });
-    MultiExoPlayerView.OptimalVideoSize optimalSize = mainView.calculateOptimalVideoSizes(false);
+    OptimalVideoSize optimalSize = mainView.calculateOptimalVideoSizes(false);
 
     Iterator<MediaItem> it = channelList.iterator();
     MediaItem currentItem = null;

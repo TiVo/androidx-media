@@ -16,10 +16,10 @@ import com.google.android.exoplayer2.video.VideoSize;
 public class MultiViewPlayerListenerAdapter implements Player.Listener {
     public static final String TAG = "MultiViewPlayerListenerAdapter";
 
-    private final @NonNull MultiExoPlayerView.GridLocation gridLocation;
+    private final @NonNull GridLocation gridLocation;
     private final @NonNull MultiViewPlayerListener multiViewListener;
 
-    public MultiViewPlayerListenerAdapter(@NonNull MultiExoPlayerView.GridLocation gridLocation,
+    public MultiViewPlayerListenerAdapter(@NonNull GridLocation gridLocation,
                                           @NonNull MultiViewPlayerListener multiViewListener) {
         this.gridLocation = gridLocation;
         this.multiViewListener = multiViewListener;
