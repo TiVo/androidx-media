@@ -159,6 +159,16 @@ public class MultiViewPlayerController {
     playMediaItemInternal(currentItem);
   }
 
+  /**
+   * Returns true if this player is selected, that is it is the current player
+   * with audio focus
+   *
+   * @return true if this player is selected
+   */
+  public boolean isSelected() {
+    return selected;
+  }
+
   // Internal APIs
 
   private String mediaItemDebugString(@NonNull MediaItem currentItem) {
@@ -223,7 +233,7 @@ public class MultiViewPlayerController {
     } else {
       player.setVolume(0.0f);
     }
-    if (MultiViewTrackSelector.isSupportedAudioFormatForVolumeMute(audioFormat)) {
+    if (MultiViewTrackSelector.isSupportedAudioFormatForVolumeMute(audioFormat) && useQuickSelect) {
       Log.d(TAG, gridLocation + " setSelected(" + selected + ") - Using volume mute/unmute "
           + "current volume: " + currentVolume + " audioFormat=" + audioFormat);
       exoPlayerFactory.setAudioEnabled(true);

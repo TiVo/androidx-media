@@ -27,7 +27,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
-import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
 
 /**
  * A GridLayout (mosaic view) that contains and manages a set of N-PlayerView's and the {@link MultiViewPlayerController}'s for
@@ -51,7 +50,6 @@ public class MultiExoPlayerView extends LinearLayout {
   private @Nullable MultiViewPlayerController[] playerControllers;
   private final Context context;
   private int viewCount;
-  private @MonotonicNonNull MultiViewPlayerController selectedController;
   private FocusedPlayerListener focusedPlayerListener;
   private MultiPlayerAudioFocusManagerApi audioFocusManager;
   private boolean useQuickSelect;
@@ -200,12 +198,13 @@ public class MultiExoPlayerView extends LinearLayout {
       playerControllers[viewIndex] = multiViewPlayerController;
       setupListeners(playerView, viewIndex);
 
-      boolean selected = viewIndex == 0;
-      if (selected) {
-        playerView.requestFocus();
-        selectedController = multiViewPlayerController;
+      if (viewIndex == 0) {
+        Log.d(TAG, "createExoPlayerViews() - setting selected view: " + viewIndex);
+        getPlayerView(viewIndex).requestFocus();
+      } else {
+        Log.d(TAG, "createExoPlayerViews() - setting unselected view: " + viewIndex);
+        childPlayerSelectedChanged(viewIndex, false);
       }
-      childPlayerSelectedChanged(viewIndex, selected);
 
       if (++column == columnCount) {
         column = 0;
@@ -442,9 +441,8 @@ public class MultiExoPlayerView extends LinearLayout {
   private boolean selectedPlayerViewClicked(int viewIndex, KeyEvent event) {
     boolean handled = false;
     if (playerControllers != null) {
-      selectedController = playerControllers[viewIndex];
       PlayerView playerView = getPlayerView(viewIndex);
-      focusedPlayerListener.focusPlayerClicked(playerView, selectedController);
+      focusedPlayerListener.focusPlayerClicked(playerView, getSelectedController());
       handled = true;
     }
     return handled;
@@ -452,13 +450,13 @@ public class MultiExoPlayerView extends LinearLayout {
 
   private void childPlayerSelectedChanged(int i, boolean hasFocus) {
     if (playerControllers != null) {
-      selectedController = playerControllers[i];
-      selectedController.setSelected(hasFocus);
+      MultiViewPlayerController controller = playerControllers[i];
+      controller.setSelected(hasFocus);
       PlayerView playerView = getPlayerView(i);
       audioFocusManager.setSelectedPlayer(playerView.getPlayer());
       View focusBorderFrame = playerView.findViewById(R.id.focus_border_frame);
       focusBorderFrame.setBackgroundResource(hasFocus ? R.drawable.selection_border : android.R.color.transparent);
-      focusedPlayerListener.focusedPlayerChanged(playerView, selectedController, true);
+      focusedPlayerListener.focusedPlayerChanged(playerView, controller, hasFocus);
     } else {
       Log.d(TAG, "childPlayerSelectedChanged() - no playerControllers, releasing audio focus");
       audioFocusManager.setSelectedPlayer(null);
@@ -558,7 +556,12 @@ public class MultiExoPlayerView extends LinearLayout {
    * @return the {@link MultiViewPlayerController} for the current selected controller
    */
   public @NonNull MultiViewPlayerController getSelectedController() {
-    return selectedController;
+    for (MultiViewPlayerController controller : playerControllers) {
+      if (controller.isSelected()) {
+        return controller;
+      }
+    }
+    throw new IllegalStateException("No selected controller found");
   }
 
   /**
@@ -568,10 +571,10 @@ public class MultiExoPlayerView extends LinearLayout {
    */
   public PlayerView getSelectedPlayerView() {
     PlayerView selected = null;
-    if (selectedController != null && playerControllers != null) {
+    if (playerControllers != null) {
       for (int i = 0; i < playerControllers.length && selected == null; i++) {
         MultiViewPlayerController controller = playerControllers[i];
-        if (controller == selectedController) {
+        if (controller.isSelected()) {
           selected = getPlayerView(i);
         }
       }

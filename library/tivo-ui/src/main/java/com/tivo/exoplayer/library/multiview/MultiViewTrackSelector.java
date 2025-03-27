@@ -124,10 +124,13 @@ class MultiViewTrackSelector extends SyncVideoTrackSelector {
       // If no tracks meet the optimal video size, keep the minimum number of tracks
       int minTracksToKeep = getMinTracksToKeep();
       if (optimalTrackIndexes.isEmpty() && filteredTrackIndices.size() > minTracksToKeep) {
+        Log.w(TAG, "No tracks meet the optimal video size, keeping minimum number of tracks: " + minTracksToKeep);
         definition = new ExoTrackSelection.Definition(definition.group, Ints.toArray(filteredTrackIndices.subList(0, minTracksToKeep)), definition.type);
       } else if (optimalTrackIndexes.isEmpty()) {
+        Log.d(TAG, "No tracks meet the optimal video size and the filtered track count is less than minTracksToKeep: " + minTracksToKeep);
         definition = new ExoTrackSelection.Definition(definition.group, Ints.toArray(filteredTrackIndices), definition.type);
       } else {
+        Log.d(TAG, "Optimal video size met by tracks: " + optimalTrackIndexes.size() + " tracks selected");
         definition = new ExoTrackSelection.Definition(definition.group, Ints.toArray(optimalTrackIndexes), definition.type);
       }
     }
