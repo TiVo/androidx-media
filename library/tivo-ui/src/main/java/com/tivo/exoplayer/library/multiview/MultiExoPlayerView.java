@@ -44,8 +44,9 @@ import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
 public class MultiExoPlayerView extends LinearLayout {
 
   private static final String TAG = "MultiExoPlayerView";
-  private final View singleRowView;
-  private final View multiGridView;
+  private final ViewGroup singleRowView;
+  private final ViewGroup multiGridView;
+  private @Nullable ViewGroup currentActiveView;
 
   private @Nullable MultiViewPlayerController[] playerControllers;
   private final Context context;
@@ -120,14 +121,27 @@ public class MultiExoPlayerView extends LinearLayout {
 
     LayoutInflater inflater = LayoutInflater.from(context);
     inflater.inflate(R.layout.multi_view_single_row, this, true);
-    singleRowView = getChildAt(getChildCount() - 1);
+    singleRowView = (ViewGroup) getChildAt(getChildCount() - 1);
     singleRowView.setVisibility(GONE);
 
     inflater.inflate(R.layout.multi_view_grid, this, true);
-    multiGridView = getChildAt(getChildCount() - 1);
+    multiGridView = (ViewGroup) getChildAt(getChildCount() - 1);
     multiGridView.setVisibility(GONE);
 
     determineMaxChildSize(context);
+
+    addOnAttachStateChangeListener(new OnAttachStateChangeListener() {
+      @Override
+      public void onViewAttachedToWindow(View v) {
+        Log.d(TAG, "onViewAttachedToWindow() - being attached to: " + v.getParent());
+      }
+
+      @Override
+      public void onViewDetachedFromWindow(View v) {
+        Log.d(TAG, "onViewDetachedFromWindow() - being detached from: " + v.getParent());
+        cleanupPlayerViews(currentActiveView);
+      }
+    });
 
     this.context = context;
 
@@ -229,22 +243,33 @@ public class MultiExoPlayerView extends LinearLayout {
     addView(measureView);
   }
 
+  /**
+   * This method is called to change the layout of the {@link MultiExoPlayerView} to a linear or
+   * grid layout that matches the new row/column count.
+   *
+   * <p>After calling this the {@link MultiViewPlayerController}'s need to be re-associated with their
+   * matching view</p>
+   *
+   * @param rowCount new row count to set
+   * @param columnCount new column count to set
+   */
   private void initializeLayout(int rowCount, int columnCount) {
-
-    // Release any existing players from any prior view (TODO, we could swap them to the new views, if it increases)
-    releaseActivePlayerControllers();
-
     // Then set the new viewCount and change the layout to match the new row/column count
     viewCount = rowCount * columnCount;
+    cleanupPlayerView(currentActiveView);
     if (viewCount <= 2) {
       singleRowView.setVisibility(VISIBLE);
       multiGridView.setVisibility(GONE);
+      currentActiveView = singleRowView;
+      Log.d(TAG, "initializeLayout() - select single row view");
     } else {
       singleRowView.setVisibility(GONE);
+      currentActiveView = multiGridView;
       GridLayout gridLayout = multiGridView.findViewById(R.id.player_grid_layout);
-
+      Log.d(TAG, "initializeLayout() - select grid view");
       // If the grid layout is not yet created or does not match the desired row/column count, reset it
       if (gridLayout.getChildCount() != viewCount || gridLayout.getRowCount() != rowCount || gridLayout.getColumnCount() != columnCount) {
+        Log.d(TAG, "initializeLayout() - rebuilding grid view on size change");
         resetGridLayout(rowCount, columnCount, gridLayout);
       }
       multiGridView.setVisibility(VISIBLE);
@@ -301,6 +326,38 @@ public class MultiExoPlayerView extends LinearLayout {
       layoutParams.columnSpec = GridLayout.spec(viewIndex % columnCount, 1.0f);
       layoutParams.rowSpec = GridLayout.spec(viewIndex / columnCount, 1.0f);
       playerView.setLayoutParams(layoutParams);
+    }
+  }
+
+
+  /**
+   * This method is called when the {@link MultiExoPlayerView} is being detached from the window, the
+   * layout changes or the view is hidden.
+   *
+   * <p>It cleans up the {@link PlayerView}'s from the active layout (previous layout on
+   * a switch) and removes the listeners added to the {@link PlayerView}'s by {@link #setupListeners(View, int)}</p>
+   *
+   * @param currentActiveView - the current active view (single row or grid view) to cleanup
+   */
+  private void cleanupPlayerViews(ViewGroup currentActiveView) {
+    if (currentActiveView != null) {
+      for (int i = 0; i < currentActiveView.getChildCount(); i++) {
+        cleanupPlayerView(currentActiveView.getChildAt(i));
+      }
+    }
+  }
+
+  private void cleanupPlayerView(View childAt) {
+    if (childAt instanceof PlayerView) {
+      PlayerView playerView = (PlayerView) childAt;
+      playerView.setPlayer(null);
+      playerView.setOnFocusChangeListener(null);
+      playerView.setOnKeyListener(null);
+    } else if (childAt instanceof ViewGroup) {
+      ViewGroup viewGroup = (ViewGroup) childAt;
+      for (int i = 0; i < viewGroup.getChildCount(); i++) {
+        cleanupPlayerView(viewGroup.getChildAt(i));
+      }
     }
   }
 

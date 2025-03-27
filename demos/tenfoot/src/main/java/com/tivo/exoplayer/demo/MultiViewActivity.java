@@ -380,7 +380,7 @@ public class MultiViewActivity extends AppCompatActivity {
     currentChannelForCell = new int[rows * columns];
     Arrays.fill(currentChannelForCell, 0);
     mainView.setQuickAudioSelect(intent.getBooleanExtra(QUICK_AUDIO_SELECT, false));
-
+    mainView.stopAllPlayerViews();
     mainView.createExoPlayerViews(rows, columns, simpleExoPlayerFactoryBuilder, new MultiExoPlayerView.FocusedPlayerListener() {
       @Override
       public void focusedPlayerChanged(PlayerView view, MultiViewPlayerController controller, boolean focused) {
