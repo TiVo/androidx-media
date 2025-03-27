@@ -21,6 +21,7 @@ import com.google.android.exoplayer2.ExoPlaybackException;
 import com.google.android.exoplayer2.Format;
 import com.google.android.exoplayer2.MediaItem;
 import com.google.android.exoplayer2.PlaybackException;
+import com.google.android.exoplayer2.Player;
 import com.google.android.exoplayer2.source.MediaSourceFactory;
 import com.google.android.exoplayer2.source.hls.playlist.DefaultHlsPlaylistTracker;
 import com.google.android.exoplayer2.ui.PlayerView;
@@ -131,7 +132,7 @@ public class MultiViewActivity extends AppCompatActivity {
 
   private class PlaybackErrorHandlerCallback implements PlayerErrorHandlerListener {
     @Override
-    public void playerErrorProcessed(PlaybackException error, HandlingStatus status) {
+    public void playerErrorProcessed(PlaybackException error, HandlingStatus status, Player failingPlayer) {
       if (error == null) {
         Log.d(TAG, "null error!");
         return;
@@ -172,12 +173,12 @@ public class MultiViewActivity extends AppCompatActivity {
 //            ViewActivity.this.showError("No supported video tracks, " + reason, error);
 
           } else {
-            MultiViewActivity.this.showErrorDialogWithRecoveryOption(error, "Un-excpected playback error");
+            MultiViewActivity.this.showErrorDialogWithRecoveryOption(error, failingPlayer, "Un-excpected playback error");
           }
           break;
 
         case FAILED:
-          MultiViewActivity.this.showErrorDialogWithRecoveryOption(error, "Playback Failed");
+          MultiViewActivity.this.showErrorDialogWithRecoveryOption(error, failingPlayer, "Playback Failed");
           break;
       }
     }
@@ -283,33 +284,45 @@ public class MultiViewActivity extends AppCompatActivity {
 
   // Internal methods
   private static void dumpViewHierarchy(View view) {
-    dumpViewHierarchy(view, 0);
+    dumpViewHierarchy(view, "");
   }
 
-  private static void dumpViewHierarchy(View view, int depth) {
+  private static void dumpViewHierarchy(View view, String indent) {
     if (view instanceof ViewGroup) {
       ViewGroup viewGroup = (ViewGroup) view;
-      logViewInfo(depth, view);
+      logViewInfo(indent, view);
       for (int i = 0; i < viewGroup.getChildCount(); i++) {
         View child = viewGroup.getChildAt(i);
         if (child.getVisibility() == View.VISIBLE) {
           // Recursively dump the child view
-          dumpViewHierarchy(child, depth + 1);
+          dumpViewHierarchy(child, indent + "  ");
         }
       }
     } else if (view.getVisibility() == View.VISIBLE) {
-      logViewInfo(depth, view);
+      logViewInfo(indent, view);
     }
   }
 
-  private static void logViewInfo(int depth, View child) {
+  private static void logViewInfo(String indent, View child) {
     StringBuilder sb = new StringBuilder();
-    for (int j = 0; j < depth; j++) {
-      sb.append("  ");
-    }
+    sb.append(indent);
     sb.append(child);
-    callDebugMethod(child);
-//    Log.i(TAG, sb.toString() + " - " + child.getWidth() + "x" + child.getHeight() + " layout: " + debugLayout(child));
+//    callDebugMethod(child);
+    Log.i(TAG, sb.toString() + " - " + child.getWidth() + "x" + child.getHeight() + " layout: " + debugLayout(child));
+    if (child instanceof PlayerView) {
+      PlayerView playerView = (PlayerView) child;
+      Player player = playerView.getPlayer();
+      if (player == null) {
+        Log.i(TAG, indent + " -- no player");
+      } else if (player.getCurrentMediaItem() == null) {
+        Log.i(TAG, indent + " -- Player: state: " + player.getPlaybackState() + " no media item");
+      } else {
+        Log.i(TAG, indent + " -- Player: state: " + player.getPlaybackState()
+            + " playWhenReady: " + player.getPlayWhenReady()
+            + " surfaceView: " + playerView.getVideoSurfaceView()
+            + " media item: " + player.getCurrentMediaItem().playbackProperties.uri);
+      }
+    }
   }
 
   private static String debugLayout(View child) {
@@ -521,20 +534,20 @@ public class MultiViewActivity extends AppCompatActivity {
   }
 
 
-  private void showErrorDialogWithRecoveryOption(PlaybackException error, String title) {
+  private void showErrorDialogWithRecoveryOption(PlaybackException error, Player player, String title) {
     title += " - " + error.getLocalizedMessage();
 
     AlertDialog alertDialog = new AlertDialog.Builder(this)
         .setTitle("Error - " + error.errorCode)
         .setMessage(title)
         .setPositiveButton("Retry", (dialog, which) -> {
-//          player.seekToDefaultPosition();
-//          player.prepare();   // Attempt recovery with simple re-prepare using current MediaItem
-//          dialog.dismiss();
+          player.seekToDefaultPosition();
+          player.prepare();   // Attempt recovery with simple re-prepare using current MediaItem
+          dialog.dismiss();
         })
         .setNegativeButton("Ok", (dialog, which) -> {
-//          player.stop();
-//          player.clearMediaItems();
+          player.stop();
+          player.clearMediaItems();
           dialog.dismiss();
         })
         .create();

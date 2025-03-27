@@ -28,7 +28,6 @@ import com.google.android.exoplayer2.C;
 import com.google.android.exoplayer2.DefaultLoadControl;
 import com.google.android.exoplayer2.DefaultRenderersFactory;
 import com.google.android.exoplayer2.ExoPlaybackException;
-import com.google.android.exoplayer2.ExoPlayer;
 import com.google.android.exoplayer2.Format;
 import com.google.android.exoplayer2.LivePlaybackSpeedControl;
 import com.google.android.exoplayer2.LoadControl;
@@ -38,7 +37,6 @@ import com.google.android.exoplayer2.Player;
 import com.google.android.exoplayer2.SeekParameters;
 import com.google.android.exoplayer2.SimpleExoPlayer;
 import com.google.android.exoplayer2.Timeline;
-import com.google.android.exoplayer2.analytics.AnalyticsListener;
 import com.google.android.exoplayer2.audio.AudioAttributes;
 import com.google.android.exoplayer2.demo.TrackSelectionDialog;
 import com.google.android.exoplayer2.source.MediaSourceFactory;
@@ -46,8 +44,6 @@ import com.google.android.exoplayer2.source.ShuffleOrder;
 import com.google.android.exoplayer2.source.hls.HlsMediaSource;
 import com.google.android.exoplayer2.source.hls.playlist.DefaultHlsPlaylistTracker;
 import com.google.android.exoplayer2.trackselection.DefaultTrackSelector;
-import com.google.android.exoplayer2.trackselection.ExoTrackSelection;
-import com.google.android.exoplayer2.trackselection.MappingTrackSelector;
 import com.google.android.exoplayer2.trackselection.TrackSelector;
 import com.google.android.exoplayer2.trickplay.TrickPlayControl;
 import com.google.android.exoplayer2.ui.PlayerControlView;
@@ -70,12 +66,10 @@ import com.tivo.exoplayer.library.timebar.controllers.HoldTimeChangesSpeedTimeBa
 import com.tivo.exoplayer.library.timebar.controllers.ScrubOnlyTimeBarViewHandler;
 import com.tivo.exoplayer.library.timebar.controllers.TransportControlHandler;
 import com.tivo.exoplayer.library.timebar.views.DualModeTimeBar;
-import com.tivo.exoplayer.library.DrmInfo;
 import com.tivo.exoplayer.library.GeekStatsOverlay;
 import com.tivo.exoplayer.library.SimpleExoPlayerFactory;
 import com.tivo.exoplayer.library.SourceFactoriesCreated;
 import com.tivo.exoplayer.library.errorhandlers.PlaybackExceptionRecovery;
-import com.tivo.exoplayer.library.logging.ExtendedEventLogger;
 import com.tivo.exoplayer.library.metrics.ManagePlaybackMetrics;
 import com.tivo.exoplayer.library.metrics.PlaybackMetrics;
 import com.tivo.exoplayer.library.metrics.PlaybackMetricsManagerApi;
@@ -226,7 +220,7 @@ public class ViewActivity extends AppCompatActivity {
 
   private class PlaybackErrorHandlerCallback implements PlayerErrorHandlerListener {
     @Override
-    public void playerErrorProcessed(PlaybackException error, HandlingStatus status) {
+    public void playerErrorProcessed(PlaybackException error, HandlingStatus status, Player failingPlayer) {
       switch (status) {
         case IN_PROGRESS:
           Log.d(TAG, "playerErrorProcessed() - error: " + error.getMessage() + " status: " + status);

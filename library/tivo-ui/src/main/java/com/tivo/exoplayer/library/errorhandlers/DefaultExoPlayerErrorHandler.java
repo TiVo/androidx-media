@@ -203,7 +203,7 @@ public class DefaultExoPlayerErrorHandler implements Player.Listener {
               false,
               PlaybackException.ERROR_CODE_DECODING_FORMAT_UNSUPPORTED
           );
-      playerErrorHandlerListener.playerErrorProcessed(error, PlayerErrorHandlerListener.HandlingStatus.WARNING);
+      playerErrorHandlerListener.playerErrorProcessed(error, PlayerErrorHandlerListener.HandlingStatus.WARNING, player);
     }
   }
 
@@ -227,7 +227,7 @@ public class DefaultExoPlayerErrorHandler implements Player.Listener {
   private void playerErrorProcessed(PlaybackException error, PlayerErrorHandlerListener.HandlingStatus status) {
     Log.d(TAG, "playerError was processed, status: " + status);
     if (playerErrorHandlerListener != null) {
-      playerErrorHandlerListener.playerErrorProcessed(error, status);
+      playerErrorHandlerListener.playerErrorProcessed(error, status, player);
     }
   }
 }
