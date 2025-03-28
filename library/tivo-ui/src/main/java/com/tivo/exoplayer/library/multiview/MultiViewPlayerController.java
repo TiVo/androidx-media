@@ -46,6 +46,9 @@ public class MultiViewPlayerController {
   @Nullable private MultiViewPlayerListener playerEventListener;
   @Nullable private MultiViewPlayerListenerAdapter playerListenerAdapter; // Store adapter reference
 
+  private boolean closeCaptionEnabled;
+  private String setCloseCaptionLanguage;
+
   // Setter for the event listener
   public void setMultiViewPlayerListener(@Nullable MultiViewPlayerListener listener) {
     this.playerEventListener = listener;
@@ -135,6 +138,11 @@ public class MultiViewPlayerController {
   public void setOptimalVideoSize(MultiExoPlayerView.OptimalVideoSize optimalSize) {
     optimalVideoSize = optimalSize;
     Log.d(TAG, gridLocation + " - setOptimalVideoSize " + optimalSize.width + "x" + optimalSize.height);
+  }
+
+  public void setCloseCaptionSettings(boolean enabled, String language) {
+      this.closeCaptionEnabled = enabled;
+      this.setCloseCaptionLanguage = language;
   }
 
   public MultiExoPlayerView.GridLocation getGridLocation() {
@@ -229,6 +237,8 @@ public class MultiViewPlayerController {
           + " current volume: " +  currentVolume + " audioFormat=" + audioFormat);
       exoPlayerFactory.setAudioEnabled(selected);
     }
+    // Set the close caption settings. Enable only when the global setting is enabled and the player is selected
+    exoPlayerFactory.setCloseCaption((this.closeCaptionEnabled && selected), this.setCloseCaptionLanguage);
     this.selected = selected;
   }
 
