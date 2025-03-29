@@ -46,8 +46,7 @@ public class MultiViewPlayerController {
   @Nullable private MultiViewPlayerListener playerEventListener;
   @Nullable private MultiViewPlayerListenerAdapter playerListenerAdapter; // Store adapter reference
 
-  private boolean closeCaptionEnabled;
-  private String closeCaptionLanguage;
+  private MultiPlayerAccessibilityHelper accessibilityHelper;
 
   // Setter for the event listener
   public void setMultiViewPlayerListener(@Nullable MultiViewPlayerListener listener) {
@@ -107,9 +106,10 @@ public class MultiViewPlayerController {
     }
   }
 
-  MultiViewPlayerController(SimpleExoPlayerFactory.Builder builder, MultiExoPlayerView.GridLocation gridLocation, MultiPlayerAudioFocusManagerApi audioFocusManager) {
+  MultiViewPlayerController(SimpleExoPlayerFactory.Builder builder, MultiExoPlayerView.GridLocation gridLocation, MultiPlayerAudioFocusManagerApi audioFocusManager, MultiPlayerAccessibilityHelper accessibilityHelper) {
     this.gridLocation = gridLocation;
     this.audioFocusManager = audioFocusManager;
+    this.accessibilityHelper = accessibilityHelper;
 
     builder.setTrackSelectorFactory((context, trackSelectionFactory) -> new MultiViewTrackSelector(context, trackSelectionFactory));
     builder.setEventListenerFactory((trackselector) -> new ExtendedEventLogger(trackselector, "EventLogger-" + gridLocation.getViewIndex()));
@@ -138,11 +138,6 @@ public class MultiViewPlayerController {
   public void setOptimalVideoSize(MultiExoPlayerView.OptimalVideoSize optimalSize) {
     optimalVideoSize = optimalSize;
     Log.d(TAG, gridLocation + " - setOptimalVideoSize " + optimalSize.width + "x" + optimalSize.height);
-  }
-
-  public void setCloseCaptionSettings(boolean enabled, String language) {
-      this.closeCaptionEnabled = enabled;
-      this.closeCaptionLanguage = language;
   }
 
   public MultiExoPlayerView.GridLocation getGridLocation() {
@@ -238,7 +233,11 @@ public class MultiViewPlayerController {
       exoPlayerFactory.setAudioEnabled(selected);
     }
     // Set the close caption settings. Enable only when the global setting is enabled and the player is selected
-    exoPlayerFactory.setCloseCaption((this.closeCaptionEnabled && selected), this.closeCaptionLanguage);
+    if (this.accessibilityHelper != null) {
+        boolean closeCaptionEnabled = this.accessibilityHelper.isCloseCaptionEnabled();
+        String closeCaptionLanguage = this.accessibilityHelper.getCloseCaptionLanguage();
+        exoPlayerFactory.setCloseCaption((closeCaptionEnabled && selected), closeCaptionLanguage);
+    }
     this.selected = selected;
   }
 

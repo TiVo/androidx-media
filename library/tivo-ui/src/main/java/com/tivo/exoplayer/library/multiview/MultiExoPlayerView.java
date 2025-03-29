@@ -24,11 +24,9 @@ import com.google.android.exoplayer2.util.Log;
 import com.google.common.collect.ImmutableList;
 import com.tivo.exoplayer.library.R;
 import com.tivo.exoplayer.library.SimpleExoPlayerFactory;
-import com.tivo.exoplayer.library.util.AccessibilityHelper;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Locale;
 import java.util.Objects;
 import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
 
@@ -61,10 +59,7 @@ public class MultiExoPlayerView extends LinearLayout {
 
   private @Nullable View measureView; // used to measure the max size of the MultiExoPlayerView
 
-  private @Nullable AccessibilityHelper accessibilityHelper;
-  // Enable caption by default
-  private boolean closeCaptionEnabled = true;
-  private String closeCaptionLanguage = "und";
+  private @Nullable MultiPlayerAccessibilityHelper accessibilityHelper;
 
   private static class PlaybackState {
     List<MediaItem> mediaItems;
@@ -140,6 +135,8 @@ public class MultiExoPlayerView extends LinearLayout {
     // TODO - when fixes are made to the library, replace this with the MultiPlayerAudioFocusManager as the default
 //    this.audioFocusManager = new MultiPlayerAudioFocusManager(context);
     this.audioFocusManager = new NullMultiPlayerAudioFocusManager();
+
+    this.accessibilityHelper = new MultiPlayerAccessibilityHelper(context);
   }
 
   /**
@@ -177,25 +174,13 @@ public class MultiExoPlayerView extends LinearLayout {
 
     int row=0;
     int column=0;
-
-    accessibilityHelper = new AccessibilityHelper(context, new AccessibilityHelper.AccessibilityStateChangeListener() {
-        @Override
-        public void captionStateChanged(boolean enabled, Locale captionLanguage) {
-            closeCaptionLanguage = captionLanguage.getLanguage();
-            closeCaptionEnabled = enabled;
-            if (closeCaptionLanguage == null || closeCaptionLanguage.isEmpty()) {
-                closeCaptionLanguage = "und";
-            }
-        }
-    });
-
     playerControllers = new MultiViewPlayerController[viewCount];
     for (int viewIndex = 0; viewIndex < viewCount; viewIndex++) {
       PlayerView playerView = getPlayerView(viewIndex);
 
 
       GridLocation gridLocation = new GridLocation(row, column, viewIndex);
-      MultiViewPlayerController multiViewPlayerController = new MultiViewPlayerController(builder, gridLocation, audioFocusManager);
+      MultiViewPlayerController multiViewPlayerController = new MultiViewPlayerController(builder, gridLocation, audioFocusManager, accessibilityHelper);
       multiViewPlayerController.setQuickAudioSelect(useQuickSelect);
       SimpleExoPlayer player = multiViewPlayerController.createPlayer();
       playerView.setPlayer(player);
@@ -412,7 +397,6 @@ public class MultiExoPlayerView extends LinearLayout {
   private void childPlayerSelectedChanged(int i, boolean hasFocus) {
     if (playerControllers != null) {
       selectedController = playerControllers[i];
-      selectedController.setCloseCaptionSettings(closeCaptionEnabled, closeCaptionLanguage);
       selectedController.setSelected(hasFocus);
       PlayerView playerView = getPlayerView(i);
       audioFocusManager.setSelectedPlayer(playerView.getPlayer());
