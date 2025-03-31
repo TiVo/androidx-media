@@ -2,6 +2,7 @@ package com.tivo.exoplayer.library.multiview;
 
 import static com.google.android.exoplayer2.C.WIDEVINE_UUID;
 
+import android.content.Context;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import com.google.android.exoplayer2.C;
@@ -17,6 +18,7 @@ import com.google.android.exoplayer2.decoder.DecoderReuseEvaluation;
 import com.google.android.exoplayer2.drm.DummyExoMediaDrm;
 import com.google.android.exoplayer2.drm.FrameworkMediaDrm;
 import com.google.android.exoplayer2.drm.UnsupportedDrmException;
+import com.google.android.exoplayer2.upstream.DefaultBandwidthMeter;
 import com.google.android.exoplayer2.util.Log;
 import com.google.android.exoplayer2.video.VideoSize;
 import com.tivo.exoplayer.library.SimpleExoPlayerFactory;
@@ -113,6 +115,13 @@ public class MultiViewPlayerController {
 
     builder.setTrackSelectorFactory((context, trackSelectionFactory) -> new MultiViewTrackSelector(context, trackSelectionFactory));
     builder.setEventListenerFactory((trackselector) -> new ExtendedEventLogger(trackselector, "EventLogger-" + gridLocation.getViewIndex()));
+    builder.setBandwidthMeterFactory(new SimpleExoPlayerFactory.BandwidthMeterFactory() {
+      @Override
+      public DefaultBandwidthMeter createBandwidthMeter(Context context) {
+        return new DefaultBandwidthMeter.Builder(context).build();
+      }
+    });
+
     exoPlayerFactory = builder.build();
 
     // setup to only use L3 DRM (L1 only supports maybe two views)

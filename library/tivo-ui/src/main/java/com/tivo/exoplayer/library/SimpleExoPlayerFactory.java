@@ -33,6 +33,8 @@ import com.google.android.exoplayer2.trackselection.TrackSelection;
 import com.google.android.exoplayer2.trackselection.TrackSelectionArray;
 import com.google.android.exoplayer2.trickplay.TrickPlayControl;
 import com.google.android.exoplayer2.trickplay.TrickPlayControlFactory;
+import com.google.android.exoplayer2.upstream.BandwidthMeter;
+import com.google.android.exoplayer2.upstream.DefaultBandwidthMeter;
 import com.google.android.exoplayer2.util.EventLogger;
 import com.google.android.exoplayer2.util.Log;
 import com.google.android.exoplayer2.util.MimeTypes;
@@ -162,6 +164,7 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
   private TrackSelectorFactory trackSelectorFactory;
   private ExtendedMediaSourceFactory mediaSourceFactory;
   private PlaybackExceptionRecoveryListFactory playbackExceptionRecoveryListFactory;
+  private BandwidthMeterFactory bandwidthMeterFactory;
 
   /**
    * Simple callback to produce an AnalyticsListener for logging purposes.
@@ -221,6 +224,18 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
   }
 
   /**
+   * Callback to allow creation of a sub-class of {@link BandwidthMeter}.
+   *
+   * <p>The default is to share the singleton instance, this is a good strategy if the factory will
+   * be used to create multiple ExoPlayer's that will not run simultaneously (and as such should not
+   * share a common bandwidth meter).  Otherwise, when creating mulitple players sequentially it is
+   * best to re-use the same BandwidthMeter in order to preserve prior estimates</p>
+   */
+  public interface BandwidthMeterFactory {
+    default BandwidthMeter createBandwidthMeter(Context context) {return DefaultBandwidthMeter.getSingletonInstance(context);}
+  }
+
+  /**
    * Callback to allow callee to specify the list of {@link PlaybackExceptionRecovery} to use when the
    * {@link DefaultExoPlayerErrorHandler} is created.  The default simply returns the
    * {@link SimpleExoPlayerFactory#getDefaultPlaybackExceptionHandlers()} list.
@@ -254,13 +269,15 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
     private boolean nonDefaultMediaCodecOperationMode = false;
     private AlternatePlayerFactory alternatePlayerFactory = null;
     private TrackSelectorFactory trackSelectorFactory;
+    private BandwidthMeterFactory bandwidthMeterFactory;
     private PlaybackExceptionRecoveryListFactory playbackExceptionRecoveryListFactory;
 
     public Builder(Context context) {
       this.context = context;
-      factory = trackSelector -> new ExtendedEventLogger(trackSelector);
-      trackSelectorFactory = (contextArg, trackSelectionFactory) -> new DefaultTrackSelector(contextArg, trackSelectionFactory);
+      factory = ExtendedEventLogger::new;
+      trackSelectorFactory = DefaultTrackSelector::new;
       playbackExceptionRecoveryListFactory = SimpleExoPlayerFactory::getDefaultPlaybackExceptionHandlers;
+      bandwidthMeterFactory = new BandwidthMeterFactory() {};
     }
 
     /**
@@ -328,6 +345,22 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
     }
 
     /**
+     * Allows the client to create a sub-class of {@link BandwidthMeter} for each player create.
+     *
+     * <p>The default is to share the singleton instance, this is a good strategy if the factory will be
+     * used to create multiple ExoPlayer's that will not run simultaneously (and as such should not
+     * share a common bandwidth meter).  Otherwise, when creating multiple players sequentially it is
+     * best to re-use the same BandwidthMeter in order to preserve prior estimates<</p>
+     *
+     * @param bandwidthMeterFactory the factory to create the BandwidthMeter
+     * @return this builder for chaining
+     */
+    public Builder setBandwidthMeterFactory(BandwidthMeterFactory bandwidthMeterFactory) {
+      this.bandwidthMeterFactory = bandwidthMeterFactory;
+      return this;
+    }
+
+    /**
      * Allows the client to specify their own portion of the user-agent header presented for
      * HTTP requests (playlists, segments, etc.).  The generate user-agent will include ExoPlayer
      * version info.  For example, with a prefix "MyApp" the user-agent will be:
@@ -379,6 +412,7 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
       simpleExoPlayerFactory.nonDefaultMediaCodecOperationMode = nonDefaultMediaCodecOperationMode;
       simpleExoPlayerFactory.mediaCodecAsyncMode = mediaCodecAsyncMode;
       simpleExoPlayerFactory.trackSelectorFactory = trackSelectorFactory;
+      simpleExoPlayerFactory.bandwidthMeterFactory = bandwidthMeterFactory;
       simpleExoPlayerFactory.playbackExceptionRecoveryListFactory = playbackExceptionRecoveryListFactory;
       return simpleExoPlayerFactory;
     }
@@ -613,6 +647,7 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
           .setLoadControl(loadControl)
           .setLivePlaybackSpeedControl(livePlaybackSpeedControl)
           .setMediaSourceFactory(mediaSourceFactory)
+          .setBandwidthMeter(bandwidthMeterFactory.createBandwidthMeter(context))
           .build();
     }
 
