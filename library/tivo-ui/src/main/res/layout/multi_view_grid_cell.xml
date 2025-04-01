@@ -6,12 +6,11 @@
 <merge xmlns:android="http://schemas.android.com/apk/res/android"
   xmlns:app="http://schemas.android.com/apk/res-auto">
 
-  <com.google.android.exoplayer2.ui.PlayerView
+  <com.tivo.exoplayer.library.multiview.MultiViewPlayerView
     android:id="@+id/player_view_template"
     android:focusable="true"
     android:layout_width="0dp"
     android:layout_height="0dp"
     app:player_layout_id="@layout/multi_exo_player_view"
-    app:show_buffering="when_playing"
     app:use_controller="false"/>
 </merge>

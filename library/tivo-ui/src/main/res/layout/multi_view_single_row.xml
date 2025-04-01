@@ -26,24 +26,22 @@
     android:layout_marginBottom="0dp"
     android:id="@+id/two_player_views_sidebyside">
 
-    <com.google.android.exoplayer2.ui.PlayerView
+    <com.tivo.exoplayer.library.multiview.MultiViewPlayerView
       android:id="@+id/player_view_one"
       android:focusable="true"
       android:layout_width="0dp"
       android:layout_height="match_parent"
       android:layout_weight="1"
       app:player_layout_id="@layout/multi_exo_player_view"
-      app:show_buffering="when_playing"
       app:use_controller="false" />
 
-    <com.google.android.exoplayer2.ui.PlayerView
+    <com.tivo.exoplayer.library.multiview.MultiViewPlayerView
       android:id="@+id/player_view_two"
       android:focusable="true"
       android:layout_width="0dp"
       android:layout_height="match_parent"
       android:layout_weight="1"
       app:player_layout_id="@layout/multi_exo_player_view"
-      app:show_buffering="when_playing"
       app:use_controller="false" />
 
   </LinearLayout>

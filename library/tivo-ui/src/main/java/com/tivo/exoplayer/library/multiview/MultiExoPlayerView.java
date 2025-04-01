@@ -60,6 +60,7 @@ public class MultiExoPlayerView extends LinearLayout {
   private @Nullable View measureView; // used to measure the max size of the MultiExoPlayerView
 
   private @Nullable MultiPlayerAccessibilityHelper accessibilityHelper;
+  private int bufferingIndicatorDelay = MultiViewPlayerView.DEFAULT_BUFFERING_INDICATOR_DELAY;
 
   private static class PlaybackState {
     List<MediaItem> mediaItems;
@@ -190,7 +191,10 @@ public class MultiExoPlayerView extends LinearLayout {
     playerControllers = new MultiViewPlayerController[viewCount];
     for (int viewIndex = 0; viewIndex < viewCount; viewIndex++) {
       PlayerView playerView = getPlayerView(viewIndex);
-
+      if (playerView instanceof MultiViewPlayerView) {
+        MultiViewPlayerView multiViewPlayerView = (MultiViewPlayerView) playerView;
+        multiViewPlayerView.setBufferingIndicatorDelay(bufferingIndicatorDelay);
+      }
 
       GridLocation gridLocation = new GridLocation(row, column, viewIndex);
       MultiViewPlayerController multiViewPlayerController = new MultiViewPlayerController(builder, gridLocation, audioFocusManager, accessibilityHelper);
@@ -525,6 +529,18 @@ public class MultiExoPlayerView extends LinearLayout {
     } else {
       return viewCount;
     }
+  }
+
+  /**
+   * Sets the delay before showing the buffering spinner when the player is buffering.
+   * This is the minimum amount of time in buffering state before the spinner is shown.
+   *
+   * <p>This setting affects all players in the multi-view</p>
+   *
+   * @param delay The delay in milliseconds.
+   */
+  public void setBufferingIndicatorDelay(int delay) {
+    bufferingIndicatorDelay = delay;
   }
 
   /**
