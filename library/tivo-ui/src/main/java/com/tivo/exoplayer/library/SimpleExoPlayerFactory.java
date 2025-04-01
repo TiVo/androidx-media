@@ -224,12 +224,8 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
   }
 
   /**
-   * Callback to allow creation of a sub-class of {@link BandwidthMeter}.
-   *
-   * <p>The default is to share the singleton instance, this is a good strategy if the factory will
-   * be used to create multiple ExoPlayer's that will not run simultaneously (and as such should not
-   * share a common bandwidth meter).  Otherwise, when creating mulitple players sequentially it is
-   * best to re-use the same BandwidthMeter in order to preserve prior estimates</p>
+   * Callback to allow creation of a sub-class of {@link BandwidthMeter}.  See
+   * {@link Builder#setBandwidthMeterFactory(BandwidthMeterFactory)} for more information.
    */
   public interface BandwidthMeterFactory {
     default BandwidthMeter createBandwidthMeter(Context context) {return DefaultBandwidthMeter.getSingletonInstance(context);}
@@ -345,15 +341,15 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
     }
 
     /**
-     * Allows the client to create a sub-class of {@link BandwidthMeter} for each player create.
+     * Sets the factory for creating instances of {@link BandwidthMeter} for each player.
      *
-     * <p>The default is to share the singleton instance, this is a good strategy if the factory will be
-     * used to create multiple ExoPlayer's that will not run simultaneously (and as such should not
-     * share a common bandwidth meter).  Otherwise, when creating multiple players sequentially it is
-     * best to re-use the same BandwidthMeter in order to preserve prior estimates<</p>
+     * <p>By default, a singleton instance is shared. This approach works well if the factory is used
+     * to create multiple ExoPlayer instances that do not run simultaneously, as they should not share
+     * a common bandwidth meter. However, if multiple players are created sequentially, reusing the
+     * same {@link BandwidthMeter} helps preserve prior bandwidth estimates.</p>
      *
-     * @param bandwidthMeterFactory the factory to create the BandwidthMeter
-     * @return this builder for chaining
+     * @param bandwidthMeterFactory The factory used to create {@link BandwidthMeter} instances.
+     * @return This builder for method chaining.
      */
     public Builder setBandwidthMeterFactory(BandwidthMeterFactory bandwidthMeterFactory) {
       this.bandwidthMeterFactory = bandwidthMeterFactory;
