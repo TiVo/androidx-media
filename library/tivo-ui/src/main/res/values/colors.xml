@@ -10,4 +10,7 @@
     <color name="tpScrubberColor">#CE787C73</color>
     <color name="tpPlayedColor">#00B8D4</color>
     <color name="tpBufferedColor">#00BFA5</color>
+
+    <!-- player view colors -->
+    <color name="exo_shutter_background_color">#BF525151</color>
 </resources>

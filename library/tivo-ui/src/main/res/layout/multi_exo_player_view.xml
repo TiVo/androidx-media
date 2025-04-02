@@ -33,6 +33,14 @@
 
       <!-- Video surface will be inserted as the first child of the content frame. -->
 
+
+      <!-- The shutter view blocks previous content during a change of content. First frame hides it -->
+      <View
+        android:id="@id/exo_shutter"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@color/exo_shutter_background_color" />
+
       <ProgressBar
         android:id="@id/exo_buffering"
         android:layout_width="wrap_content"
@@ -49,26 +57,22 @@
         android:background="@color/exo_error_message_background_color"
         android:gravity="center" />
 
-      <View
-        android:id="@id/exo_shutter"
+      <FrameLayout
+        android:id="@id/mute_shutter"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:background="#3BBEBEBE" />
+        android:visibility="invisible"
+        android:background="@android:color/black">
 
-      <View android:id="@id/mute_shutter"
-          android:layout_width="match_parent"
-          android:layout_height="match_parent"
-          android:visibility="invisible"
-          android:background="@android:color/black"/>
-
-      <TextView
+        <TextView
           android:id="@id/mute_error_message"
           android:layout_width="match_parent"
-          android:layout_height="match_parent"
+          android:layout_height="wrap_content"
           android:layout_gravity="center"
           android:padding="24dp"
           android:background="@color/exo_error_message_background_color"
           android:gravity="center" />
+      </FrameLayout>
 
       <com.google.android.exoplayer2.ui.SubtitleView
         android:id="@id/exo_subtitles"
