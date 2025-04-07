@@ -376,7 +376,7 @@ class MultiViewTrackSelector extends SyncVideoTrackSelector {
 
   @Nullable
   @VisibleForTesting
-  synchronized public OptimalVideoSize getOptimalVideoSize() {
+  synchronized OptimalVideoSize getOptimalVideoSize() {
     return optimalVideoSize;
   }
 
@@ -388,7 +388,7 @@ class MultiViewTrackSelector extends SyncVideoTrackSelector {
 
   @Nullable
   @VisibleForTesting
-  synchronized public GridLocation getGridLocation() {
+  synchronized GridLocation getGridLocation() {
     return gridLocation;
   }
 
