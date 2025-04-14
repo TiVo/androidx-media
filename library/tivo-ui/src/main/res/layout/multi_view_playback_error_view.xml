@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+  android:layout_width="match_parent"
+  android:layout_height="match_parent"
+  xmlns:app="http://schemas.android.com/apk/res-auto"
+  android:orientation="vertical"
+  android:gravity="center"
+  android:background="@color/error_recovery_background_color">
+
+  <!-- Spinner Container -->
+  <androidx.constraintlayout.widget.ConstraintLayout
+    android:id="@id/error_recovery_progress_view"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content">
+
+    <!-- Determinate Circular ProgressBar -->
+    <ProgressBar
+      android:id="@+id/error_recovery_progress_determinate"
+      style="@android:style/Widget.ProgressBar.Horizontal"
+      android:layout_width="48dp"
+      android:layout_height="48dp"
+      android:indeterminate="false"
+      android:max="100"
+      android:progress="0"
+      android:progressDrawable="@drawable/error_recovery_progress"
+      app:layout_constraintTop_toTopOf="parent"
+      app:layout_constraintBottom_toBottomOf="parent"
+      app:layout_constraintStart_toStartOf="parent"
+      app:layout_constraintEnd_toEndOf="parent"
+      android:visibility="gone" />
+
+    <!-- Indeterminate Spinner -->
+    <ProgressBar
+      android:id="@+id/error_recovery_progress_indeterminate"
+      style="?android:attr/progressBarStyleLarge"
+      android:layout_width="48dp"
+      android:layout_height="48dp"
+      android:indeterminate="true"
+      app:layout_constraintTop_toTopOf="parent"
+      app:layout_constraintBottom_toBottomOf="parent"
+      app:layout_constraintStart_toStartOf="parent"
+      app:layout_constraintEnd_toEndOf="parent"
+      android:visibility="gone" />
+
+    <!-- Retry Count (TextView) perfectly centered in the spinners -->
+    <TextView
+      android:id="@+id/error_recovery_retry_count"
+      android:layout_width="wrap_content"
+      android:layout_height="wrap_content"
+      android:textColor="@android:color/white"
+      android:textSize="14sp"
+      android:textStyle="bold"
+      android:includeFontPadding="false"
+      app:layout_constraintTop_toTopOf="parent"
+      app:layout_constraintBottom_toBottomOf="parent"
+      app:layout_constraintStart_toStartOf="parent"
+      app:layout_constraintEnd_toEndOf="parent"
+      android:visibility="gone" />
+  </androidx.constraintlayout.widget.ConstraintLayout>
+
+
+  <!-- Error Message -->
+  <TextView
+    android:id="@id/error_recovery_error_message"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:layout_gravity="center"
+    android:textAlignment="center"
+    android:textColor="@android:color/white"
+    android:textSize="14sp" />
+</LinearLayout>

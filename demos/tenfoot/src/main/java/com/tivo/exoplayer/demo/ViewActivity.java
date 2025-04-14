@@ -220,19 +220,21 @@ public class ViewActivity extends AppCompatActivity {
 
   private class PlaybackErrorHandlerCallback implements PlayerErrorHandlerListener {
     @Override
-    public void playerErrorProcessed(PlaybackException error, HandlingStatus status, Player failingPlayer) {
+    public void playerErrorProcessed(@Nullable PlaybackException error, HandlingStatus status, Player failingPlayer) {
       switch (status) {
         case IN_PROGRESS:
+          assert error != null;
           Log.d(TAG, "playerErrorProcessed() - error: " + error.getMessage() + " status: " + status);
           ViewActivity.this.showErrorRecoveryWhisper(null, error);
           break;
 
         case SUCCESS:
-          Log.d(TAG, "playerErrorProcessed() - recovered from " + error.getMessage());
+          Log.d(TAG, "playerErrorProcessed() - recovered");
           ViewActivity.this.showErrorRecoveryWhisper(null, null);
           break;
 
         case WARNING:
+          assert error != null;
           if (error.errorCode == PlaybackException.ERROR_CODE_DECODING_FORMAT_UNSUPPORTED) {
             ExoPlaybackException exoPlaybackException = (ExoPlaybackException) error;
             @C.FormatSupport int formatSupport = exoPlaybackException.rendererFormatSupport;
@@ -262,6 +264,7 @@ public class ViewActivity extends AppCompatActivity {
           break;
 
         case FAILED:
+          assert error != null;
           ViewActivity.this.showErrorDialogWithRecoveryOption(error, "Playback Failed");
           break;
       }

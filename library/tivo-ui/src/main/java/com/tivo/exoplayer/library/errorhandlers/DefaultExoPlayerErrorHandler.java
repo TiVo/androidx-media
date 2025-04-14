@@ -5,6 +5,7 @@ import androidx.annotation.Nullable;
 
 import com.google.android.exoplayer2.C;
 import com.google.android.exoplayer2.ExoPlaybackException;
+import com.google.android.exoplayer2.MediaItem;
 import com.google.android.exoplayer2.PlaybackException;
 import com.google.android.exoplayer2.Player;
 import com.google.android.exoplayer2.RendererCapabilities;
@@ -39,6 +40,7 @@ public class DefaultExoPlayerErrorHandler implements Player.Listener {
   @Nullable private final Player player;
 
   @Nullable private DefaultTrackSelector trackSelector;
+  @Nullable private PlaybackExceptionRecovery currentRetryingHandler;
 
   /**
    * If you subclass implement this method. You can choose to add to the list of
@@ -88,12 +90,34 @@ public class DefaultExoPlayerErrorHandler implements Player.Listener {
 
   // Implement Player.EventListener
 
+
   @Override
-  public void onPlaybackStateChanged(int playbackState) {
+  public void onMediaItemTransition(@Nullable MediaItem mediaItem, @Player.TimelineChangeReason int reason) {
     for (PlaybackExceptionRecovery handler : handlers) {
       if (handler.isRecoveryInProgress()) {
+        Log.d(TAG, "onMediaItemTransition() - aborting recovery for " + handler);
+        playerErrorProcessed(handler.currentErrorBeingHandled(), PlayerErrorHandlerListener.HandlingStatus.ABANDONED);
+        handler.abortRecovery();
+        currentRetryingHandler = null;
+      }
+    }
+  }
+
+  @Override
+  public void onPlaybackStateChanged(int playbackState) {
+    PlaybackException error = null;
+    for (PlaybackExceptionRecovery handler : handlers) {
+      if (handler.isRecoveryInProgress()) {
+        error = handler.currentErrorBeingHandled();
         handler.checkRecoveryCompleted();
       }
+    }
+
+    if (currentRetryingHandler != null && !currentRetryingHandler.isRecoveryInProgress()) {
+      Log.d(TAG, "onPlaybackStateChanged() - recovery was completed for " + currentRetryingHandler);
+      error = error == null ? new PlaybackException("unknown", null, PlaybackException.ERROR_CODE_UNSPECIFIED) : error;
+      playerErrorProcessed(error, PlayerErrorHandlerListener.HandlingStatus.SUCCESS);
+      currentRetryingHandler = null;
     }
   }
 
@@ -123,6 +147,7 @@ public class DefaultExoPlayerErrorHandler implements Player.Listener {
       }
 
       if (activeHandler == null) {
+        currentRetryingHandler = null;
         playerErrorProcessed(error, PlayerErrorHandlerListener.HandlingStatus.FAILED);
       } else {
         reportErrorStatus(activeHandler);
@@ -219,6 +244,7 @@ public class DefaultExoPlayerErrorHandler implements Player.Listener {
         status = PlayerErrorHandlerListener.HandlingStatus.SUCCESS;
       } else {
         status = PlayerErrorHandlerListener.HandlingStatus.IN_PROGRESS;
+        currentRetryingHandler = handler;
       }
     }
     playerErrorProcessed(error, status);

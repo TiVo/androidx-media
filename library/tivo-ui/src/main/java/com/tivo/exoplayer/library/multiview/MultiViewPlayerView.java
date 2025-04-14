@@ -6,6 +6,7 @@ import androidx.annotation.Nullable;
 import com.google.android.exoplayer2.Player;
 import com.google.android.exoplayer2.ui.PlayerView;
 import com.google.android.exoplayer2.util.Log;
+import com.tivo.exoplayer.library.R;
 
 /**
  * A custom PlayerView that extends the default PlayerView to handle UX
@@ -22,8 +23,9 @@ public class MultiViewPlayerView extends PlayerView implements Player.Listener {
   //
   static final int DEFAULT_BUFFERING_INDICATOR_DELAY = 3000;
 
-  Player currentPlayer;
+  @Nullable Player currentPlayer;
   private int bufferingIndicatorDelay = DEFAULT_BUFFERING_INDICATOR_DELAY;
+  private PlaybackErrorView errorView;
 
   public MultiViewPlayerView(Context context) {
     this(context, null);
@@ -40,6 +42,8 @@ public class MultiViewPlayerView extends PlayerView implements Player.Listener {
     // show the buffering spinner. This is to avoid flickering of the spinner when buffering
     // is only for a short time.
     setShowBuffering(SHOW_BUFFERING_NEVER);
+
+    errorView = findViewById(R.id.error_recovery_view);
   }
 
   /**
@@ -62,6 +66,7 @@ public class MultiViewPlayerView extends PlayerView implements Player.Listener {
       player.addListener(this);
     } else if (currentPlayer != null) {
       currentPlayer.removeListener(this);
+      errorView.onErrorStateChanged(Player.STATE_IDLE, currentPlayer);
     }
 
     currentPlayer = player;
@@ -78,6 +83,8 @@ public class MultiViewPlayerView extends PlayerView implements Player.Listener {
       // Playback started or ended, hide the buffering spinner
       updateBufferingEnded();
     }
+
+    errorView.onErrorStateChanged(playbackState, currentPlayer);
   }
 
   private void updateBufferingEnded() {
@@ -96,5 +103,9 @@ public class MultiViewPlayerView extends PlayerView implements Player.Listener {
     if (currentPlayer != null && currentPlayer.getPlaybackState() == Player.STATE_BUFFERING) {
       setShowBuffering(SHOW_BUFFERING_WHEN_PLAYING);
     }
+  }
+
+  public @Nullable PlaybackErrorView getPlaybackErrorView() {
+    return errorView;
   }
 }

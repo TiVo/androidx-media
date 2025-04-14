@@ -191,12 +191,23 @@ public class MultiExoPlayerView extends LinearLayout {
     playerControllers = new MultiViewPlayerController[viewCount];
     for (int viewIndex = 0; viewIndex < viewCount; viewIndex++) {
       PlayerView playerView = getPlayerView(viewIndex);
+      GridLocation gridLocation = new GridLocation(row, column, viewIndex);
+
+      // Two steps, first initialize the PlayerView with it's components, then create the
+      // MultiViewPlayerController and the associated player
+
+      // Initialize the PlayerView
       if (playerView instanceof MultiViewPlayerView) {
         MultiViewPlayerView multiViewPlayerView = (MultiViewPlayerView) playerView;
         multiViewPlayerView.setBufferingIndicatorDelay(bufferingIndicatorDelay);
+        PlaybackErrorView errorView = multiViewPlayerView.getPlaybackErrorView();
+        if (errorView != null) {
+          errorView.setGridLocation(gridLocation);
+          builder.setPlaybackErrorHandlerListener(errorView);
+        }
       }
 
-      GridLocation gridLocation = new GridLocation(row, column, viewIndex);
+      // Create the MultiViewPlayerController and it's player
       MultiViewPlayerController multiViewPlayerController = new MultiViewPlayerController(builder, gridLocation, audioFocusManager, accessibilityHelper);
       multiViewPlayerController.setQuickAudioSelect(useQuickSelect);
       SimpleExoPlayer player = multiViewPlayerController.createPlayer();

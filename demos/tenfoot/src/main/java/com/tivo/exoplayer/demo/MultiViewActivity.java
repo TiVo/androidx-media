@@ -130,60 +130,6 @@ public class MultiViewActivity extends AppCompatActivity {
     }
   }
 
-  private class PlaybackErrorHandlerCallback implements PlayerErrorHandlerListener {
-    @Override
-    public void playerErrorProcessed(PlaybackException error, HandlingStatus status, Player failingPlayer) {
-      if (error == null) {
-        Log.d(TAG, "null error!");
-        return;
-      }
-      switch (status) {
-        case IN_PROGRESS:
-          Log.d(TAG, "playerErrorProcessed() - error: " + error.getMessage() + " status: " + status);
-          MultiViewActivity.this.showErrorRecoveryWhisper(null, error);
-          break;
-
-        case SUCCESS:
-          Log.d(TAG, "playerErrorProcessed() - recovered from " + error.getMessage());
-          MultiViewActivity.this.showErrorRecoveryWhisper(null, null);
-          break;
-
-        case WARNING:
-          if (error.errorCode == PlaybackException.ERROR_CODE_DECODING_FORMAT_UNSUPPORTED) {
-            ExoPlaybackException exoPlaybackException = (ExoPlaybackException) error;
-            @C.FormatSupport int formatSupport = exoPlaybackException.rendererFormatSupport;
-            String reason = "format: " + Format.toLogString(exoPlaybackException.rendererFormat) + ", ";
-            switch (formatSupport) {
-              case C.FORMAT_EXCEEDS_CAPABILITIES:
-                reason = "Exceeds Capabilities";
-                break;
-              case C.FORMAT_HANDLED:
-                break;
-              case C.FORMAT_UNSUPPORTED_DRM:
-                reason = "Unsupported DRM";
-                break;
-              case C.FORMAT_UNSUPPORTED_SUBTYPE:
-                reason = "Unsupported Subtype";
-                break;
-              case C.FORMAT_UNSUPPORTED_TYPE:
-                reason = "Unsupported Type";
-                break;
-            }
-            // TODO this is ok if it is audio only
-//            ViewActivity.this.showError("No supported video tracks, " + reason, error);
-
-          } else {
-            MultiViewActivity.this.showErrorDialogWithRecoveryOption(error, failingPlayer, "Un-excpected playback error");
-          }
-          break;
-
-        case FAILED:
-          MultiViewActivity.this.showErrorDialogWithRecoveryOption(error, failingPlayer, "Playback Failed");
-          break;
-      }
-    }
-  }
-
   // Activity lifecycle
   @Override
   public void onCreate(Bundle savedInstanceState) {
@@ -196,7 +142,6 @@ public class MultiViewActivity extends AppCompatActivity {
     SimpleExoPlayerFactory.initializeLogging(context, DEFAULT_LOG_LEVEL);
 
     simpleExoPlayerFactoryBuilder = new SimpleExoPlayerFactory.Builder(context)
-        .setPlaybackErrorHandlerListener(new PlaybackErrorHandlerCallback())
         .setSourceFactoriesCreatedCallback(new FactoriesCreatedCallback());
 
     boolean enableAsyncRenderer = getIntent().getBooleanExtra(ENABLE_ASYNC_RENDER, false);

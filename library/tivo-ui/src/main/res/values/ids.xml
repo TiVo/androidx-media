@@ -2,4 +2,12 @@
 <resources>
   <item name="mute_shutter" type="id" />
   <item name="mute_error_message" type="id" />
+
+  <!-- Error Recovery View -->
+  <item name="error_recovery_view" type="id" />
+  <item name="error_recovery_progress_view" type="id" />
+  <item name="error_recovery_progress_determinate" type="id" />
+  <item name="error_recovery_progress_indeterminate" type="id" />
+  <item name="error_recovery_retry_count" type="id" />
+  <item name="error_recovery_error_message" type="id" />
 </resources>

@@ -79,6 +79,15 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent" />
 
+      <!-- Error view blocks everything else with dimming layer and shows an error message. -->
+
+      <com.tivo.exoplayer.library.multiview.PlaybackErrorView
+        android:id="@id/error_recovery_view"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:visibility="invisible"
+        />
+
     </com.google.android.exoplayer2.ui.AspectRatioFrameLayout>
   </FrameLayout>
 </merge>
