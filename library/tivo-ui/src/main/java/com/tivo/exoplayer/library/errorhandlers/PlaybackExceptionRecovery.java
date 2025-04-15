@@ -5,6 +5,7 @@ import static com.google.android.exoplayer2.PlaybackException.ERROR_CODE_IO_UNSP
 import androidx.annotation.Nullable;
 
 import com.google.android.exoplayer2.ExoPlaybackException;
+import com.google.android.exoplayer2.video.MediaCodecVideoDecoderException;
 import com.google.android.exoplayer2.PlaybackException;
 import com.google.android.exoplayer2.Player;
 import com.google.android.exoplayer2.source.hls.playlist.HlsPlaylistTracker;
@@ -67,6 +68,32 @@ public interface PlaybackExceptionRecovery {
         return false;
     }
 
+    /**
+     * Check if the error was cause by MediaCodecVideoDecoderException.
+     *
+     * @param e the Exception to check
+     * @return true if it is RENDERER error MediaCodecVideoDecoderException with cause as IllegalStateException
+     */
+    static boolean isMediaCodecErrorRecoverable(PlaybackException e) {
+        if (!(e instanceof ExoPlaybackException) ) {
+            return false;
+        }
+        if (!(e.getCause() instanceof MediaCodecVideoDecoderException)) {
+            return false;
+        }
+        ExoPlaybackException playbackException = (ExoPlaybackException) e;
+        if (playbackException.type != ExoPlaybackException.TYPE_RENDERER) {
+            return false;
+        }
+        Throwable cause = playbackException.getRendererException();
+        while (cause != null) {
+            if (cause instanceof java.lang.IllegalStateException) {
+                return true;
+            }
+            cause = cause.getCause();
+        }
+        return false;
+    }
 
     /**
      * Recovery flow starts when this handler is called with an exception and returns true indicating
