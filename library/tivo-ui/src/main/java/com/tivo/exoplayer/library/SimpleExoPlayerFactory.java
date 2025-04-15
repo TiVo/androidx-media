@@ -44,6 +44,7 @@ import com.tivo.exoplayer.library.errorhandlers.AudioTrackInitPlayerErrorHandler
 import com.tivo.exoplayer.library.errorhandlers.BehindLiveWindowExceptionRecovery;
 import com.tivo.exoplayer.library.errorhandlers.DefaultExoPlayerErrorHandler;
 import com.tivo.exoplayer.library.errorhandlers.HdmiPlayerErrorHandler;
+import com.tivo.exoplayer.library.errorhandlers.MediaCodecVideoDecoderExceptionErrorHandler;
 import com.tivo.exoplayer.library.errorhandlers.NetworkLossPlayerErrorHandler;
 import com.tivo.exoplayer.library.errorhandlers.NoPcmAudioErrorHandler;
 import com.tivo.exoplayer.library.errorhandlers.PlaybackExceptionRecovery;
@@ -504,7 +505,8 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
         new BehindLiveWindowExceptionRecovery(this),
         new StuckPlaylistErrorRecovery(this),
         new NetworkLossPlayerErrorHandler(this, context),
-        new HdmiPlayerErrorHandler(this, context)));
+        new HdmiPlayerErrorHandler(this, context),
+        new MediaCodecVideoDecoderExceptionErrorHandler(this)));
     if ( trackSelector instanceof SyncVideoTrackSelector ) {
       handlers.add(new NoPcmAudioErrorHandler(this, (SyncVideoTrackSelector) trackSelector));
     }
