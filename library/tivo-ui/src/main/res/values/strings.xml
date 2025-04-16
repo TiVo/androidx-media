@@ -7,4 +7,11 @@
   <string name="pause_left_play" translatable="false">M 18 24 L 4 38 M 18 24 L 4 10</string>
   <string name="pause_right_pause" translatable="false">M 18,10 L 18,24 L 18,38</string>
   <string name="pause_right_play" translatable="false">M 4,10 L 18,24 L 4,38</string>
+
+  <!-- Strings with text requiring translation -->
+
+  <!-- Error / retry overlay on multi-view -->
+  <string name="retrying_on_error">Retrying on error: %1$s</string>
+  <string name="playback_error">Playback Error - %1$s</string>
+
 </resources>

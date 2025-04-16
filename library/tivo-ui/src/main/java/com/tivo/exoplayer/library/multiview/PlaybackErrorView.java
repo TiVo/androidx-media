@@ -123,7 +123,7 @@ public class PlaybackErrorView extends LinearLayout implements PlayerErrorHandle
       switch (status) {
         case IN_PROGRESS:
           assert error != null;
-          errorMessageView.setText("Retrying on error: " + error.errorCode);
+          errorMessageView.setText(getContext().getString(R.string.retrying_on_error, String.valueOf(error.errorCode)));
           break;
         case SUCCESS:
           errorMessageView.setText("");
@@ -133,7 +133,7 @@ public class PlaybackErrorView extends LinearLayout implements PlayerErrorHandle
           break;
         case FAILED:
           assert error != null;
-          errorMessageView.setText("Playback Error - " + error.errorCode);
+          errorMessageView.setText(getContext().getString(R.string.playback_error, String.valueOf(error.errorCode)));
           break;
       }
     } else {

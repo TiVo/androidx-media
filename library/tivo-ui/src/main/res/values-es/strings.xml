@@ -1,0 +1,8 @@
+<resources xmlns:tools="http://schemas.android.com/tools">
+
+    <!-- Spanish strings -->
+
+    <!-- Error / retry overlay on multi-view -->
+    <string name="retrying_on_error">Reintentando por error: %1$s</string>
+    <string name="playback_error">Error de reproducción - %1$s</string>
+</resources>
