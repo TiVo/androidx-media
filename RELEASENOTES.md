@@ -1,16 +1,99 @@
 # Release notes #
 
-### 2.15.1-2.2-dev (not yet released)
+### 2.15.1-2.2 (2025-04-23)
 
 #### New Features
 
-* ...
+* *Support for MultiView playback, this feature allows user to watch multiple contents/channels simultaneously. Following commits are part of this feature:
+  * [9577477 -- Implements MultiExoPlayerView that facilitates player mosaic](https://github.com/tivocorp/exoplayerprvt/commit/9577477321c074f96f67d47c47393e9e8a2b59d3)
+  * [b75c75b -- Initial fully working version of MultiPlayerView](https://github.com/tivocorp/exoplayerprvt/commit/b75c75bd3612ac0a2a3fca7ddb9b5d61d58e32a3)
+  * [c88ec8b -- Adds audio focus support the the MultiExoPlayerView](https://github.com/tivocorp/exoplayerprvt/commit/c88ec8b886e1f9421ed064a9f6e097379899ffff)
+  * [3314b80 -- MultiView track selection optimizes selected video tracks](https://github.com/tivocorp/exoplayerprvt/commit/3314b8097fda0c2407563d8efeb065bb16c1f451)
+  * [94ac321 -- Enable CloseCaption in MultiView](https://github.com/tivocorp/exoplayerprvt/commit/94ac3212990a36749a59dc471404740862f50993)
+  * [9130b97 -- Support for multi-view error recovery](https://github.com/tivocorp/exoplayerprvt/commit/9130b978f310d5de21444362216a894436b26327)
+  * [f7b039e -- Delays showing loading spinner](https://github.com/tivocorp/exoplayerprvt/commit/f7b039e95abab5e1e5ab514ca6f3f6c58c8bf802)
+  * [fab255c -- MultiViewPlayerController create distinct DefaultBandwidthMeters](https://github.com/tivocorp/exoplayerprvt/commit/fab255c511b563b0fd6075a4d2720343ec3b5e84)
+  * [accd63f -- Adds mute functionality with error message display in MultiView mode](https://github.com/tivocorp/exoplayerprvt/commit/accd63fdaeaf256ce3dbc6f1eb7c5ba2876a0cac)
+  * [e4eafbe -- Implement resource limits for reliable MultiView playback](https://github.com/tivocorp/exoplayerprvt/commit/e4eafbe5e6b6a33ad0afb5759f9b604ba3cb29b6)
+* *Widevine session caching. Widevine keys are cached for 5 minutes to avoid repeated requests to the Widevine license server.  This is controlled by the `WidevineDrmSessionManager` and `DefaultDrmSessionManager` classes.  The following commits are part of this feature:
+  * [684733a -- Optionally preserve DrmSessions after MediaSource.releaseSource()](https://github.com/tivocorp/exoplayerprvt/commit/684733af153f09653745d170a6368100719b05a6)
+* *Widevine Verimatrix Error handling. This is a new error handler for Verimatrix DRM.  The following commits are part of this feature:
+  * [9b6163f -- Retrying DRM proxy errors HTTP 500 and 503 along with HTTP 429](https://github.com/tivocorp/exoplayerprvt/commit/9b6163f50634cbf75d03b53639862988e5532fe4)
+* *Network Loss Error handling. This is a new error handler for network loss.  The following commits are part of this feature:
+  * [38fae51 -- Replaces deprecated usages in ConnectivityManager](https://github.com/tivocorp/exoplayerprvt/commit/38fae512d9d48c1a4671d9d1c3ecb7d107bfa2f3)
+  * [801de1c -- NetworkLossPlayerErrorHandler](https://github.com/tivocorp/exoplayerprvt/commit/801de1c3bc36669f575eb62105cf50450b2cf8c0)
+* *Download-to-go. This is a new feature that allows users to download content for offline playback.  The following commits are part of this feature:
+  * [acd6e9f - Document that DownloadService needs notification permissions](https://github.com/tivocorp/exoplayerprvt/commit/acd6e9f4af7f1a497140dc25380173b27076d9ac)
+  * [86a9f1e -- Remove deprecated DownloadService constructor](https://github.com/tivocorp/exoplayerprvt/commit/86a9f1e9e2e582470e9692fc966c7b23147e65d4)
+  * [97a5483 -- Declare foreground service type for DownloadService](https://github.com/tivocorp/exoplayerprvt/commit/97a5483ff4ff8194ad8131e731fda4d43c18d072)
+  * [b4a676d -- Ignore missing translations for download UI](https://github.com/tivocorp/exoplayerprvt/commit/b4a676d0bc2f4bf375f26426d9a4e6a43dd0b6c0)
+
+#### Xperi Code Base Changes
 
 #### Bug Fixes
-
 Section includes bugs fixed either in the Xperi code base (e.g. library-tivo-ui) or in the Google supplied portions of ExoPlayer.
 
-* Fix issue [PARTDEFECT-20789](https://jira.xperi.com/browse/PARTDEFECT-20789) - the root cause of this was an error in the `library-extactor` logic for MPEG-TS iFrame only segment sample commits to the sample queue.    Pull request is [Fixes in H264 and H265 TS extractors to commit I-frame sample upon EOS](https://github.com/tivocorp/exoplayerprvt/pull/430)
+- For Multiview feature
+ - [817d7f0 -- Fixes NPE with pre-roll VAST and VCAS Playback](https://github.com/tivocorp/exoplayerprvt/commit/817d7f0d59ef0ba7a0fdbda53881580321559d15)
+ - [0a1a464 -- Uses L3 widevine only for MultiView playback](https://github.com/tivocorp/exoplayerprvt/commit/0a1a464a51e9ac68447c89fc0a64e1f3729ea944)
+ - [29fa1b9 -- Commits DefaultTrackSelector.Parameters after playback start](https://github.com/tivocorp/exoplayerprvt/commit/29fa1b923a06a5504856c10817f1ea976ce91a26) 
+ - [9388a1b -- Limits video resolution to the MultiView grid cell size](https://github.com/tivocorp/exoplayerprvt/commit/9388a1b52f12a68be35650a95c420c7fbf880e48)
+ - [db7b1b1 -- Multiview selects best video resolution for screen size](https://github.com/tivocorp/exoplayerprvt/commit/db7b1b1154ed4b8547ee39151fa926e080204e76)
+ - [819bf04 -- Handles onResume() after an onPause() correctly](https://github.com/tivocorp/exoplayerprvt/commit/819bf04369e46a0420727bcaaeae1f922fddc4fa)
+ - [7e48f01 -- Keeps MultiPlayerAudioFocusManager up to date with selected player](https://github.com/tivocorp/exoplayerprvt/commit/7e48f011c76331efac071e537f61eccf5a9d3145)
+ - [e1a608f -- MultiViewPlayerController.setSelected() updates volume correctly](https://github.com/tivocorp/exoplayerprvt/commit/e1a608f1888c3f776dfa6b8080dd5b7991d2aff2)
+ - [a3bf122 -- MultiViewPlayerController.playMediaItem() insures audio focus](https://github.com/tivocorp/exoplayerprvt/commit/a3bf12225fddf85edc51c0af5eb077145430ecf5)
+ - [3cabe44 -- MultiViewActivity handles both Android 10 and 11 state changes](https://github.com/tivocorp/exoplayerprvt/commit/3cabe449935693329aeb7c0a6d910b3129edf8b2)
+ - [a0af754 -- Adds NullMultiPlayerAudioFocusManager to default to external focus management](https://github.com/tivocorp/exoplayerprvt/commit/a0af754a5e57a512076361a94ffdf4232c381b86)
+ - [32aef90 -- Selection rectangle wraps frame not content](https://github.com/tivocorp/exoplayerprvt/commit/32aef9040d21049a9c1f3f4b7368c8c71da131e3)
+ - [27ffd4e -- Fix mute shutter to hide by default](https://github.com/tivocorp/exoplayerprvt/commit/27ffd4e74f7fc606f1b14f33fc73c38a3f0c7f11)
+ - [100b94a -- Make getOptimalVideoSize and getGridLocation package-private](https://github.com/tivocorp/exoplayerprvt/commit/100b94ad251c723fd402ece935d93ffbd486932c)
+ - [34cbd88 -- Moves inner-classes back to there own file](https://github.com/tivocorp/exoplayerprvt/commit/34cbd88e4685c747cd6d973221e589ef9f490bcf)
+ - [2eb473d -- Avoids errors calling listeners after view is removed](https://github.com/tivocorp/exoplayerprvt/commit/2eb473d9583027c7ee3c33c9604be9edbf8379ee)
+ - [d9ccd43 -- Refactors selection state to only be in the controller](https://github.com/tivocorp/exoplayerprvt/commit/d9ccd43ee5d60d2daca3f880b8d9276431afbb62)
+- TiVo DRM
+ - [b3f56a4 -- Add support for TiVoDRM (Mobi, TMIS) to the demo](https://github.com/tivocorp/exoplayerprvt/commit/b3f56a4a4bc9073bf18bcf5be41bcb9c6fa5f1dd)
+- IMA SDK fixes
+ - [d7e6731 -- Expand the supportedAdMediaMimeTypes list to include common formats](https://github.com/tivocorp/exoplayerprvt/commit/d7e673193e3d6fe0704837c757e08503bd295b70)
+ - [2e72c87 -- Works around issue with DASH ad playback for pre-roll](https://github.com/tivocorp/exoplayerprvt/commit/2e72c8782735cf4ceb6135ae99252852d17b41dd)
+
+* **Fix issue [PARTDEFECT-20789](https://jira.xperi.com/browse/PARTDEFECT-20789) - the root cause of this was an error in the `library-extactor` logic for MPEG-TS iFrame only segment sample commits to the sample queue. Pull request is [Fixes in H264 and H265 TS extractors to commit I-frame sample upon EOS](https://github.com/tivocorp/exoplayerprvt/pull/430)
+* **Fix issue [PARTDEFECT-21565](https://jira.xperi.com/browse/PARTDEFECT-21565) - recovery mechanism for AC3 codec failures [9afbd13 -- Retry AudioTrack with brief delay](https://github.com/tivocorp/exoplayerprvt/commit/9afbd13).
+* **Fix issue [BZSTREAM-13139](https://jira.xperi.com/browse/BZSTREAM-13139) - avoids Null pointer access in commit [ae71a3e -- Adding NULL check](https://github.com/tivocorp/exoplayerprvt/commit/ae71a3e5a3503ba77c525a7ae58ddabadfeaa18b)
+* **Fix issue [WSIPCL-21291](https://jira.xperi.com/browse/WSIPCL-21291) - Sessions are leaked due to recreating the DrmSessionManager. Sessions are released in commit [e30a676 -- Widevine sessions caching fix to avoid shortages of slots](https://github.com/tivocorp/exoplayerprvt/commit/e30a676a95fe415c993208235ce0ede9b7e1a005)
+
+##### Other Changes
+- Update Jenkinsfile to fix unit test path
+  - [d2318b2 - Correct the tivo-ui test path](https://github.com/tivocorp/exoplayerprvt/commit/d2318b2253b2582cabe4f490edda1eb8ebd6a313)
+- TruStrem/SMI SDK
+ - [fae6305 -- Add support for smi_asset_id in http header](https://github.com/tivocorp/exoplayerprvt/commit/fae6305f421b4e4b1c362b256fca7d8ce118b1fe)
+- Verimatrix ViewRight update
+ - [3b1d777 -- Bump verimatrix version to 5.0.0.5-1.1 on tenfoot](https://github.com/tivocorp/exoplayerprvt/commit/3b1d777f376398fb5832433677e228ad48af1d6d)
+- Fixes for previously added features and or refactors
+ - [c32c18e -- Align forceAsyncQueueingSynchronizationWorkaround setting for SEI platforms in demo app with Hydra app](https://github.com/tivocorp/exoplayerprvt/commit/c32c18e66647cd62f7bda5d3667d838c97980698)
+ - [6d2ae25 -- Add API methods and java doc comments](https://github.com/tivocorp/exoplayerprvt/commit/6d2ae2501a755350ef2acdc93a27af381b9d74c6)
+ - [a108ca7 -- Fix PlaybackErrorView lint issues](https://github.com/tivocorp/exoplayerprvt/commit/a108ca77480137f90e5d04914970e586d14a6be4)
+ - [bf39d0f -- Chunkless-prepare Assertion is hit when the sampleQueuesEnabledStates](https://github.com/tivocorp/exoplayerprvt/commit/bf39d0f6fefe5168700c010835662fc10d1185a3)
+ - [1c53514 -- MediaCodec.IllegalStateException is handled within an ErrorHandler](https://github.com/tivocorp/exoplayerprvt/commit/1c535147f181dd3e5c7e8c116e38602425f5bb61)
+
+#### Google Module Changes
+Section documents our cherry-picks or other unshared changes to Google libraries (core, dash, HLS, extractor, etc)
+
+##### Cherry-pick and Back-port
+- [84156e1 -- Adds a new LoadErrorHandlingPolicy supporting HTTP 429 for WV](https://github.com/tivocorp/exoplayerprvt/commit/84156e1ec03e515914ebd1d104e808591590c429)
+- Cherry-picking commits from [Foreground service types are required since Android 14 #11239](https://github.com/google/ExoPlayer/issues/11239)
+ - [9fe9df1 - DownloadService: Remove deprecated protected methods](https://github.com/tivocorp/exoplayerprvt/commit/9fe9df15154f39402ed7c3f0ebfd6a9a90d5df50)
+ - [ff0b40f -- DownloadService: Only call getScheduler once](https://github.com/tivocorp/exoplayerprvt/commit/ff0b40f06d35be0b6f4e656844c2bdb6ee305b9b)
+ - [eeb59e2 -- DownloadService: Minor improvements](https://github.com/tivocorp/exoplayerprvt/commit/eeb59e22adcbc7df9116d51f48c1d8a6ef5d1fe3)
+ - [954b3e0 -- Update DownloadService for Android 12](https://github.com/tivocorp/exoplayerprvt/commit/954b3e085116eed29c041d0152ece6c949a9e7bf)
+ - [cd6d4b2 -- Added a method in DownloadService to support for Clear all DownloadManagerHelper to restart the new service](https://github.com/tivocorp/exoplayerprvt/commit/cd6d4b2d38d8fcf5efc9115663608f83012e523f)
+ - [5f6199e -- Cherry pick commits for DownloadService from 2.19.1](https://github.com/tivocorp/exoplayerprvt/commit/5f6199e6e3b567ccced3060abb1736de36aa9953)
+
+##### CORE (library-core)
+* Local change for Multiview support
+  *[b058f50 -- Supports hook altering properties post  MediaDrm creation](https://github.com/tivocorp/exoplayerprvt/commit/b058f50e76b0e13b174df1e05b696a80c0eb2cc6)
+  *[87521c4 -- Adds focused view change listener callback](https://github.com/tivocorp/exoplayerprvt/commit/87521c486ba48c0bd3d62f526a00fa8a6ca26084)
+
 
 ### 2.15.1-2.1 (2024-07-03)
 
