@@ -19,10 +19,10 @@
   * [684733a -- Optionally preserve DrmSessions after MediaSource.releaseSource()](https://github.com/tivocorp/exoplayerprvt/commit/684733af153f09653745d170a6368100719b05a6)
 * *Widevine Verimatrix Error handling* &mdash; This is a new error handler for Verimatrix DRM.  The following commits are part of this feature:
   * [9b6163f -- Retrying DRM proxy errors HTTP 500 and 503 along with HTTP 429](https://github.com/tivocorp/exoplayerprvt/commit/9b6163f50634cbf75d03b53639862988e5532fe4)
-* *Network Loss Error handling. This is a new error handler for network loss.  The following commits are part of this feature:
+* *Network Loss Error handling* &mdash; This is a new error handler for network loss.  The following commits are part of this feature:
   * [38fae51 -- Replaces deprecated usages in ConnectivityManager](https://github.com/tivocorp/exoplayerprvt/commit/38fae512d9d48c1a4671d9d1c3ecb7d107bfa2f3)
   * [801de1c -- NetworkLossPlayerErrorHandler](https://github.com/tivocorp/exoplayerprvt/commit/801de1c3bc36669f575eb62105cf50450b2cf8c0)
-* *Download-to-go * &mdash; This is a new feature that allows users to download content for offline playback.  The following commits are part of this feature:
+* *Download-to-go* &mdash; This is a new feature that allows users to download content for offline playback.  The following commits are part of this feature:
   * [acd6e9f - Document that DownloadService needs notification permissions](https://github.com/tivocorp/exoplayerprvt/commit/acd6e9f4af7f1a497140dc25380173b27076d9ac)
   * [86a9f1e -- Remove deprecated DownloadService constructor](https://github.com/tivocorp/exoplayerprvt/commit/86a9f1e9e2e582470e9692fc966c7b23147e65d4)
   * [97a5483 -- Declare foreground service type for DownloadService](https://github.com/tivocorp/exoplayerprvt/commit/97a5483ff4ff8194ad8131e731fda4d43c18d072)
