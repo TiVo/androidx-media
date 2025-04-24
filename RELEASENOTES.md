@@ -1,5 +1,13 @@
 # Release notes #
 
+### 2.15.1-2.3-dev (not yet released)
+
+#### New Features
+* ...
+
+#### Bug Fixes
+*...
+
 ### 2.15.1-2.2 (2025-04-23)
 
 #### New Features
