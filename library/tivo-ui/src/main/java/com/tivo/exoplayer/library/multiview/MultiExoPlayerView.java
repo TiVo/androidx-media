@@ -149,8 +149,6 @@ public class MultiExoPlayerView extends LinearLayout {
     // TODO - when fixes are made to the library, replace this with the MultiPlayerAudioFocusManager as the default
 //    this.audioFocusManager = new MultiPlayerAudioFocusManager(context);
     this.audioFocusManager = new NullMultiPlayerAudioFocusManager();
-
-    this.accessibilityHelper = new MultiPlayerAccessibilityHelper(context);
   }
 
   /**
@@ -188,6 +186,11 @@ public class MultiExoPlayerView extends LinearLayout {
 
     int row=0;
     int column=0;
+
+    if (this.accessibilityHelper == null) {
+        this.accessibilityHelper = new MultiPlayerAccessibilityHelper(context);
+    }
+
     playerControllers = new MultiViewPlayerController[viewCount];
     for (int viewIndex = 0; viewIndex < viewCount; viewIndex++) {
       PlayerView playerView = getPlayerView(viewIndex);
