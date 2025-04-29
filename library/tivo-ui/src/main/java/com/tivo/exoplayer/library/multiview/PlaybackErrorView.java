@@ -186,7 +186,7 @@ public class PlaybackErrorView extends LinearLayout implements PlayerErrorHandle
    */
   void onErrorStateChanged(int playbackState, @Nullable Player currentPlayer) {
     boolean playerRecoveredOrReleased = playbackState != STATE_IDLE || currentPlayer == null;
-    if (playerRecoveredOrReleased && lastHandlingStatus == HandlingStatus.FAILED) {
+    if (playerRecoveredOrReleased && (lastHandlingStatus == HandlingStatus.FAILED || lastHandlingStatus == HandlingStatus.IN_PROGRESS)) {
       lastHandlingStatus = HandlingStatus.SUCCESS;
       updateVisibility(lastHandlingStatus);
     }

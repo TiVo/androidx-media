@@ -12,8 +12,8 @@
     <color name="tpBufferedColor">#00BFA5</color>
 
     <!-- player view colors -->
-    <color name="exo_shutter_background_color">#BF525151</color>
+    <color name="exo_shutter_background_color">#FF525151</color>
 
     <!-- error recovery colors -->
-    <color name="error_recovery_background_color">#E8525151</color>
+    <color name="error_recovery_background_color">#FF525151</color>
 </resources>
