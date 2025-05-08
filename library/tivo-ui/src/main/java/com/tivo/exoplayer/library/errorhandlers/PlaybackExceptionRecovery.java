@@ -5,6 +5,7 @@ import static com.google.android.exoplayer2.PlaybackException.ERROR_CODE_IO_UNSP
 import androidx.annotation.Nullable;
 
 import com.google.android.exoplayer2.ExoPlaybackException;
+import com.google.android.exoplayer2.MediaItem;
 import com.google.android.exoplayer2.video.MediaCodecVideoDecoderException;
 import com.google.android.exoplayer2.PlaybackException;
 import com.google.android.exoplayer2.Player;
@@ -161,4 +162,12 @@ public interface PlaybackExceptionRecovery {
      * cleaned up by {@link Player#release()}
      */
     default void releaseResources() {};
+
+    /**
+     * Called when the client is switching to a new media item and the current media item
+     * is being abandoned. During DRM related errors, the MediaItem may need to be reset
+     * @param : the new media item
+     * @return true if the error handler should abort the current recovery
+     */
+    default boolean abortIfMediaItemChanged(MediaItem mediaItem) { return true; }
 }

@@ -56,6 +56,7 @@ import com.streamingmediainsights.smiclientsdk.SMIClientSdk;
 import com.streamingmediainsights.smiclientsdk.SMIEventCallbackListener;
 import com.streamingmediainsights.smiclientsdk.SMISimpleExoPlayer;
 import com.tivo.android.utils.SystemUtils;
+import com.tivo.exoplayer.library.errorhandlers.DrmLicenseServerAuthenticationListener;
 import com.tivo.exoplayer.library.errorhandlers.DrmLoadErrorHandlerPolicy;
 import com.tivo.exoplayer.library.errorhandlers.PlayerErrorHandlerListener;
 import com.tivo.exoplayer.library.ima.ImaSDKHelper;
@@ -143,7 +144,7 @@ public class ViewActivity extends AppCompatActivity {
   public static final String BEHAVIOR_SCRUB_ONLY = "scrub_only";
   public static final String BEHAVIOR_SCRUB_LP_VTP = "scrub_lp_vtp";
   public static final String BEHAVIOR_SCRUB_DPAD_MORPH = "scrub_dpad_morph";
-
+  public static final String DRM_WV_REFRSHED_AUTH = "auth_refreshed";
   private PlaybackMetricsManagerApi statsManager;
   private Toast errorRecoveryToast;
 
@@ -271,6 +272,20 @@ public class ViewActivity extends AppCompatActivity {
     }
   }
 
+  private DrmLicenseServerAuthenticationListener drmLicenseServerAuthenticationListener = new DrmLicenseServerAuthenticationListener() {
+    @Override
+    public HashMap<String, String> getLatestAuthHeaders() {
+      Log.i(TAG, "getLatestAuthHeaders()");
+      // Refresh token
+      // TODO - this is a placeholder, we need to update the token in the current media item
+      HashMap<String, String> headers = new HashMap<String, String>();
+      String newToken = getIntent().getStringExtra(DRM_WV_REFRSHED_AUTH);
+      Log.i(TAG, "onDrmLicenseServerAuthenticationError() - newToken: " + newToken);
+      headers.put("Authorization", newToken);
+      return headers;
+    }
+  };
+
   private void initSmiClientIfNeeded(Context context) throws IOException {
     if (isSmiClientInitialized == true) {
       return;
@@ -334,6 +349,7 @@ public class ViewActivity extends AppCompatActivity {
 
     SimpleExoPlayerFactory.Builder builder = new SimpleExoPlayerFactory.Builder(context)
         .setPlaybackErrorHandlerListener(new PlaybackErrorHandlerCallback())
+        .setDrmLicenseServerAuthenticationListener(drmLicenseServerAuthenticationListener)
         .setSourceFactoriesCreatedCallback(new FactoriesCreatedCallback())
         .setTrackSelectorFactory((contextArg, trackSelectionFactory) -> new SyncVideoTrackSelector(contextArg, trackSelectionFactory));
 
@@ -1105,8 +1121,8 @@ public class ViewActivity extends AppCompatActivity {
 
   private void showErrorDialogWithRecoveryOption(PlaybackException error, String title) {
     AlertDialog alertDialog = new AlertDialog.Builder(this)
-        .setTitle("Error - " + error.errorCode)
-        .setMessage(title + " - " + " Playing: " + getNowPlaying() + " Error: " + error.getLocalizedMessage())
+        .setTitle("Error - " +  error.errorCode)
+        .setMessage(title + " - " + " Playing: " + getNowPlaying() + " Error: " + error.getErrorCodeName())
         .setPositiveButton("Retry", (dialog, which) -> {
           player.seekToDefaultPosition();
           player.prepare();   // Attempt recovery with simple re-prepare using current MediaItem

@@ -1,5 +1,7 @@
 package com.tivo.exoplayer.library.errorhandlers;
 
+import android.os.Build;
+
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import com.google.android.exoplayer2.C;
@@ -138,18 +140,16 @@ public class DrmLoadErrorHandlerPolicy implements LoadErrorHandlingPolicy {
     if (exception instanceof HttpDataSource.InvalidResponseCodeException) {
       HttpDataSource.InvalidResponseCodeException invalidResponseCodeException = (HttpDataSource.InvalidResponseCodeException) exception;
       Log.d(TAG, "handleDataSourceException() HTTP response: " + invalidResponseCodeException.responseCode);
-      switch (invalidResponseCodeException.responseCode) {
-        case 429:   // To Many Requests (see https://www.rfc-editor.org/rfc/rfc6585#section-4)
-          delayFor = toManyRequestsDelayTime(loadErrorInfo, retryState);
-          break;
-        case 500:
-        case 503:
-          if (retryState.errorCount <= MAX_RETRY_COUNT) {
-            delayFor = retryRandomizer.nextInt(
-                    (int) ((retryState.errorCount * 1000 - MIN_RETRY_DELAY) + 1)) + 
-                    (MIN_RETRY_DELAY + ((retryState.errorCount > 0) ? (retryState.errorCount - 1) * 1000 : 1000));
-          }
-          break;
+      if (invalidResponseCodeException.responseCode == 429) {
+        delayFor = toManyRequestsDelayTime(loadErrorInfo, retryState);
+      } else if(isInRange(500, 599, invalidResponseCodeException.responseCode)) {
+        // Retry on 5xx errors
+        delayFor = getRetryAfterFromHeader(loadErrorInfo);
+        if (delayFor == C.TIME_UNSET && retryState.errorCount <= MAX_RETRY_COUNT) {
+          delayFor = retryRandomizer.nextInt(
+                  (int) ((retryState.errorCount * 1000 - MIN_RETRY_DELAY) + 1)) +
+                  (MIN_RETRY_DELAY + ((retryState.errorCount > 0) ? (retryState.errorCount - 1) * 1000 : 1000));
+        }
       }
     }
     Log.i(TAG, "handleDataSourceException(): delayFor " + delayFor);
@@ -157,15 +157,7 @@ public class DrmLoadErrorHandlerPolicy implements LoadErrorHandlingPolicy {
   }
 
   private long toManyRequestsDelayTime(LoadErrorInfo loadErrorInfo, ActiveRetryState retryState) {
-    List<String> retryAfter = loadErrorInfo.loadEventInfo.responseHeaders.get("Retry-After");
-    long retryDelay = C.TIME_UNSET;
-    if (retryAfter != null) {
-      try {
-        retryDelay = Long.parseLong(retryAfter.get(0));
-      } catch (NumberFormatException e) {
-        Log.d(TAG, "invalid Retry-After header, fallback to random, header: " + retryAfter.get(0));
-      }
-    }
+    long retryDelay = getRetryAfterFromHeader(loadErrorInfo);
 
     if (retryDelay == C.TIME_UNSET) {
         // If the "Retry-After" is not set in the response header, limit the
@@ -177,6 +169,23 @@ public class DrmLoadErrorHandlerPolicy implements LoadErrorHandlingPolicy {
         }
     }
     return retryDelay;
+  }
+
+  private long getRetryAfterFromHeader(LoadErrorInfo loadErrorInfo) {
+    List<String> retryAfter = loadErrorInfo.loadEventInfo.responseHeaders.get("Retry-After");
+    long retryDelay = C.TIME_UNSET;
+    if (retryAfter != null) {
+      try {
+        retryDelay = Long.parseLong(retryAfter.get(0));
+      } catch (NumberFormatException e) {
+        Log.d(TAG, "invalid Retry-After header, fallback to random, header: " + retryAfter.get(0));
+      }
+    }
+    return retryDelay;
+  }
+
+  private boolean isInRange(int min, int max, int value) {
+    return value >= min && value <= max;
   }
 
   private synchronized ActiveRetryState getOrCreateActiveRetry(LoadErrorInfo loadErrorInfo) {

@@ -94,7 +94,7 @@ public class DefaultExoPlayerErrorHandler implements Player.Listener {
   @Override
   public void onMediaItemTransition(@Nullable MediaItem mediaItem, @Player.TimelineChangeReason int reason) {
     for (PlaybackExceptionRecovery handler : handlers) {
-      if (handler.isRecoveryInProgress()) {
+      if (handler.isRecoveryInProgress() && handler.abortIfMediaItemChanged(mediaItem)) {
         Log.d(TAG, "onMediaItemTransition() - aborting recovery for " + handler);
         playerErrorProcessed(handler.currentErrorBeingHandled(), PlayerErrorHandlerListener.HandlingStatus.ABANDONED);
         handler.abortRecovery();
@@ -237,6 +237,7 @@ public class DefaultExoPlayerErrorHandler implements Player.Listener {
     PlaybackException error = null;
 
     if (handler.isRecoveryFailed()) {
+      error = handler.currentErrorBeingHandled();
       status = PlayerErrorHandlerListener.HandlingStatus.FAILED;
     } else if (handler.isRecoveryInProgress()) {
       error = handler.currentErrorBeingHandled();

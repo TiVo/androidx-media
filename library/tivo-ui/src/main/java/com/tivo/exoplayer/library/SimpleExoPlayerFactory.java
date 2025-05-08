@@ -43,6 +43,8 @@ import com.google.common.base.Predicate;
 import com.tivo.exoplayer.library.errorhandlers.AudioTrackInitPlayerErrorHandler;
 import com.tivo.exoplayer.library.errorhandlers.BehindLiveWindowExceptionRecovery;
 import com.tivo.exoplayer.library.errorhandlers.DefaultExoPlayerErrorHandler;
+import com.tivo.exoplayer.library.errorhandlers.DrmLicenseServerAuthenticationListener;
+import com.tivo.exoplayer.library.errorhandlers.DrmPlayerErrorHandler;
 import com.tivo.exoplayer.library.errorhandlers.HdmiPlayerErrorHandler;
 import com.tivo.exoplayer.library.errorhandlers.MediaCodecVideoDecoderExceptionErrorHandler;
 import com.tivo.exoplayer.library.errorhandlers.NetworkLossPlayerErrorHandler;
@@ -130,6 +132,9 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
 
   @Nullable
   private PlayerErrorHandlerListener playerErrorHandlerListener;
+
+  @Nullable
+  private DrmLicenseServerAuthenticationListener drmLicenseServerAuthenticationListener;
 
   private EventListenerFactory eventListenerFactory;
 
@@ -259,6 +264,7 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
   public static class Builder {
     private final Context context;
     private @Nullable PlayerErrorHandlerListener listener;
+    private @Nullable DrmLicenseServerAuthenticationListener drmLicenseServerAuthenticationListener;
     private EventListenerFactory factory;
     private SourceFactoriesCreated factoriesCreatedCallback;
     private String userAgentPrefix;
@@ -288,6 +294,11 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
      */
     public Builder setPlaybackErrorHandlerListener(PlayerErrorHandlerListener listener) {
       this.listener = listener;
+      return this;
+    }
+
+    public Builder setDrmLicenseServerAuthenticationListener(DrmLicenseServerAuthenticationListener listener) {
+      this.drmLicenseServerAuthenticationListener = listener;
       return this;
     }
 
@@ -403,6 +414,7 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
       SimpleExoPlayerFactory simpleExoPlayerFactory = new SimpleExoPlayerFactory(context);
       simpleExoPlayerFactory.alternatePlayerFactory = this.alternatePlayerFactory;
       simpleExoPlayerFactory.playerErrorHandlerListener = this.listener;
+      simpleExoPlayerFactory.drmLicenseServerAuthenticationListener = this.drmLicenseServerAuthenticationListener;
       simpleExoPlayerFactory.eventListenerFactory = this.factory;
       simpleExoPlayerFactory.factoriesCreatedCallback = this.factoriesCreatedCallback;
       simpleExoPlayerFactory.userAgentPrefix = userAgentPrefix;
@@ -506,7 +518,8 @@ public class SimpleExoPlayerFactory implements PlayerErrorRecoverable {
         new StuckPlaylistErrorRecovery(this),
         new NetworkLossPlayerErrorHandler(this, context),
         new HdmiPlayerErrorHandler(this, context),
-        new MediaCodecVideoDecoderExceptionErrorHandler(this)));
+        new MediaCodecVideoDecoderExceptionErrorHandler(this),
+        new DrmPlayerErrorHandler(this, drmLicenseServerAuthenticationListener)));
     if ( trackSelector instanceof SyncVideoTrackSelector ) {
       handlers.add(new NoPcmAudioErrorHandler(this, (SyncVideoTrackSelector) trackSelector));
     }
