@@ -52,6 +52,10 @@ class TrickPlayController implements TrickPlayControlInternal {
     private static final String TAG = "TrickPlayController";
 
     private static final int REACTION_TIME_FOR_OVERSHOOT = 250;       // ms jump for FR/FF reaction time correction
+
+    // 18s threshold = REACTION_TIME_FOR_OVERSHOOT * 60X plus ~20% safety buffer
+    private static final int TRICK_PLAY_CORRECTION_THRESHOLD_MS = 18000;
+
     private static final int TUNNELING_MODE_SAFE_OFFSET_MS = 6000;
 
     private @MonotonicNonNull SimpleExoPlayer player;
@@ -907,13 +911,16 @@ class TrickPlayController implements TrickPlayControlInternal {
                     : 0;
                 positionMs = lastRenders.get(jumpBack);
                 long positionDeltaMs = positionMs - player.getCurrentPosition();
-                if (positionDeltaMs != 0) {
-                    Log.d(TAG, "Seek to " + positionMs + ", " + jumpBack + " frames back from last rendered, delta: " + positionDeltaMs + "ms");
+                // Only perform correction if the jump is within the threshold (absolute value)
+                if (positionDeltaMs != 0 && Math.abs(positionDeltaMs) <= TRICK_PLAY_CORRECTION_THRESHOLD_MS) {
+                    Log.d(TAG, "Doing seek to " + positionMs + ", " + jumpBack + " frames back from last rendered, delta: " + positionDeltaMs + "ms");
                     SeekParameters save = player.getSeekParameters();
                     player.setSeekParameters(SeekParameters.EXACT);
                     player.seekTo(positionMs);
                     player.setSeekParameters(save);
                     positionMs = C.POSITION_UNSET;      // indicate a seek was issued.
+                } else if (positionDeltaMs != 0) {
+                    Log.i(TAG, "Skipping over-shoot correction: delta " + positionDeltaMs + "ms exceeds threshold " + TRICK_PLAY_CORRECTION_THRESHOLD_MS + "ms");
                 }
                 lastRenderPositions.empty();
             }
