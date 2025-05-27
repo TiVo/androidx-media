@@ -65,6 +65,15 @@ public interface TrickPlayControlInternal extends TrickPlayControl {
   void enablePlaybackSpeedForwardTrickPlay(boolean enabled);
 
   /**
+   * Indicates if the frame rate analyzer has been initialized and is ready to provide
+   * frame rate information for iFrame formats. The analyzer is only needed for forward
+   * playback speed-based trick play.
+   *
+   * @return true if the analyzer is initialized (source iFrame format identified), false otherwise
+   */
+   boolean isAnalyzerInitialized();
+
+  /**
    * Indicates if the trick play controller is configured to use playback speed forward trick play
    *
    * @return false if the trick play controller has been configured to not use playback speed trick play

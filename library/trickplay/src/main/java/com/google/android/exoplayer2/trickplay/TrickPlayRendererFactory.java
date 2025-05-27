@@ -127,7 +127,16 @@ class TrickPlayRendererFactory extends DefaultRenderersFactory {
 
     @Override
     protected void onStarted() {
-      trickPlay.enablePlaybackSpeedForwardTrickPlay(!codecRequiresTunnelingTrickModeVsync());
+      // Check if current platform and content supports rate mode or only seek-based forward trick play 
+      boolean shouldEnablePlaybackSpeedTrickPlay = !codecRequiresTunnelingTrickModeVsync() && trickPlay.isAnalyzerInitialized();
+      
+      if (shouldEnablePlaybackSpeedTrickPlay) {
+          Log.d(TAG, "Using playback-speed forward trick play");
+      } else {
+          Log.d(TAG, "Using seek-based forward trick play");
+      }
+      
+      trickPlay.enablePlaybackSpeedForwardTrickPlay(shouldEnablePlaybackSpeedTrickPlay);
       super.onStarted();
       Log.d(TAG, "Renderer onStarted() called - lastRenderTimeUs " + lastRenderTimeUs);
     }

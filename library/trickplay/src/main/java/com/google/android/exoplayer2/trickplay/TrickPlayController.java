@@ -967,6 +967,11 @@ class TrickPlayController implements TrickPlayControlInternal {
 
     public void enablePlaybackSpeedForwardTrickPlay(boolean enabled) {
         playbackSpeedForwardTrickPlayEnabled = enabled;
+        Log.d(TAG, "frameRateAnalyzer.isAnalyzerInitialized() = " + frameRateAnalyzer.isAnalyzerInitialized());
+    }
+
+    public boolean isAnalyzerInitialized() {
+        return frameRateAnalyzer.isAnalyzerInitialized();
     }
 
     /**
