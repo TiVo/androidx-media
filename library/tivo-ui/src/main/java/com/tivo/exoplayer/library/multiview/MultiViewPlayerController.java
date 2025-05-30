@@ -76,36 +76,48 @@ public class MultiViewPlayerController {
    */
   private class MultiViewDebugLogging implements AnalyticsListener {
     private final GridLocation gridLocation;
+    private final String analyticsTag;
 
     public MultiViewDebugLogging(GridLocation gridLocation) {
       this.gridLocation = gridLocation;
+      this.analyticsTag = "MultiViewAnalytics-" + gridLocation.getViewIndex();
     }
 
     @Override
     public void onVideoSizeChanged(@NonNull EventTime eventTime, VideoSize videoSize) {
-      Log.d(TAG, gridLocation + " - videoSizeChanged " + videoSize.width + "x" + videoSize.height);
+      Log.d(analyticsTag, "videoSizeChanged " + videoSize.width + "x" + videoSize.height);
     }
 
     @Override
     public void onSurfaceSizeChanged(@NonNull EventTime eventTime, int width, int height) {
-      Log.d(TAG, gridLocation + " - surfaceSizeChanged " + width + "x" + height);
+      Log.d(analyticsTag, "surfaceSizeChanged " + width + "x" + height);
     }
 
     @Override
     public void onAudioEnabled(@NonNull EventTime eventTime, @NonNull DecoderCounters decoderCounters) {
-      Log.d(TAG, gridLocation + " - audioEnabled");
+      Log.d(analyticsTag, "audioEnabled");
     }
 
     @Override
     public void onAudioDecoderInitialized(@NonNull EventTime eventTime, @NonNull String decoderName, long initializedTimestampMs,
         long initializationDurationMs) {
-      Log.d(TAG, gridLocation + " - audioDecoderInitialized " + decoderName);
+      Log.d(analyticsTag, "audioDecoderInitialized " + decoderName);
     }
 
     @Override
     public void onAudioInputFormatChanged(@NonNull EventTime eventTime, @NonNull Format format, @Nullable DecoderReuseEvaluation decoderReuseEvaluation) {
-      Log.d(TAG, gridLocation + " - audioInputFormatChanged " + Format.toLogString(format));
+      Log.d(analyticsTag, "audioInputFormatChanged " + Format.toLogString(format));
     }
+
+    @Override
+    public void onDroppedVideoFrames(@NonNull EventTime eventTime, int droppedFrames, long elapsedMs) {
+      // Use INFO level for MultiView tags since we don't have operational frame drop 
+      // metrics for MultiView playback yet. This ensures we capture diagnostic 
+      // frame drop information for MultiView.
+      String message = String.format("dropped %d frames in %d ms", droppedFrames, elapsedMs);
+      Log.i(analyticsTag, message);
+    }
+
   }
 
   MultiViewPlayerController(SimpleExoPlayerFactory.Builder builder, GridLocation gridLocation, MultiPlayerAudioFocusManagerApi audioFocusManager, MultiPlayerAccessibilityHelper accessibilityHelper) {
