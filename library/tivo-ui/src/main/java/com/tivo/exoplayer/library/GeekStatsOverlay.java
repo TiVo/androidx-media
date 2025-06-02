@@ -35,6 +35,13 @@ import java.util.Locale;
  * or other android application hosting the player that supports geeks display.
  *
  * To integrate this UI in your ExoPlayer application add a view with this
+ *
+ * PERFORMANCE OPTIMIZATION:
+ * This class implements a start/stop pattern based on visibility to prevent
+ * expensive operations when the debug overlay is not visible:
+ * - When VISIBLE: Adds analytics listener and starts timer callbacks
+ * - When INVISIBLE: Removes analytics listener and stops timer callbacks
+ * This eliminates CPU/memory overhead and ANR contributions when not in use.
  */
 public class GeekStatsOverlay implements AnalyticsListener, Runnable {
 
@@ -139,7 +146,9 @@ public class GeekStatsOverlay implements AnalyticsListener, Runnable {
       this.player = null;
     } else {
       this.player = player;
-      start();
+      if (containingView.getVisibility() == View.VISIBLE) {
+        start();
+      }
     }
   }
 
@@ -148,8 +157,10 @@ public class GeekStatsOverlay implements AnalyticsListener, Runnable {
 
     if (visibility == View.VISIBLE) {
       containingView.setVisibility(View.INVISIBLE);
+      stop();
     } else {
       containingView.setVisibility(View.VISIBLE);
+      start();
     }
   }
 
@@ -158,7 +169,7 @@ public class GeekStatsOverlay implements AnalyticsListener, Runnable {
   }
 
   private void start() {
-    if (player != null) {
+    if (player != null && containingView.getVisibility() == View.VISIBLE) {
       player.addAnalyticsListener(this);
       long currentTime = System.currentTimeMillis();
       long nextTargetTime = (currentTime + updateInterval) - currentTime % updateInterval;
