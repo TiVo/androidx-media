@@ -384,6 +384,7 @@ public class ViewActivity extends AppCompatActivity {
 
     View debugContainer = debugView.findViewById(R.id.geek_stats);
     geekStats = new GeekStatsOverlay(debugContainer);
+    geekStats.toggleVisible();  // Match ExoPlayerPlayer implementation, which starts invisible.
 
     playerView = findViewById(R.id.player_view);
     playerView.setShowBuffering(PlayerView.SHOW_BUFFERING_WHEN_PLAYING);
@@ -945,9 +946,7 @@ public class ViewActivity extends AppCompatActivity {
     }
 
     boolean showGeekStats = intent.getBooleanExtra(SHOW_GEEK_STATS, true);
-    if (!showGeekStats) {
-      geekStats.toggleVisible();
-    }
+    geekStats.setVisible(showGeekStats);
 
     boolean enableTunneling = intent.getBooleanExtra(ENABLE_TUNNELED_PLAYBACK, false);
     exoPlayerFactory.setTunnelingMode(enableTunneling);

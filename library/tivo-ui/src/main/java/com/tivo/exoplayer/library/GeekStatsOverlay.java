@@ -84,7 +84,6 @@ public class GeekStatsOverlay implements AnalyticsListener, Runnable {
   private long lastTimeUpdate;
   private int levelSwitchCount = 0;
   private int bufferingCount = 0;   // counts "buffering" for any reason (initial playback, seek, or "stalling")
-  private int lastPlayState = Player.STATE_IDLE;
   private float minBandwidth = Float.MIN_VALUE;
   private float maxBandwidth = Float.MAX_VALUE;
   private Loader timeLoader;
@@ -126,6 +125,19 @@ public class GeekStatsOverlay implements AnalyticsListener, Runnable {
     manifestUrl = view.findViewById(R.id.manifest_url);
     this.updateInterval = updateInterval;
     enableLiveOffsetLogging = false;
+    initializeNtpTime();
+
+    containingView.addOnAttachStateChangeListener(new View.OnAttachStateChangeListener() {
+      @Override
+      public void onViewAttachedToWindow(View v) {
+      }
+
+      @Override
+      public void onViewDetachedFromWindow(View v) {
+        setPlayer(null, null);  // cleanup when view is detached
+        freeNtpTimeLoader();
+      }
+    });
   }
 
   public GeekStatsOverlay(View view) {
@@ -133,7 +145,16 @@ public class GeekStatsOverlay implements AnalyticsListener, Runnable {
   }
 
   /**
-   * Call this to update the player and it's associated TrickPlayControl (if any)
+   * Call this to update the player and it's associated TrickPlayControl (if any).
+   *
+   * <p>Calling with a null player and trickPlayControl will remove the old player listeners
+   * and stop the periodic update timer.</p>
+   *
+   * <p>When called with a player, the periodic update timer is started if the overlay is
+   * already visible ({@link #isGeekOverlayVisible()} is true)</p>
+   *
+   * <p>If this call changes the active player, (this.player != player) then
+   * the statistics are reset and the listeners are removed for the old player.</p>
    *
    * @param player current player, or null to remove old player
    * @param trickPlayControl trickplay control for the player (if any)
@@ -143,74 +164,134 @@ public class GeekStatsOverlay implements AnalyticsListener, Runnable {
 
     if (player == null && this.player != null) {
       stop();
+      this.player.removeAnalyticsListener(this);
       this.player = null;
-    } else {
+    } else if (player != null) {
+      if (this.player != null && this.player != player) {
+        // If the player is changing, reset stats and remove old listener
+        resetStats();
+        this.player.removeAnalyticsListener(this);
+      }
       this.player = player;
-      if (containingView.getVisibility() == View.VISIBLE) {
+      player.addAnalyticsListener(this);
+
+      if (isGeekOverlayVisible()) {
         start();
       }
     }
   }
 
+  /**
+   * Toggles the visibility of the geek stats overlay.  If the overlay is currently,
+   * visible it will be set to {@link View#INVISIBLE} and the periodic update timer is
+   * stopped, if it is currently {@link View#INVISIBLE} it will be set to {@link View#VISIBLE}
+   * and the periodic update timer is started.
+   *
+   * <p>Note that the statistics are not reset when the visibility is toggled, only when a new
+   * media item is prepared. Or if {@link #resetStats()} is explicitly called.</p>
+   */
   public void toggleVisible() {
     int visibility = containingView.getVisibility();
+    setVisible(visibility != View.VISIBLE);
+  }
 
-    if (visibility == View.VISIBLE) {
-      containingView.setVisibility(View.INVISIBLE);
-      stop();
-    } else {
+  /**
+   * Sets the visibility of the geek stats overlay.  See {link #toggleVisible()} for details
+   * on how the visibility is handled.
+   *
+   * @param visible true to make the overlay visible, false to make it invisible.
+   */
+  public void setVisible(boolean visible) {
+    int visibility = containingView.getVisibility();
+
+    if (visible) {
       containingView.setVisibility(View.VISIBLE);
-      start();
+      if (visibility != View.VISIBLE) {
+        // Only start the timer if we are becoming visible
+        if (player != null) {
+          start();
+        }
+      }
+    } else {
+      containingView.setVisibility(View.INVISIBLE);
+      if (visibility == View.VISIBLE) {
+        // Only stop the timer if we are becoming invisible
+        stop();
+      }
     }
+  }
+
+  public boolean isGeekOverlayVisible() {
+    return containingView.getVisibility() == View.VISIBLE;
+  }
+
+  /**
+   * Called to reset the current statistics counters driving the display.
+   *
+   * <p>This will reset the level switch count, buffering count, last time update, etc.
+   * it is automatically called when a new media item is prepared (channel change).</p>
+   */
+  public void resetStats() {
+    levelSwitchCount = 0;
+    bufferingCount = 0;
+    lastTimeUpdate = C.TIME_UNSET;
+    minBandwidth = Float.MIN_VALUE;
+    maxBandwidth = Float.MAX_VALUE;
+    manifestUrl.setText("");
   }
 
   public void setEnableLiveOffsetLogging(boolean enableLiveOffsetLogging) {
     this.enableLiveOffsetLogging = enableLiveOffsetLogging;
   }
 
+  /**
+   * Starts the periodic update timer
+   */
   private void start() {
-    if (player != null && containingView.getVisibility() == View.VISIBLE) {
-      player.addAnalyticsListener(this);
+    if (player != null && isGeekOverlayVisible()) {
       long currentTime = System.currentTimeMillis();
       long nextTargetTime = (currentTime + updateInterval) - currentTime % updateInterval;
       postNextUpdateTimer(nextTargetTime - currentTime);
-
-      timeLoader = new Loader("GeekStatsTimeLoader");
-
-      SntpClient.initialize(timeLoader, new SntpClient.InitializationCallback() {
-        @Override
-        public void onInitialized() {
-          StringBuilder logString = new StringBuilder();
-          Formatter formatter = new Formatter(logString);
-          long currentTimeMillis = System.currentTimeMillis();
-          long ntpTimeMillis = Util.getNowUnixTimeMs(SntpClient.getElapsedRealtimeOffsetMs());
-          formatter.format("SntpClient init - System.currentTimeMillis(): %1$tFT%1$tT.%1$tL (%1$d), NTP Time: %2$tFT%2$tT.%2$tL (%2$d), delta %3$d",
-              currentTimeMillis,
-              ntpTimeMillis,
-              currentTimeMillis - ntpTimeMillis
-          );
-
-          Log.d("LivePosition", logString.toString());
-        }
-
-        @Override
-        public void onInitializationFailed(IOException error) {
-
-        }
-      });
     }
   }
 
+
   private void stop() {
-    if (player != null) {
-      player.removeAnalyticsListener(this);
-    }
+    containingView.removeCallbacks(this);
+  }
+
+  private void initializeNtpTime() {
+    timeLoader = new Loader("GeekStatsTimeLoader");
+
+    SntpClient.initialize(timeLoader, new SntpClient.InitializationCallback() {
+      @Override
+      public void onInitialized() {
+        StringBuilder logString = new StringBuilder();
+        Formatter formatter = new Formatter(logString);
+        long currentTimeMillis = System.currentTimeMillis();
+        long ntpTimeMillis = Util.getNowUnixTimeMs(SntpClient.getElapsedRealtimeOffsetMs());
+        formatter.format("SntpClient init - System.currentTimeMillis(): %1$tFT%1$tT.%1$tL (%1$d), NTP Time: %2$tFT%2$tT.%2$tL (%2$d), delta %3$d",
+            currentTimeMillis,
+            ntpTimeMillis,
+            currentTimeMillis - ntpTimeMillis
+        );
+
+        Log.d("LivePosition", logString.toString());
+        freeNtpTimeLoader();
+      }
+
+      @Override
+      public void onInitializationFailed(IOException error) {
+        freeNtpTimeLoader();
+      }
+    });
+  }
+
+  private void freeNtpTimeLoader() {
     if (timeLoader != null) {
       timeLoader.release();
       timeLoader = null;
     }
-    containingView.removeCallbacks(this);
-    resetStats();
   }
 
   private void timedTextUpdate() {
@@ -269,15 +350,6 @@ public class GeekStatsOverlay implements AnalyticsListener, Runnable {
       buffered = bufferedMs / 1000.0f;
     }
     return buffered;
-  }
-
-  private void resetStats() {
-    levelSwitchCount = 0;
-    bufferingCount = 0;
-    lastTimeUpdate = C.TIME_UNSET;
-    minBandwidth = Float.MIN_VALUE;
-    maxBandwidth = Float.MAX_VALUE;
-    manifestUrl.setText("");
   }
 
   private String getPlayerState() {
@@ -525,9 +597,11 @@ public class GeekStatsOverlay implements AnalyticsListener, Runnable {
       if (currentState == Player.STATE_BUFFERING) {
         bufferingCount++;
       }
-      lastPlayState = currentState;
       stateView.setText(getPlayerState());
-      updateChildViews();
+
+      if (isGeekOverlayVisible()) {
+        updateChildViews();
+      }
     }
   }
 
