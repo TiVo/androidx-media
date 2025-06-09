@@ -11,9 +11,7 @@
   <!-- Strings with text requiring translation -->
 
   <!-- Error / retry overlay on multi-view -->
-  <string name="retrying_on_error_with_code" translatable="false">Retrying on error: %1$s</string>
-  <string name="playback_error_with_code" translatable="false">Playback Error - %1$s</string>
-  <string name="retrying_on_error" translatable="false">Retrying on error</string>
-  <string name="playback_error" translatable="false">Playback Error</string>
+  <string name="retrying_on_error">Retrying on error: %1$s</string>
+  <string name="playback_error">Playback Error - %1$s</string>
 
 </resources>
