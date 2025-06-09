@@ -226,6 +226,7 @@ public class ExtendedMediaSourceFactory implements MediaSourceFactory {
    * care of.
    */
   public void releaseResources() {
+    singletonVerimatrixDataSourceFactory.resetInstance();
     singletonVerimatrixDataSourceFactory = null;  // TODO any native cleanup needed here?
     if (this.drmSessionManagerProvider != null &&
         this.drmSessionManagerProvider instanceof DefaultDrmSessionManagerProvider) {
