@@ -50,7 +50,7 @@ dependencies {
     compileOnly 'org.checkerframework:checker-qual:' + checkerframeworkVersion
     // Only required for the prepareForPlayback() method, can use different version, library clients
     // can (and must) include the actual implementation version they need (which can be different)
-    api 'com.tivo.android.exoplayer:verimatrix:5.0.0.5-1.1'
+    api 'com.tivo.android.exoplayer:verimatrix:5.1.0.4-1.0'
 }
 
 ext {
