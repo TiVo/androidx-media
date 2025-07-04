@@ -86,13 +86,6 @@ public class DecoderAudioRendererTest {
         };
   }
 
-  @Config(sdk = 19)
-  @Test
-  public void supportsFormatAtApi19() {
-    assertThat(audioRenderer.supportsFormat(FORMAT))
-        .isEqualTo(ADAPTIVE_NOT_SEAMLESS | TUNNELING_NOT_SUPPORTED | FORMAT_HANDLED);
-  }
-
   @Config(sdk = 21)
   @Test
   public void supportsFormatAtApi21() {

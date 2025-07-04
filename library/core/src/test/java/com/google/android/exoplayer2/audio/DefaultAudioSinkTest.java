@@ -217,24 +217,6 @@ public final class DefaultAudioSinkTest {
         .isEqualTo(SINK_FORMAT_SUPPORTED_WITH_TRANSCODING);
   }
 
-  @Config(maxSdk = 20)
-  @Test
-  public void floatPcmNeedsTranscodingIfFloatOutputEnabledBeforeApi21() {
-    defaultAudioSink =
-        new DefaultAudioSink(
-            AudioCapabilities.DEFAULT_AUDIO_CAPABILITIES,
-            new AudioProcessor[0],
-            /* enableFloatOutput= */ true);
-    Format floatFormat =
-        STEREO_44_1_FORMAT
-            .buildUpon()
-            .setSampleMimeType(MimeTypes.AUDIO_RAW)
-            .setPcmEncoding(C.ENCODING_PCM_FLOAT)
-            .build();
-    assertThat(defaultAudioSink.getFormatSupport(floatFormat))
-        .isEqualTo(SINK_FORMAT_SUPPORTED_WITH_TRANSCODING);
-  }
-
   @Config(minSdk = 21)
   @Test
   public void floatOutputSupportedIfFloatOutputEnabledFromApi21() {
