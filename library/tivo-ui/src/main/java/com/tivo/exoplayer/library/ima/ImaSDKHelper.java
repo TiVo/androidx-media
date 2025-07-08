@@ -412,6 +412,7 @@ public class ImaSDKHelper {
         .setAdMediaMimeTypes(supportedAdMediaMimeTypes)
         .setDebugModeEnabled(DEBUG_MODE_ENABLED)
         .setAdUiElements(adUiElements)
+        .setMediaLoadTimeoutMs(3000)
         .build();
     currentAdsLoader.setPlayer(currentPlayer);
 
