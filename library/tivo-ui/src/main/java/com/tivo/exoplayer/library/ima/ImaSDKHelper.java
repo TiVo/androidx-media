@@ -46,6 +46,8 @@ public class ImaSDKHelper {
 
   /** Generates very chatty logging from the IMA SDK */
   public static boolean DEBUG_MODE_ENABLED = false;
+  /** 3 second default timeout for media load */
+  public static int MEDIA_LOAD_TIMEOUT = 3000; 
 
   private final PlayerView playerView;
   private final ExtendedMediaSourceFactory mediaSourceFactory;
@@ -412,7 +414,7 @@ public class ImaSDKHelper {
         .setAdMediaMimeTypes(supportedAdMediaMimeTypes)
         .setDebugModeEnabled(DEBUG_MODE_ENABLED)
         .setAdUiElements(adUiElements)
-        .setMediaLoadTimeoutMs(3000)
+        .setMediaLoadTimeoutMs(MEDIA_LOAD_TIMEOUT)
         .build();
     currentAdsLoader.setPlayer(currentPlayer);
 
