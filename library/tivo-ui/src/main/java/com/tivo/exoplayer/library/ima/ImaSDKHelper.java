@@ -46,6 +46,10 @@ public class ImaSDKHelper {
 
   /** Generates very chatty logging from the IMA SDK */
   public static boolean DEBUG_MODE_ENABLED = false;
+    /** 3 second default timeout for ad preload */
+  public static int AD_PRELOAD_TIMEOUT = 3000; 
+  /** 3 second default timeout for VAST load */
+  public static int VAST_LOAD_TIMEOUT = 3000; 
   /** 3 second default timeout for media load */
   public static int MEDIA_LOAD_TIMEOUT = 3000; 
 
@@ -414,6 +418,8 @@ public class ImaSDKHelper {
         .setAdMediaMimeTypes(supportedAdMediaMimeTypes)
         .setDebugModeEnabled(DEBUG_MODE_ENABLED)
         .setAdUiElements(adUiElements)
+        .setAdPreloadTimeoutMs(AD_PRELOAD_TIMEOUT)
+        .setVastLoadTimeoutMs(VAST_LOAD_TIMEOUT)
         .setMediaLoadTimeoutMs(MEDIA_LOAD_TIMEOUT)
         .build();
     currentAdsLoader.setPlayer(currentPlayer);
