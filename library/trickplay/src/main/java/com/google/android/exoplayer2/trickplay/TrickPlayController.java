@@ -921,6 +921,8 @@ class TrickPlayController implements TrickPlayControlInternal {
                     positionMs = C.POSITION_UNSET;      // indicate a seek was issued.
                 } else if (positionDeltaMs != 0) {
                     Log.i(TAG, "Skipping over-shoot correction: delta " + positionDeltaMs + "ms exceeds threshold " + TRICK_PLAY_CORRECTION_THRESHOLD_MS + "ms");
+                    // Restore the position to current, for the "No-op seek" below
+                    positionMs = player.getCurrentPosition();
                 }
                 lastRenderPositions.empty();
             }
