@@ -118,6 +118,28 @@ public final class DefaultDrmSessionManagerProvider implements DrmSessionManager
     }
   }
 
+  /**
+   * Releases the current DRM session manager and clears the cached configuration.
+   * This forces a new manager to be created on the next call to {@link #get(MediaItem)}.
+   * 
+   * <p>This method is useful when transitioning between different playback contexts
+   * (e.g., MultiView to full-screen) where you need to ensure complete cleanup
+   * of DRM resources and threads.
+   */
+  public void releaseManager() {
+    synchronized (lock) {
+      if (manager != null) {
+        // Follow the same release sequence as the get() method:
+        // 1. First release all sessions to set the isFinalRelease flag
+        manager.releaseAllSessions();
+        // 2. Then release the manager to terminate HandlerThreads
+        manager.release();
+        manager = null;
+      }
+      drmConfiguration = null;
+    }
+  }
+
   @Override
   public DrmSessionManager get(MediaItem mediaItem) {
     checkNotNull(mediaItem.playbackProperties);

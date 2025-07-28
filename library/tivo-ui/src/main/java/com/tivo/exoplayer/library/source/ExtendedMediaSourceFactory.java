@@ -230,9 +230,20 @@ public class ExtendedMediaSourceFactory implements MediaSourceFactory {
       singletonVerimatrixDataSourceFactory.resetInstance();
       singletonVerimatrixDataSourceFactory = null;  // TODO any native cleanup needed here?
     }
+    
     if (this.drmSessionManagerProvider != null &&
         this.drmSessionManagerProvider instanceof DefaultDrmSessionManagerProvider) {
-        ((DefaultDrmSessionManagerProvider) this.drmSessionManagerProvider).releaseDrmSession();
+      DefaultDrmSessionManagerProvider drmProvider = (DefaultDrmSessionManagerProvider) this.drmSessionManagerProvider;
+      
+      // Issue: ExoPlayer's DefaultDrmSessionManagerProvider only terminates DRM HandlerThreads
+      // during DRM configuration changes, not during normal session release. For MultiView
+      // scenarios with multiple concurrent DRM sessions, this causes HandlerThread accumulation.
+      //
+      // Solution: Use the public releaseManager() method that we added to ExoPlayer's
+      // DefaultDrmSessionManagerProvider. This method properly releases the DRM session manager
+      // and clears the cached configuration, forcing a clean restart on next use.
+      
+      drmProvider.releaseManager();
     }
   }
 
