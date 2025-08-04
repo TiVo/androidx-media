@@ -217,7 +217,8 @@ public class MultiViewPlayerController {
   /**
    * Stops playback without releasing the player for the player associated with this controller.
    *
-   * <p>The external client API for this is {@link MultiExoPlayerView#stopAllPlayerViews()}</p>
+   * <p>This method is called via {@link MultiExoPlayerView#stopAllPlayerViews()} to stop all players,
+   * and via {@link MultiExoPlayerView#stopPlayerView(int)} to stop an individual player.</p>
    */
   void stopPlayer() {
     Player player = exoPlayerFactory.getCurrentPlayer();

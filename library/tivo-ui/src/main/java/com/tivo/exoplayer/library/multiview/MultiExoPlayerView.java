@@ -683,6 +683,18 @@ public class MultiExoPlayerView extends LinearLayout {
   }
 
   /**
+   * Stops playback for an individual player view at the specified index.
+   *
+   * @param index - grid location (row major index form) of the player to stop.
+   */
+  public void stopPlayerView(int index) {
+    if (playerControllers != null && index >= 0 && index < playerControllers.length) {
+      MultiViewPlayerController playerController = playerControllers[index];
+      playerController.stopPlayer();
+    }
+  }
+
+  /**
    * This method can be called to switch out the multi-view for a single player view.
    * It calls {@link Player#stop()} to free up the memory associated with the players
    * for each view but leaves the player in place with any DRM session caching it may
