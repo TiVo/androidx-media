@@ -1,12 +1,41 @@
 # Release notes #
 
-### 2.15.1-2.3-dev (not yet released)
+### 2.15.1-2.3 (2025-08-18)
 
 #### New Features
-* ...
+* *TiVo DRM Token Refresh* &mdash; This feature allows Widevine proxy token refresh. Following commits are part of this feature:
+  * [6ca8642 -- Retries Drm License errors 401 and 409 by refreshing the auth token header](https://github.com/tivocorp/exoplayerprvt/commit/6ca8642603cea05b307b6dfd27dc6767cd721830)
+* *nDVR Pre-roll* &mdash; Ads are played before recording playback using IMA SDK. Following commits are part of this feature:
+  * [e7a3407 -- Bump IMA dependency to 3.35.1](https://github.com/tivocorp/exoplayerprvt/commit/e7a3407bce6a95453022b1eb8405c7fd9346d46a)
+  * [c84dc46 -- Set ad preload timeout and VAST load timeout (default is 3 seconds)](https://github.com/tivocorp/exoplayerprvt/commit/c84dc46cd0a24f9335241743571f3d82faa93b80)
+* *Support for MultiView playback* &mdash; This feature allows user to watch multiple contents/channels simultaneously. Following commits are part of this feature:
+  * [7539d67 -- Fix to re-enable Closed Captions in selected view](https://github.com/tivocorp/exoplayerprvt/commit/7539d67fc0364c3920888f173be13517bbc1d19c)
+  * [eac57a6 -- Removes error code from PlayerErrorView message text for Phase 1](https://github.com/tivocorp/exoplayerprvt/commit/eac57a62928f5f3ebbbdac701324baf48798b00a)
+  * [aae12f0 -- Removes error code from PlayerErrorView message text for Phase 1. Will enhance error code display in Phase 2](https://github.com/tivocorp/exoplayerprvt/commit/aae12f0e675357ac532670101afd111d1ecc3c1d)
+  * [5af67b0 -- Log dropped video frames for MultiView playback diagnostics](https://github.com/tivocorp/exoplayerprvt/commit/5af67b04cb8eedcd7da17d4cd56f2ff04f6a1ff8)
+  * [39fb6f5 -- Adds  error code from PlayerErrorView message text back to MultiView](https://github.com/tivocorp/exoplayerprvt/commit/39fb6f50f27ed639b72fb22f0645eb9cc19d82e1)
+  * [a127b32 -- Added MultiExoPlayerView.stopPlayerView(int) API to stop an individual player](https://github.com/tivocorp/exoplayerprvt/commit/a127b3293c1904c83746d29d0c797914a5eaf8d1)
+* *Download-to-go* &mdash; This is a new feature that allows users to download content for offline playback.  The following commits are part of this feature:
+  * [56f7fb4 -- Bug Fix for crash due to Null pinter Exception in OfflineLicenseHelper.blockingKeyRequest](https://github.com/tivocorp/exoplayerprvt/commit/56f7fb47d7b299ecc184903b826b8452a79fcb3d)
+* *DASH VTP* &mdash; The following commits are part of this feature:
+  * [82b42a7 -- Fix DASH VTP by adding analyzer initialization check and falling back to seek based VTP](https://github.com/tivocorp/exoplayerprvt/commit/82b42a7c24d3d85f9e94c61d7952b8cb9bbf99c3)
+
+#### Xperi Code Base Changes
 
 #### Bug Fixes
-*...
+- Trick-play fixes
+  - [0c00d41 -- Add threshold to trick play overshoot correction to avoid invalid seeks](https://github.com/tivocorp/exoplayerprvt/commit/0c00d4162083b2c33d7c7680ec8a822349a6f8d5)
+  - [312f333 -- TrickPlayController: Fix incorrect seek on trickplay exit after mid-trickplay seeks](https://github.com/tivocorp/exoplayerprvt/commit/312f333048bb6db02db4690309394594d65b90b1)
+- MultiView
+  - [6417ac0 -- Fix: Stop DRM HandlerThread leaks in MultiView playback](https://github.com/tivocorp/exoplayerprvt/commit/6417ac00cc493f3f636fbd854c58a508b1c95edc)
+- Other fixes
+  - [c236196 -- Add visibility check to GeekStatsOverlay start/stop operations](https://github.com/tivocorp/exoplayerprvt/commit/c23619679de2e3392bb0e8a3ff5e35da1fc04e41)
+  - [d04a4d9 -- Maintain GeekStats accumulation while display is hidden](https://github.com/tivocorp/exoplayerprvt/commit/d04a4d9c2752a4126f07385bff81a0a931340d51)
+#### Google Module Changes
+Section documents our cherry-picks or other unshared changes to Google libraries (core, dash, HLS, extractor, etc)
+  * [263a26c -- Handle AV sync timestamps when draining the audio sink during tunneling](https://github.com/tivocorp/exoplayerprvt/commit/263a26cd3a56fd13183e5b239e5e6ec22fc2d858)
+  * [7b03c4f -- Ensures errors are correctly attributed to ad or content](https://github.com/tivocorp/exoplayerprvt/commit/7b03c4fa009dbb8556f632d9cbcdc55d900143b8)
+  * [d425ccc -- Fix hang at live edge of growing VOD content](https://github.com/tivocorp/exoplayerprvt/commit/d425cccbc6a21e204cbcb5e94f79757b6e3c5a49)
 
 ### 2.15.1-2.2 (2025-04-23)
 
