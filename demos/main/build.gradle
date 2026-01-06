@@ -69,6 +69,9 @@ android {
     }
 }
 
+// Version of AndroidX Media3 to pull from Google Maven (defaults to current release)
+project.ext.baseAndroidxMediaVersion = project.ext.releaseVersion
+
 dependencies {
     compileOnly 'org.checkerframework:checker-qual:' + checkerframeworkVersion
     implementation 'androidx.annotation:annotation:' + androidxAnnotationVersion
@@ -76,19 +79,19 @@ dependencies {
     implementation 'androidx.multidex:multidex:' + androidxMultidexVersion
     implementation 'com.google.android.material:material:' + androidxMaterialVersion
     implementation project(modulePrefix + 'lib-exoplayer')
-    implementation project(modulePrefix + 'lib-exoplayer-dash')
+    implementation 'androidx.media3:media3-exoplayer-dash:' + baseAndroidxMediaVersion
     implementation project(modulePrefix + 'lib-exoplayer-hls')
-    implementation project(modulePrefix + 'lib-exoplayer-rtsp')
-    implementation project(modulePrefix + 'lib-exoplayer-smoothstreaming')
-    implementation project(modulePrefix + 'lib-ui')
-    implementation project(modulePrefix + 'lib-datasource-cronet')
-    implementation project(modulePrefix + 'lib-exoplayer-ima')
-    withDecoderExtensionsImplementation project(modulePrefix + 'lib-decoder-av1')
-    withDecoderExtensionsImplementation project(modulePrefix + 'lib-decoder-ffmpeg')
-    withDecoderExtensionsImplementation project(modulePrefix + 'lib-decoder-flac')
-    withDecoderExtensionsImplementation project(modulePrefix + 'lib-decoder-opus')
-    withDecoderExtensionsImplementation project(modulePrefix + 'lib-decoder-vp9')
-    withDecoderExtensionsImplementation project(modulePrefix + 'lib-datasource-rtmp')
+    implementation 'androidx.media3:media3-exoplayer-rtsp:' + baseAndroidxMediaVersion
+    implementation 'androidx.media3:media3-exoplayer-smoothstreaming:' + baseAndroidxMediaVersion
+    implementation 'androidx.media3:media3-ui:' + baseAndroidxMediaVersion
+    implementation 'androidx.media3:media3-datasource-cronet:' + baseAndroidxMediaVersion
+    implementation 'androidx.media3:media3-exoplayer-ima:' + baseAndroidxMediaVersion
+    withDecoderExtensionsImplementation 'androidx.media3:media3-decoder-av1:' + baseAndroidxMediaVersion
+    withDecoderExtensionsImplementation 'androidx.media3:media3-decoder-ffmpeg:' + baseAndroidxMediaVersion
+    withDecoderExtensionsImplementation 'androidx.media3:media3-decoder-flac:' + baseAndroidxMediaVersion
+    withDecoderExtensionsImplementation 'androidx.media3:media3-decoder-opus:' + baseAndroidxMediaVersion
+    withDecoderExtensionsImplementation 'androidx.media3:media3-decoder-vp9:' + baseAndroidxMediaVersion
+    withDecoderExtensionsImplementation 'androidx.media3:media3-datasource-rtmp:' + baseAndroidxMediaVersion
 }
 
 apply plugin: 'com.google.android.gms.strict-version-matcher-plugin'
