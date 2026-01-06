@@ -23,18 +23,21 @@ android {
     sourceSets.test.assets.srcDir '../test_data/src/test/assets/'
 }
 
+// Version of AndroidX Media3 to pull from Google Maven (defaults to current release)
+project.ext.baseAndroidxMediaVersion = project.ext.releaseVersion
+
 dependencies {
     implementation 'androidx.annotation:annotation:' + androidxAnnotationVersion
-    implementation project(modulePrefix + 'lib-common')
-    implementation project(modulePrefix + 'lib-container')
+    implementation 'androidx.media3:media3-common:' + baseAndroidxMediaVersion
+    implementation 'androidx.media3:media3-container:' + baseAndroidxMediaVersion
     // TODO(b/203752187): Remove this dependency.
-    implementation project(modulePrefix + 'lib-decoder')
+    implementation 'androidx.media3:media3-decoder:' + baseAndroidxMediaVersion
     compileOnly 'com.google.errorprone:error_prone_annotations:' + errorProneVersion
     compileOnly 'org.checkerframework:checker-qual:' + checkerframeworkVersion
     compileOnly 'org.checkerframework:checker-compat-qual:' + checkerframeworkCompatVersion
     compileOnly 'org.jetbrains.kotlin:kotlin-annotations-jvm:' + kotlinAnnotationsVersion
     testImplementation project(modulePrefix + 'lib-exoplayer')
-    testImplementation project(modulePrefix + 'test-utils')
+    testImplementation 'androidx.media3:media3-test-utils:' + baseAndroidxMediaVersion
     testImplementation project(modulePrefix + 'test-data')
     testImplementation 'org.robolectric:robolectric:' + robolectricVersion
 }

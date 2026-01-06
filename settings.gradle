@@ -23,18 +23,28 @@ gradle.ext.rootProjectIsAndroidXMedia3 = true
 
 include modulePrefix + 'demo'
 project(modulePrefix + 'demo').projectDir = new File(rootDir, 'demos/main')
-include modulePrefix + 'demo-cast'
-project(modulePrefix + 'demo-cast').projectDir = new File(rootDir, 'demos/cast')
-include modulePrefix + 'demo-gl'
-project(modulePrefix + 'demo-gl').projectDir = new File(rootDir, 'demos/gl')
-include modulePrefix + 'demo-session'
-project(modulePrefix + 'demo-session').projectDir = new File(rootDir, 'demos/session')
-include modulePrefix + 'demo-surface'
-project(modulePrefix + 'demo-surface').projectDir = new File(rootDir, 'demos/surface')
-include modulePrefix + 'demo-transformer'
-project(modulePrefix + 'demo-transformer').projectDir = new File(rootDir, 'demos/transformer')
+
+// Include additional demos only for full build
+if (!file('local_settings.gradle').exists()) {
+    include modulePrefix + 'demo-cast'
+    project(modulePrefix + 'demo-cast').projectDir = new File(rootDir, 'demos/cast')
+    include modulePrefix + 'demo-gl'
+    project(modulePrefix + 'demo-gl').projectDir = new File(rootDir, 'demos/gl')
+    include modulePrefix + 'demo-session'
+    project(modulePrefix + 'demo-session').projectDir = new File(rootDir, 'demos/session')
+    include modulePrefix + 'demo-surface'
+    project(modulePrefix + 'demo-surface').projectDir = new File(rootDir, 'demos/surface')
+    include modulePrefix + 'demo-transformer'
+    project(modulePrefix + 'demo-transformer').projectDir = new File(rootDir, 'demos/transformer')
+}
 
 include modulePrefix + 'test-exoplayer-playback'
 project(modulePrefix + 'test-exoplayer-playback').projectDir = new File(rootDir, 'libraries/test_exoplayer_playback')
 
-apply from: 'core_settings.gradle'
+// LOCAL ONLY TiVo Change.  
+if (file('local_settings.gradle').exists()) {
+    apply from: 'local_settings.gradle'
+} else {
+    apply from: 'core_settings.gradle'
+}
+// END LOCAL ONLY TiVo Change.
