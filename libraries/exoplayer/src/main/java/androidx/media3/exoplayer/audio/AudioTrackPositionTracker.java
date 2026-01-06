@@ -156,6 +156,7 @@ import java.lang.reflect.Method;
   private static final int MAX_PLAYHEAD_OFFSET_COUNT = 10;
   private static final int MIN_PLAYHEAD_OFFSET_SAMPLE_INTERVAL_US = 30_000;
   private static final int MIN_LATENCY_SAMPLE_INTERVAL_US = 50_0000;
+  private static final int TUNNELED_FIFO_EMPTY_THRESHOLD_US = 300000;
 
   private final Listener listener;
   private final long[] playheadOffsets;
@@ -240,10 +241,7 @@ import java.lang.reflect.Method;
     outputSampleRate = audioTrack.getSampleRate();
     needsPassthroughWorkarounds = isPassthrough && needsPassthroughWorkarounds(outputEncoding);
     isOutputPcm = Util.isEncodingLinearPcm(outputEncoding);
-    bufferSizeUs =
-        isOutputPcm
-            ? sampleCountToDurationUs(bufferSize / outputPcmFrameSize, outputSampleRate)
-            : C.TIME_UNSET;
+    bufferSizeUs = isOutputPcm ? framesToDurationUs(bufferSize / outputPcmFrameSize) : C.TIME_UNSET;
     rawPlaybackHeadPosition = 0;
     rawPlaybackHeadWrapCount = 0;
     passthroughWorkaroundPauseOffset = 0;
@@ -426,8 +424,17 @@ import java.lang.reflect.Method;
    */
   public boolean hasPendingData(long writtenFrames) {
     long currentPositionUs = getCurrentPositionUs(/* sourceEnded= */ false);
-    return writtenFrames > durationUsToSampleCount(currentPositionUs, outputSampleRate)
+    return writtenFrames > durationUsToFrames(currentPositionUs)
         || forceHasPendingData();
+  }
+
+  public boolean hasPendingTunneledData(long writtenFrames) {
+    /* In tunneling playback head never catches up with written frames so need to use
+       some tolerance threshold to prevent running with drained FIFO without a chance to rebuffer.
+     */
+    return framesToDurationUs(writtenFrames - getPlaybackHeadPosition())
+            > TUNNELED_FIFO_EMPTY_THRESHOLD_US
+            || forceHasPendingData();
   }
 
   /**
@@ -540,6 +547,14 @@ import java.lang.reflect.Method;
     }
   }
 
+  private long framesToDurationUs(long frameCount) {
+    return (frameCount * C.MICROS_PER_SECOND) / outputSampleRate;
+  }
+
+  private long durationUsToFrames(long durationUs) {
+    return (durationUs * outputSampleRate) / C.MICROS_PER_SECOND;
+  }
+
   private void resetSyncParams() {
     smoothedPlayheadOffsetUs = 0;
     playheadOffsetCount = 0;
@@ -589,7 +604,7 @@ import java.lang.reflect.Method;
       long elapsedTimeSinceStopUs = (currentTimeMs * 1000) - stopTimestampUs;
       long mediaTimeSinceStopUs =
           Util.getMediaDurationForPlayoutDuration(elapsedTimeSinceStopUs, audioTrackPlaybackSpeed);
-      long framesSinceStop = durationUsToSampleCount(mediaTimeSinceStopUs, outputSampleRate);
+      long framesSinceStop = durationUsToFrames(mediaTimeSinceStopUs);
       return min(endPlaybackHeadPosition, stopPlaybackHeadPosition + framesSinceStop);
     }
     if (currentTimeMs - lastRawPlaybackHeadPositionSampleTimeMs

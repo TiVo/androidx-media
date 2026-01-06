@@ -44,6 +44,8 @@ public final class DefaultDrmSessionManagerProvider implements DrmSessionManager
 
   @Nullable private DataSource.Factory drmHttpDataSourceFactory;
   @Nullable private String userAgent;
+  @Nullable private ExoMediaDrm.Provider exoMediaDrmProvider;
+  private boolean freeKeepAliveSessionsOnRelease;
 
   public DefaultDrmSessionManagerProvider() {
     lock = new Object();
@@ -70,6 +72,37 @@ public final class DefaultDrmSessionManagerProvider implements DrmSessionManager
     this.userAgent = userAgent;
   }
 
+  /**
+   * Set the ExoMediaDrm.Provider, this allows for a hook to influence the {@link ExoMediaDrm} that
+   * is created for playback of a given DRM UUID.
+   *
+   * <p>For example, you could override the platform default for widevine to not use the hardware
+   * decode path (L1) when the content is known to require only L3</p>
+   *
+   * @param exoMediaDrmProvider - the factory method for {@link ExoMediaDrm}, default
+   *                            is {@link FrameworkMediaDrm#DEFAULT_PROVIDER}
+   */
+  public void setExoMediaDrmProvider(ExoMediaDrm.Provider exoMediaDrmProvider) {
+    this.exoMediaDrmProvider = exoMediaDrmProvider;
+  }
+
+  /**
+   * Set the flag to indicate {@link DefaultDrmSessionManager} to cache the DrmSessions
+   * @param enable - true means caching ie enabled, false is the default behaviour
+   */
+  public void setFreeKeepAliveSessionsOnRelease(boolean enable) {
+    this.freeKeepAliveSessionsOnRelease = enable;
+  }
+
+  /**
+   * Releases all the cached sessions in {@link DrmSessionManager}
+   */
+  public void releaseDrmSession() {
+    if (this.manager != null) {
+      manager.releaseAllSessions();
+    }
+  }
+
   @Override
   public DrmSessionManager get(MediaItem mediaItem) {
     checkNotNull(mediaItem.localConfiguration);
@@ -82,6 +115,12 @@ public final class DefaultDrmSessionManagerProvider implements DrmSessionManager
     synchronized (lock) {
       if (!Util.areEqual(drmConfiguration, this.drmConfiguration)) {
         this.drmConfiguration = drmConfiguration;
+        if (manager != null) {
+            manager.releaseAllSessions();
+            // The releaseAllSessions() sets the isFinalRelease flag. The
+            // actual relase happens in manager.release().
+            manager.release();
+        }
         this.manager = createManager(drmConfiguration);
       }
       return checkNotNull(this.manager);
@@ -105,11 +144,11 @@ public final class DefaultDrmSessionManagerProvider implements DrmSessionManager
     DefaultDrmSessionManager drmSessionManager =
         new DefaultDrmSessionManager.Builder()
             .setUuidAndExoMediaDrmProvider(
-                drmConfiguration.scheme, FrameworkMediaDrm.DEFAULT_PROVIDER)
+                drmConfiguration.uuid, exoMediaDrmProvider == null ? FrameworkMediaDrm.DEFAULT_PROVIDER : exoMediaDrmProvider)
             .setMultiSession(drmConfiguration.multiSession)
             .setPlayClearSamplesWithoutKeys(drmConfiguration.playClearContentWithoutKey)
-            .setUseDrmSessionsForClearContent(
-                Ints.toArray(drmConfiguration.forcedSessionTrackTypes))
+            .setUseDrmSessionsForClearContent(Ints.toArray(drmConfiguration.sessionForClearTypes))
+            .setFreeKeepAliveSessionsOnRelease(freeKeepAliveSessionsOnRelease)
             .build(httpDrmCallback);
     drmSessionManager.setMode(MODE_PLAYBACK, drmConfiguration.getKeySetId());
     return drmSessionManager;

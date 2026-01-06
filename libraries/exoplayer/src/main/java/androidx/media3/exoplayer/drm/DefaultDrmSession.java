@@ -46,6 +46,7 @@ import androidx.media3.exoplayer.source.MediaLoadData;
 import androidx.media3.exoplayer.upstream.LoadErrorHandlingPolicy;
 import androidx.media3.exoplayer.upstream.LoadErrorHandlingPolicy.LoadErrorInfo;
 import java.io.IOException;
+import java.nio.charset.Charset;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -431,6 +432,7 @@ import org.checkerframework.checker.nullness.qual.RequiresNonNull;
       return;
     }
     byte[] sessionId = Util.castNonNull(this.sessionId);
+    Log.i(TAG, "doLicense() - allowRetry: " + allowRetry + " session: [" + this + "]");
     switch (mode) {
       case DefaultDrmSessionManager.MODE_PLAYBACK:
       case DefaultDrmSessionManager.MODE_QUERY:
@@ -586,6 +588,24 @@ import org.checkerframework.checker.nullness.qual.RequiresNonNull;
     }
   }
 
+  @Override
+  public String toString() {
+    StringBuilder str =  new StringBuilder("DefaultDrmSession - state: " + state + " mode: " + mode + " refCount: " + referenceCount);
+    if (sessionId != null) {
+      str.append(" sessionId: "); str.append(new String(sessionId, Charset.defaultCharset()));
+    }
+
+    if (schemeDatas != null) {
+      str.append(" schemaDatas: [");
+      for (SchemeData schemeData : schemeDatas) {
+        str.append(schemeData);
+        str.append(", ");
+      }
+      str.append("]");
+    }
+    return str.toString();
+  }
+
   // Internal classes.
 
   @SuppressLint("HandlerLeak")
@@ -677,6 +697,7 @@ import org.checkerframework.checker.nullness.qual.RequiresNonNull;
       requestTask.errorCount++;
       if (requestTask.errorCount
           > loadErrorHandlingPolicy.getMinimumLoadableRetryCount(C.DATA_TYPE_DRM)) {
+        Log.w(TAG, "retrying DRM request, error count: " + requestTask.errorCount + " greater than getMinimumLoadableRetryCount(), aborting.");
         return false;
       }
       LoadEventInfo loadEventInfo =
@@ -697,6 +718,7 @@ import org.checkerframework.checker.nullness.qual.RequiresNonNull;
           loadErrorHandlingPolicy.getRetryDelayMsFor(
               new LoadErrorInfo(
                   loadEventInfo, mediaLoadData, loadErrorCause, requestTask.errorCount));
+      Log.w(TAG, "retrying DRM request, error count: " + requestTask.errorCount + " delay for: " + retryDelayMs, exception);
       if (retryDelayMs == C.TIME_UNSET) {
         // The error is fatal.
         return false;

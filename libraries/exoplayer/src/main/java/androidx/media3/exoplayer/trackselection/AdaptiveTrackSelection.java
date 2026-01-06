@@ -23,15 +23,14 @@ import androidx.annotation.Nullable;
 import androidx.media3.common.C;
 import androidx.media3.common.Format;
 import androidx.media3.common.Timeline;
-import androidx.media3.common.TrackGroup;
-import androidx.media3.common.util.Clock;
-import androidx.media3.common.util.Log;
-import androidx.media3.common.util.UnstableApi;
-import androidx.media3.common.util.Util;
 import androidx.media3.exoplayer.source.MediaSource.MediaPeriodId;
+import androidx.media3.common.TrackGroup;
 import androidx.media3.exoplayer.source.chunk.MediaChunk;
 import androidx.media3.exoplayer.source.chunk.MediaChunkIterator;
 import androidx.media3.exoplayer.upstream.BandwidthMeter;
+import androidx.media3.common.util.Clock;
+import androidx.media3.common.util.Log;
+import androidx.media3.common.util.Util;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Multimap;
@@ -45,7 +44,6 @@ import org.checkerframework.checker.nullness.compatqual.NullableType;
  * A bandwidth based adaptive {@link ExoTrackSelection}, whose selected track is updated to be the
  * one of highest quality given the current network conditions and the state of the buffer.
  */
-@UnstableApi
 public class AdaptiveTrackSelection extends BaseTrackSelection {
 
   private static final String TAG = "AdaptiveTrackSelection";
@@ -462,19 +460,9 @@ public class AdaptiveTrackSelection extends BaseTrackSelection {
     if (newSelectedIndex != previousSelectedIndex
         && !isTrackExcluded(previousSelectedIndex, nowMs)) {
       // Revert back to the previous selection if conditions are not suitable for switching.
-      Format currentFormat = getFormat(previousSelectedIndex);
       Format selectedFormat = getFormat(newSelectedIndex);
-      long minDurationForQualityIncreaseUs =
-          minDurationForQualityIncreaseUs(availableDurationUs, chunkDurationUs);
-      if (selectedFormat.bitrate > currentFormat.bitrate
-          && bufferedDurationUs < minDurationForQualityIncreaseUs) {
-        // The selected track is a higher quality, but we have insufficient buffer to safely switch
-        // up. Defer switching up for now.
-        newSelectedIndex = previousSelectedIndex;
-      } else if (selectedFormat.bitrate < currentFormat.bitrate
-          && bufferedDurationUs >= maxDurationForQualityDecreaseUs) {
-        // The selected track is a lower quality, but we have sufficient buffer to defer switching
-        // down for now.
+      if (shouldDeferSwitching(bufferedDurationUs, availableDurationUs, previousSelectedIndex, selectedFormat,
+          chunkDurationUs)) {
         newSelectedIndex = previousSelectedIndex;
       }
     }
@@ -482,6 +470,24 @@ public class AdaptiveTrackSelection extends BaseTrackSelection {
     reason =
         newSelectedIndex == previousSelectedIndex ? previousReason : C.SELECTION_REASON_ADAPTIVE;
     selectedIndex = newSelectedIndex;
+  }
+
+  protected boolean shouldDeferSwitching(long bufferedDurationUs, long availableDurationUs, int currentSelectedIndex, Format selectedFormat,
+      long chunkDurationUs) {
+    Format currentFormat = getFormat(currentSelectedIndex);
+    boolean shouldDefer = false;
+    if (selectedFormat.bitrate > currentFormat.bitrate
+        && bufferedDurationUs < minDurationForQualityIncreaseUs(availableDurationUs, chunkDurationUs)) {
+      // The selected track is a higher quality, but we have insufficient buffer to safely switch
+      // up. Defer switching up for now.
+      shouldDefer = true;
+    } else if (selectedFormat.bitrate < currentFormat.bitrate
+        && bufferedDurationUs >= maxDurationForQualityDecreaseUs) {
+      // The selected track is a lower quality, but we have sufficient buffer to defer switching
+      // down for now.
+      shouldDefer = true;
+    }
+    return shouldDefer;
   }
 
   @Override

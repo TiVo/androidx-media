@@ -104,6 +104,14 @@ public interface DrmSessionManager {
   }
 
   /**
+   * Releases all the aquired resources if default is set to preserve keepAlive on
+   * {@link #release()}. This is called from the Activity's onStop()
+   */
+  default void releaseAllSessions() {
+     // Do nothing.
+  }
+
+  /**
    * Sets information about the player using this DRM session manager.
    *
    * @param playbackLooper The {@link Looper} associated with the player's playback thread.

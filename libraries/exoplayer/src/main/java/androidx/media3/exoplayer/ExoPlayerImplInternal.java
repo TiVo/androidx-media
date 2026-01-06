@@ -547,7 +547,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
           reselectTracksInternal();
           break;
         case MSG_PLAYBACK_PARAMETERS_CHANGED_INTERNAL:
-          handlePlaybackParameters((PlaybackParameters) msg.obj, /* acknowledgeCommand= */ false);
+          PlaybackParameters updatedParameters = (PlaybackParameters) msg.obj;
+          reportPlaybackParametersUpdateInternally(updatedParameters, updatedParameters.speed);
           break;
         case MSG_SEND_MESSAGE:
           sendMessageInternal((PlayerMessage) msg.obj);
@@ -1977,6 +1978,29 @@ import java.util.concurrent.atomic.AtomicBoolean;
     }
   }
 
+  private static long checkPlayingPeriodPositionChanged(Timeline timeline, PlaybackInfo playbackInfo, int currentWindowIndex) {
+    long periodPositionDeltaUs = C.TIME_UNSET;
+    if (!playbackInfo.timeline.isEmpty()
+        && !timeline.isEmpty()
+        && !playbackInfo.periodId.isAd()
+        && playbackInfo.timeline.getWindowCount() == timeline.getWindowCount()
+        && currentWindowIndex < playbackInfo.timeline.getWindowCount()) {
+      Timeline.Window newWindow = timeline.getWindow(currentWindowIndex, new Timeline.Window());
+      Timeline.Window oldWindow = playbackInfo.timeline.getWindow(currentWindowIndex, new Timeline.Window());
+      if (oldWindow.isDynamic && ! newWindow.isDynamic) {
+        Timeline.Period newPeriod = timeline.getPeriodByUid(playbackInfo.periodId.periodUid, new Timeline.Period());
+        int windowIndex = newPeriod.windowIndex;
+        Pair<Object, Long> oldPositionZero = playbackInfo.timeline.getPeriodPosition(oldWindow, new Timeline.Period(), windowIndex, 0);
+        Pair<Object, Long> newPositionZero = timeline.getPeriodPosition(newWindow, new Timeline.Period(), windowIndex, 0);
+        periodPositionDeltaUs = oldPositionZero.second - newPositionZero.second;
+        if (periodPositionDeltaUs > 0) {
+          Log.d(TAG, "adjusting for dynamic to static period position jump, position delta " + Util.usToMs(periodPositionDeltaUs) + "ms");
+        }
+      }
+    }
+    return periodPositionDeltaUs;
+  }
+
   private void updatePlaybackSpeedSettingsForNewPeriod(
       Timeline newTimeline,
       MediaPeriodId newPeriodId,
@@ -2377,6 +2401,11 @@ import java.util.concurrent.atomic.AtomicBoolean;
       }
       playbackInfo = playbackInfo.copyWithPlaybackParameters(playbackParameters);
     }
+    reportPlaybackParametersUpdateInternally(playbackParameters, currentPlaybackSpeed);
+  }
+
+  private void reportPlaybackParametersUpdateInternally(PlaybackParameters playbackParameters, float currentPlaybackSpeed)
+      throws ExoPlaybackException {
     updateTrackSelectionPlaybackSpeed(playbackParameters.speed);
     for (Renderer renderer : renderers) {
       if (renderer != null) {
@@ -2400,7 +2429,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
     }
     MediaPeriodHolder loadingPeriodHolder = queue.getLoadingPeriod();
     long bufferedDurationUs =
-        getTotalBufferedDurationUs(loadingPeriodHolder.getNextLoadPositionUs());
+        getTotalBufferedDurationUs(loadingPeriodHolder.getBufferedPositionUs());
     long playbackPositionUs =
         loadingPeriodHolder == queue.getPlayingPeriod()
             ? loadingPeriodHolder.toPeriodTime(rendererPositionUs)
@@ -2815,6 +2844,11 @@ import java.util.concurrent.atomic.AtomicBoolean;
                 ? period.getAdResumePositionUs()
                 : 0;
       }
+    }
+
+    long periodPositionDeltaUs = checkPlayingPeriodPositionChanged(timeline, playbackInfo, period.windowIndex);
+    if (periodPositionDeltaUs > 0) {
+      periodPositionUs = periodPositionUs - periodPositionDeltaUs;
     }
 
     return new PositionUpdateForPlaylistChange(

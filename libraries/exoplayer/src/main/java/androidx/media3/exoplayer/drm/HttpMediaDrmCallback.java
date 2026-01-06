@@ -20,6 +20,7 @@ import android.text.TextUtils;
 import androidx.annotation.Nullable;
 import androidx.media3.common.C;
 import androidx.media3.common.util.Assertions;
+import androidx.media3.common.util.Log;
 import androidx.media3.common.util.UnstableApi;
 import androidx.media3.common.util.Util;
 import androidx.media3.datasource.DataSource;
@@ -39,8 +40,10 @@ import java.util.UUID;
 /** A {@link MediaDrmCallback} that makes requests using {@link DataSource} instances. */
 @UnstableApi
 public final class HttpMediaDrmCallback implements MediaDrmCallback {
+  public static final String TAG = "HttpMediaDrmCallback";
 
   private static final int MAX_MANUAL_REDIRECTS = 5;
+  private static final long WARN_IF_REQUEST_EXCEEDS_MS = 2000;
 
   private final DataSource.Factory dataSourceFactory;
   @Nullable private final String defaultLicenseUrl;
@@ -122,11 +125,20 @@ public final class HttpMediaDrmCallback implements MediaDrmCallback {
       throws MediaDrmCallbackException {
     String url =
         request.getDefaultUrl() + "&signedRequest=" + Util.fromUtf8Bytes(request.getData());
-    return executePost(
+    long started = System.currentTimeMillis();
+    Log.d(TAG, "executeProvisionRequest() - issue request to server: " + request.getDefaultUrl());
+    byte[] value = executePost(
         dataSourceFactory,
         url,
         /* httpBody= */ null,
         /* requestProperties= */ Collections.emptyMap());
+    long requestTime = System.currentTimeMillis() - started;
+    if (requestTime > WARN_IF_REQUEST_EXCEEDS_MS) {
+      Log.w(TAG, "executeProvisionRequest() completed, time: " + requestTime);
+    } else {
+      Log.d(TAG, "executeProvisionRequest() completed, time: " + requestTime);
+    }
+    return value;
   }
 
   @Override
@@ -158,7 +170,16 @@ public final class HttpMediaDrmCallback implements MediaDrmCallback {
     synchronized (keyRequestProperties) {
       requestProperties.putAll(keyRequestProperties);
     }
-    return executePost(dataSourceFactory, url, request.getData(), requestProperties);
+    long started = System.currentTimeMillis();
+    Log.d(TAG, "executeKeyRequest() - issue request to server: " + url);
+    byte[] value = executePost(dataSourceFactory, url, request.getData(), requestProperties);
+    long requestTime = System.currentTimeMillis() - started;
+    if (requestTime > WARN_IF_REQUEST_EXCEEDS_MS) {
+      Log.w(TAG, "executeKeyRequest() completed, time: " + requestTime + " size: " + value.length);
+    } else {
+      Log.i(TAG, "executeKeyRequest() completed, time: " + requestTime + " size: " + value.length);
+    }
+    return value;
   }
 
   private static byte[] executePost(
