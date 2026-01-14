@@ -18,17 +18,16 @@ package androidx.media3.extractor.text.webvtt;
 import androidx.annotation.Nullable;
 import androidx.media3.common.ParserException;
 import androidx.media3.common.util.ParsableByteArray;
-import androidx.media3.common.util.UnstableApi;
 import androidx.media3.common.util.Util;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /** Utility methods for parsing WebVTT data. */
-@UnstableApi
 public final class WebvttParserUtil {
 
   private static final Pattern COMMENT = Pattern.compile("^NOTE([ \t].*)?$");
   private static final String WEBVTT_HEADER = "WEBVTT";
+  private static final String TIMESTAMP_MAP_HEADER = "X-TIMESTAMP-MAP";
 
   private WebvttParserUtil() {}
 
@@ -53,8 +52,16 @@ public final class WebvttParserUtil {
    * @param input The input from which the line should be read.
    */
   public static boolean isWebvttHeaderLine(ParsableByteArray input) {
-    @Nullable String line = input.readLine();
-    return line != null && line.startsWith(WEBVTT_HEADER);
+    @Nullable  String line = input.readLine();
+    boolean isValidHeader = line != null && line.startsWith(WEBVTT_HEADER);
+    if (isValidHeader) {
+      // According to w3c spec, TIMESTAMP-MAP header can be on same line as WEBVTT header.
+      int headerStartAt = line.indexOf(TIMESTAMP_MAP_HEADER);
+      if (headerStartAt != -1) {
+        input.setPosition(headerStartAt);   // set so next readLine() reads TIMESTAMP header
+      }
+    }
+    return isValidHeader;
   }
 
   /**
