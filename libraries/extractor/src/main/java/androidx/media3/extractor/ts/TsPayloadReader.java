@@ -21,11 +21,10 @@ import android.util.SparseArray;
 import androidx.annotation.IntDef;
 import androidx.annotation.Nullable;
 import androidx.media3.common.ParserException;
-import androidx.media3.common.util.ParsableByteArray;
-import androidx.media3.common.util.TimestampAdjuster;
-import androidx.media3.common.util.UnstableApi;
 import androidx.media3.extractor.ExtractorOutput;
 import androidx.media3.extractor.TrackOutput;
+import androidx.media3.common.util.ParsableByteArray;
+import androidx.media3.common.util.TimestampAdjuster;
 import java.lang.annotation.Documented;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
@@ -34,7 +33,6 @@ import java.util.Collections;
 import java.util.List;
 
 /** Parses TS packet payload data. */
-@UnstableApi
 public interface TsPayloadReader {
 
   /** Factory of {@link TsPayloadReader} instances. */
@@ -238,4 +236,14 @@ public interface TsPayloadReader {
    * @throws ParserException If the payload could not be parsed.
    */
   void consume(ParsableByteArray data, @Flags int flags) throws ParserException;
+
+  /**
+   * Called when end of the input stream is reached after the last TS packet was
+   * presented to consume().
+   *
+   * The allows for HLS segments that do not follow the sample NALU (IDR) with
+   * any other NALU.  This is allowed specifically in DRAFT ITU-T Rec. H.264 Annex B
+   * which defines the Byte stream semantics for NAL processing.
+   */
+  void endOfStream();
 }
