@@ -164,6 +164,12 @@ public final class Ac3Util {
     int channelCount = CHANNEL_COUNT_BY_ACMOD[dataBitArray.readBits(3)]; // acmod
     if (dataBitArray.readBits(1) != 0) { // lfeon
       channelCount++;
+    } else if (channelCount == 5) {
+      // Did someone forget to set the lfeon bit?
+      // Many Android devices don't support 5 channel AC3, so we're assuming 6 channels
+      // Even when the content is really 5 channels, playback succeeds when we specify
+      // 6 channels.
+      channelCount++;
     }
     int halfFrmsizecod = dataBitArray.readBits(5); // bit_rate_code
     int constantBitrate = BITRATE_BY_HALF_FRMSIZECOD[halfFrmsizecod] * 1000;
