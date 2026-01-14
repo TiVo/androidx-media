@@ -168,6 +168,19 @@ public final class H264Reader implements ElementaryStreamReader {
   }
 
   @Override
+  public void endOfStream() {
+    if (sampleReader != null) {
+      boolean sampleIsKeyFrame = sampleReader.endOfStream(hasOutputFormat, totalBytesWritten, randomAccessIndicator);
+      if (sampleIsKeyFrame) {
+        // This is either an IDR frame or the first I-frame since the random access indicator, so mark
+        // it as a keyframe. Clear the flag so that subsequent non-IDR I-frames are not marked as
+        // keyframes until we see another random access indicator.
+        randomAccessIndicator = false;
+      }
+    }
+  }
+
+  @Override
   public void packetFinished() {
     // Do nothing.
   }
@@ -285,6 +298,9 @@ public final class H264Reader implements ElementaryStreamReader {
     private long samplePosition;
     private long sampleTimeUs;
     private boolean sampleIsKeyframe;
+    // Indicates that the actual sample has been released in the endOfStream() handler
+    // as opposed to been pushed by the next NAL_UNIT_TYPE_AUD or forced by detectAccessUnits
+    private boolean sampleReleasedByEndOfStream;
 
     public SampleReader(
         TrackOutput output, boolean allowNonIdrKeyframes, boolean detectAccessUnits) {
@@ -474,10 +490,11 @@ public final class H264Reader implements ElementaryStreamReader {
       if (nalUnitType == NalUnitUtil.NAL_UNIT_TYPE_AUD
           || (detectAccessUnits && sliceHeader.isFirstVclNalUnitOfPicture(previousSliceHeader))) {
         // If the NAL unit ending is the start of a new sample, output the previous one.
-        if (hasOutputFormat && readingSample) {
+        if (hasOutputFormat && readingSample && !sampleReleasedByEndOfStream) {
           int nalUnitLength = (int) (position - nalUnitStartPosition);
           outputSample(offset + nalUnitLength);
         }
+        sampleReleasedByEndOfStream = false;
         samplePosition = nalUnitStartPosition;
         sampleTimeUs = nalUnitTimeUs;
         sampleIsKeyframe = false;
@@ -488,6 +505,53 @@ public final class H264Reader implements ElementaryStreamReader {
       sampleIsKeyframe |=
           nalUnitType == NalUnitUtil.NAL_UNIT_TYPE_IDR
               || (treatIFrameAsKeyframe && nalUnitType == NalUnitUtil.NAL_UNIT_TYPE_NON_IDR);
+      return sampleIsKeyframe;
+    }
+
+    /**
+     * Called when the TS parser detects an end of stream (the segment read completed)
+     *
+     * <p>This reader normally commits (calls
+     * {@link TrackOutput#sampleMetadata(long, int, int, int, TrackOutput.CryptoData)} as
+     * the AUD for the next frame is read.  This can leave an orphaned frame at the end of
+     * each segment.   For iFrame only segments this is a real problem as it can delay committing
+     * the iFrame significantly.   This method commits at end of stream iff
+     * <ol>
+     *   <li>There is a pending sample {@link #readingSample}</li>
+     *   <li>The pending sample is considered a key frame {@link #sampleIsKeyframe}</li>
+     *   <li>The stream {@link Format} is determined (SPS/PPS read)</li>
+     * </ol>
+     * </p>
+     *
+     * @param hasOutputFormat - if we have determined the sample {@link Format} (seen SPS/PPS)
+     * @param totalBytesWritten - data written to the {@link TrackOutput#sampleData(ParsableByteArray, int)}
+     *                          in the end of stream case, all of the data from the start ({@link #samplePosition}
+     *                          to the end of the stream is part of the frame.
+     * @param randomAccessIndicator if the PES header RAI bit is set, and no other NAL has "claimed it"
+     * @return true if the frame was output as a key frame, this will reset the caller's randomAccessIndicdator
+     */
+    public boolean endOfStream(boolean hasOutputFormat, long totalBytesWritten, boolean randomAccessIndicator) {
+      // Copy logic in endNalUnit() that determines if the current NAL (A VCL NAL) is
+      boolean treatIFrameAsKeyframe =
+          allowNonIdrKeyframes ? sliceHeader.isISlice() : randomAccessIndicator;
+      sampleIsKeyframe |=
+          nalUnitType == NalUnitUtil.NAL_UNIT_TYPE_IDR
+              || (treatIFrameAsKeyframe && nalUnitType == NalUnitUtil.NAL_UNIT_TYPE_NON_IDR);
+
+
+      boolean shouldOutputSample = hasOutputFormat
+          && readingSample
+          && sampleIsKeyframe; // Only output key frames, this limits the endOfStream to just iFrame only segments, for now.
+
+      if (shouldOutputSample) {
+        // Mimic state as if endNalUnit() for AUD of the next frame following this frame was called
+        // In this case, no bytes have been written to sampleData beyond the frame (so offset is 0) and
+        // the nalUnitStartPosition of what would be the AUD is just past the end of the stream.
+        //
+        nalUnitStartPosition = totalBytesWritten;
+        outputSample(0);
+        sampleReleasedByEndOfStream = true;
+      }
       return sampleIsKeyframe;
     }
 
