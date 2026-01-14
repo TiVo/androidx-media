@@ -637,10 +637,12 @@ public final class TsExtractor implements Extractor {
         // appears intermittently during playback. See [Internal: b/20261500].
         EsInfo id3EsInfo = new EsInfo(TS_STREAM_TYPE_ID3, null, null, Util.EMPTY_BYTE_ARRAY);
         id3Reader = payloadReaderFactory.createPayloadReader(TS_STREAM_TYPE_ID3, id3EsInfo);
-        id3Reader.init(
-            timestampAdjuster,
-            output,
-            new TrackIdGenerator(programNumber, TS_STREAM_TYPE_ID3, MAX_PID_PLUS_ONE));
+        if (id3Reader != null) {
+          id3Reader.init(
+              timestampAdjuster,
+              output,
+              new TrackIdGenerator(programNumber, TS_STREAM_TYPE_ID3, MAX_PID_PLUS_ONE));
+        }
       }
 
       trackIdToReaderScratch.clear();
