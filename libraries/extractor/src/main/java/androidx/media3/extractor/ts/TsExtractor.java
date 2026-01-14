@@ -25,12 +25,6 @@ import androidx.annotation.IntDef;
 import androidx.annotation.Nullable;
 import androidx.media3.common.C;
 import androidx.media3.common.ParserException;
-import androidx.media3.common.util.Assertions;
-import androidx.media3.common.util.ParsableBitArray;
-import androidx.media3.common.util.ParsableByteArray;
-import androidx.media3.common.util.TimestampAdjuster;
-import androidx.media3.common.util.UnstableApi;
-import androidx.media3.common.util.Util;
 import androidx.media3.extractor.Extractor;
 import androidx.media3.extractor.ExtractorInput;
 import androidx.media3.extractor.ExtractorOutput;
@@ -42,6 +36,11 @@ import androidx.media3.extractor.ts.DefaultTsPayloadReaderFactory.Flags;
 import androidx.media3.extractor.ts.TsPayloadReader.DvbSubtitleInfo;
 import androidx.media3.extractor.ts.TsPayloadReader.EsInfo;
 import androidx.media3.extractor.ts.TsPayloadReader.TrackIdGenerator;
+import androidx.media3.common.util.Assertions;
+import androidx.media3.common.util.ParsableBitArray;
+import androidx.media3.common.util.ParsableByteArray;
+import androidx.media3.common.util.TimestampAdjuster;
+import androidx.media3.common.util.Util;
 import java.io.IOException;
 import java.lang.annotation.Documented;
 import java.lang.annotation.Retention;
@@ -55,7 +54,6 @@ import org.checkerframework.checker.nullness.compatqual.NullableType;
 import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
 
 /** Extracts data from the MPEG-2 TS container format. */
-@UnstableApi
 public final class TsExtractor implements Extractor {
 
   /** Factory for {@link TsExtractor} instances. */
@@ -139,6 +137,8 @@ public final class TsExtractor implements Extractor {
   @Nullable private TsPayloadReader id3Reader;
   private int bytesSinceLastSync;
   private int pcrPid;
+  private int tsPacketNumber = 0;
+  private int lastPid;
 
   public TsExtractor() {
     this(/* defaultTsPayloadReaderFlags= */ 0);
@@ -224,6 +224,7 @@ public final class TsExtractor implements Extractor {
     durationReader = new TsDurationReader(timestampSearchBytes);
     output = ExtractorOutput.PLACEHOLDER;
     pcrPid = -1;
+    lastPid = -1;
     resetPayloadReaders();
   }
 
@@ -253,6 +254,8 @@ public final class TsExtractor implements Extractor {
   @Override
   public void init(ExtractorOutput output) {
     this.output = output;
+    tsPacketNumber = 0;
+    lastPid = -1;
   }
 
   @Override
@@ -323,6 +326,12 @@ public final class TsExtractor implements Extractor {
     }
 
     if (!fillBufferWithAtLeastOnePacket(input)) {
+      if (lastPid != -1 && shouldConsumePacketPayload(lastPid)) {
+        TsPayloadReader payloadReader = tsPayloadReaders.get(lastPid);
+        if (payloadReader != null) {
+          payloadReader.endOfStream();
+        }
+      }
       return RESULT_END_OF_INPUT;
     }
 
@@ -353,6 +362,7 @@ public final class TsExtractor implements Extractor {
       tsPacketBuffer.setPosition(endOfPacket);
       return RESULT_CONTINUE;
     }
+    lastPid = pid;
 
     // Discontinuity check.
     if (mode != MODE_HLS) {
@@ -627,12 +637,10 @@ public final class TsExtractor implements Extractor {
         // appears intermittently during playback. See [Internal: b/20261500].
         EsInfo id3EsInfo = new EsInfo(TS_STREAM_TYPE_ID3, null, null, Util.EMPTY_BYTE_ARRAY);
         id3Reader = payloadReaderFactory.createPayloadReader(TS_STREAM_TYPE_ID3, id3EsInfo);
-        if (id3Reader != null) {
-          id3Reader.init(
-              timestampAdjuster,
-              output,
-              new TrackIdGenerator(programNumber, TS_STREAM_TYPE_ID3, MAX_PID_PLUS_ONE));
-        }
+        id3Reader.init(
+            timestampAdjuster,
+            output,
+            new TrackIdGenerator(programNumber, TS_STREAM_TYPE_ID3, MAX_PID_PLUS_ONE));
       }
 
       trackIdToReaderScratch.clear();
