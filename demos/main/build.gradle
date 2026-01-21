@@ -79,13 +79,30 @@ dependencies {
     implementation 'androidx.multidex:multidex:' + androidxMultidexVersion
     implementation 'com.google.android.material:material:' + androidxMaterialVersion
     implementation project(modulePrefix + 'lib-exoplayer')
-    implementation 'androidx.media3:media3-exoplayer-dash:' + baseAndroidxMediaVersion
+    implementation ('androidx.media3:media3-exoplayer-dash:' + baseAndroidxMediaVersion) {
+        exclude group: 'androidx.media3', module: 'media3-exoplayer'
+        exclude group: 'androidx.media3', module: 'media3-extractor'
+    }
     implementation project(modulePrefix + 'lib-exoplayer-hls')
-    implementation 'androidx.media3:media3-exoplayer-rtsp:' + baseAndroidxMediaVersion
-    implementation 'androidx.media3:media3-exoplayer-smoothstreaming:' + baseAndroidxMediaVersion
-    implementation 'androidx.media3:media3-ui:' + baseAndroidxMediaVersion
-    implementation 'androidx.media3:media3-datasource-cronet:' + baseAndroidxMediaVersion
-    implementation 'androidx.media3:media3-exoplayer-ima:' + baseAndroidxMediaVersion
+    implementation ('androidx.media3:media3-exoplayer-rtsp:' + baseAndroidxMediaVersion) {
+        exclude group: 'androidx.media3', module: 'media3-exoplayer'
+        exclude group: 'androidx.media3', module: 'media3-extractor'
+    }
+    implementation ('androidx.media3:media3-exoplayer-smoothstreaming:' + baseAndroidxMediaVersion) {
+        exclude group: 'androidx.media3', module: 'media3-exoplayer'
+        exclude group: 'androidx.media3', module: 'media3-extractor'
+    }
+    implementation ('androidx.media3:media3-ui:' + baseAndroidxMediaVersion) {
+        exclude group: 'androidx.media3', module: 'media3-exoplayer'
+        exclude group: 'androidx.media3', module: 'media3-extractor'
+    }
+    implementation ('androidx.media3:media3-datasource-cronet:' + baseAndroidxMediaVersion) {
+        exclude group: 'androidx.media3', module: 'media3-extractor'
+    }
+    implementation ('androidx.media3:media3-exoplayer-ima:' + baseAndroidxMediaVersion) {
+        exclude group: 'androidx.media3', module: 'media3-exoplayer'
+        exclude group: 'androidx.media3', module: 'media3-extractor'
+    }
     withDecoderExtensionsImplementation 'androidx.media3:media3-decoder-av1:' + baseAndroidxMediaVersion
     withDecoderExtensionsImplementation 'androidx.media3:media3-decoder-ffmpeg:' + baseAndroidxMediaVersion
     withDecoderExtensionsImplementation 'androidx.media3:media3-decoder-flac:' + baseAndroidxMediaVersion
