@@ -895,6 +895,14 @@ public abstract class MediaCodecRenderer extends BaseRenderer {
     return false;
   }
 
+  // TIVO_CHANGE_BEGIN
+  protected void flushForSingleIFrameSeek() {
+    // Clear codecReceivedBuffers so drainAndUpdateCodecDrmSession() will update on a key rotation
+    // if necessary after the seek.
+    codecReceivedBuffers = false;
+  }
+// TIVO_CHANGE_END
+
   /** Flushes the codec. */
   private void flushCodec() {
     try {
@@ -1186,6 +1194,24 @@ public abstract class MediaCodecRenderer extends BaseRenderer {
 
   private boolean hasOutputBuffer() {
     return outputIndex >= 0;
+  }
+
+  /**
+   * Check if the renderer has one or more output frames queued to render.  For non-tunneled
+   * mode MediaCodecRenderer's this is true if the codec has returned a frame ready to render
+   * (that is {@see #hasOutputBuffer() is true}.
+   *
+   * This factors into the ready {@link androidx.media3.exoplayer.Renderer#isReady()} decision
+   *
+   * @return
+   */
+  protected boolean hasOutputReady() {
+    return hasOutputBuffer();
+  }
+
+  /** Returns the largest queued input presentation time, in microseconds */
+  protected final long getLargestQueuedPresentationTimeUs() {
+    return largestQueuedPresentationTimeUs;
   }
 
   private void resetInputBuffer() {
@@ -1691,7 +1717,7 @@ public abstract class MediaCodecRenderer extends BaseRenderer {
   public boolean isReady() {
     return inputFormat != null
         && (isSourceReady()
-            || hasOutputBuffer()
+            || hasOutputReady()
             || (codecHotswapDeadlineMs != C.TIME_UNSET
                 && SystemClock.elapsedRealtime() < codecHotswapDeadlineMs));
   }

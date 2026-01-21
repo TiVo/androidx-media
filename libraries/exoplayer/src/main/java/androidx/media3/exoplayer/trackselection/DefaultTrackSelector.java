@@ -26,6 +26,7 @@ import android.graphics.Point;
 import android.media.AudioFormat;
 import android.media.AudioManager;
 import android.media.Spatializer;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -2746,6 +2747,29 @@ public class DefaultTrackSelector extends MappingTrackSelector
         : new ExoTrackSelection.Definition(selectedGroup, selectedTrackIndex);
   }
 
+  /**
+   * Returns true if the device firmware is known to support visual trick play in tunneling mode.
+   * WARNING TiVo specific Utility methods not integrated in core ExoPlayer.
+   *
+   * @return Whether the device supports tunneling VTP.
+   */
+  private static boolean platformSupportsTunnelingTrickPlay() {
+    if (Build.MANUFACTURER.equals("Technicolor")) {
+      // Check for Technicolor devices that support tunneling trick play
+      return (Build.DEVICE.equals("jade21") ||
+          Build.DEVICE.startsWith("uiw4060") ||
+          Build.DEVICE.startsWith("uiw4059") ||
+          Build.DEVICE.startsWith("uiw4054"));
+    } else if (Build.MANUFACTURER.equals("ARRIS")) {
+      // Check for ARRIS devices that support tunneling trick play
+      return (Build.DEVICE.equals("vip6102w") &&
+          (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q));
+    } else {
+      // For all other devices, assume that tunneling trick play is not supported
+      return false;
+    }
+  }
+
   @Nullable
   private <T extends TrackInfo<T>> Pair<ExoTrackSelection.Definition, Integer> selectTracksForType(
       @C.TrackType int trackType,
@@ -2923,6 +2947,7 @@ public class DefaultTrackSelector extends MappingTrackSelector
    * Determines whether tunneling can be enabled, replacing {@link RendererConfiguration}s in {@code
    * rendererConfigurations} with configurations that enable tunneling on the appropriate renderers
    * if so.
+   * WARNING contains TiVo specific modifications not integrated in core ExoPlayer.
    *
    * @param mappedTrackInfo Mapped track information.
    * @param renderererFormatSupports The {@link Capabilities} for each mapped track, indexed by
@@ -2940,6 +2965,7 @@ public class DefaultTrackSelector extends MappingTrackSelector
     // one video renderer to support tunneling and have a selection.
     int tunnelingAudioRendererIndex = -1;
     int tunnelingVideoRendererIndex = -1;
+    boolean videoOnly = true;
     boolean enableTunneling = true;
     for (int i = 0; i < mappedTrackInfo.getRendererCount(); i++) {
       int rendererType = mappedTrackInfo.getRendererType(i);
@@ -2964,13 +2990,22 @@ public class DefaultTrackSelector extends MappingTrackSelector
             }
           }
         }
+        if (rendererType == C.TRACK_TYPE_AUDIO) {
+          videoOnly = false;
+        }
       }
     }
-    enableTunneling &= tunnelingAudioRendererIndex != -1 && tunnelingVideoRendererIndex != -1;
+
+    // Enable tunneling if request and supported on audio and video OR if the platform supports
+    // VTP in tunneling mode and the it's supported by the video decoder.
+    enableTunneling &= (tunnelingAudioRendererIndex != -1 && tunnelingVideoRendererIndex != -1) ||
+            (tunnelingVideoRendererIndex != -1 && videoOnly && platformSupportsTunnelingTrickPlay());
     if (enableTunneling) {
       RendererConfiguration tunnelingRendererConfiguration =
           new RendererConfiguration(/* tunneling= */ true);
-      rendererConfigurations[tunnelingAudioRendererIndex] = tunnelingRendererConfiguration;
+      if (tunnelingAudioRendererIndex != -1) {
+        rendererConfigurations[tunnelingAudioRendererIndex] = tunnelingRendererConfiguration;
+      }
       rendererConfigurations[tunnelingVideoRendererIndex] = tunnelingRendererConfiguration;
     }
   }
