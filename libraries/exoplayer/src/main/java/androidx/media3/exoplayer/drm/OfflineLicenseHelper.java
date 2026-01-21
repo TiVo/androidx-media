@@ -373,8 +373,9 @@ public final class OfflineLicenseHelper {
           }
         });
     try {
-      if (drmSessionError.get() != null) {
-        throw drmSessionError.get();
+      DrmSessionException drmSessionException = drmSessionError.get();
+      if (drmSessionException != null) {
+        throw drmSessionException;
       } else {
         return drmSession;
       }
