@@ -2429,7 +2429,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
     }
     MediaPeriodHolder loadingPeriodHolder = queue.getLoadingPeriod();
     long bufferedDurationUs =
-        getTotalBufferedDurationUs(loadingPeriodHolder.getNextLoadPositionUs());
+        getTotalBufferedDurationUs(loadingPeriodHolder.getBufferedPositionUs());
     long playbackPositionUs =
         loadingPeriodHolder == queue.getPlayingPeriod()
             ? loadingPeriodHolder.toPeriodTime(rendererPositionUs)
