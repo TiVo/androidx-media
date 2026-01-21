@@ -462,19 +462,9 @@ public class AdaptiveTrackSelection extends BaseTrackSelection {
     if (newSelectedIndex != previousSelectedIndex
         && !isTrackExcluded(previousSelectedIndex, nowMs)) {
       // Revert back to the previous selection if conditions are not suitable for switching.
-      Format currentFormat = getFormat(previousSelectedIndex);
       Format selectedFormat = getFormat(newSelectedIndex);
-      long minDurationForQualityIncreaseUs =
-          minDurationForQualityIncreaseUs(availableDurationUs, chunkDurationUs);
-      if (selectedFormat.bitrate > currentFormat.bitrate
-          && bufferedDurationUs < minDurationForQualityIncreaseUs) {
-        // The selected track is a higher quality, but we have insufficient buffer to safely switch
-        // up. Defer switching up for now.
-        newSelectedIndex = previousSelectedIndex;
-      } else if (selectedFormat.bitrate < currentFormat.bitrate
-          && bufferedDurationUs >= maxDurationForQualityDecreaseUs) {
-        // The selected track is a lower quality, but we have sufficient buffer to defer switching
-        // down for now.
+      if (shouldDeferSwitching(bufferedDurationUs, availableDurationUs, previousSelectedIndex, selectedFormat,
+          chunkDurationUs)) {
         newSelectedIndex = previousSelectedIndex;
       }
     }
@@ -482,6 +472,24 @@ public class AdaptiveTrackSelection extends BaseTrackSelection {
     reason =
         newSelectedIndex == previousSelectedIndex ? previousReason : C.SELECTION_REASON_ADAPTIVE;
     selectedIndex = newSelectedIndex;
+  }
+
+  protected boolean shouldDeferSwitching(long bufferedDurationUs, long availableDurationUs, int currentSelectedIndex, Format selectedFormat,
+      long chunkDurationUs) {
+    Format currentFormat = getFormat(currentSelectedIndex);
+    boolean shouldDefer = false;
+    if (selectedFormat.bitrate > currentFormat.bitrate
+        && bufferedDurationUs < minDurationForQualityIncreaseUs(availableDurationUs, chunkDurationUs)) {
+      // The selected track is a higher quality, but we have insufficient buffer to safely switch
+      // up. Defer switching up for now.
+      shouldDefer = true;
+    } else if (selectedFormat.bitrate < currentFormat.bitrate
+        && bufferedDurationUs >= maxDurationForQualityDecreaseUs) {
+      // The selected track is a lower quality, but we have sufficient buffer to defer switching
+      // down for now.
+      shouldDefer = true;
+    }
+    return shouldDefer;
   }
 
   @Override
