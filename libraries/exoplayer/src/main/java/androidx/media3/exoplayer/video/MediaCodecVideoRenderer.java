@@ -182,6 +182,8 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer {
   private boolean tunneling;
   private int tunnelingAudioSessionId;
   /* package */ @Nullable OnFrameRenderedListenerV23 tunnelingOnFrameRenderedListener;
+  private long lastOutputTimeUs;
+  private int pendingOutputStreamOffsetCount;
   @Nullable private VideoFrameMetadataListener frameMetadataListener;
 
   /**
@@ -356,6 +358,7 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer {
     videoFrameProcessorManager =
         new VideoFrameProcessorManager(frameReleaseHelper, /* renderer= */ this);
     deviceNeedsNoPostProcessWorkaround = deviceNeedsNoPostProcessWorkaround();
+    lastOutputTimeUs = C.TIME_UNSET;
     joiningDeadlineMs = C.TIME_UNSET;
     scalingMode = C.VIDEO_SCALING_MODE_DEFAULT;
     decodedVideoSize = VideoSize.UNKNOWN;
@@ -564,6 +567,7 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer {
     lastBufferPresentationTimeUs = C.TIME_UNSET;
     initialPositionUs = C.TIME_UNSET;
     consecutiveDroppedFrameCount = 0;
+    lastOutputTimeUs = C.TIME_UNSET;
     if (joining) {
       setJoiningDeadlineMs();
     } else {
@@ -604,6 +608,28 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer {
     }
   }
 
+  /**
+   * Override, to handle tunneling.  In the tunneled case we must assume there is
+   * output ready to render whenever we have queued any sample buffers to the codec that
+   * it has not reported as rendered.
+   *
+   * @return
+   */
+  @Override
+  protected boolean hasOutputReady() {
+    // fifoReady is false if no valid output time has been set, as we can't determine fifo readiness
+    boolean fifoReady = lastOutputTimeUs != C.TIME_UNSET;
+    if (tunneling && fifoReady) {
+      long fifoLengthUs = getLargestQueuedPresentationTimeUs() - lastOutputTimeUs;
+      // make sure there is at least 1/3s of video available in decoder FIFO,
+      // otherwise decoder may start stalling
+      if (fifoLengthUs < 333333) {
+        fifoReady = false;
+      }
+    }
+    return tunneling && fifoReady || super.hasOutputReady();
+  }
+
   @Override
   protected void onStarted() {
     super.onStarted();
@@ -628,6 +654,7 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer {
   protected void onDisabled() {
     clearReportedVideoSize();
     clearRenderedFirstFrame();
+    lastOutputTimeUs = C.TIME_UNSET;
     haveReportedFirstFrameRenderedForCurrentSurface = false;
     tunnelingOnFrameRenderedListener = null;
     try {
@@ -1334,6 +1361,7 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer {
 
   /** Called when a buffer was processed in tunneling mode. */
   protected void onProcessedTunneledBuffer(long presentationTimeUs) throws ExoPlaybackException {
+    lastOutputTimeUs = presentationTimeUs;
     updateOutputFormatForTime(presentationTimeUs);
     maybeNotifyVideoSizeChanged(decodedVideoSize);
     decoderCounters.renderedOutputBufferCount++;

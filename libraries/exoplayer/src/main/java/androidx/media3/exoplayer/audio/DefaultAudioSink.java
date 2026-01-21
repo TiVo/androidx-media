@@ -993,23 +993,40 @@ public final class DefaultAudioSink implements AudioSink {
   }
 
   private AudioTrack buildAudioTrackWithRetry() throws InitializationException {
+      if (tunneling) {
+          try {
+              Log.w(TAG, "buildAudioTrack with 100msec inital delay");
+              Thread.sleep(/* millis= */ 100);
+          } catch (Exception e) {}
+      }
+
     try {
       return buildAudioTrack(checkNotNull(configuration));
     } catch (InitializationException initialFailure) {
-      // Retry with a smaller buffer size.
-      if (configuration.bufferSize > AUDIO_TRACK_SMALLER_BUFFER_RETRY_SIZE) {
-        Configuration retryConfiguration =
-            configuration.copyWithBufferSize(AUDIO_TRACK_SMALLER_BUFFER_RETRY_SIZE);
+        Log.w(TAG, "buildAudioTrack after FISRT FAILURE with 100msec delay");
         try {
-          AudioTrack audioTrack = buildAudioTrack(retryConfiguration);
-          configuration = retryConfiguration;
-          return audioTrack;
-        } catch (InitializationException retryFailure) {
-          initialFailure.addSuppressed(retryFailure);
+            // Retry with additional delay.
+            Thread.sleep(/* millis= */ 100);
+            Configuration retryConfiguration;
+            if (configuration.bufferSize > AUDIO_TRACK_SMALLER_BUFFER_RETRY_SIZE) {
+                // Retry with a smaller buffer size.
+                retryConfiguration =
+                    configuration.copyWithBufferSize(AUDIO_TRACK_SMALLER_BUFFER_RETRY_SIZE);
+            } else {
+                retryConfiguration = configuration;
+            }
+            try {
+                AudioTrack audioTrack = buildAudioTrack(retryConfiguration);
+                configuration = retryConfiguration;
+                return audioTrack;
+            } catch (InitializationException retryFailure) {
+                initialFailure.addSuppressed(retryFailure);
+            }
+        } catch (Exception e) {
+            // NOP
         }
-      }
-      maybeDisableOffload();
-      throw initialFailure;
+        maybeDisableOffload();
+        throw initialFailure;
     }
   }
 
