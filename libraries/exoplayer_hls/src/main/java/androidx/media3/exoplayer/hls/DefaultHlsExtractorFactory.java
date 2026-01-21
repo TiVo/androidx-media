@@ -171,7 +171,7 @@ public final class DefaultHlsExtractorFactory implements HlsExtractorFactory {
       case FileTypes.MP3:
         return new Mp3Extractor(/* flags= */ 0, /* forcedFirstSampleTimestampUs= */ 0);
       case FileTypes.MP4:
-        return createFragmentedMp4Extractor(timestampAdjuster, format, muxedCaptionFormats);
+        return createFragmentedMp4Extractor(timestampAdjuster, format, muxedCaptionFormats, exposeCea608WhenMissingDeclarations);
       case FileTypes.TS:
         return createTsExtractor(
             payloadReaderFactoryFlags,
@@ -218,6 +218,8 @@ public final class DefaultHlsExtractorFactory implements HlsExtractorFactory {
         payloadReaderFactoryFlags |= DefaultTsPayloadReaderFactory.FLAG_IGNORE_H264_STREAM;
       }
     }
+    // Force TsExtractor not to create defaut ID3 track
+    payloadReaderFactoryFlags |= DefaultTsPayloadReaderFactory.FLAG_IGNORE_DEFAULT_ID3_TRACK;
 
     return new TsExtractor(
         TsExtractor.MODE_HLS,
@@ -228,11 +230,30 @@ public final class DefaultHlsExtractorFactory implements HlsExtractorFactory {
   private static FragmentedMp4Extractor createFragmentedMp4Extractor(
       TimestampAdjuster timestampAdjuster,
       Format format,
-      @Nullable List<Format> muxedCaptionFormats) {
+      @Nullable List<Format> muxedCaptionFormats,
+      boolean exposeCea608WhenMissingDeclarations) {
+    if ((muxedCaptionFormats == null ) && exposeCea608WhenMissingDeclarations) {
+      // The playlist does not provide any closed caption information. We preemptively declare a
+      // closed caption track on channel 0.
+      /* id= */
+      /* selectionFlags= */
+      /* language= */
+      muxedCaptionFormats =
+              Collections.singletonList(
+                      new Format.Builder()
+                              .setId(null)
+                              .setLanguage(null)
+                              .setSelectionFlags(0)
+                              .setSampleMimeType(MimeTypes.APPLICATION_CEA608)
+                              .build());
+    }
     // Only enable the EMSG TrackOutput if this is the 'variant' track (i.e. the main one) to avoid
     // creating a separate EMSG track for every audio track in a video stream.
+
+    // XXX: TiVo Change. Not enabling EMSG TrackOutput. Enabling EMSG downloads video segment even
+    // after disabling them
     return new FragmentedMp4Extractor(
-        /* flags= */ isFmp4Variant(format) ? FragmentedMp4Extractor.FLAG_ENABLE_EMSG_TRACK : 0,
+        /* flags= */ 0,
         timestampAdjuster,
         /* sideloadedTrack= */ null,
         muxedCaptionFormats != null ? muxedCaptionFormats : Collections.emptyList());

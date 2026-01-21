@@ -25,6 +25,7 @@ import androidx.annotation.Nullable;
 import androidx.media3.common.C;
 import androidx.media3.common.DrmInitData;
 import androidx.media3.common.StreamKey;
+import androidx.media3.common.util.Log;
 import androidx.media3.common.util.UnstableApi;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
@@ -33,13 +34,16 @@ import java.lang.annotation.Documented;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 /** Represents an HLS media playlist. */
 @UnstableApi
 public final class HlsMediaPlaylist extends HlsPlaylist {
+  public static final String TAG = "HlsMediaPlaylist";
 
   /** Server control attributes. */
   public static final class ServerControl {
@@ -198,6 +202,42 @@ public final class HlsMediaPlaylist extends HlsPlaylist {
           byteRangeLength,
           hasGapTag,
           updatedParts);
+    }
+
+    /** used for TiVo dual mode, playlists are iFrame only and will not have parts */
+    public Segment copyWithDuration(long updatedDurationUs) {
+      return new Segment(
+          url,
+          initializationSegment,
+          title,
+          updatedDurationUs,
+          relativeDiscontinuitySequence,
+          relativeStartTimeUs,
+          drmInitData,
+          fullSegmentEncryptionKeyUri,
+          encryptionIV,
+          byteRangeOffset,
+          byteRangeLength,
+          hasGapTag,
+          parts);
+    }
+
+    /** used for TiVo dual mode, playlists are iFrame only and will not have parts */
+    public Segment copyWithUpdates(long updatedRelativeStartTimeUs, int discSequenceDelta) {
+      return new Segment(
+          url,
+          initializationSegment,
+          title,
+          durationUs,
+          relativeDiscontinuitySequence - discSequenceDelta,
+          updatedRelativeStartTimeUs,
+          drmInitData,
+          fullSegmentEncryptionKeyUri,
+          encryptionIV,
+          byteRangeOffset,
+          byteRangeLength,
+          hasGapTag,
+          parts);
     }
   }
 
@@ -573,6 +613,65 @@ public final class HlsMediaPlaylist extends HlsPlaylist {
         || (partCount == otherPartCount && hasEndTag && !other.hasEndTag);
   }
 
+  /**
+   * If this playlist is newer than {@code other} and the changes are valid to
+   * the RFC, that is: The duration of the removed segments (as computed by the media
+   * sequence change) is equal to the playlist start time change.
+   *
+   * @param other The playlist to compare.
+   * @return Whether this playlist is a valid to RFC8216 update of {@code other}.
+   */
+  public boolean isUpdateValid(@Nullable HlsMediaPlaylist other) {
+    boolean isValid = isNewerThan(other);
+    if (isValid && other != null) {
+      long expectedMediaSequence = other.mediaSequence;
+      long removedTimeUs = 0;
+      for (Segment segment : other.segments) {
+        if (expectedMediaSequence < mediaSequence) {
+          removedTimeUs += segment.durationUs;
+          expectedMediaSequence++;
+        } else {
+          break;
+        }
+      }
+
+      long pdtDeltaUs = startTimeUs - other.startTimeUs;
+
+      isValid = expectedMediaSequence == mediaSequence;
+      if (! isValid) {
+        Log.w(TAG, "removed segments count does not match MSN delta,  old segment count: " + other.segments.size() + " MSN delta: " + (mediaSequence - other.mediaSequence));
+
+      }
+      // Program Date Time is only to milli-second resolution, Not clear if Vecima rounds the durations to
+      // Milliseconds or truncates the PDT, Velocix is only accurate to the nearest second, sadly
+      isValid = isValid && Math.abs(pdtDeltaUs - removedTimeUs) <= 1_000_000;
+
+      if (other.segments.size() == 0) {
+        if (other.mediaSequence != mediaSequence) {
+          Log.w(TAG, "no segments in previous playlist, but MSN indicates segments removed.");
+          isValid = false;
+        } else if (segments.size() > 0){
+          Log.w(TAG, "no segments in previous playlist, MSN matches so only adds.");
+        } else {
+          Log.w(TAG, "empty update of an empty playlist, update is invalid.");
+          isValid = false;
+        }
+      }
+      // PDT is valid down to the millisecond, durations are arbitrary.  Truncate the duration to MS
+      if (!isValid) {
+        Log.w(TAG, "Ignoring invalid playlist update, for " + baseUri);
+        Log.w(TAG, "removed segments duration: " +  removedTimeUs + ", PDT change: " + pdtDeltaUs);
+        final SimpleDateFormat UTC_DATETIME
+          = new SimpleDateFormat("dd/MM/yyyy HH:mm:ss.S Z", Locale.getDefault());
+        Log.d(TAG, "old - MSN: " + other.mediaSequence +
+            " start/duration: " + UTC_DATETIME.format(C.usToMs(other.startTimeUs)) + " / " + C.usToMs(other.durationUs));
+        Log.d(TAG, "new - MSN: " + mediaSequence +
+            " start/duration: " + UTC_DATETIME.format(C.usToMs(startTimeUs)) + " / " + C.usToMs(durationUs));
+      }
+    }
+    return isValid;
+  }
+
   /** Returns the result of adding the duration of the playlist to its start time. */
   public long getEndTimeUs() {
     return startTimeUs + durationUs;
@@ -641,4 +740,46 @@ public final class HlsMediaPlaylist extends HlsPlaylist {
         serverControl,
         renditionReports);
   }
+
+  public HlsMediaPlaylist copyWithUpdates(List<Segment> updateSegments,
+                                          String updatedUri,
+                                          long newStartTimeUs,
+                                          long updatedMediaSequence,
+                                          int newDiscontinuitySequence) {
+    boolean updatedHasDiscontinuitySequence = hasDiscontinuitySequence;
+    int updatedDiscontinuitySequence = discontinuitySequence;
+    if (newDiscontinuitySequence != C.INDEX_UNSET) {
+      updatedHasDiscontinuitySequence = true;
+      updatedDiscontinuitySequence = newDiscontinuitySequence;
+    }
+
+    boolean updatedHasProgramDateTime = hasProgramDateTime;
+    long updatedStartTimeUs = startTimeUs;
+    if (newStartTimeUs != C.TIME_UNSET) {
+      updatedStartTimeUs = newStartTimeUs;
+      updatedHasProgramDateTime = true;
+    }
+    return new HlsMediaPlaylist(
+        playlistType,
+        updatedUri,
+        tags,
+        startOffsetUs,
+        preciseStart,
+        updatedStartTimeUs,
+        updatedHasDiscontinuitySequence,
+        updatedDiscontinuitySequence,
+        updatedMediaSequence,
+        version,
+        targetDurationUs,
+        partTargetDurationUs,
+        hasIndependentSegments,
+        hasEndTag,
+        updatedHasProgramDateTime,
+        protectionSchemes,
+        updateSegments,
+        trailingParts,
+        serverControl,
+        renditionReports);
+  }
+
 }

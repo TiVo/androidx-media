@@ -19,6 +19,7 @@ import static androidx.media3.datasource.DataSpec.FLAG_MIGHT_NOT_USE_FULL_NETWOR
 
 import android.net.Uri;
 import androidx.annotation.Nullable;
+import androidx.annotation.VisibleForTesting;
 import androidx.media3.common.C;
 import androidx.media3.common.DrmInitData;
 import androidx.media3.common.Format;
@@ -99,6 +100,7 @@ import org.checkerframework.checker.nullness.qual.RequiresNonNull;
       TimestampAdjusterProvider timestampAdjusterProvider,
       long timestampAdjusterInitializationTimeoutMs,
       @Nullable HlsMediaChunk previousChunk,
+      @Nullable Uri keyUri,
       @Nullable byte[] mediaSegmentKey,
       @Nullable byte[] initSegmentKey,
       boolean shouldSpliceIn,
@@ -120,13 +122,13 @@ import org.checkerframework.checker.nullness.qual.RequiresNonNull;
             .setFlags(segmentBaseHolder.isPreload ? FLAG_MIGHT_NOT_USE_FULL_NETWORK_SPEED : 0)
             .setHttpRequestHeaders(httpRequestHeaders)
             .build();
-    boolean mediaSegmentEncrypted = mediaSegmentKey != null;
+    boolean mediaSegmentEncrypted = mediaSegmentKey != null || keyUri != null;
     @Nullable
     byte[] mediaSegmentIv =
         mediaSegmentEncrypted
             ? getEncryptionIvArray(Assertions.checkNotNull(mediaSegment.encryptionIV))
             : null;
-    DataSource mediaDataSource = buildDataSource(dataSource, mediaSegmentKey, mediaSegmentIv);
+    DataSource mediaDataSource = buildDataSource(dataSource, mediaSegmentKey, mediaSegmentIv, keyUri);
 
     // Init segment.
     HlsMediaPlaylist.Segment initSegment = mediaSegment.initializationSegment;
@@ -154,7 +156,7 @@ import org.checkerframework.checker.nullness.qual.RequiresNonNull;
               .setLength(initSegment.byteRangeLength)
               .setHttpRequestHeaders(initHttpRequestHeaders)
               .build();
-      initDataSource = buildDataSource(dataSource, initSegmentKey, initSegmentIv);
+      initDataSource = buildDataSource(dataSource, initSegmentKey, initSegmentIv, keyUri);
     }
 
     long segmentStartTimeInPeriodUs = startOfPlaylistInPeriodUs + mediaSegment.relativeStartTimeUs;
@@ -226,6 +228,7 @@ import org.checkerframework.checker.nullness.qual.RequiresNonNull;
    *     in the queue.
    * @param playlistUrl The URL of the playlist from which the new chunk will be obtained.
    * @param mediaPlaylist The {@link HlsMediaPlaylist} containing the new chunk.
+   * @param playlistFormat The {@link Format} of the playlist for the new chunk
    * @param segmentBaseHolder The {@link HlsChunkSource.SegmentBaseHolder} with information about
    *     the new chunk.
    * @param startOfPlaylistInPeriodUs The start time of the playlist in the period, in microseconds.
@@ -235,6 +238,7 @@ import org.checkerframework.checker.nullness.qual.RequiresNonNull;
       @Nullable HlsMediaChunk previousChunk,
       Uri playlistUrl,
       HlsMediaPlaylist mediaPlaylist,
+      Format playlistFormat,
       HlsChunkSource.SegmentBaseHolder segmentBaseHolder,
       long startOfPlaylistInPeriodUs) {
     if (previousChunk == null) {
@@ -250,8 +254,11 @@ import org.checkerframework.checker.nullness.qual.RequiresNonNull;
     // non-overlapping segments to avoid the splice.
     long segmentStartTimeInPeriodUs =
         startOfPlaylistInPeriodUs + segmentBaseHolder.segmentBase.relativeStartTimeUs;
+    boolean areBothChunksTrickplay = (previousChunk.trackFormat.roleFlags & C.ROLE_FLAG_TRICK_PLAY) != 0
+        && (playlistFormat.roleFlags & C.ROLE_FLAG_TRICK_PLAY) != 0;
+
     return !isIndependent(segmentBaseHolder, mediaPlaylist)
-        || segmentStartTimeInPeriodUs < previousChunk.endTimeUs;
+        || (segmentStartTimeInPeriodUs < previousChunk.endTimeUs && !areBothChunksTrickplay);
   }
 
   public static final String PRIV_TIMESTAMP_FRAME_OWNER =
@@ -429,6 +436,11 @@ import org.checkerframework.checker.nullness.qual.RequiresNonNull;
     }
   }
 
+  @VisibleForTesting
+  void setLoadCompleted() {
+    loadCompleted = true;
+  }
+
   /**
    * Whether the chunk is a published chunk as opposed to a preload hint that may change when the
    * playlist updates.
@@ -443,6 +455,15 @@ import org.checkerframework.checker.nullness.qual.RequiresNonNull;
    */
   public void publish() {
     isPublished = true;
+  }
+
+  /**
+   * If their are any samples loaded in this chunk.
+   *
+   * @return true if samples were loaded
+   */
+  boolean hasSamples() {
+    return ! hasGapTag;   // TOOD - could expand upon this to be more accurate, but for sure GAP has none
   }
 
   // Internal methods.
@@ -655,8 +676,11 @@ import org.checkerframework.checker.nullness.qual.RequiresNonNull;
   private static DataSource buildDataSource(
       DataSource dataSource,
       @Nullable byte[] fullSegmentEncryptionKey,
-      @Nullable byte[] encryptionIv) {
-    if (fullSegmentEncryptionKey != null) {
+      @Nullable byte[] encryptionIv, @Nullable Uri keyUri) {
+    if ((dataSource instanceof HlsDecryptingDataSource) && (keyUri != null)) {
+      return ((HlsDecryptingDataSource) dataSource).getDecryptingDataSource(keyUri,
+          encryptionIv);
+    } else if (fullSegmentEncryptionKey != null) {
       Assertions.checkNotNull(encryptionIv);
       return new Aes128DataSource(dataSource, fullSegmentEncryptionKey, encryptionIv);
     }

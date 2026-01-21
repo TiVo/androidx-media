@@ -322,7 +322,14 @@ import org.checkerframework.checker.nullness.qual.RequiresNonNull;
     assertIsPrepared();
     Assertions.checkNotNull(trackGroupToSampleQueueIndex);
     int sampleQueueIndex = trackGroupToSampleQueueIndex[trackGroupIndex];
-    Assertions.checkState(sampleQueuesEnabledStates[sampleQueueIndex]);
+    if (sampleQueueIndex == C.INDEX_UNSET) {
+        if (!optionalTrackGroups.contains(trackGroups.get(trackGroupIndex))) {
+            Assertions.checkState(sampleQueuesEnabledStates[sampleQueueIndex]);
+        } else {
+            Log.i(TAG, "unbindSampleQueue() sampleQueueIndex is UNSET for optional trackGroupIndex. NON_FATAL");
+            return;
+        }
+    }
     sampleQueuesEnabledStates[sampleQueueIndex] = false;
   }
 
@@ -392,14 +399,21 @@ import org.checkerframework.checker.nullness.qual.RequiresNonNull;
           ((HlsSampleStream) streams[i]).bindSampleQueue();
           // If there's still a chance of avoiding a seek, try and seek within the sample queue.
           if (!seekRequired) {
-            SampleQueue sampleQueue = sampleQueues[trackGroupToSampleQueueIndex[trackGroupIndex]];
-            // A seek can be avoided if we're able to seek to the current playback position in
-            // the sample queue, or if we haven't read anything from the queue since the previous
-            // seek (this case is common for sparse tracks such as metadata tracks). In all other
-            // cases a seek is required.
-            seekRequired =
-                !sampleQueue.seekTo(positionUs, /* allowTimeBeyondBuffer= */ true)
-                    && sampleQueue.getReadIndex() != 0;
+              if (trackGroupToSampleQueueIndex[trackGroupIndex] == C.INDEX_UNSET &&
+                      optionalTrackGroups.contains(trackGroups.get(trackGroupIndex))) {
+                  Log.i(TAG, "selectTracks() sampleQueue is UNSET for optional trackGroupIndex. NON_FATAL");
+                  // This track group is optional, so we don't need to seek to it.
+                  seekRequired = false;
+              } else {
+                  SampleQueue sampleQueue = sampleQueues[trackGroupToSampleQueueIndex[trackGroupIndex]];
+                  // A seek can be avoided if we're able to seek to the current playback position in
+                  // the sample queue, or if we haven't read anything from the queue since the previous
+                  // seek (this case is common for sparse tracks such as metadata tracks). In all other
+                  // cases a seek is required.
+                  seekRequired =
+                      !sampleQueue.seekTo(positionUs, /* allowTimeBeyondBuffer= */ true)
+                      && sampleQueue.getReadIndex() != 0;
+              }
           }
         }
       }
@@ -716,7 +730,7 @@ import org.checkerframework.checker.nullness.qual.RequiresNonNull;
           lastMediaChunk.isLoadCompleted()
               ? lastMediaChunk
               : mediaChunks.size() > 1 ? mediaChunks.get(mediaChunks.size() - 2) : null;
-      if (lastCompletedMediaChunk != null) {
+      if (lastCompletedMediaChunk != null && lastCompletedMediaChunk.hasSamples()) {
         bufferedPositionUs = max(bufferedPositionUs, lastCompletedMediaChunk.endTimeUs);
       }
       if (sampleQueuesBuilt) {
@@ -971,6 +985,9 @@ import org.checkerframework.checker.nullness.qual.RequiresNonNull;
           retryDelayMs != C.TIME_UNSET
               ? Loader.createRetryAction(/* resetErrorCount= */ false, retryDelayMs)
               : Loader.DONT_RETRY_FATAL;
+      if ((loadable.trackFormat.roleFlags & C.ROLE_FLAG_TRICK_PLAY) != 0) {
+        loadErrorAction = Loader.DONT_RETRY;
+      }
     }
 
     boolean wasCanceled = !loadErrorAction.isRetry();
@@ -1636,23 +1653,26 @@ import org.checkerframework.checker.nullness.qual.RequiresNonNull;
 
     // TODO: Uncomment this to reject samples with unexpected timestamps. See
     // https://github.com/google/ExoPlayer/issues/7030.
-    // /**
-    //  * The fraction of the chunk duration from which timestamps of samples loaded from within a
-    //  * chunk are allowed to deviate from the expected range.
-    //  */
-    // private static final double MAX_TIMESTAMP_DEVIATION_FRACTION = 0.5;
-    //
-    // /**
-    //  * A minimum tolerance for sample timestamps in microseconds. Timestamps of samples loaded
-    //  * from within a chunk are always allowed to deviate up to this amount from the expected
-    //  * range.
-    //  */
-    // private static final long MIN_TIMESTAMP_DEVIATION_TOLERANCE_US = 4_000_000;
-    //
-    // @Nullable private HlsMediaChunk sourceChunk;
-    // private long sourceChunkLastSampleTimeUs;
-    // private long minAllowedSampleTimeUs;
-    // private long maxAllowedSampleTimeUs;
+     /**
+      * The fraction of the chunk duration from which timestamps of samples loaded from within a
+      * chunk are allowed to deviate from the expected range.
+      */
+     private static final double MAX_TIMESTAMP_DEVIATION_FRACTION = 0.5;
+
+     /**
+      * A minimum tolerance for sample timestamps in microseconds. Timestamps of samples loaded
+      * from within a chunk are always allowed to deviate up to this amount from the expected
+      * range.
+      */
+     private static final long MIN_TIMESTAMP_DEVIATION_TOLERANCE_US = 2_000_000;
+
+     @Nullable private HlsMediaChunk sourceChunk;
+     private long sourceChunkLastSampleTimeUs;
+     private long minAllowedSampleTimeUs;
+     private long maxAllowedSampleTimeUs;
+
+     // This flag prevents excessive timestamp-out-of-range logging
+     private boolean timestampOutOfRangeReported = false;
 
     private final Map<String, DrmInitData> overridingDrmInitData;
     @Nullable private DrmInitData drmInitData;
@@ -1668,17 +1688,18 @@ import org.checkerframework.checker.nullness.qual.RequiresNonNull;
 
     public void setSourceChunk(HlsMediaChunk chunk) {
       sourceId(chunk.uid);
+      timestampOutOfRangeReported = false;
 
       // TODO: Uncomment this to reject samples with unexpected timestamps. See
       // https://github.com/google/ExoPlayer/issues/7030.
-      // sourceChunk = chunk;
-      // sourceChunkLastSampleTimeUs = C.TIME_UNSET;
-      // long allowedDeviationUs =
-      //     Math.max(
-      //         (long) ((chunk.endTimeUs - chunk.startTimeUs) * MAX_TIMESTAMP_DEVIATION_FRACTION),
-      //         MIN_TIMESTAMP_DEVIATION_TOLERANCE_US);
-      // minAllowedSampleTimeUs = chunk.startTimeUs - allowedDeviationUs;
-      // maxAllowedSampleTimeUs = chunk.endTimeUs + allowedDeviationUs;
+       sourceChunk = chunk;
+       sourceChunkLastSampleTimeUs = C.TIME_UNSET;
+       long allowedDeviationUs =
+           Math.max(
+               (long) ((chunk.endTimeUs - chunk.startTimeUs) * MAX_TIMESTAMP_DEVIATION_FRACTION),
+               MIN_TIMESTAMP_DEVIATION_TOLERANCE_US);
+       minAllowedSampleTimeUs = chunk.startTimeUs - allowedDeviationUs;
+       maxAllowedSampleTimeUs = chunk.endTimeUs + allowedDeviationUs;
     }
 
     public void setDrmInitData(@Nullable DrmInitData drmInitData) {
@@ -1749,14 +1770,25 @@ import org.checkerframework.checker.nullness.qual.RequiresNonNull;
         int size,
         int offset,
         @Nullable CryptoData cryptoData) {
-      // TODO: Uncomment this to reject samples with unexpected timestamps. See
-      // https://github.com/google/ExoPlayer/issues/7030.
-      // if (timeUs < minAllowedSampleTimeUs || timeUs > maxAllowedSampleTimeUs) {
-      //   Util.sneakyThrow(
-      //       new UnexpectedSampleTimestampException(
-      //           sourceChunk, sourceChunkLastSampleTimeUs, timeUs));
-      // }
+
+       if (!timestampOutOfRangeReported && (timeUs < minAllowedSampleTimeUs || timeUs > maxAllowedSampleTimeUs)) {
+         timestampOutOfRangeReported = true;
+         Log.w(TAG, "timestamp in segment out of range, deltaUs: " + (sourceChunk.startTimeUs - timeUs) + "  timeUs: " + timeUs
+             + " start/end: " + sourceChunk.startTimeUs + "/" + sourceChunk.endTimeUs
+             + " url: " + sourceChunk.dataSpec.toString());
+
+         // TODO: Uncomment this to reject samples with unexpected timestamps. See
+         // TODO(scm): Out of prudence, just log the warning for now... We will need fixes from Vecima or a way to recover this first
+         // https://github.com/google/ExoPlayer/issues/7030.
+         //   Util.sneakyThrow(
+         //       new UnexpectedSampleTimestampException(
+         //           sourceChunk, sourceChunkLastSampleTimeUs, timeUs));
+       }
       // sourceChunkLastSampleTimeUs = timeUs;
+
+//       if ((flags & C.BUFFER_FLAG_KEY_FRAME) != 0 && getUpstreamFormat() != null && getUpstreamFormat().width > 0) {
+//         Log.d(TAG, "commit sample - timeMs: " + C.usToMs(timeUs) + ", seg startMs: " + C.usToMs(sourceChunk.startTimeUs) + ", seg: " + sourceChunk.dataSpec.toString());
+//       }
       super.sampleMetadata(timeUs, flags, size, offset, cryptoData);
     }
   }
