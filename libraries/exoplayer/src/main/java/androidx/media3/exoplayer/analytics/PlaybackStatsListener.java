@@ -101,9 +101,13 @@ public final class PlaybackStatsListener
    * @param callback An optional callback for finished {@link PlaybackStats}.
    */
   public PlaybackStatsListener(boolean keepHistory, @Nullable Callback callback) {
+    this(keepHistory, new DefaultPlaybackSessionManager(), callback);
+  }
+
+  public PlaybackStatsListener(boolean keepHistory, PlaybackSessionManager sessionManager, @Nullable Callback callback) {
     this.callback = callback;
     this.keepHistory = keepHistory;
-    sessionManager = new DefaultPlaybackSessionManager();
+    this.sessionManager = sessionManager;
     playbackStatsTrackers = new HashMap<>();
     sessionStartEventTimes = new HashMap<>();
     finishedPlaybackStats = PlaybackStats.EMPTY;
@@ -143,6 +147,28 @@ public final class PlaybackStatsListener
     PlaybackStatsTracker activeStatsTracker =
         activeSessionId == null ? null : playbackStatsTrackers.get(activeSessionId);
     return activeStatsTracker == null ? null : activeStatsTracker.build(/* isFinal= */ false);
+  }
+
+  /**
+   * Finishes all pending playback sessions. Should be called when the listener is removed from the
+   * player or when the player is released.
+   */
+  public void finishAllSessions() {
+    // TODO: Add AnalyticsListener.onAttachedToPlayer and onDetachedFromPlayer to auto-release with
+    // an actual EventTime. Should also simplify other cases where the listener needs to be released
+    // separately from the player.
+    sessionManager.finishAllSessions(
+        new EventTime(
+            SystemClock.elapsedRealtime(),
+            Timeline.EMPTY,
+            /* windowIndex= */ 0,
+            /* mediaPeriodId= */ null,
+            /* eventPlaybackPositionMs= */ 0,
+            Timeline.EMPTY,
+            /* currentWindowIndex= */ 0,
+            /* currentMediaPeriodId= */ null,
+            /* currentPlaybackPositionMs= */ 0,
+            /* totalBufferedDurationMs= */ 0));
   }
 
   // PlaybackSessionManager.Listener implementation.
