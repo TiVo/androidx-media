@@ -119,6 +119,7 @@ public abstract class MappingTrackSelector extends TrackSelector {
      * @param unmappedTrackGroups {@link TrackGroup}s not mapped to any renderer.
      */
     @VisibleForTesting
+    public
     /* package */ MappedTrackInfo(
         String[] rendererNames,
         @C.TrackType int[] rendererTrackTypes,
