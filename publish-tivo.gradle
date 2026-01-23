@@ -1,0 +1,112 @@
+// TiVo-specific publishing configuration for androidx-media fork
+apply plugin: 'maven-publish'
+
+// Compute TiVo version: base version + TiVo suffix (from local_settings.gradle)
+def computeTivoVersion() {
+    def baseVersion = project.ext.releaseVersion
+    def tivoSuffix = gradle.ext.has('tivoVersionSuffix') ? gradle.ext.tivoVersionSuffix : ''
+    def fullVersion = baseVersion + tivoSuffix
+    
+    // For dev builds, append CI build number (Jenkins uses BUILD_NUMBER, GitHub uses GITHUB_RUN_NUMBER)
+    if (fullVersion.endsWith('-dev')) {
+        def buildNumber = System.getenv('BUILD_NUMBER') ?: System.getenv('GITHUB_RUN_NUMBER')
+        if (buildNumber != null) {
+            fullVersion = fullVersion + '-' + buildNumber
+        }
+    }
+    
+    return fullVersion
+}
+
+apply from: "$gradle.ext.androidxMediaSettingsDir/missing_aar_type_workaround.gradle"
+
+afterEvaluate {
+    publishing {
+        repositories {
+            // Local Maven for GitHub Actions artifacts and JitPack
+            maven {
+                name = 'LocalMaven'
+                url = findProperty('mavenRepo') ?: "${buildDir}/repo"
+            }
+            
+            // Internal TiVo Artifactory (only works from Jenkins/internal network)
+            if (findProperty('REPO_USER_NAME') != null || System.getenv('REPO_USER_NAME') != null) {
+                maven {
+                    name = 'TiVoArtifactory'
+                    url "https://repo-vip.tivo.com:8443/artifactory/libs-release-local"
+                    allowInsecureProtocol = true
+                    credentials {
+                        username findProperty('REPO_USER_NAME') ?: System.getenv('REPO_USER_NAME')
+                        password findProperty('REPO_PASSWORD') ?: System.getenv('REPO_PASSWORD')
+                    }
+                }
+            }
+        }
+        publications {
+            release(MavenPublication) {
+                from components.release
+                artifact androidSourcesJar
+                
+                // Keep original groupId for compatibility
+                groupId = 'androidx.media3'
+                artifactId = findProperty('releaseArtifactId') ?: project.name
+                version = computeTivoVersion()
+                
+                pom {
+                    name = findProperty('releaseName') ?: findProperty('releaseArtifactId') ?: project.name
+                    description = findProperty('releaseDescription') ?: findProperty('releaseName') ?: ''
+                    url = 'https://github.com/TiVo/androidx-media'
+                    
+                    licenses {
+                        license {
+                            name = 'The Apache Software License, Version 2.0'
+                            url = 'http://www.apache.org/licenses/LICENSE-2.0.txt'
+                            distribution = 'repo'
+                        }
+                    }
+                    
+                    developers {
+                        developer {
+                            name = 'The Android Open Source Project'
+                        }
+                        developer {
+                            name = 'TiVo (Xperi Inc.)'
+                            organization = 'Xperi Inc.'
+                            organizationUrl = 'https://xperi.com'
+                        }
+                    }
+                    
+                    scm {
+                        connection = 'scm:git:https://github.com/TiVo/androidx-media.git'
+                        developerConnection = 'scm:git:git@github.com:TiVo/androidx-media.git'
+                        url = 'https://github.com/TiVo/androidx-media'
+                    }
+                    
+                    withXml {
+                        addMissingAarTypeToXml(it)
+                    }
+                }
+            }
+        }
+    }
+    
+    // Ensure lint and test run before publishing to remote repositories
+    tasks.withType(PublishToMavenRepository) { 
+        it.dependsOn lint, test 
+        doFirst {
+            logger.quiet("Publishing ${publication.groupId}:${publication.artifactId}:${publication.version} to ${repository.url}")
+        }
+    }
+
+    // For local publishing, skip lint and tests for faster iteration
+    tasks.withType(PublishToMavenLocal).configureEach {
+        doFirst {
+            logger.quiet("Publishing ${publication.groupId}:${publication.artifactId}:${publication.version} to maven local repo")
+        }
+    }
+}
+
+task androidSourcesJar(type: Jar) {
+    archiveClassifier.set('sources')
+    from android.sourceSets.main.java.srcDirs
+}

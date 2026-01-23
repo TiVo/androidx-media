@@ -40,3 +40,15 @@ project(modulePrefix + 'lib-extractor').projectDir = new File(rootDir, 'librarie
 // Include test utilities for local testing
 include modulePrefix + 'test-data'
 project(modulePrefix + 'test-data').projectDir = new File(rootDir, 'libraries/test_data')
+
+// TiVo-specific versioning for our modified modules.
+// The tivo vesrion suffix is appended to the base androidx media releaseVersion in an fashion
+// that our changes are "newer" (a .n suffix) than the official releases.   Any version with
+// a -dev is considered a non-production version, the build system automatically appends a
+// build number for CI builds.
+// To update the version, simply increment the number after the . in the suffix.
+//
+gradle.ext {
+    tivoVersionSuffix = '.1-tivo-dev'
+}
+
