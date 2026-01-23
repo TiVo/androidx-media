@@ -51,4 +51,4 @@ ext {
     releaseArtifactId = 'media3-extractor'
     releaseName = 'Media3 Extractor module'
 }
-apply from: '../../publish.gradle'
+apply from: '../../publish-tivo.gradle'
