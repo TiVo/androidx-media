@@ -171,7 +171,7 @@ public final class DefaultHlsExtractorFactory implements HlsExtractorFactory {
       case FileTypes.MP3:
         return new Mp3Extractor(/* flags= */ 0, /* forcedFirstSampleTimestampUs= */ 0);
       case FileTypes.MP4:
-        return createFragmentedMp4Extractor(timestampAdjuster, format, muxedCaptionFormats);
+        return createFragmentedMp4Extractor(timestampAdjuster, format, muxedCaptionFormats, exposeCea608WhenMissingDeclarations);
       case FileTypes.TS:
         return createTsExtractor(
             payloadReaderFactoryFlags,
@@ -228,7 +228,15 @@ public final class DefaultHlsExtractorFactory implements HlsExtractorFactory {
   private static FragmentedMp4Extractor createFragmentedMp4Extractor(
       TimestampAdjuster timestampAdjuster,
       Format format,
-      @Nullable List<Format> muxedCaptionFormats) {
+      @Nullable List<Format> muxedCaptionFormats,
+      boolean exposeCea608WhenMissingDeclarations) {
+    if ((muxedCaptionFormats == null ) && exposeCea608WhenMissingDeclarations) {
+      // The playlist does not provide any closed caption information. We preemptively declare a
+      // closed caption track on channel 0.
+      muxedCaptionFormats =
+          Collections.singletonList(
+              new Format.Builder().setSampleMimeType(MimeTypes.APPLICATION_CEA608).build());
+    }
     // Only enable the EMSG TrackOutput if this is the 'variant' track (i.e. the main one) to avoid
     // creating a separate EMSG track for every audio track in a video stream.
     return new FragmentedMp4Extractor(
