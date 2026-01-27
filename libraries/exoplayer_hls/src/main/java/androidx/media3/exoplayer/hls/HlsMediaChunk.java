@@ -19,6 +19,7 @@ import static androidx.media3.datasource.DataSpec.FLAG_MIGHT_NOT_USE_FULL_NETWOR
 
 import android.net.Uri;
 import androidx.annotation.Nullable;
+import androidx.annotation.VisibleForTesting;
 import androidx.media3.common.C;
 import androidx.media3.common.DrmInitData;
 import androidx.media3.common.Format;
@@ -226,6 +227,7 @@ import org.checkerframework.checker.nullness.qual.RequiresNonNull;
    *     in the queue.
    * @param playlistUrl The URL of the playlist from which the new chunk will be obtained.
    * @param mediaPlaylist The {@link HlsMediaPlaylist} containing the new chunk.
+   * @param playlistFormat The {@link Format} of the playlist for the new chunk
    * @param segmentBaseHolder The {@link HlsChunkSource.SegmentBaseHolder} with information about
    *     the new chunk.
    * @param startOfPlaylistInPeriodUs The start time of the playlist in the period, in microseconds.
@@ -235,6 +237,7 @@ import org.checkerframework.checker.nullness.qual.RequiresNonNull;
       @Nullable HlsMediaChunk previousChunk,
       Uri playlistUrl,
       HlsMediaPlaylist mediaPlaylist,
+      Format playlistFormat,
       HlsChunkSource.SegmentBaseHolder segmentBaseHolder,
       long startOfPlaylistInPeriodUs) {
     if (previousChunk == null) {
@@ -250,8 +253,11 @@ import org.checkerframework.checker.nullness.qual.RequiresNonNull;
     // non-overlapping segments to avoid the splice.
     long segmentStartTimeInPeriodUs =
         startOfPlaylistInPeriodUs + segmentBaseHolder.segmentBase.relativeStartTimeUs;
+    boolean areBothChunksTrickplay = (previousChunk.trackFormat.roleFlags & C.ROLE_FLAG_TRICK_PLAY) != 0
+        && (playlistFormat.roleFlags & C.ROLE_FLAG_TRICK_PLAY) != 0;
+
     return !isIndependent(segmentBaseHolder, mediaPlaylist)
-        || segmentStartTimeInPeriodUs < previousChunk.endTimeUs;
+        || (segmentStartTimeInPeriodUs < previousChunk.endTimeUs && !areBothChunksTrickplay);
   }
 
   public static final String PRIV_TIMESTAMP_FRAME_OWNER =
@@ -427,6 +433,11 @@ import org.checkerframework.checker.nullness.qual.RequiresNonNull;
       }
       loadCompleted = !loadCanceled;
     }
+  }
+
+  @VisibleForTesting
+  void setLoadCompleted() {
+    loadCompleted = true;
   }
 
   /**
