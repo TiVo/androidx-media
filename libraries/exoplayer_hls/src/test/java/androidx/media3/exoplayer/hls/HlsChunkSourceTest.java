@@ -55,6 +55,8 @@ public class HlsChunkSourceTest {
   private static final String PLAYLIST_INDEPENDENT_SEGMENTS =
       "media/m3u8/media_playlist_independent_segments";
   private static final String PLAYLIST_EMPTY = "media/m3u8/media_playlist_empty";
+  private static final String PLAYLIST_LIVE_FIRST = "media/m3u8/media_playlist_live_first";
+  private static final String PLAYLIST_LIVE_SECOND = "media/m3u8/media_playlist_live_second";
   private static final Uri PLAYLIST_URI = Uri.parse("http://example.com/");
   private static final long PLAYLIST_START_PERIOD_OFFSET_US = 8_000_000L;
   private static final Uri IFRAME_URI = Uri.parse("http://example.com/iframe");
@@ -168,6 +170,32 @@ public class HlsChunkSourceTest {
     long adjustedPositionUs =
         testChunkSource.getAdjustedSeekPositionUs(
             playlistTimeToPeriodTimeUs(100_000_000), SeekParameters.EXACT);
+
+    assertThat(periodTimeToPlaylistTimeUs(adjustedPositionUs)).isEqualTo(100_000_000);
+  }
+
+  @Test
+  public void getAdjustedSeekPositionUs_stalePlaylist() throws IOException {
+    // Use PLAYLIST_LIVE_FIRST only to set a sane initialStartTimeUs.
+    InputStream firstInputStream =
+        TestUtil.getInputStream(ApplicationProvider.getApplicationContext(), PLAYLIST_LIVE_FIRST);
+    HlsMediaPlaylist firstPlaylist =
+        (HlsMediaPlaylist) new HlsPlaylistParser().parse(PLAYLIST_URI, firstInputStream);
+    when(mockPlaylistTracker.getInitialStartTimeUs())
+        .thenReturn(firstPlaylist.startTimeUs - PLAYLIST_START_PERIOD_OFFSET_US);
+
+    // Snapshot is the newer/stale-shifted live playlist.
+    InputStream secondInputStream =
+        TestUtil.getInputStream(ApplicationProvider.getApplicationContext(), PLAYLIST_LIVE_SECOND);
+    HlsMediaPlaylist secondPlaylist =
+        (HlsMediaPlaylist) new HlsPlaylistParser().parse(PLAYLIST_URI, secondInputStream);
+    when(mockPlaylistTracker.getPlaylistSnapshot(eq(PLAYLIST_URI), anyBoolean()))
+        .thenReturn(secondPlaylist);
+
+    HlsChunkSource testChunkSource = createHlsChunkSource(/* cmcdConfiguration= */ null);
+    long adjustedPositionUs =
+        testChunkSource.getAdjustedSeekPositionUs(
+            playlistTimeToPeriodTimeUs(100_000_000), SeekParameters.NEXT_SYNC);
 
     assertThat(periodTimeToPlaylistTimeUs(adjustedPositionUs)).isEqualTo(100_000_000);
   }
