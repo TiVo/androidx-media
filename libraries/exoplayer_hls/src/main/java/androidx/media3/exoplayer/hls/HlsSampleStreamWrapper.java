@@ -985,6 +985,9 @@ import org.checkerframework.checker.nullness.qual.RequiresNonNull;
           retryDelayMs != C.TIME_UNSET
               ? Loader.createRetryAction(/* resetErrorCount= */ false, retryDelayMs)
               : Loader.DONT_RETRY_FATAL;
+      if ((loadable.trackFormat.roleFlags & C.ROLE_FLAG_TRICK_PLAY) != 0) {
+        loadErrorAction = Loader.DONT_RETRY;
+      }
     }
 
     boolean wasCanceled = !loadErrorAction.isRetry();
