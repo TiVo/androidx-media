@@ -203,6 +203,40 @@ public final class HlsMediaPlaylist extends HlsPlaylist {
           hasGapTag,
           updatedParts);
     }
+
+    public Segment copyWithDuration(long updatedDurationUs) {
+      return new Segment(
+          url,
+          initializationSegment,
+          title,
+          updatedDurationUs,
+          relativeDiscontinuitySequence,
+          relativeStartTimeUs,
+          drmInitData,
+          fullSegmentEncryptionKeyUri,
+          encryptionIV,
+          byteRangeOffset,
+          byteRangeLength,
+          hasGapTag,
+          parts);
+    }
+
+    public Segment copyWithUpdates(long updatedRelativeStartTimeUs, int discSequenceDelta) {
+      return new Segment(
+          url,
+          initializationSegment,
+          title,
+          durationUs,
+          relativeDiscontinuitySequence - discSequenceDelta,
+          updatedRelativeStartTimeUs,
+          drmInitData,
+          fullSegmentEncryptionKeyUri,
+          encryptionIV,
+          byteRangeOffset,
+          byteRangeLength,
+          hasGapTag,
+          parts);
+    }
   }
 
   /** A media part. */
@@ -704,4 +738,46 @@ public final class HlsMediaPlaylist extends HlsPlaylist {
         serverControl,
         renditionReports);
   }
+
+  public HlsMediaPlaylist copyWithUpdates(List<Segment> updateSegments,
+                                          String updatedUri,
+                                          long newStartTimeUs,
+                                          long updatedMediaSequence,
+                                          int newDiscontinuitySequence) {
+    boolean updatedHasDiscontinuitySequence = hasDiscontinuitySequence;
+    int updatedDiscontinuitySequence = discontinuitySequence;
+    if (newDiscontinuitySequence != C.INDEX_UNSET) {
+      updatedHasDiscontinuitySequence = true;
+      updatedDiscontinuitySequence = newDiscontinuitySequence;
+    }
+
+    boolean updatedHasProgramDateTime = hasProgramDateTime;
+    long updatedStartTimeUs = startTimeUs;
+    if (newStartTimeUs != C.TIME_UNSET) {
+      updatedStartTimeUs = newStartTimeUs;
+      updatedHasProgramDateTime = true;
+    }
+    return new HlsMediaPlaylist(
+        playlistType,
+        updatedUri,
+        tags,
+        startOffsetUs,
+        preciseStart,
+        updatedStartTimeUs,
+        updatedHasDiscontinuitySequence,
+        updatedDiscontinuitySequence,
+        updatedMediaSequence,
+        version,
+        targetDurationUs,
+        partTargetDurationUs,
+        hasIndependentSegments,
+        hasEndTag,
+        updatedHasProgramDateTime,
+        protectionSchemes,
+        updateSegments,
+        trailingParts,
+        serverControl,
+        renditionReports);
+  }
+
 }
