@@ -100,6 +100,7 @@ import org.checkerframework.checker.nullness.qual.RequiresNonNull;
       TimestampAdjusterProvider timestampAdjusterProvider,
       long timestampAdjusterInitializationTimeoutMs,
       @Nullable HlsMediaChunk previousChunk,
+      @Nullable Uri keyUri,
       @Nullable byte[] mediaSegmentKey,
       @Nullable byte[] initSegmentKey,
       boolean shouldSpliceIn,
@@ -121,13 +122,13 @@ import org.checkerframework.checker.nullness.qual.RequiresNonNull;
             .setFlags(segmentBaseHolder.isPreload ? FLAG_MIGHT_NOT_USE_FULL_NETWORK_SPEED : 0)
             .setHttpRequestHeaders(httpRequestHeaders)
             .build();
-    boolean mediaSegmentEncrypted = mediaSegmentKey != null;
+    boolean mediaSegmentEncrypted = mediaSegmentKey != null || keyUri != null;
     @Nullable
     byte[] mediaSegmentIv =
         mediaSegmentEncrypted
             ? getEncryptionIvArray(Assertions.checkNotNull(mediaSegment.encryptionIV))
             : null;
-    DataSource mediaDataSource = buildDataSource(dataSource, mediaSegmentKey, mediaSegmentIv);
+    DataSource mediaDataSource = buildDataSource(dataSource, mediaSegmentKey, mediaSegmentIv, keyUri);
 
     // Init segment.
     HlsMediaPlaylist.Segment initSegment = mediaSegment.initializationSegment;
@@ -155,7 +156,7 @@ import org.checkerframework.checker.nullness.qual.RequiresNonNull;
               .setLength(initSegment.byteRangeLength)
               .setHttpRequestHeaders(initHttpRequestHeaders)
               .build();
-      initDataSource = buildDataSource(dataSource, initSegmentKey, initSegmentIv);
+      initDataSource = buildDataSource(dataSource, initSegmentKey, initSegmentIv, keyUri);
     }
 
     long segmentStartTimeInPeriodUs = startOfPlaylistInPeriodUs + mediaSegment.relativeStartTimeUs;
@@ -675,8 +676,11 @@ import org.checkerframework.checker.nullness.qual.RequiresNonNull;
   private static DataSource buildDataSource(
       DataSource dataSource,
       @Nullable byte[] fullSegmentEncryptionKey,
-      @Nullable byte[] encryptionIv) {
-    if (fullSegmentEncryptionKey != null) {
+      @Nullable byte[] encryptionIv, @Nullable Uri keyUri) {
+    if ((dataSource instanceof HlsDecryptingDataSource) && (keyUri != null)) {
+      return ((HlsDecryptingDataSource) dataSource).getDecryptingDataSource(keyUri,
+          encryptionIv);
+    } else if (fullSegmentEncryptionKey != null) {
       Assertions.checkNotNull(encryptionIv);
       return new Aes128DataSource(dataSource, fullSegmentEncryptionKey, encryptionIv);
     }

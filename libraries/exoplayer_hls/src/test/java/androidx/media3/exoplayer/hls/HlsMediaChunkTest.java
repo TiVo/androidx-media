@@ -286,6 +286,7 @@ public class HlsMediaChunkTest {
         null,
         null,
         null,
+        null,
         shouldSpliceIn,
         new PlayerId(),
         null);

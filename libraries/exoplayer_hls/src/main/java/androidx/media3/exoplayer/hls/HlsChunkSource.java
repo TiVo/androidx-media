@@ -506,19 +506,23 @@ import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
     @Nullable
     Uri initSegmentKeyUri =
         getFullEncryptionKeyUri(playlist, segmentBaseHolder.segmentBase.initializationSegment);
-    out.chunk =
-        maybeCreateEncryptionChunkFor(
-            initSegmentKeyUri, selectedTrackIndex, /* isInitSegment= */ true, cmcdHeadersFactory);
-    if (out.chunk != null) {
-      return;
+    if (! (mediaDataSource instanceof HlsDecryptingDataSource)) {
+        out.chunk =
+            maybeCreateEncryptionChunkFor(
+                    initSegmentKeyUri, selectedTrackIndex, /* isInitSegment= */ true, cmcdHeadersFactory);
+        if (out.chunk != null) {
+            return;
+        }
     }
     @Nullable
     Uri mediaSegmentKeyUri = getFullEncryptionKeyUri(playlist, segmentBaseHolder.segmentBase);
-    out.chunk =
-        maybeCreateEncryptionChunkFor(
-            mediaSegmentKeyUri, selectedTrackIndex, /* isInitSegment= */ false, cmcdHeadersFactory);
-    if (out.chunk != null) {
-      return;
+    if (! (mediaDataSource instanceof HlsDecryptingDataSource)) {
+        out.chunk =
+            maybeCreateEncryptionChunkFor(
+                    mediaSegmentKeyUri, selectedTrackIndex, /* isInitSegment= */ false, cmcdHeadersFactory);
+        if (out.chunk != null) {
+            return;
+        }
     }
 
     boolean shouldSpliceIn =
@@ -548,6 +552,7 @@ import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
             timestampAdjusterProvider,
             timestampAdjusterInitializationTimeoutMs,
             previous,
+            mediaSegmentKeyUri,
             /* mediaSegmentKey= */ keyCache.get(mediaSegmentKeyUri),
             /* initSegmentKey= */ keyCache.get(initSegmentKeyUri),
             shouldSpliceIn,
