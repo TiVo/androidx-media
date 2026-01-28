@@ -16,6 +16,8 @@
 package androidx.media3.exoplayer.hls;
 
 import static androidx.media3.common.util.Assertions.checkNotNull;
+import static java.lang.Math.max;
+import static java.lang.Math.min;
 import static java.lang.annotation.ElementType.TYPE_USE;
 import static java.lang.annotation.RetentionPolicy.SOURCE;
 
@@ -29,6 +31,7 @@ import androidx.media3.common.MediaItem;
 import androidx.media3.common.MediaItem.LiveConfiguration;
 import androidx.media3.common.MediaLibraryInfo;
 import androidx.media3.common.StreamKey;
+import androidx.media3.common.util.Log;
 import androidx.media3.common.util.UnstableApi;
 import androidx.media3.common.util.Util;
 import androidx.media3.datasource.DataSource;
@@ -114,6 +117,7 @@ public final class HlsMediaSource extends BaseMediaSource
     private @MetadataType int metadataType;
     private boolean useSessionKeys;
     private long elapsedRealTimeOffsetMs;
+    private long defaultStartOffsetUs;
     private long timestampAdjusterInitializationTimeoutMs;
 
     /**
@@ -165,6 +169,7 @@ public final class HlsMediaSource extends BaseMediaSource
       compositeSequenceableLoaderFactory = new DefaultCompositeSequenceableLoaderFactory();
       metadataType = METADATA_TYPE_ID3;
       elapsedRealTimeOffsetMs = C.TIME_UNSET;
+      defaultStartOffsetUs = C.TIME_UNSET;
       allowChunklessPreparation = true;
     }
 
@@ -261,6 +266,28 @@ public final class HlsMediaSource extends BaseMediaSource
     @CanIgnoreReturnValue
     public Factory setAllowChunklessPreparation(boolean allowChunklessPreparation) {
       this.allowChunklessPreparation = allowChunklessPreparation;
+      return this;
+    }
+
+    /**
+     * Set the default start offset in microseconds.
+     *
+     * The value is processed the same as the HLS
+     * <a href="https://tools.ietf.org/html/rfc8216#section-4.3.5.2">EXT-X-START</a> with the
+     * PRECISE=no.  That is a negative time is how far back from the live window size to start,
+     * positive is from the begining of the live window.
+     *
+     * <ol>
+     *     <li>Offset requested by EXT-X-START</li>
+     *     <li>Default value set via this API</li>
+     *     <li>Hard-coded default (3 segments back from the duration of the live window)</li>
+     * </ol>
+     *
+     * @param offsetUs - offset in microseconds
+     * @return This factory, to allow chaining
+     */
+    public Factory setDefaultStartOffset(long offsetUs) {
+      this.defaultStartOffsetUs = offsetUs;
       return this;
     }
 
@@ -390,6 +417,7 @@ public final class HlsMediaSource extends BaseMediaSource
           allowChunklessPreparation,
           metadataType,
           useSessionKeys,
+          defaultStartOffsetUs,
           timestampAdjusterInitializationTimeoutMs);
     }
 
@@ -412,6 +440,7 @@ public final class HlsMediaSource extends BaseMediaSource
   private final HlsPlaylistTracker playlistTracker;
   private final long elapsedRealTimeOffsetMs;
   private final MediaItem mediaItem;
+  private final long defaultStartOffsetUs;
   private final long timestampAdjusterInitializationTimeoutMs;
 
   private MediaItem.LiveConfiguration liveConfiguration;
@@ -430,6 +459,7 @@ public final class HlsMediaSource extends BaseMediaSource
       boolean allowChunklessPreparation,
       @MetadataType int metadataType,
       boolean useSessionKeys,
+      long defaultStartOffsetUs,
       long timestampAdjusterInitializationTimeoutMs) {
     this.localConfiguration = checkNotNull(mediaItem.localConfiguration);
     this.mediaItem = mediaItem;
@@ -445,6 +475,7 @@ public final class HlsMediaSource extends BaseMediaSource
     this.allowChunklessPreparation = allowChunklessPreparation;
     this.metadataType = metadataType;
     this.useSessionKeys = useSessionKeys;
+    this.defaultStartOffsetUs = defaultStartOffsetUs;
     this.timestampAdjusterInitializationTimeoutMs = timestampAdjusterInitializationTimeoutMs;
   }
 
@@ -669,10 +700,14 @@ public final class HlsMediaSource extends BaseMediaSource
    * @param liveEdgeOffsetUs The current live edge offset.
    * @return The selected target live offset, in microseconds.
    */
-  private static long getTargetLiveOffsetUs(HlsMediaPlaylist playlist, long liveEdgeOffsetUs) {
+  private long getTargetLiveOffsetUs(HlsMediaPlaylist playlist, long liveEdgeOffsetUs) {
     HlsMediaPlaylist.ServerControl serverControl = playlist.serverControl;
     long targetOffsetUs;
     if (playlist.startOffsetUs != C.TIME_UNSET) {
+      // At this point, playlist.startOffsetUs has been normalized
+      // to a positive offset from the beginning of the playlist window.
+
+      // Set targetOffsetUs as an offset from the end of the window.
       targetOffsetUs = playlist.durationUs - playlist.startOffsetUs;
     } else if (serverControl.partHoldBackUs != C.TIME_UNSET
         && playlist.partTargetDurationUs != C.TIME_UNSET) {
@@ -680,11 +715,32 @@ public final class HlsMediaSource extends BaseMediaSource
       targetOffsetUs = serverControl.partHoldBackUs;
     } else if (serverControl.holdBackUs != C.TIME_UNSET) {
       targetOffsetUs = serverControl.holdBackUs;
+    } else if (defaultStartOffsetUs != C.TIME_UNSET) {
+      Log.i("HlsMediaSource", "using defaultStartOffsetUs " + defaultStartOffsetUs);
+      // Similar to the playlist.startOffsetUs case above.  Normalize first,
+      // then subtract from the playlist.durationUs.
+      targetOffsetUs = playlist.durationUs - normalizeStartOffset(playlist.durationUs, defaultStartOffsetUs);
     } else {
+      Log.i("HlsMediaSource", "NOT using defaultStartOffsetUs");
       // Fallback, see RFC 8216, Section 4.4.3.8.
       targetOffsetUs = 3 * playlist.targetDurationUs;
     }
     return targetOffsetUs + liveEdgeOffsetUs;
+  }
+
+  private long normalizeStartOffset(long duration, long startOffsetArg) {
+    // If positive, startOffset is an offset from the window beginning;
+    // if negative, an offset from the window end.
+    // Here we normalize it to a positive offset from the beginning of the window.
+    // See the HlsMediaPlaylist constructor.
+    long startOffset =
+            startOffsetArg == C.TIME_UNSET
+                    ? C.TIME_UNSET
+                    : startOffsetArg >= 0
+                      ? min(duration, startOffsetArg)
+                      : max(0, duration + startOffsetArg);
+    Log.i("HlsMediaSource", "normalize returning startOffset: " + startOffset);
+    return startOffset;
   }
 
   @Nullable
