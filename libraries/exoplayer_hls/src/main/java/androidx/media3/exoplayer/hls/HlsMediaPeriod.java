@@ -26,6 +26,7 @@ import androidx.media3.common.MimeTypes;
 import androidx.media3.common.StreamKey;
 import androidx.media3.common.TrackGroup;
 import androidx.media3.common.util.Assertions;
+import androidx.media3.common.util.Log;
 import androidx.media3.common.util.UnstableApi;
 import androidx.media3.common.util.Util;
 import androidx.media3.datasource.DataSource;
@@ -66,6 +67,7 @@ import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
 @UnstableApi
 public final class HlsMediaPeriod implements MediaPeriod, HlsPlaylistTracker.PlaylistEventListener {
 
+  private static final String TAG = "HlsMediaPeriod";
   private final HlsExtractorFactory extractorFactory;
   private final HlsPlaylistTracker playlistTracker;
   private final HlsDataSourceFactory dataSourceFactory;
@@ -634,6 +636,18 @@ public final class HlsMediaPeriod implements MediaPeriod, HlsPlaylistTracker.Pla
                 || (numberOfAudioCodecs == 0 && multivariantPlaylist.audios.isEmpty()))
             && numberOfVideoCodecs <= 1
             && numberOfAudioCodecs + numberOfVideoCodecs > 0;
+    boolean hasCaptions =
+            multivariantPlaylist.muxedCaptionFormats != null &&
+                    multivariantPlaylist.muxedCaptionFormats.size() > 0;
+    if (allowChunklessPreparation) {
+      if (!codecsStringAllowsChunklessPreparation) {
+        Log.w(TAG, "Chunkless preparation not possible due to ambiguous codec line");
+      } else if (!hasCaptions) {
+        Log.w(TAG, "Chunkless preparation not possible due to missing captions line");
+      } else {
+        Log.w(TAG, "Chunkless preparation in use");
+      }
+    }
     @C.TrackType
     int trackType =
         !useVideoVariantsOnly && numberOfAudioCodecs > 0
@@ -652,7 +666,7 @@ public final class HlsMediaPeriod implements MediaPeriod, HlsPlaylistTracker.Pla
             positionUs);
     sampleStreamWrappers.add(sampleStreamWrapper);
     manifestUrlIndicesPerWrapper.add(selectedVariantIndices);
-    if (allowChunklessPreparation && codecsStringAllowsChunklessPreparation) {
+    if (allowChunklessPreparation && codecsStringAllowsChunklessPreparation && hasCaptions) {
       List<TrackGroup> muxedTrackGroups = new ArrayList<>();
       if (numberOfVideoCodecs > 0) {
         Format[] videoFormats = new Format[selectedVariantsCount];
