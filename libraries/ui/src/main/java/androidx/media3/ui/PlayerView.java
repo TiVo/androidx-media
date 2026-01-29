@@ -1563,7 +1563,7 @@ public class PlayerView extends FrameLayout implements AdViewProvider {
   }
 
   @SuppressLint("InlinedApi")
-  private boolean isDpadKey(int keyCode) {
+  protected boolean isDpadKey(int keyCode) {
     return keyCode == KeyEvent.KEYCODE_DPAD_UP
         || keyCode == KeyEvent.KEYCODE_DPAD_UP_RIGHT
         || keyCode == KeyEvent.KEYCODE_DPAD_RIGHT
