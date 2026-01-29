@@ -215,7 +215,7 @@ public class DefaultTimeBar extends View implements TimeBar {
   private ValueAnimator scrubberScalingAnimator;
   private float scrubberScale;
   private boolean scrubberPaddingDisabled;
-  private boolean scrubbing;
+  protected boolean scrubbing;
   private long scrubPosition;
   private long duration;
   private long position;
@@ -632,12 +632,14 @@ public class DefaultTimeBar extends View implements TimeBar {
       long positionIncrement = getPositionIncrement();
       switch (keyCode) {
         case KeyEvent.KEYCODE_DPAD_LEFT:
+        case KeyEvent.KEYCODE_MEDIA_REWIND:   // Treat as dPAD left when scrubbing
           positionIncrement = -positionIncrement;
           // Fall through.
         case KeyEvent.KEYCODE_DPAD_RIGHT:
+        case KeyEvent.KEYCODE_MEDIA_FAST_FORWARD: // Treat as dPAD right when scrubbing
           if (scrubIncrementally(positionIncrement)) {
-            removeCallbacks(stopScrubbingRunnable);
-            postDelayed(stopScrubbingRunnable, STOP_SCRUBBING_TIMEOUT_MS);
+//            removeCallbacks(stopScrubbingRunnable);
+//            postDelayed(stopScrubbingRunnable, STOP_SCRUBBING_TIMEOUT_MS);
             return true;
           }
           break;
@@ -802,7 +804,7 @@ public class DefaultTimeBar extends View implements TimeBar {
     }
   }
 
-  private void stopScrubbing(boolean canceled) {
+  protected void stopScrubbing(boolean canceled) {
     removeCallbacks(stopScrubbingRunnable);
     scrubbing = false;
     setPressed(false);
