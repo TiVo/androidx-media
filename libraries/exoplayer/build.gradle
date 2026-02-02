@@ -21,6 +21,16 @@ android {
         testInstrumentationRunnerArguments clearPackageData: 'true'
     }
 
+    // Disable the E2E tests for now, they are notoriously unreliable on build servers,
+    // ExoPlayer team is addressing this in later releases of AndroidX
+    testOptions {
+        unitTests.all { testTask ->
+            if (System.getenv("GITHUB_ACTIONS") == "true") {
+                testTask.exclude "**/e2etest/**"
+            }
+        }
+    }
+
     buildTypes {
         debug {
             testCoverageEnabled = true
