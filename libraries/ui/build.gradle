@@ -20,18 +20,20 @@ android {
         baseline = file("lint-baseline.xml")
     }
 }
+// Version of AndroidX Media3 to pull from Google Maven (defaults to current release)
+project.ext.baseAndroidxMediaVersion = project.ext.releaseVersion
 
 dependencies {
-    implementation project(modulePrefix + 'lib-common')
+    api 'androidx.media3:media3-common:' + baseAndroidxMediaVersion
     implementation 'androidx.media:media:' + androidxMediaVersion
     implementation 'androidx.annotation:annotation:' + androidxAnnotationVersion
     implementation 'androidx.recyclerview:recyclerview:' + androidxRecyclerViewVersion
     compileOnly 'org.checkerframework:checker-qual:' + checkerframeworkVersion
     compileOnly 'org.jetbrains.kotlin:kotlin-annotations-jvm:' + kotlinAnnotationsVersion
     testImplementation project(modulePrefix + 'lib-exoplayer')
-    testImplementation project(modulePrefix + 'test-utils-robolectric')
-    testImplementation project(modulePrefix + 'test-utils')
     testImplementation 'org.robolectric:robolectric:' + robolectricVersion
+    testImplementation 'androidx.media3:media3-test-utils:' + baseAndroidxMediaVersion
+    testImplementation 'androidx.media3:media3-test-utils-robolectric:' + baseAndroidxMediaVersion
 }
 
 ext {
@@ -43,4 +45,4 @@ ext {
     releaseArtifactId = 'media3-ui'
     releaseName = 'Media3 UI module'
 }
-apply from: '../../publish.gradle'
+apply from: '../../publish-tivo.gradle'
