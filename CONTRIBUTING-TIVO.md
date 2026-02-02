@@ -4,9 +4,10 @@
 Our local changes to `androidx/media` are contained in this repository.   The changes and bulid/publish is restricted to the set of modules which we have local changes:
 
 * ***demo*** &mdash; change the gradle script to build with our local version and take the rest from google() maven
-* ***lib-exoplayer*** &mdash; multiple changes, see the [README-TIVO.md](libraries/exoplayer/README-TIVO.md) in the library folder.
-* ***lib-exoplayer-hls*** &mdash; multiple changes, see the README-TIVO.md in the library folder (to be created).
-* ***lib-extractor***  &mdash; multiple changes, see the [README-TIVO.md](libraries/extractor/README-TIVO.md) in the library folder.
+* ***lib-exoplayer*** &mdash; multiple changes, see the [README-TIVO.md](libraries/exoplayer/README-TIVO.md).
+* ***lib-exoplayer-hls*** &mdash; multiple changes, see the [README-TIVO.md](libraries/exoplayer_hls/README-TIVO.md)
+* ***lib-extractor***  &mdash; multiple changes, see the [README-TIVO.md](libraries/extractor/README-TIVO.md)
+* ***lib-ui***  &mdash; Hook in `PlayerView` to control show/hide of controls, etc.  See [README-TIVO.md](libraries/ui/README-TIVO.md)
 * **test-data**  &mdash; test samples for our unit tests.
 
 Our goal is always to share everything from this repository upstream, keeping track of the open pull requests and cherry-picks in the respective README-TIVO.md files.
@@ -58,7 +59,7 @@ T.B.S.
 To include library modules simply reference them in your gradle build dependencies.  For example,
 this includes the TiVo patch 1 version of the AndroidX 1.1.1 libraries 
 
-```groovy
+```jkgroovy
 
 dependencies {
     implementation 'androidx.annotation:annotation:1.0.2'
