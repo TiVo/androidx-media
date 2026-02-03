@@ -1,0 +1,44 @@
+name: Sync Upstream Branches
+
+on:
+  schedule:
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    name: Sync main and release from upstream
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Add upstream remote
+        env:
+          UPSTREAM_REPO: androidx/media
+        run: |
+          git remote add upstream "https://github.com/${UPSTREAM_REPO}.git"
+          git fetch upstream --prune
+
+      - name: Sync branches
+        env:
+          BRANCHES: "main release"
+        run: |
+          for branch in ${BRANCHES}; do
+            if git show-ref --verify --quiet "refs/remotes/upstream/${branch}"; then
+              git checkout -B "${branch}" "upstream/${branch}"
+              git push origin "${branch}" --force
+            else
+              echo "Upstream branch ${branch} not found; skipping"
+            fi
+          done
