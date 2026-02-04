@@ -45,7 +45,6 @@ afterEvaluate {
         publications {
             release(MavenPublication) {
                 from components.release
-                artifact androidSourcesJar
                 
                 // Keep original groupId for compatibility
                 groupId = 'androidx.media3'
@@ -104,9 +103,4 @@ afterEvaluate {
             logger.quiet("Publishing ${publication.groupId}:${publication.artifactId}:${publication.version} to maven local repo")
         }
     }
-}
-
-task androidSourcesJar(type: Jar) {
-    archiveClassifier.set('sources')
-    from android.sourceSets.main.java.srcDirs
 }
