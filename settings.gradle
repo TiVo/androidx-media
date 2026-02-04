@@ -32,6 +32,10 @@ if (!file('local_settings.gradle').exists()) {
     project(modulePrefix + 'demo-gl').projectDir = new File(rootDir, 'demos/gl')
     include modulePrefix + 'demo-session'
     project(modulePrefix + 'demo-session').projectDir = new File(rootDir, 'demos/session')
+    include modulePrefix + 'demo-session-service'
+    project(modulePrefix + 'demo-session-service').projectDir = new File(rootDir, 'demos/session_service')
+    include modulePrefix + 'demo-session-automotive'
+    project(modulePrefix + 'demo-session-automotive').projectDir = new File(rootDir, 'demos/session_automotive')
     include modulePrefix + 'demo-surface'
     project(modulePrefix + 'demo-surface').projectDir = new File(rootDir, 'demos/surface')
     include modulePrefix + 'demo-transformer'
@@ -41,7 +45,7 @@ if (!file('local_settings.gradle').exists()) {
 include modulePrefix + 'test-exoplayer-playback'
 project(modulePrefix + 'test-exoplayer-playback').projectDir = new File(rootDir, 'libraries/test_exoplayer_playback')
 
-// LOCAL ONLY TiVo Change.  
+// LOCAL ONLY TiVo Change.
 if (file('local_settings.gradle').exists()) {
     apply from: 'local_settings.gradle'
 } else {

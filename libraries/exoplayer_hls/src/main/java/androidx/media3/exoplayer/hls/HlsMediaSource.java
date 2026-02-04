@@ -23,6 +23,7 @@ import static java.lang.annotation.RetentionPolicy.SOURCE;
 
 import android.os.Looper;
 import android.os.SystemClock;
+import androidx.annotation.GuardedBy;
 import androidx.annotation.IntDef;
 import androidx.annotation.Nullable;
 import androidx.annotation.VisibleForTesting;
@@ -97,6 +98,7 @@ public final class HlsMediaSource extends BaseMediaSource
 
   /** Type for ID3 metadata in HLS streams. */
   public static final int METADATA_TYPE_ID3 = 1;
+
   /** Type for ESMG metadata in HLS streams. */
   public static final int METADATA_TYPE_EMSG = 3;
 
@@ -428,7 +430,6 @@ public final class HlsMediaSource extends BaseMediaSource
   }
 
   private final HlsExtractorFactory extractorFactory;
-  private final MediaItem.LocalConfiguration localConfiguration;
   private final HlsDataSourceFactory dataSourceFactory;
   private final CompositeSequenceableLoaderFactory compositeSequenceableLoaderFactory;
   @Nullable private final CmcdConfiguration cmcdConfiguration;
@@ -439,12 +440,14 @@ public final class HlsMediaSource extends BaseMediaSource
   private final boolean useSessionKeys;
   private final HlsPlaylistTracker playlistTracker;
   private final long elapsedRealTimeOffsetMs;
-  private final MediaItem mediaItem;
   private final long defaultStartOffsetUs;
   private final long timestampAdjusterInitializationTimeoutMs;
 
   private MediaItem.LiveConfiguration liveConfiguration;
   @Nullable private TransferListener mediaTransferListener;
+
+  @GuardedBy("this")
+  private MediaItem mediaItem;
 
   private HlsMediaSource(
       MediaItem mediaItem,
@@ -461,7 +464,6 @@ public final class HlsMediaSource extends BaseMediaSource
       boolean useSessionKeys,
       long defaultStartOffsetUs,
       long timestampAdjusterInitializationTimeoutMs) {
-    this.localConfiguration = checkNotNull(mediaItem.localConfiguration);
     this.mediaItem = mediaItem;
     this.liveConfiguration = mediaItem.liveConfiguration;
     this.dataSourceFactory = dataSourceFactory;
@@ -480,8 +482,26 @@ public final class HlsMediaSource extends BaseMediaSource
   }
 
   @Override
-  public MediaItem getMediaItem() {
+  public synchronized MediaItem getMediaItem() {
     return mediaItem;
+  }
+
+  @Override
+  public boolean canUpdateMediaItem(MediaItem mediaItem) {
+    MediaItem existingMediaItem = getMediaItem();
+    MediaItem.LocalConfiguration existingConfiguration =
+        checkNotNull(existingMediaItem.localConfiguration);
+    @Nullable MediaItem.LocalConfiguration newConfiguration = mediaItem.localConfiguration;
+    return newConfiguration != null
+        && newConfiguration.uri.equals(existingConfiguration.uri)
+        && newConfiguration.streamKeys.equals(existingConfiguration.streamKeys)
+        && Util.areEqual(newConfiguration.drmConfiguration, existingConfiguration.drmConfiguration)
+        && existingMediaItem.liveConfiguration.equals(mediaItem.liveConfiguration);
+  }
+
+  @Override
+  public synchronized void updateMediaItem(MediaItem mediaItem) {
+    this.mediaItem = mediaItem;
   }
 
   @Override
@@ -493,7 +513,9 @@ public final class HlsMediaSource extends BaseMediaSource
     MediaSourceEventListener.EventDispatcher eventDispatcher =
         createEventDispatcher(/* mediaPeriodId= */ null);
     playlistTracker.start(
-        localConfiguration.uri, eventDispatcher, /* primaryPlaylistListener= */ this);
+        checkNotNull(getMediaItem().localConfiguration).uri,
+        eventDispatcher,
+        /* primaryPlaylistListener= */ this);
   }
 
   @Override
@@ -598,7 +620,7 @@ public final class HlsMediaSource extends BaseMediaSource
         /* isDynamic= */ !playlist.hasEndTag,
         suppressPositionProjection,
         manifest,
-        mediaItem,
+        getMediaItem(),
         liveConfiguration);
   }
 
@@ -631,7 +653,7 @@ public final class HlsMediaSource extends BaseMediaSource
         /* isDynamic= */ false,
         /* suppressPositionProjection= */ true,
         manifest,
-        mediaItem,
+        getMediaItem(),
         /* liveConfiguration= */ null);
   }
 
@@ -671,9 +693,10 @@ public final class HlsMediaSource extends BaseMediaSource
   }
 
   private void updateLiveConfiguration(HlsMediaPlaylist playlist, long targetLiveOffsetUs) {
+    MediaItem.LiveConfiguration mediaItemLiveConfiguration = getMediaItem().liveConfiguration;
     boolean disableSpeedAdjustment =
-        mediaItem.liveConfiguration.minPlaybackSpeed == C.RATE_UNSET
-            && mediaItem.liveConfiguration.maxPlaybackSpeed == C.RATE_UNSET
+        mediaItemLiveConfiguration.minPlaybackSpeed == C.RATE_UNSET
+            && mediaItemLiveConfiguration.maxPlaybackSpeed == C.RATE_UNSET
             && playlist.serverControl.holdBackUs == C.TIME_UNSET
             && playlist.serverControl.partHoldBackUs == C.TIME_UNSET;
     liveConfiguration =

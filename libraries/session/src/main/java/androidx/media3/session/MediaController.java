@@ -58,6 +58,7 @@ import androidx.media3.common.util.Log;
 import androidx.media3.common.util.Size;
 import androidx.media3.common.util.UnstableApi;
 import androidx.media3.common.util.Util;
+import androidx.media3.datasource.DataSourceBitmapLoader;
 import com.google.common.collect.ImmutableList;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
@@ -269,8 +270,8 @@ public class MediaController implements Player {
 
     /**
      * Sets a {@link BitmapLoader} for the {@link MediaController} to decode bitmaps from compressed
-     * binary data. If not set, a {@link CacheBitmapLoader} that wraps a {@link SimpleBitmapLoader}
-     * will be used.
+     * binary data. If not set, a {@link CacheBitmapLoader} that wraps a {@link
+     * DataSourceBitmapLoader} will be used.
      *
      * @param bitmapLoader The bitmap loader.
      * @return The builder to allow chaining.
@@ -312,7 +313,7 @@ public class MediaController implements Player {
       MediaControllerHolder<MediaController> holder =
           new MediaControllerHolder<>(applicationLooper);
       if (token.isLegacySession() && bitmapLoader == null) {
-        bitmapLoader = new CacheBitmapLoader(new SimpleBitmapLoader());
+        bitmapLoader = new CacheBitmapLoader(new DataSourceBitmapLoader(context));
       }
       MediaController controller =
           new MediaController(
@@ -407,10 +408,10 @@ public class MediaController implements Player {
     }
 
     /**
-     * Called when the session extras have changed.
+     * Called when the session extras are set on the session side.
      *
      * @param controller The controller.
-     * @param extras The session extras that have changed.
+     * @param extras The session extras that have been set on the session.
      */
     default void onExtrasChanged(MediaController controller, Bundle extras) {}
 
@@ -538,7 +539,7 @@ public class MediaController implements Player {
    * controller.
    */
   public static void releaseFuture(Future<? extends MediaController> controllerFuture) {
-    if (controllerFuture.cancel(/* mayInterruptIfRunning= */ true)) {
+    if (controllerFuture.cancel(/* mayInterruptIfRunning= */ false)) {
       // Successfully canceled the Future. The controller will be released by MediaControllerHolder.
       return;
     }
@@ -964,6 +965,20 @@ public class MediaController implements Player {
   public final ImmutableList<CommandButton> getCustomLayout() {
     verifyApplicationThread();
     return isConnected() ? impl.getCustomLayout() : ImmutableList.of();
+  }
+
+  /**
+   * Returns the session extras.
+   *
+   * <p>After being connected, {@link Listener#onExtrasChanged(MediaController, Bundle)} is called
+   * when the extras on the session are set.
+   *
+   * @return The session extras.
+   */
+  @UnstableApi
+  public final Bundle getSessionExtras() {
+    verifyApplicationThread();
+    return isConnected() ? impl.getSessionExtras() : Bundle.EMPTY;
   }
 
   /** Returns {@code null}. */
@@ -1720,6 +1735,7 @@ public class MediaController implements Player {
     }
     impl.setDeviceVolume(volume, flags);
   }
+
   /**
    * @deprecated Use {@link #increaseDeviceVolume(int)} instead.
    */
@@ -1743,6 +1759,7 @@ public class MediaController implements Player {
     }
     impl.increaseDeviceVolume(flags);
   }
+
   /**
    * @deprecated Use {@link #decreaseDeviceVolume(int)} instead.
    */
@@ -1766,6 +1783,7 @@ public class MediaController implements Player {
     }
     impl.decreaseDeviceVolume(flags);
   }
+
   /**
    * @deprecated Use {@link #setDeviceMuted(boolean, int)} instead.
    */
@@ -1788,6 +1806,16 @@ public class MediaController implements Player {
       return;
     }
     impl.setDeviceMuted(muted, flags);
+  }
+
+  @Override
+  public final void setAudioAttributes(AudioAttributes audioAttributes, boolean handleAudioFocus) {
+    verifyApplicationThread();
+    if (!isConnected()) {
+      Log.w(TAG, "The controller is not connected. Ignoring setAudioAttributes().");
+      return;
+    }
+    impl.setAudioAttributes(audioAttributes, handleAudioFocus);
   }
 
   @Override
@@ -2015,6 +2043,8 @@ public class MediaController implements Player {
 
     ImmutableList<CommandButton> getCustomLayout();
 
+    Bundle getSessionExtras();
+
     Timeline getCurrentTimeline();
 
     void setMediaItem(MediaItem mediaItem);
@@ -2135,6 +2165,8 @@ public class MediaController implements Player {
     void setDeviceMuted(boolean muted);
 
     void setDeviceMuted(boolean muted, @C.VolumeFlags int flags);
+
+    void setAudioAttributes(AudioAttributes audioAttributes, boolean handleAudioFocus);
 
     boolean getPlayWhenReady();
 

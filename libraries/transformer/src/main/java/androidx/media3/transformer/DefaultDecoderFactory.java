@@ -22,6 +22,7 @@ import static androidx.media3.common.util.Util.SDK_INT;
 
 import android.annotation.SuppressLint;
 import android.content.Context;
+import android.media.MediaCodec;
 import android.media.MediaFormat;
 import android.os.Build;
 import android.util.Pair;
@@ -34,15 +35,18 @@ import androidx.media3.common.Format;
 import androidx.media3.common.MimeTypes;
 import androidx.media3.common.util.Log;
 import androidx.media3.common.util.MediaFormatUtil;
+import androidx.media3.common.util.UnstableApi;
 import androidx.media3.common.util.Util;
 import androidx.media3.exoplayer.mediacodec.MediaCodecInfo;
 import androidx.media3.exoplayer.mediacodec.MediaCodecSelector;
 import androidx.media3.exoplayer.mediacodec.MediaCodecUtil;
 import java.util.List;
-import org.checkerframework.checker.nullness.qual.RequiresNonNull;
 
-/** A default implementation of {@link Codec.DecoderFactory}. */
-/* package */ final class DefaultDecoderFactory implements Codec.DecoderFactory {
+/**
+ * Default implementation of {@link Codec.DecoderFactory} that uses {@link MediaCodec} for decoding.
+ */
+@UnstableApi
+public final class DefaultDecoderFactory implements Codec.DecoderFactory {
 
   private static final String TAG = "DefaultDecoderFactory";
 
@@ -50,6 +54,7 @@ import org.checkerframework.checker.nullness.qual.RequiresNonNull;
 
   private final boolean decoderSupportsKeyAllowFrameDrop;
 
+  /** Creates a new factory. */
   public DefaultDecoderFactory(Context context) {
     this.context = context;
 
@@ -59,8 +64,7 @@ import org.checkerframework.checker.nullness.qual.RequiresNonNull;
   }
 
   @Override
-  public Codec createForAudioDecoding(Format format) throws ExportException {
-    checkNotNull(format.sampleMimeType);
+  public DefaultCodec createForAudioDecoding(Format format) throws ExportException {
     MediaFormat mediaFormat = createMediaFormatFromFormat(format);
 
     String mediaCodecName;
@@ -90,10 +94,8 @@ import org.checkerframework.checker.nullness.qual.RequiresNonNull;
 
   @SuppressLint("InlinedApi")
   @Override
-  public Codec createForVideoDecoding(
+  public DefaultCodec createForVideoDecoding(
       Format format, Surface outputSurface, boolean requestSdrToneMapping) throws ExportException {
-    checkNotNull(format.sampleMimeType);
-
     if (ColorInfo.isTransferHdr(format.colorInfo)) {
       if (requestSdrToneMapping
           && (SDK_INT < 31
@@ -107,6 +109,13 @@ import org.checkerframework.checker.nullness.qual.RequiresNonNull;
         throw createExportException(
             format, /* reason= */ "Decoding HDR is not supported on this device.");
       }
+    }
+    if (deviceNeedsDisable8kWorkaround(format)) {
+      throw createExportException(
+          format, /* reason= */ "Decoding 8k is not supported on this device.");
+    }
+    if (deviceNeedsNoFrameRateWorkaround()) {
+      format = format.buildUpon().setFrameRate(Format.NO_VALUE).build();
     }
 
     MediaFormat mediaFormat = createMediaFormatFromFormat(format);
@@ -145,9 +154,18 @@ import org.checkerframework.checker.nullness.qual.RequiresNonNull;
       MediaFormatUtil.maybeSetInteger(
           mediaFormat, MediaFormat.KEY_LEVEL, codecProfileAndLevel.second);
     }
-
     return new DefaultCodec(
         context, format, mediaFormat, mediaCodecName, /* isDecoder= */ true, outputSurface);
+  }
+
+  private static boolean deviceNeedsDisable8kWorkaround(Format format) {
+    // Fixed on API 31+. See http://b/278234847#comment40 for more information.
+    return SDK_INT < 31
+        && format.width >= 7680
+        && format.height >= 4320
+        && format.sampleMimeType != null
+        && format.sampleMimeType.equals(MimeTypes.VIDEO_H265)
+        && (Util.MODEL.equals("SM-F711U1") || Util.MODEL.equals("SM-F926U1"));
   }
 
   private static boolean deviceNeedsDisableToneMappingWorkaround(
@@ -158,20 +176,34 @@ import org.checkerframework.checker.nullness.qual.RequiresNonNull;
       return true;
     }
     if (colorTransfer == C.COLOR_TRANSFER_HLG
-        && (Util.MODEL.startsWith("SM-F936") || Util.MODEL.startsWith("SM-F916"))) {
+        && (Util.MODEL.startsWith("SM-F936")
+            || Util.MODEL.startsWith("SM-F916")
+            || Util.MODEL.startsWith("SM-F721")
+            || Util.MODEL.equals("SM-X900"))) {
       // Some Samsung Galaxy Z Fold devices report support for HLG tone mapping but the feature only
       // works on PQ (see b/282791751#comment7).
+      return true;
+    }
+    if (SDK_INT < 34
+        && colorTransfer == C.COLOR_TRANSFER_ST2084
+        && Util.MODEL.startsWith("SM-F936")) {
+      // The Samsung Fold 4 HDR10 codec plugin for tonemapping sets incorrect crop values, so block
+      // using it (see b/290725189).
       return true;
     }
     return false;
   }
 
-  @RequiresNonNull("#1.sampleMimeType")
+  private static boolean deviceNeedsNoFrameRateWorkaround() {
+    // Redmi Note 9 Pro fails if KEY_FRAME_RATE is set too high (see b/278076311).
+    return SDK_INT < 30 && Util.DEVICE.equals("joyeuse");
+  }
+
   private static ExportException createExportException(Format format, String reason) {
     return ExportException.createForCodec(
         new IllegalArgumentException(reason),
         ExportException.ERROR_CODE_DECODING_FORMAT_UNSUPPORTED,
-        MimeTypes.isVideo(format.sampleMimeType),
+        MimeTypes.isVideo(checkNotNull(format.sampleMimeType)),
         /* isDecoder= */ true,
         format);
   }
