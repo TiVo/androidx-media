@@ -30,10 +30,12 @@ import android.os.Bundle;
 import android.os.IBinder;
 import android.os.RemoteException;
 import androidx.annotation.Nullable;
+import androidx.media3.common.AudioAttributes;
 import androidx.media3.common.C;
 import androidx.media3.common.MediaItem;
 import androidx.media3.common.MediaMetadata;
 import androidx.media3.common.PlaybackParameters;
+import androidx.media3.common.Player;
 import androidx.media3.common.Player.RepeatMode;
 import androidx.media3.common.Rating;
 import androidx.media3.common.TrackSelectionParameters;
@@ -93,6 +95,10 @@ public class RemoteMediaController {
   public SessionToken getConnectedSessionToken() throws RemoteException {
     @Nullable Bundle sessionTokenBundle = binder.getConnectedSessionToken(controllerId);
     return sessionTokenBundle == null ? null : SessionToken.CREATOR.fromBundle(sessionTokenBundle);
+  }
+
+  public Bundle getSessionExtras() throws RemoteException {
+    return binder.getSessionExtras(controllerId);
   }
 
   public void play() throws RemoteException {
@@ -313,6 +319,11 @@ public class RemoteMediaController {
     binder.setDeviceMutedWithFlags(controllerId, muted, flags);
   }
 
+  public void setAudioAttributes(AudioAttributes audioAttributes, boolean handleAudioFocus)
+      throws RemoteException {
+    binder.setAudioAttributes(controllerId, audioAttributes.toBundle(), handleAudioFocus);
+  }
+
   public SessionResult sendCustomCommand(SessionCommand command, Bundle args)
       throws RemoteException {
     Bundle result = binder.sendCustomCommand(controllerId, command.toBundle(), args);
@@ -360,6 +371,11 @@ public class RemoteMediaController {
       customLayout.add(CommandButton.CREATOR.fromBundle(bundle));
     }
     return customLayout.build();
+  }
+
+  public Player.Commands getAvailableCommands() throws RemoteException {
+    Bundle commandsBundle = binder.getAvailableCommands(controllerId);
+    return Player.Commands.CREATOR.fromBundle(commandsBundle);
   }
 
   ////////////////////////////////////////////////////////////////////////////////

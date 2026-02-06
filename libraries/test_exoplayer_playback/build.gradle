@@ -13,6 +13,8 @@
 // limitations under the License.
 apply from: "$gradle.ext.androidxMediaSettingsDir/common_library_config.gradle"
 
+android.namespace 'androidx.media3.test.exoplayer.playback'
+
 // Version of AndroidX Media3 to pull from Google Maven (defaults to current release)
 project.ext.baseAndroidxMediaVersion = project.ext.releaseVersion
 

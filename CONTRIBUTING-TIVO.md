@@ -1,6 +1,7 @@
 # Contributing to TiVo `androidx/media` Fork 
 
-## TL;DR
+TL;DR
+
 Our local changes to `androidx/media` are contained in this repository.   The changes and bulid/publish is restricted to the set of modules which we have local changes:
 
 * ***demo*** &mdash; change the gradle script to build with our local version and take the rest from google() maven
@@ -124,13 +125,13 @@ One time setup to get the rerere cache repo on your developer workstation
 ```bash
 # Clone the rerere cache repository (alongside your main repo)
 cd ..
-git clone ttps://github.com/TiVo/androidx-rerere-cache.git
+git clone https://github.com/TiVo/androidx-rerere-cache.git
 cd androidx-media
 
 # Configure rerere for your local repository
 git config rerere.enabled true
 git config rerere.autoUpdate true
-git config rerere.rereresDir ../androidx-rerere-cache
+git config rerere.rereres "$(cd .. && pwd)/androidx-rerere-cache/rr-cache"
 
 # Verify configuration
 git config --get-regexp rerere
@@ -150,8 +151,8 @@ cd ../androidx-media
 Example assumes we are updating from 1.1.1 to 1.5.1.
 
 ```bash
-CURRENT_BASE=1.1.1
-TARGET_BASE=1.5.1
+declare -x CURRENT_BASE=1.1.1
+declare -x TARGET_BASE=1.5.1
 
 # Create integration branch from current release-tivo
 git checkout release-tivo
@@ -163,7 +164,7 @@ git push -u tivo-public release-tivo-${TARGET_BASE}-merge
 
 #### Step 3 - Merge Target to Integration Branch
 
-This step performs the initial merge on the merge integration branch
+This step performs the initial merge on the merge integration branch.   Note conflicts that were previously resolved and the `preimage` in the Rerere cache matches are automatically resolved and staged.  
 
 ```bash
 git merge ${TARGET_BASE} -m "Merge upstream ${TARGET_BASE}"
@@ -171,14 +172,52 @@ git merge ${TARGET_BASE} -m "Merge upstream ${TARGET_BASE}"
 # - "Auto-merging <file>" - no conflicts
 # - "CONFLICT (content): Merge conflict in <file>" - has conflicts
 # - "Recorded preimage for '<file>'" - rerere is recording the conflict
-# - "Resolved '<file>' using previous resolution" - rerere auto-applied!
+# - Staged '<file>'' using previous resolution.
 ```
 
 #### Step 4 - Resolve Conflicts
 
-This is a complex set requiring input from original developers and multiple tools. 
+This is a complex set requiring input from original developers and multiple tools.   Some things to look our for are:
 
-#### Step 5 - Save the Rerere Cache
+1. `build.gradle` and `settings.gradle` &mdash; our changes will almost always conflict with these files.  Look for new dependencies added and project modules (which should be converted to a maven dependency)
+1. The Rerere cache simply replays previous resolutions, these may not always be correct or there may have been fixes made after the resolution on a previous merge branch you'll need to pickup.
+
+##### Useful Git Commands
+
+Show changes from upstream for a file.
+
+```bash
+git diff ${CURRENT_BASE}:settings.gradle ${TARGET_BASE}:settings.gradle
+```
+
+Show our changes for a file:
+```bash
+git diff ${TARGET_BASE}..HEAD -- settings.gradle
+```
+
+#### Step 5 - Build, Test, Fix
+
+Run unit tests and fix any issues.
+
+```bash
+./gradlew --no-daemon --parallel \
+						:lib-extractor:check \
+            :lib-exoplayer:check \
+            :lib-exoplayer-hls:check \
+            :lib-ui:check 
+```
+
+**NOTE** any issues found with the rerere cache resolutions, must be purged and updated.   To do this, while your merge is active do:
+
+```bash
+git rerere forget -- <path-with-resolve-issues>
+```
+
+The fix the resolution to correct the issue.
+
+Lastly, don't try to add other fixes besides issues cause by merge unit **after** you commit the initial merge.   This allows them to be cherry-picked by later updates.
+
+#### Step 6 - Save the Rerere Cache
 
 Add and commit the new rerere entires.
 
@@ -190,5 +229,11 @@ git push origin main
 cd ../androidx-media
 ```
 
-#### Step 6 - Build, Test, Fix
+#### Step 6 - Commit Your Merge
+
+```bash
+git commit -m "Merged AndroidX ${TARGET_BASE}" --edit
+```
+
+Edit the commit body and note any resolved conflicts as well as pending issues after the initial merge to address.
 

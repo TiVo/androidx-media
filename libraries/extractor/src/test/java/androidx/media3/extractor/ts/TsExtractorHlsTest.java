@@ -1,5 +1,6 @@
 package androidx.media3.extractor.ts;
 
+import androidx.media3.common.ColorInfo;
 import androidx.test.core.app.ApplicationProvider;
 
 import java.io.FileOutputStream;
@@ -123,6 +124,7 @@ public class TsExtractorHlsTest {
         .setWidth(1280)
         .setHeight(720)
         .setInitializationData(actualFormat.initializationData)   // Ignore this.
+        .setColorInfo(actualFormat.colorInfo) // and this
         .build();
     assertThat(actualFormat).isEqualTo(expectedFormat);
 
@@ -329,7 +331,7 @@ public class TsExtractorHlsTest {
 
     FakeTrackOutput trackOutput = output.trackOutputs.get(27);
     final int samplesPerSegment = 180;
-    final int orphanedSamplesEachSegment = 1; // TODO - once AndroidX version of extractor library is used this should be 0
+    final int orphanedSamplesEachSegment = 0; // TODO - once AndroidX version of extractor library is used this should be 0
     trackOutput.assertSampleCount(samplesPerSegment - orphanedSamplesEachSegment);
     long openingPTS = trackOutput.getSampleTimeUs(0);
 
@@ -415,6 +417,7 @@ public class TsExtractorHlsTest {
         .setWidth(1920)
         .setHeight(1080)
         .setInitializationData(actualFormat.initializationData)   // Ignore this.
+        .setColorInfo(actualFormat.colorInfo) // and this
         .build();
     assertThat(actualFormat).isEqualTo(expectedFormat);
 
@@ -500,6 +503,7 @@ public class TsExtractorHlsTest {
             .setWidth(640)
             .setHeight(360)
             .setInitializationData(actualFormat.initializationData)   // Ignore this.
+            .setColorInfo(actualFormat.colorInfo) // and this
             .build();
     assertThat(actualFormat).isEqualTo(expectedFormat);
 
@@ -556,6 +560,7 @@ public class TsExtractorHlsTest {
         .setWidth(960)
         .setHeight(540)
         .setInitializationData(actualFormat.initializationData)   // Ignore this.
+        .setColorInfo(actualFormat.colorInfo) // and this
         .build();
     assertThat(actualFormat).isEqualTo(expectedFormat);
 

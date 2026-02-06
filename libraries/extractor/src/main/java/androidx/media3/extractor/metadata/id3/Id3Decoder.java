@@ -63,6 +63,7 @@ public final class Id3Decoder extends SimpleMetadataDecoder {
 
   /** The first three bytes of a well formed ID3 tag header. */
   public static final int ID3_TAG = 0x00494433;
+
   /** Length of an ID3 tag header. */
   public static final int ID3_HEADER_LENGTH = 10;
 
@@ -370,8 +371,9 @@ public final class Id3Decoder extends SimpleMetadataDecoder {
       frameSize = removeUnsynchronization(id3Data, frameSize);
     }
 
+    Id3Frame frame = null;
+    Throwable error = null;
     try {
-      Id3Frame frame;
       if (frameId0 == 'T'
           && frameId1 == 'X'
           && frameId2 == 'X'
@@ -428,18 +430,21 @@ public final class Id3Decoder extends SimpleMetadataDecoder {
         String id = getFrameId(majorVersion, frameId0, frameId1, frameId2, frameId3);
         frame = decodeBinaryFrame(id3Data, frameSize, id);
       }
-      if (frame == null) {
-        Log.w(
-            TAG,
-            "Failed to decode frame: id="
-                + getFrameId(majorVersion, frameId0, frameId1, frameId2, frameId3)
-                + ", frameSize="
-                + frameSize);
-      }
-      return frame;
+    } catch (OutOfMemoryError | Exception e) {
+      error = e;
     } finally {
       id3Data.setPosition(nextFramePosition);
     }
+    if (frame == null) {
+      Log.w(
+          TAG,
+          "Failed to decode frame: id="
+              + getFrameId(majorVersion, frameId0, frameId1, frameId2, frameId3)
+              + ", frameSize="
+              + frameSize,
+          error);
+    }
+    return frame;
   }
 
   @Nullable

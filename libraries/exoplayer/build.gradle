@@ -14,6 +14,8 @@
 apply from: "$gradle.ext.androidxMediaSettingsDir/common_library_config.gradle"
 
 android {
+    namespace 'androidx.media3.exoplayer'
+
     defaultConfig {
         // The following argument makes the Android Test Orchestrator run its
         // "pm clear" command after each test invocation. This command ensures
@@ -41,6 +43,12 @@ android {
         androidTest.assets.srcDir '../test_data/src/test/assets'
         test.assets.srcDir '../test_data/src/test/assets/'
     }
+
+    publishing {
+        singleVariant('release') {
+            withSourcesJar()
+        }
+    }
 }
 
 // Version of AndroidX Media3 to pull from Google Maven (defaults to current release)
@@ -55,10 +63,11 @@ dependencies {
     api project(modulePrefix + 'lib-extractor')
     api 'androidx.media3:media3-database:' + baseAndroidxMediaVersion
     implementation 'androidx.annotation:annotation:' + androidxAnnotationVersion
+    implementation 'androidx.collection:collection:' + androidxCollectionVersion
     implementation 'androidx.core:core:' + androidxCoreVersion
+    implementation 'androidx.exifinterface:exifinterface:1.3.6'
     compileOnly 'com.google.code.findbugs:jsr305:' + jsr305Version
     compileOnly 'org.checkerframework:checker-qual:' + checkerframeworkVersion
-    compileOnly 'org.checkerframework:checker-compat-qual:' + checkerframeworkCompatVersion
     compileOnly 'org.jetbrains.kotlin:kotlin-annotations-jvm:' + kotlinAnnotationsVersion
     compileOnly 'com.google.errorprone:error_prone_annotations:' + errorProneVersion
     androidTestImplementation 'androidx.test:runner:' + androidxTestRunnerVersion
@@ -66,17 +75,11 @@ dependencies {
     androidTestImplementation 'com.linkedin.dexmaker:dexmaker-mockito:' + dexmakerVersion
     androidTestImplementation 'androidx.media3:media3-test-utils:' + baseAndroidxMediaVersion
     androidTestImplementation 'com.squareup.okhttp3:mockwebserver:' + okhttpVersion
-    testCompileOnly 'org.checkerframework:checker-compat-qual:' + checkerframeworkCompatVersion
     testImplementation 'com.squareup.okhttp3:mockwebserver:' + okhttpVersion
     testImplementation 'org.robolectric:robolectric:' + robolectricVersion
     testImplementation 'androidx.media3:media3-test-utils:' + baseAndroidxMediaVersion
     testImplementation 'androidx.media3:media3-test-utils-robolectric:' + baseAndroidxMediaVersion
 }
-
-ext {
-    javadocTitle = 'Core module'
-}
-apply from: '../../javadoc_library.gradle'
 
 ext {
     releaseArtifactId = 'media3-exoplayer'
