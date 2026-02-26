@@ -21,6 +21,7 @@ import androidx.annotation.Nullable;
 import androidx.media3.common.C;
 import androidx.media3.common.DrmInitData;
 import androidx.media3.common.Format;
+import androidx.media3.common.Label;
 import androidx.media3.common.Metadata;
 import androidx.media3.common.MimeTypes;
 import androidx.media3.common.StreamKey;
@@ -28,7 +29,6 @@ import androidx.media3.common.TrackGroup;
 import androidx.media3.common.util.Assertions;
 import androidx.media3.common.util.NullableType;
 import androidx.media3.common.util.Log;
-import androidx.media3.common.util.UnstableApi;
 import androidx.media3.common.util.Util;
 import androidx.media3.datasource.DataSource;
 import androidx.media3.datasource.TransferListener;
@@ -53,6 +53,8 @@ import androidx.media3.exoplayer.upstream.Allocator;
 import androidx.media3.exoplayer.upstream.CmcdConfiguration;
 import androidx.media3.exoplayer.upstream.LoadErrorHandlingPolicy;
 import androidx.media3.extractor.Extractor;
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Lists;
 import com.google.common.primitives.Ints;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -65,8 +67,8 @@ import java.util.Map;
 import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
 
 /** A {@link MediaPeriod} that loads an HLS stream. */
-@UnstableApi
-public final class HlsMediaPeriod implements MediaPeriod, HlsPlaylistTracker.PlaylistEventListener {
+/* package */ final class HlsMediaPeriod
+    implements MediaPeriod, HlsPlaylistTracker.PlaylistEventListener {
 
   private static final String TAG = "HlsMediaPeriod";
   private final HlsExtractorFactory extractorFactory;
@@ -160,8 +162,7 @@ public final class HlsMediaPeriod implements MediaPeriod, HlsPlaylistTracker.Pla
     this.playerId = playerId;
     this.timestampAdjusterInitializationTimeoutMs = timestampAdjusterInitializationTimeoutMs;
     sampleStreamWrapperCallback = new SampleStreamWrapperCallback();
-    compositeSequenceableLoader =
-        compositeSequenceableLoaderFactory.createCompositeSequenceableLoader();
+    compositeSequenceableLoader = compositeSequenceableLoaderFactory.empty();
     streamWrapperIndices = new IdentityHashMap<>();
     timestampAdjusterProvider = new TimestampAdjusterProvider();
     sampleStreamWrappers = new HlsSampleStreamWrapper[0];
@@ -375,9 +376,14 @@ public final class HlsMediaPeriod implements MediaPeriod, HlsPlaylistTracker.Pla
     // Update the local state.
     enabledSampleStreamWrappers =
         Util.nullSafeArrayCopy(newEnabledSampleStreamWrappers, newEnabledSampleStreamWrapperCount);
+    ImmutableList<HlsSampleStreamWrapper> enabledSampleStreamWrappersList =
+        ImmutableList.copyOf(enabledSampleStreamWrappers);
     compositeSequenceableLoader =
-        compositeSequenceableLoaderFactory.createCompositeSequenceableLoader(
-            enabledSampleStreamWrappers);
+        compositeSequenceableLoaderFactory.create(
+            enabledSampleStreamWrappersList,
+            Lists.transform(
+                enabledSampleStreamWrappersList,
+                sampleStreamWrapper -> sampleStreamWrapper.getTrackGroups().getTrackTypes()));
     return positionUs;
   }
 
@@ -520,12 +526,14 @@ public final class HlsMediaPeriod implements MediaPeriod, HlsPlaylistTracker.Pla
     for (int i = 0; i < subtitleRenditions.size(); i++) {
       Rendition subtitleRendition = subtitleRenditions.get(i);
       String sampleStreamWrapperUid = "subtitle:" + i + ":" + subtitleRendition.name;
+      // Format for HlsChunkSource to createExtractor with
+      Format originalSubtitleFormat = subtitleRendition.format;
       HlsSampleStreamWrapper sampleStreamWrapper =
           buildSampleStreamWrapper(
               sampleStreamWrapperUid,
               C.TRACK_TYPE_TEXT,
               new Uri[] {subtitleRendition.url},
-              new Format[] {subtitleRendition.format},
+              new Format[] {originalSubtitleFormat},
               null,
               Collections.emptyList(),
               overridingDrmInitData,
@@ -533,7 +541,11 @@ public final class HlsMediaPeriod implements MediaPeriod, HlsPlaylistTracker.Pla
       manifestUrlIndicesPerWrapper.add(new int[] {i});
       sampleStreamWrappers.add(sampleStreamWrapper);
       sampleStreamWrapper.prepareWithMultivariantPlaylistInfo(
-          new TrackGroup[] {new TrackGroup(sampleStreamWrapperUid, subtitleRendition.format)},
+          new TrackGroup[] {
+            new TrackGroup(
+                sampleStreamWrapperUid,
+                extractorFactory.getOutputTextFormat(originalSubtitleFormat))
+          },
           /* primaryTrackGroupIndex= */ 0);
     }
 
@@ -691,7 +703,8 @@ public final class HlsMediaPeriod implements MediaPeriod, HlsPlaylistTracker.Pla
         if (ccFormats != null) {
           for (int i = 0; i < ccFormats.size(); i++) {
             String ccId = sampleStreamWrapperUid + ":cc:" + i;
-            muxedTrackGroups.add(new TrackGroup(ccId, ccFormats.get(i)));
+            muxedTrackGroups.add(
+                new TrackGroup(ccId, extractorFactory.getOutputTextFormat(ccFormats.get(i))));
           }
         }
       } else /* numberOfAudioCodecs > 0 */ {
@@ -854,6 +867,7 @@ public final class HlsMediaPeriod implements MediaPeriod, HlsPlaylistTracker.Pla
     return new Format.Builder()
         .setId(variantFormat.id)
         .setLabel(variantFormat.label)
+        .setLabels(variantFormat.labels)
         .setContainerMimeType(variantFormat.containerMimeType)
         .setSampleMimeType(sampleMimeType)
         .setCodecs(codecs)
@@ -877,6 +891,7 @@ public final class HlsMediaPeriod implements MediaPeriod, HlsPlaylistTracker.Pla
     int roleFlags = 0;
     @Nullable String language = null;
     @Nullable String label = null;
+    List<Label> labels = ImmutableList.of();
     if (mediaTagFormat != null) {
       codecs = mediaTagFormat.codecs;
       metadata = mediaTagFormat.metadata;
@@ -885,6 +900,7 @@ public final class HlsMediaPeriod implements MediaPeriod, HlsPlaylistTracker.Pla
       roleFlags = mediaTagFormat.roleFlags;
       language = mediaTagFormat.language;
       label = mediaTagFormat.label;
+      labels = mediaTagFormat.labels;
     } else {
       codecs = Util.getCodecsOfType(variantFormat.codecs, C.TRACK_TYPE_AUDIO);
       metadata = variantFormat.metadata;
@@ -894,6 +910,7 @@ public final class HlsMediaPeriod implements MediaPeriod, HlsPlaylistTracker.Pla
         roleFlags = variantFormat.roleFlags;
         language = variantFormat.language;
         label = variantFormat.label;
+        labels = variantFormat.labels;
       }
     }
     @Nullable String sampleMimeType = MimeTypes.getMediaMimeType(codecs);
@@ -902,6 +919,7 @@ public final class HlsMediaPeriod implements MediaPeriod, HlsPlaylistTracker.Pla
     return new Format.Builder()
         .setId(variantFormat.id)
         .setLabel(label)
+        .setLabels(labels)
         .setContainerMimeType(variantFormat.containerMimeType)
         .setSampleMimeType(sampleMimeType)
         .setCodecs(codecs)

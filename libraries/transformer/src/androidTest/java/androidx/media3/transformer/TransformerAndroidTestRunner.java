@@ -28,6 +28,7 @@ import android.net.Uri;
 import androidx.annotation.Nullable;
 import androidx.media3.common.C;
 import androidx.media3.common.MediaItem;
+import androidx.media3.common.util.Clock;
 import androidx.media3.common.util.Log;
 import androidx.media3.common.util.NullableType;
 import androidx.media3.common.util.SystemClock;
@@ -36,6 +37,8 @@ import androidx.media3.effect.DebugTraceUtil;
 import androidx.media3.test.utils.SsimHelper;
 import androidx.test.platform.app.InstrumentationRegistry;
 import com.google.common.base.Ascii;
+import com.google.common.util.concurrent.ListenableFuture;
+import com.google.common.util.concurrent.SettableFuture;
 import com.google.errorprone.annotations.CanIgnoreReturnValue;
 import java.io.File;
 import java.io.IOException;
@@ -178,6 +181,35 @@ public class TransformerAndroidTestRunner {
     this.inputValues = inputValues;
   }
 
+  /** Exports the {@link EditedMediaItem} asynchronously. */
+  public ListenableFuture<ExportResult> runAsync(String testId, EditedMediaItem editedMediaItem)
+      throws IOException {
+    SettableFuture<ExportResult> completionFuture = SettableFuture.create();
+    File outputVideoFile = createOutputFile(testId);
+    InstrumentationRegistry.getInstrumentation()
+        .runOnMainSync(
+            () -> {
+              transformer.addListener(
+                  new Transformer.Listener() {
+                    @Override
+                    public void onCompleted(Composition composition, ExportResult exportResult) {
+                      completionFuture.set(exportResult);
+                    }
+
+                    @Override
+                    public void onError(
+                        Composition composition,
+                        ExportResult exportResult,
+                        ExportException exportException) {
+                      completionFuture.setException(exportException);
+                    }
+                  });
+              transformer.start(editedMediaItem, outputVideoFile.getAbsolutePath());
+            });
+
+    return completionFuture;
+  }
+
   /**
    * Exports the {@link Composition}, saving a summary of the export to the application cache.
    *
@@ -187,12 +219,28 @@ public class TransformerAndroidTestRunner {
    * @throws Exception The cause of the export not completing.
    */
   public ExportTestResult run(String testId, Composition composition) throws Exception {
+    return run(testId, composition, /* oldFilePath= */ null);
+  }
+
+  /**
+   * Exports the {@link Composition}, saving a summary of the export to the application cache.
+   * Resumes exporting if the {@code oldFilePath} is specified.
+   *
+   * @param testId A unique identifier for the transformer test run.
+   * @param composition The {@link Composition} to export.
+   * @param oldFilePath The old output file path to resume the export from. Passing {@code null}
+   *     will restart the export from the beginning.
+   * @return The {@link ExportTestResult}.
+   * @throws Exception The cause of the export not completing.
+   */
+  public ExportTestResult run(String testId, Composition composition, @Nullable String oldFilePath)
+      throws Exception {
     JSONObject resultJson = new JSONObject();
     if (inputValues != null) {
       resultJson.put("inputValues", JSONObject.wrap(inputValues));
     }
     try {
-      ExportTestResult exportTestResult = runInternal(testId, composition);
+      ExportTestResult exportTestResult = runInternal(testId, composition, oldFilePath);
       resultJson.put("exportResult", exportTestResult.asJsonObject());
       if (exportTestResult.exportResult.exportException != null) {
         throw exportTestResult.exportResult.exportException;
@@ -204,13 +252,11 @@ public class TransformerAndroidTestRunner {
     } catch (InterruptedException e) {
       Thread.currentThread().interrupt();
       resultJson.put(
-          "exportResult",
-          new JSONObject().put("testException", AndroidTestUtil.exceptionAsJsonObject(e)));
+          "exportResult", new JSONObject().put("testException", JsonUtil.exceptionAsJsonObject(e)));
       throw e;
     } catch (IOException | TimeoutException | UnsupportedOperationException e) {
       resultJson.put(
-          "exportResult",
-          new JSONObject().put("testException", AndroidTestUtil.exceptionAsJsonObject(e)));
+          "exportResult", new JSONObject().put("testException", JsonUtil.exceptionAsJsonObject(e)));
       throw e;
     } finally {
       AndroidTestUtil.writeTestSummaryToFile(context, testId, resultJson);
@@ -227,7 +273,8 @@ public class TransformerAndroidTestRunner {
    */
   public ExportTestResult run(String testId, EditedMediaItem editedMediaItem) throws Exception {
     Composition composition =
-        new Composition.Builder(new EditedMediaItemSequence(editedMediaItem)).build();
+        new Composition.Builder(new EditedMediaItemSequence.Builder(editedMediaItem).build())
+            .build();
     return run(testId, composition);
   }
 
@@ -249,6 +296,8 @@ public class TransformerAndroidTestRunner {
    *
    * @param testId An identifier for the test.
    * @param composition The {@link Composition} to export.
+   * @param oldFilePath The old output file path to resume the export from. Passing {@code null}
+   *     will restart the export from the beginning.
    * @return The {@link ExportTestResult}.
    * @throws IllegalStateException See {@link Transformer#start(Composition, String)}.
    * @throws InterruptedException If the thread is interrupted whilst waiting for transformer to
@@ -257,7 +306,8 @@ public class TransformerAndroidTestRunner {
    * @throws TimeoutException If the export has not completed after {@linkplain
    *     Builder#setTimeoutSeconds(int) the given timeout}.
    */
-  private ExportTestResult runInternal(String testId, Composition composition)
+  private ExportTestResult runInternal(
+      String testId, Composition composition, @Nullable String oldFilePath)
       throws InterruptedException, IOException, TimeoutException {
     if (requestCalculateSsim) {
       checkArgument(
@@ -277,6 +327,9 @@ public class TransformerAndroidTestRunner {
     }
     for (EditedMediaItemSequence sequence : composition.sequences) {
       for (EditedMediaItem editedMediaItem : sequence.editedMediaItems) {
+        if (editedMediaItem.isGap()) {
+          continue;
+        }
         Uri mediaItemUri = checkNotNull(editedMediaItem.mediaItem.localConfiguration).uri;
         String scheme = mediaItemUri.getScheme();
         if (scheme != null && (scheme.equals("http") || scheme.equals("https"))) {
@@ -295,6 +348,8 @@ public class TransformerAndroidTestRunner {
     AtomicReference<@NullableType ExportResult> exportResultReference = new AtomicReference<>();
     CountDownLatch countDownLatch = new CountDownLatch(1);
     long startTimeMs = SystemClock.DEFAULT.elapsedRealtime();
+
+    DebugTraceUtil.enableTracing = true;
 
     Transformer testTransformer =
         transformer
@@ -338,13 +393,17 @@ public class TransformerAndroidTestRunner {
                 })
             .build();
 
-    File outputVideoFile =
-        AndroidTestUtil.createExternalCacheFile(context, /* fileName= */ testId + "-output.mp4");
+    File outputVideoFile = createOutputFile(testId);
     InstrumentationRegistry.getInstrumentation()
         .runOnMainSync(
             () -> {
               try {
-                testTransformer.start(composition, outputVideoFile.getAbsolutePath());
+                if (oldFilePath == null) {
+                  testTransformer.start(composition, outputVideoFile.getAbsolutePath());
+                } else {
+                  testTransformer.resume(
+                      composition, outputVideoFile.getAbsolutePath(), oldFilePath);
+                }
                 // Catch all exceptions to report. Exceptions thrown here and not caught will NOT
                 // propagate.
               } catch (Exception e) {
@@ -377,11 +436,7 @@ public class TransformerAndroidTestRunner {
 
     // No exceptions raised, export has succeeded.
     ExportTestResult.Builder testResultBuilder =
-        new ExportTestResult.Builder(
-                checkNotNull(exportResultReference.get())
-                    .buildUpon()
-                    .setFileSizeBytes(outputVideoFile.length())
-                    .build())
+        new ExportTestResult.Builder(checkNotNull(exportResultReference.get()))
             .setElapsedTimeMs(elapsedTimeMs)
             .setFallbackDetails(fallbackDetails)
             .setFilePath(outputVideoFile.getPath());
@@ -426,6 +481,11 @@ public class TransformerAndroidTestRunner {
       }
     }
     return testResultBuilder.build();
+  }
+
+  private File createOutputFile(String testId) throws IOException {
+    return AndroidTestUtil.createExternalCacheFile(
+        context, /* fileName= */ testId + "-" + Clock.DEFAULT.elapsedRealtime() + "-output.mp4");
   }
 
   /** Returns whether the context is connected to the network. */

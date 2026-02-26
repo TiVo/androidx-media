@@ -24,7 +24,7 @@ import static com.google.common.truth.Truth.assertThat;
 
 import android.graphics.Bitmap;
 import android.util.Pair;
-import androidx.media3.common.ColorInfo;
+import androidx.media3.common.VideoFrameProcessingException;
 import androidx.media3.common.VideoFrameProcessor;
 import androidx.media3.effect.DefaultVideoFrameProcessor;
 import androidx.media3.test.utils.BitmapPixelTestUtil;
@@ -37,7 +37,10 @@ import java.util.List;
 import java.util.Set;
 import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
 import org.junit.After;
+import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.TestName;
 import org.junit.runner.RunWith;
 
 /**
@@ -48,18 +51,27 @@ import org.junit.runner.RunWith;
  */
 @RunWith(AndroidJUnit4.class)
 public class DefaultVideoFrameProcessorMultipleTextureOutputPixelTest {
+
   private static final String ORIGINAL_PNG_ASSET_PATH =
-      "media/bitmap/sample_mp4_first_frame/electrical_colors/original.png";
-  private static final String MEDIA3_TEST_PNG_ASSET_PATH =
-      "media/bitmap/input_images/media3test.png";
+      "test-generated-goldens/sample_mp4_first_frame/electrical_colors/original.png";
+  private static final String MEDIA3_TEST_PNG_ASSET_PATH = "media/png/media3test.png";
   private static final String SRGB_TO_ELECTRICAL_ORIGINAL_PNG_ASSET_PATH =
-      "media/bitmap/sample_mp4_first_frame/electrical_colors/srgb_to_electrical_original.png";
+      "test-generated-goldens/sample_mp4_first_frame/electrical_colors/srgb_to_electrical_original.png";
   private static final String SRGB_TO_ELECTRICAL_MEDIA3_TEST_PNG_ASSET_PATH =
-      "media/bitmap/sample_mp4_first_frame/electrical_colors/srgb_to_electrical_media3test.png";
+      "test-generated-goldens/sample_mp4_first_frame/electrical_colors/srgb_to_electrical_media3test.png";
+
+  @Rule public final TestName testName = new TestName();
 
   private @MonotonicNonNull VideoFrameProcessorTestRunner videoFrameProcessorTestRunner;
 
   private @MonotonicNonNull TextureBitmapReader textureBitmapReader;
+
+  private String testId;
+
+  @Before
+  public void setUpTestId() {
+    testId = testName.getMethodName();
+  }
 
   @After
   public void release() {
@@ -68,7 +80,6 @@ public class DefaultVideoFrameProcessorMultipleTextureOutputPixelTest {
 
   @Test
   public void textureOutput_queueBitmap_matchesGoldenFile() throws Exception {
-    String testId = "textureOutput_queueBitmap_matchesGoldenFile";
     videoFrameProcessorTestRunner = getFrameProcessorTestRunnerBuilder(testId).build();
     ImmutableList<Long> inputTimestamps = ImmutableList.of(1_000_000L, 2_000_000L, 3_000_000L);
 
@@ -89,7 +100,6 @@ public class DefaultVideoFrameProcessorMultipleTextureOutputPixelTest {
 
   @Test
   public void textureOutput_queueTwoBitmaps_matchesGoldenFiles() throws Exception {
-    String testId = "textureOutput_queueTwoBitmaps_matchesGoldenFiles";
     videoFrameProcessorTestRunner = getFrameProcessorTestRunnerBuilder(testId).build();
     ImmutableList<Long> inputTimestamps1 = ImmutableList.of(1_000_000L, 1_500_000L);
     ImmutableList<Long> inputTimestamps2 = ImmutableList.of(2_000_000L, 3_000_000L, 4_000_000L);
@@ -119,11 +129,36 @@ public class DefaultVideoFrameProcessorMultipleTextureOutputPixelTest {
         .isAtMost(MAXIMUM_AVERAGE_PIXEL_ABSOLUTE_DIFFERENCE_DIFFERENT_DEVICE);
   }
 
+  // This tests a condition that is difficult to synchronize, and is subject to a race
+  // condition. It may flake/fail if any queued frames are processed in the VideoFrameProcessor
+  // thread, before flush begins and cancels these pending frames. However, this is better than not
+  // testing this behavior at all, and in practice has succeeded every time on a 1000-time run.
+  // TODO: b/302695659 - Make this test more deterministic.
+  @Test
+  public void textureOutput_queueFiveBitmapsAndFlush_outputsOnlyAfterFlush() throws Exception {
+    videoFrameProcessorTestRunner = getFrameProcessorTestRunnerBuilder(testId).build();
+    ImmutableList<Long> inputTimestamps1 = ImmutableList.of(1_000_000L, 2_000_000L, 3_000_000L);
+    ImmutableList<Long> inputTimestamps2 = ImmutableList.of(4_000_000L, 5_000_000L, 6_000_000L);
+
+    queueBitmaps(videoFrameProcessorTestRunner, ORIGINAL_PNG_ASSET_PATH, inputTimestamps1);
+    videoFrameProcessorTestRunner.flush();
+    queueBitmaps(videoFrameProcessorTestRunner, MEDIA3_TEST_PNG_ASSET_PATH, inputTimestamps2);
+    videoFrameProcessorTestRunner.endFrameProcessing();
+
+    TextureBitmapReader textureBitmapReader = checkNotNull(this.textureBitmapReader);
+    Set<Long> actualOutputTimestamps = textureBitmapReader.getOutputTimestamps();
+    assertThat(actualOutputTimestamps).containsAtLeastElementsIn(inputTimestamps2).inOrder();
+    // This assertion is subject to flaking, per test comments. If it flakes, consider increasing
+    // the number of elements in inputTimestamps2.
+    assertThat(actualOutputTimestamps.size())
+        .isLessThan(inputTimestamps1.size() + inputTimestamps2.size());
+  }
+
   private void queueBitmaps(
       VideoFrameProcessorTestRunner videoFrameProcessorTestRunner,
       String bitmapAssetPath,
       List<Long> timestamps)
-      throws IOException, InterruptedException {
+      throws IOException, VideoFrameProcessingException {
     Bitmap bitmap = readBitmap(bitmapAssetPath);
     videoFrameProcessorTestRunner.queueInputBitmaps(
         bitmap.getWidth(),
@@ -145,7 +180,6 @@ public class DefaultVideoFrameProcessorMultipleTextureOutputPixelTest {
     return new VideoFrameProcessorTestRunner.Builder()
         .setTestId(testId)
         .setVideoFrameProcessorFactory(defaultVideoFrameProcessorFactory)
-        .setInputColorInfo(ColorInfo.SRGB_BT709_FULL)
         .setBitmapReader(textureBitmapReader);
   }
 }

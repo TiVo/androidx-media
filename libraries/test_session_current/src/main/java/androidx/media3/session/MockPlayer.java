@@ -15,6 +15,7 @@
  */
 package androidx.media3.session;
 
+import static androidx.media3.common.util.Assertions.checkArgument;
 import static androidx.media3.common.util.Assertions.checkNotNull;
 import static java.lang.annotation.ElementType.TYPE_USE;
 
@@ -309,6 +310,7 @@ public class MockPlayer implements Player {
   public int deviceVolume;
   public boolean deviceMuted;
   public boolean playWhenReady;
+  public @PlayWhenReadyChangeReason int playWhenReadyChangeReason;
   public @PlaybackSuppressionReason int playbackSuppressionReason;
   public @State int playbackState;
   public boolean isLoading;
@@ -403,7 +405,9 @@ public class MockPlayer implements Player {
     checkNotNull(conditionVariables.get(METHOD_PLAY)).open();
     if (changePlayerStateWithTransportControl) {
       notifyPlayWhenReadyChanged(
-          /* playWhenReady= */ true, Player.PLAYBACK_SUPPRESSION_REASON_NONE);
+          /* playWhenReady= */ true,
+          Player.PLAY_WHEN_READY_CHANGE_REASON_USER_REQUEST,
+          Player.PLAYBACK_SUPPRESSION_REASON_NONE);
     }
   }
 
@@ -412,7 +416,9 @@ public class MockPlayer implements Player {
     checkNotNull(conditionVariables.get(METHOD_PAUSE)).open();
     if (changePlayerStateWithTransportControl) {
       notifyPlayWhenReadyChanged(
-          /* playWhenReady= */ false, Player.PLAYBACK_SUPPRESSION_REASON_NONE);
+          /* playWhenReady= */ false,
+          Player.PLAY_WHEN_READY_CHANGE_REASON_USER_REQUEST,
+          Player.PLAYBACK_SUPPRESSION_REASON_NONE);
     }
   }
 
@@ -431,6 +437,7 @@ public class MockPlayer implements Player {
 
   @Override
   public void seekToDefaultPosition(int mediaItemIndex) {
+    checkArgument(mediaItemIndex >= 0);
     seekMediaItemIndex = mediaItemIndex;
     checkNotNull(conditionVariables.get(METHOD_SEEK_TO_DEFAULT_POSITION_WITH_MEDIA_ITEM_INDEX))
         .open();
@@ -444,6 +451,7 @@ public class MockPlayer implements Player {
 
   @Override
   public void seekTo(int mediaItemIndex, long positionMs) {
+    checkArgument(mediaItemIndex >= 0);
     seekMediaItemIndex = mediaItemIndex;
     seekPositionMs = positionMs;
     checkNotNull(conditionVariables.get(METHOD_SEEK_TO_WITH_MEDIA_ITEM_INDEX)).open();
@@ -582,22 +590,26 @@ public class MockPlayer implements Player {
    * Player.Listener#onIsPlayingChanged} as appropriate.
    */
   public void notifyPlayWhenReadyChanged(
-      boolean playWhenReady, @PlaybackSuppressionReason int playbackSuppressionReason) {
-    boolean playWhenReadyChanged = (this.playWhenReady != playWhenReady);
+      boolean playWhenReady,
+      @PlayWhenReadyChangeReason int playWhenReadyChangeReason,
+      @PlaybackSuppressionReason int playbackSuppressionReason) {
+    boolean playWhenReadyChanged = this.playWhenReady != playWhenReady;
+    boolean playWhenReadyReasonChanged =
+        this.playWhenReadyChangeReason != playWhenReadyChangeReason;
     boolean playbackSuppressionReasonChanged =
-        (this.playbackSuppressionReason != playbackSuppressionReason);
-    if (!playWhenReadyChanged && !playbackSuppressionReasonChanged) {
+        this.playbackSuppressionReason != playbackSuppressionReason;
+    if (!playWhenReadyChanged && !playbackSuppressionReasonChanged && !playWhenReadyReasonChanged) {
       return;
     }
 
     boolean wasPlaying = isPlaying();
     this.playWhenReady = playWhenReady;
+    this.playWhenReadyChangeReason = playWhenReadyChangeReason;
     this.playbackSuppressionReason = playbackSuppressionReason;
     boolean isPlaying = isPlaying();
     for (Listener listener : listeners) {
-      if (playWhenReadyChanged) {
-        listener.onPlayWhenReadyChanged(
-            playWhenReady, Player.PLAY_WHEN_READY_CHANGE_REASON_USER_REQUEST);
+      if (playWhenReadyChanged || playWhenReadyReasonChanged) {
+        listener.onPlayWhenReadyChanged(playWhenReady, playWhenReadyChangeReason);
       }
       if (playbackSuppressionReasonChanged) {
         listener.onPlaybackSuppressionReasonChanged(playbackSuppressionReason);
@@ -1069,29 +1081,11 @@ public class MockPlayer implements Player {
   }
 
   /**
-   * @deprecated Use {@link #hasPreviousMediaItem()} instead.
-   */
-  @Deprecated
-  @Override
-  public boolean hasPrevious() {
-    throw new UnsupportedOperationException();
-  }
-
-  /**
    * @deprecated Use {@link #hasNextMediaItem()} instead.
    */
   @Deprecated
   @Override
   public boolean hasNext() {
-    throw new UnsupportedOperationException();
-  }
-
-  /**
-   * @deprecated Use {@link #hasPreviousMediaItem()} instead.
-   */
-  @Deprecated
-  @Override
-  public boolean hasPreviousWindow() {
     throw new UnsupportedOperationException();
   }
 
@@ -1111,15 +1105,6 @@ public class MockPlayer implements Player {
 
   @Override
   public boolean hasNextMediaItem() {
-    throw new UnsupportedOperationException();
-  }
-
-  /**
-   * @deprecated Use {@link #seekToPreviousMediaItem()} instead.
-   */
-  @Deprecated
-  @Override
-  public void previous() {
     throw new UnsupportedOperationException();
   }
 

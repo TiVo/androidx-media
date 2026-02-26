@@ -22,11 +22,12 @@ import static java.lang.Math.ceil;
 import android.annotation.SuppressLint;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
+import android.graphics.Color;
+import android.graphics.PorterDuff;
 import android.text.Layout;
 import android.text.SpannableString;
 import android.text.StaticLayout;
 import android.text.TextPaint;
-import androidx.annotation.DoNotInline;
 import androidx.annotation.RequiresApi;
 import androidx.media3.common.util.UnstableApi;
 import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
@@ -97,10 +98,15 @@ public abstract class TextOverlay extends BitmapOverlay {
       textPaint.setTextSize(TEXT_SIZE_PIXELS);
       StaticLayout staticLayout =
           createStaticLayout(overlayText, textPaint, getSpannedTextWidth(overlayText, textPaint));
-      lastBitmap =
-          Bitmap.createBitmap(
-              staticLayout.getWidth(), staticLayout.getHeight(), Bitmap.Config.ARGB_8888);
+      if (lastBitmap == null
+          || lastBitmap.getWidth() != staticLayout.getWidth()
+          || lastBitmap.getHeight() != staticLayout.getHeight()) {
+        lastBitmap =
+            Bitmap.createBitmap(
+                staticLayout.getWidth(), staticLayout.getHeight(), Bitmap.Config.ARGB_8888);
+      }
       Canvas canvas = new Canvas(checkNotNull(lastBitmap));
+      canvas.drawColor(Color.TRANSPARENT, PorterDuff.Mode.CLEAR);
       staticLayout.draw(canvas);
     }
     return checkNotNull(lastBitmap);
@@ -135,7 +141,6 @@ public abstract class TextOverlay extends BitmapOverlay {
 
   @RequiresApi(23)
   private static final class Api23 {
-    @DoNotInline
     public static StaticLayout getStaticLayout(
         SpannableString text, TextPaint textPaint, int width) {
       return StaticLayout.Builder.obtain(
