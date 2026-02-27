@@ -453,17 +453,19 @@ public final class TsExtractor implements Extractor {
     }
 
     if (!fillBufferWithAtLeastOnePacket(input)) {
+      boolean addedEmptyPes = false;
       // Send a synthesized empty pusi to allow for packetFinished to be triggered on the last unit.
       for (int i = 0; i < tsPayloadReaders.size(); i++) {
         TsPayloadReader payloadReader = tsPayloadReaders.valueAt(i);
         if (payloadReader instanceof PesReader) {
           PesReader pesReader = (PesReader) payloadReader;
           if (pesReader.canConsumeSynthesizedEmptyPusi(isModeHls)) {
+            addedEmptyPes = true;
             pesReader.consume(new ParsableByteArray(), FLAG_PAYLOAD_UNIT_START_INDICATOR);
           }
         }
       }
-      if (lastPid != -1 && shouldConsumePacketPayload(lastPid)) {
+      if (lastPid != -1 && !addedEmptyPes && shouldConsumePacketPayload(lastPid)) {
         TsPayloadReader payloadReader = tsPayloadReaders.get(lastPid);
         if (payloadReader != null) {
           payloadReader.endOfStream();

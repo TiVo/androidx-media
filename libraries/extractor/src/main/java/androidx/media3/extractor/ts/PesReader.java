@@ -173,7 +173,8 @@ public final class PesReader implements TsPayloadReader {
     // which would trigger committing an unfinished sample in the middle of the access unit
     return state == STATE_READING_BODY
         && payloadSize == C.LENGTH_UNSET
-        && !(isModeHls && reader instanceof H262Reader);
+        && !(isModeHls && reader instanceof H262Reader)
+        && !(isModeHls && reader instanceof H265Reader);
   }
 
   @Override
