@@ -19,8 +19,8 @@ import static androidx.test.core.app.ApplicationProvider.getApplicationContext;
 import static com.google.common.truth.Truth.assertThat;
 
 import android.os.Bundle;
-import androidx.media.MediaSessionManager;
 import androidx.media3.common.MediaLibraryInfo;
+import androidx.media3.session.legacy.MediaSessionManager;
 import androidx.media3.test.utils.TestExoPlayerBuilder;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import org.junit.After;
@@ -85,7 +85,8 @@ public class MediaSessionUnitTest { // Avoid naming collision with session_curre
             MediaControllerStub.VERSION_INT,
             /* trusted= */ false,
             /* cb= */ null,
-            /* connectionHints= */ Bundle.EMPTY);
+            /* connectionHints= */ Bundle.EMPTY,
+            /* maxCommandsForMediaItems= */ 0);
 
     assertThat(session.isAutomotiveController(controllerInfo)).isFalse();
   }
@@ -140,7 +141,8 @@ public class MediaSessionUnitTest { // Avoid naming collision with session_curre
             MediaControllerStub.VERSION_INT,
             /* trusted= */ false,
             /* cb= */ null,
-            /* connectionHints= */ Bundle.EMPTY);
+            /* connectionHints= */ Bundle.EMPTY,
+            /* maxCommandsForMediaItems= */ 0);
 
     assertThat(session.isAutoCompanionController(controllerInfo)).isFalse();
   }
@@ -153,7 +155,7 @@ public class MediaSessionUnitTest { // Avoid naming collision with session_curre
             /* pid= */ MediaSessionManager.RemoteUserInfo.UNKNOWN_PID,
             /* uid= */ MediaSessionManager.RemoteUserInfo.UNKNOWN_UID);
     Bundle connectionHints = new Bundle();
-    connectionHints.putBoolean(MediaNotificationManager.KEY_MEDIA_NOTIFICATION_MANAGER, true);
+    connectionHints.putBoolean(MediaController.KEY_MEDIA_NOTIFICATION_CONTROLLER_FLAG, true);
     MediaSession.ControllerInfo controllerInfo =
         new MediaSession.ControllerInfo(
             remoteUserInfo,
@@ -161,7 +163,8 @@ public class MediaSessionUnitTest { // Avoid naming collision with session_curre
             MediaControllerStub.VERSION_INT,
             /* trusted= */ false,
             /* cb= */ null,
-            connectionHints);
+            connectionHints,
+            /* maxCommandsForMediaItems= */ 0);
 
     assertThat(session.isMediaNotificationController(controllerInfo)).isTrue();
   }
@@ -174,7 +177,7 @@ public class MediaSessionUnitTest { // Avoid naming collision with session_curre
             /* pid= */ MediaSessionManager.RemoteUserInfo.UNKNOWN_PID,
             /* uid= */ MediaSessionManager.RemoteUserInfo.UNKNOWN_UID);
     Bundle connectionHints = new Bundle();
-    connectionHints.putBoolean(MediaNotificationManager.KEY_MEDIA_NOTIFICATION_MANAGER, true);
+    connectionHints.putBoolean(MediaController.KEY_MEDIA_NOTIFICATION_CONTROLLER_FLAG, true);
     MediaSession.ControllerInfo controllerInfo =
         new MediaSession.ControllerInfo(
             remoteUserInfo,
@@ -182,7 +185,8 @@ public class MediaSessionUnitTest { // Avoid naming collision with session_curre
             MediaControllerStub.VERSION_INT,
             /* trusted= */ false,
             /* cb= */ null,
-            connectionHints);
+            connectionHints,
+            /* maxCommandsForMediaItems= */ 0);
 
     assertThat(session.isMediaNotificationController(controllerInfo)).isFalse();
   }
@@ -201,7 +205,8 @@ public class MediaSessionUnitTest { // Avoid naming collision with session_curre
             MediaControllerStub.VERSION_INT,
             /* trusted= */ false,
             /* cb= */ null,
-            /* connectionHints= */ Bundle.EMPTY);
+            /* connectionHints= */ Bundle.EMPTY,
+            /* maxCommandsForMediaItems= */ 0);
 
     assertThat(session.isMediaNotificationController(controllerInfo)).isFalse();
   }
@@ -214,7 +219,7 @@ public class MediaSessionUnitTest { // Avoid naming collision with session_curre
             /* pid= */ MediaSessionManager.RemoteUserInfo.UNKNOWN_PID,
             /* uid= */ MediaSessionManager.RemoteUserInfo.UNKNOWN_UID);
     Bundle connectionHints = new Bundle();
-    connectionHints.putBoolean(MediaNotificationManager.KEY_MEDIA_NOTIFICATION_MANAGER, true);
+    connectionHints.putBoolean(MediaController.KEY_MEDIA_NOTIFICATION_CONTROLLER_FLAG, true);
     MediaSession.ControllerInfo controllerInfo =
         new MediaSession.ControllerInfo(
             remoteUserInfo,
@@ -222,7 +227,8 @@ public class MediaSessionUnitTest { // Avoid naming collision with session_curre
             MediaSession.ControllerInfo.LEGACY_CONTROLLER_INTERFACE_VERSION,
             /* trusted= */ false,
             /* cb= */ null,
-            connectionHints);
+            connectionHints,
+            /* maxCommandsForMediaItems= */ 0);
 
     assertThat(session.isMediaNotificationController(controllerInfo)).isFalse();
   }
@@ -235,6 +241,7 @@ public class MediaSessionUnitTest { // Avoid naming collision with session_curre
         MediaSession.ControllerInfo.LEGACY_CONTROLLER_INTERFACE_VERSION,
         /* trusted= */ false,
         /* cb= */ null,
-        /* connectionHints= */ Bundle.EMPTY);
+        /* connectionHints= */ Bundle.EMPTY,
+        /* maxCommandsForMediaItems= */ 0);
   }
 }

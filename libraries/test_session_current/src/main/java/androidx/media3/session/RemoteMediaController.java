@@ -22,6 +22,7 @@ import static androidx.media3.test.session.common.TestUtils.SERVICE_CONNECTION_T
 import static com.google.common.truth.Truth.assertWithMessage;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
+import android.app.PendingIntent;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
@@ -39,7 +40,7 @@ import androidx.media3.common.Player;
 import androidx.media3.common.Player.RepeatMode;
 import androidx.media3.common.Rating;
 import androidx.media3.common.TrackSelectionParameters;
-import androidx.media3.common.util.BundleableUtil;
+import androidx.media3.common.util.BundleCollectionUtil;
 import androidx.media3.common.util.Log;
 import androidx.media3.test.session.common.IRemoteMediaController;
 import androidx.media3.test.session.common.TestUtils;
@@ -94,7 +95,7 @@ public class RemoteMediaController {
   @Nullable
   public SessionToken getConnectedSessionToken() throws RemoteException {
     @Nullable Bundle sessionTokenBundle = binder.getConnectedSessionToken(controllerId);
-    return sessionTokenBundle == null ? null : SessionToken.CREATOR.fromBundle(sessionTokenBundle);
+    return sessionTokenBundle == null ? null : SessionToken.fromBundle(sessionTokenBundle);
   }
 
   public Bundle getSessionExtras() throws RemoteException {
@@ -166,26 +167,33 @@ public class RemoteMediaController {
   }
 
   public void setMediaItems(List<MediaItem> mediaItems) throws RemoteException {
-    binder.setMediaItems(controllerId, BundleableUtil.toBundleList(mediaItems));
+    binder.setMediaItems(
+        controllerId, BundleCollectionUtil.toBundleList(mediaItems, MediaItem::toBundle));
   }
 
   public void setMediaItemsIncludeLocalConfiguration(List<MediaItem> mediaItems)
       throws RemoteException {
     binder.setMediaItems(
         controllerId,
-        BundleableUtil.toBundleList(mediaItems, MediaItem::toBundleIncludeLocalConfiguration));
+        BundleCollectionUtil.toBundleList(
+            mediaItems, MediaItem::toBundleIncludeLocalConfiguration));
   }
 
   public void setMediaItems(List<MediaItem> mediaItems, boolean resetPosition)
       throws RemoteException {
     binder.setMediaItemsWithResetPosition(
-        controllerId, BundleableUtil.toBundleList(mediaItems), resetPosition);
+        controllerId,
+        BundleCollectionUtil.toBundleList(mediaItems, MediaItem::toBundle),
+        resetPosition);
   }
 
   public void setMediaItems(List<MediaItem> mediaItems, int startIndex, long startPositionMs)
       throws RemoteException {
     binder.setMediaItemsWithStartIndex(
-        controllerId, BundleableUtil.toBundleList(mediaItems), startIndex, startPositionMs);
+        controllerId,
+        BundleCollectionUtil.toBundleList(mediaItems, MediaItem::toBundle),
+        startIndex,
+        startPositionMs);
   }
 
   /**
@@ -215,18 +223,21 @@ public class RemoteMediaController {
   }
 
   public void addMediaItems(List<MediaItem> mediaItems) throws RemoteException {
-    binder.addMediaItems(controllerId, BundleableUtil.toBundleList(mediaItems));
+    binder.addMediaItems(
+        controllerId, BundleCollectionUtil.toBundleList(mediaItems, MediaItem::toBundle));
   }
 
   public void addMediaItemsIncludeLocalConfiguration(List<MediaItem> mediaItems)
       throws RemoteException {
     binder.addMediaItems(
         controllerId,
-        BundleableUtil.toBundleList(mediaItems, MediaItem::toBundleIncludeLocalConfiguration));
+        BundleCollectionUtil.toBundleList(
+            mediaItems, MediaItem::toBundleIncludeLocalConfiguration));
   }
 
   public void addMediaItems(int index, List<MediaItem> mediaItems) throws RemoteException {
-    binder.addMediaItemsWithIndex(controllerId, index, BundleableUtil.toBundleList(mediaItems));
+    binder.addMediaItemsWithIndex(
+        controllerId, index, BundleCollectionUtil.toBundleList(mediaItems, MediaItem::toBundle));
   }
 
   public void removeMediaItem(int index) throws RemoteException {
@@ -256,7 +267,10 @@ public class RemoteMediaController {
   public void replaceMediaItems(int fromIndex, int toIndex, List<MediaItem> mediaItems)
       throws RemoteException {
     binder.replaceMediaItems(
-        controllerId, fromIndex, toIndex, BundleableUtil.toBundleList(mediaItems));
+        controllerId,
+        fromIndex,
+        toIndex,
+        BundleCollectionUtil.toBundleList(mediaItems, MediaItem::toBundle));
   }
 
   public void seekToPreviousMediaItem() throws RemoteException {
@@ -327,17 +341,17 @@ public class RemoteMediaController {
   public SessionResult sendCustomCommand(SessionCommand command, Bundle args)
       throws RemoteException {
     Bundle result = binder.sendCustomCommand(controllerId, command.toBundle(), args);
-    return SessionResult.CREATOR.fromBundle(result);
+    return SessionResult.fromBundle(result);
   }
 
   public SessionResult setRating(String mediaId, Rating rating) throws RemoteException {
     Bundle result = binder.setRatingWithMediaId(controllerId, mediaId, rating.toBundle());
-    return SessionResult.CREATOR.fromBundle(result);
+    return SessionResult.fromBundle(result);
   }
 
   public SessionResult setRating(Rating rating) throws RemoteException {
     Bundle result = binder.setRating(controllerId, rating.toBundle());
-    return SessionResult.CREATOR.fromBundle(result);
+    return SessionResult.fromBundle(result);
   }
 
   public void release() throws RemoteException {
@@ -358,8 +372,10 @@ public class RemoteMediaController {
       throws RemoteException {
     binder.setMediaItemsPreparePlayAddItemsSeek(
         controllerId,
-        BundleableUtil.toBundleList(initialMediaItems),
-        BundleableUtil.toBundleList(addedMediaItems),
+        BundleCollectionUtil.toBundleList(
+            initialMediaItems, MediaItem::toBundleIncludeLocalConfiguration),
+        BundleCollectionUtil.toBundleList(
+            addedMediaItems, MediaItem::toBundleIncludeLocalConfiguration),
         seekIndex);
   }
 
@@ -368,14 +384,29 @@ public class RemoteMediaController {
     ArrayList<Bundle> list = customLayoutBundle.getParcelableArrayList(KEY_COMMAND_BUTTON_LIST);
     ImmutableList.Builder<CommandButton> customLayout = new ImmutableList.Builder<>();
     for (Bundle bundle : list) {
-      customLayout.add(CommandButton.CREATOR.fromBundle(bundle));
+      customLayout.add(CommandButton.fromBundle(bundle, MediaSessionStub.VERSION_INT));
     }
     return customLayout.build();
   }
 
+  public ImmutableList<CommandButton> getMediaButtonPreferences() throws RemoteException {
+    Bundle mediaButtonPreferencesBundle = binder.getMediaButtonPreferences(controllerId);
+    ArrayList<Bundle> list =
+        mediaButtonPreferencesBundle.getParcelableArrayList(KEY_COMMAND_BUTTON_LIST);
+    ImmutableList.Builder<CommandButton> mediaButtonPreferences = new ImmutableList.Builder<>();
+    for (Bundle bundle : list) {
+      mediaButtonPreferences.add(CommandButton.fromBundle(bundle, MediaSessionStub.VERSION_INT));
+    }
+    return mediaButtonPreferences.build();
+  }
+
   public Player.Commands getAvailableCommands() throws RemoteException {
     Bundle commandsBundle = binder.getAvailableCommands(controllerId);
-    return Player.Commands.CREATOR.fromBundle(commandsBundle);
+    return Player.Commands.fromBundle(commandsBundle);
+  }
+
+  public PendingIntent getSessionActivity() throws RemoteException {
+    return binder.getSessionActivity(controllerId);
   }
 
   ////////////////////////////////////////////////////////////////////////////////

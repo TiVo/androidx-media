@@ -648,7 +648,7 @@ public class DefaultTimeBar extends View implements TimeBar {
         case KeyEvent.KEYCODE_DPAD_LEFT:
         case KeyEvent.KEYCODE_MEDIA_REWIND:   // Treat as dPAD left when scrubbing
           positionIncrement = -positionIncrement;
-          // Fall through.
+        // Fall through.
         case KeyEvent.KEYCODE_DPAD_RIGHT:
         case KeyEvent.KEYCODE_MEDIA_FAST_FORWARD: // Treat as dPAD right when scrubbing
           if (scrubIncrementally(positionIncrement)) {
@@ -761,13 +761,8 @@ public class DefaultTimeBar extends View implements TimeBar {
     if (duration <= 0) {
       return;
     }
-    if (Util.SDK_INT >= 21) {
-      info.addAction(AccessibilityAction.ACTION_SCROLL_FORWARD);
-      info.addAction(AccessibilityAction.ACTION_SCROLL_BACKWARD);
-    } else {
-      info.addAction(AccessibilityNodeInfo.ACTION_SCROLL_FORWARD);
-      info.addAction(AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD);
-    }
+    info.addAction(AccessibilityAction.ACTION_SCROLL_FORWARD);
+    info.addAction(AccessibilityAction.ACTION_SCROLL_BACKWARD);
   }
 
   @Override

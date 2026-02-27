@@ -111,6 +111,7 @@ public class SubtitleExtractor implements Extractor {
             .buildUpon()
             .setSampleMimeType(MimeTypes.APPLICATION_MEDIA3_CUES)
             .setCodecs(format.sampleMimeType)
+            .setCueReplacementBehavior(subtitleParser.getCueReplacementBehavior())
             .build();
     samples = new ArrayList<>();
     state = STATE_CREATED;
@@ -130,13 +131,13 @@ public class SubtitleExtractor implements Extractor {
   public void init(ExtractorOutput output) {
     checkState(state == STATE_CREATED);
     trackOutput = output.track(/* id= */ 0, C.TRACK_TYPE_TEXT);
+    trackOutput.format(format);
     output.endTracks();
     output.seekMap(
         new IndexSeekMap(
             /* positions= */ new long[] {0},
             /* timesUs= */ new long[] {0},
             /* durationUs= */ C.TIME_UNSET));
-    trackOutput.format(format);
     state = STATE_INITIALIZED;
   }
 
@@ -236,6 +237,8 @@ public class SubtitleExtractor implements Extractor {
               : SubtitleParser.OutputOptions.allCues();
       subtitleParser.parse(
           subtitleData,
+          /* offset= */ 0,
+          /* length= */ bytesRead,
           outputOptions,
           cuesWithTiming -> {
             Sample sample =
