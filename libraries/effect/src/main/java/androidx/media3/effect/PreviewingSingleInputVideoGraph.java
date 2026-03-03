@@ -17,7 +17,6 @@
 package androidx.media3.effect;
 
 import android.content.Context;
-import androidx.annotation.Nullable;
 import androidx.media3.common.ColorInfo;
 import androidx.media3.common.DebugViewProvider;
 import androidx.media3.common.Effect;
@@ -40,6 +39,18 @@ public final class PreviewingSingleInputVideoGraph extends SingleInputVideoGraph
 
     private final VideoFrameProcessor.Factory videoFrameProcessorFactory;
 
+    /**
+     * Creates a new factory that uses the {@link DefaultVideoFrameProcessor.Factory} with its
+     * default values.
+     */
+    public Factory() {
+      this(new DefaultVideoFrameProcessor.Factory.Builder().build());
+    }
+
+    /**
+     * Creates an instance that uses the supplied {@code videoFrameProcessorFactory} to create
+     * {@link VideoFrameProcessor} instances.
+     */
     public Factory(VideoFrameProcessor.Factory videoFrameProcessorFactory) {
       this.videoFrameProcessorFactory = videoFrameProcessorFactory;
     }
@@ -47,29 +58,19 @@ public final class PreviewingSingleInputVideoGraph extends SingleInputVideoGraph
     @Override
     public PreviewingVideoGraph create(
         Context context,
-        ColorInfo inputColorInfo,
         ColorInfo outputColorInfo,
         DebugViewProvider debugViewProvider,
         Listener listener,
         Executor listenerExecutor,
         List<Effect> compositionEffects,
         long initialTimestampOffsetUs) {
-      @Nullable Presentation presentation = null;
-      for (int i = 0; i < compositionEffects.size(); i++) {
-        Effect effect = compositionEffects.get(i);
-        if (effect instanceof Presentation) {
-          presentation = (Presentation) effect;
-        }
-      }
       return new PreviewingSingleInputVideoGraph(
           context,
           videoFrameProcessorFactory,
-          inputColorInfo,
           outputColorInfo,
           debugViewProvider,
           listener,
           listenerExecutor,
-          presentation,
           initialTimestampOffsetUs);
     }
   }
@@ -77,17 +78,14 @@ public final class PreviewingSingleInputVideoGraph extends SingleInputVideoGraph
   private PreviewingSingleInputVideoGraph(
       Context context,
       VideoFrameProcessor.Factory videoFrameProcessorFactory,
-      ColorInfo inputColorInfo,
       ColorInfo outputColorInfo,
       DebugViewProvider debugViewProvider,
       Listener listener,
       Executor listenerExecutor,
-      @Nullable Presentation presentation,
       long initialTimestampOffsetUs) {
     super(
         context,
         videoFrameProcessorFactory,
-        inputColorInfo,
         outputColorInfo,
         listener,
         debugViewProvider,
@@ -95,7 +93,11 @@ public final class PreviewingSingleInputVideoGraph extends SingleInputVideoGraph
         VideoCompositorSettings.DEFAULT,
         // Previewing needs frame render timing.
         /* renderFramesAutomatically= */ false,
-        presentation,
         initialTimestampOffsetUs);
+  }
+
+  @Override
+  public void renderOutputFrame(long renderTimeNs) {
+    getProcessor(getInputIndex()).renderOutputFrame(renderTimeNs);
   }
 }

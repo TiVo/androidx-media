@@ -19,7 +19,7 @@ import android.os.Bundle;
 import android.os.Parcel;
 import androidx.media3.common.text.Cue;
 import androidx.media3.common.util.Assertions;
-import androidx.media3.common.util.BundleableUtil;
+import androidx.media3.common.util.BundleCollectionUtil;
 import androidx.media3.common.util.UnstableApi;
 import java.util.ArrayList;
 import java.util.List;
@@ -33,18 +33,6 @@ public final class CueDecoder {
 
   /** Key under which the duration is saved in the {@link Bundle}. */
   /* package */ static final String BUNDLE_FIELD_DURATION_US = "d";
-
-  /**
-   * Decodes a byte array into a {@link CuesWithTiming} instance.
-   *
-   * @param startTimeUs The value for {@link CuesWithTiming#startTimeUs} (this is not encoded in
-   *     {@code bytes}).
-   * @param bytes Byte array produced by {@link CueEncoder#encode(List, long)}
-   * @return Decoded {@link CuesWithTiming} instance.
-   */
-  public CuesWithTiming decode(long startTimeUs, byte[] bytes) {
-    return decode(startTimeUs, bytes, /* offset= */ 0, bytes.length);
-  }
 
   /**
    * Decodes a byte array into a {@link CuesWithTiming} instance.
@@ -65,7 +53,7 @@ public final class CueDecoder {
     ArrayList<Bundle> bundledCues =
         Assertions.checkNotNull(bundle.getParcelableArrayList(BUNDLE_FIELD_CUES));
     return new CuesWithTiming(
-        BundleableUtil.fromBundleList(Cue.CREATOR, bundledCues),
+        BundleCollectionUtil.fromBundleList(Cue::fromBundle, bundledCues),
         startTimeUs,
         bundle.getLong(BUNDLE_FIELD_DURATION_US));
   }

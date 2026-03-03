@@ -15,8 +15,11 @@
  */
 package androidx.media3.muxer;
 
-import static androidx.media3.muxer.Mp4Muxer.LAST_FRAME_DURATION_BEHAVIOR_DUPLICATE_PREV_DURATION;
-import static androidx.media3.muxer.Mp4Muxer.LAST_FRAME_DURATION_BEHAVIOR_INSERT_SHORT_FRAME;
+import static androidx.media3.muxer.Mp4Muxer.LAST_SAMPLE_DURATION_BEHAVIOR_SET_FROM_END_OF_STREAM_BUFFER_OR_DUPLICATE_PREVIOUS;
+import static androidx.media3.muxer.Mp4Muxer.LAST_SAMPLE_DURATION_BEHAVIOR_SET_TO_ZERO;
+import static androidx.media3.muxer.MuxerTestUtil.FAKE_AUDIO_FORMAT;
+import static androidx.media3.muxer.MuxerTestUtil.FAKE_CSD_0;
+import static androidx.media3.muxer.MuxerTestUtil.FAKE_VIDEO_FORMAT;
 import static androidx.media3.muxer.MuxerTestUtil.getExpectedDumpFilePath;
 import static com.google.common.truth.Truth.assertThat;
 import static org.junit.Assert.assertThrows;
@@ -26,6 +29,11 @@ import android.media.MediaCodec;
 import androidx.media3.common.C;
 import androidx.media3.common.ColorInfo;
 import androidx.media3.common.Format;
+import androidx.media3.common.MimeTypes;
+import androidx.media3.common.util.Util;
+import androidx.media3.container.MdtaMetadataEntry;
+import androidx.media3.container.Mp4LocationData;
+import androidx.media3.muxer.FragmentedMp4Writer.SampleMetadata;
 import androidx.media3.test.utils.DumpFileAsserts;
 import androidx.media3.test.utils.DumpableMp4Box;
 import androidx.media3.test.utils.TestUtil;
@@ -57,15 +65,14 @@ public class BoxesTest {
 
   @Test
   public void createTkhdBox_forVideoTrack_matchesExpected() throws IOException {
-    Format videoFormat = MuxerTestUtil.getFakeVideoFormat();
-
     ByteBuffer tkhdBox =
         Boxes.tkhd(
             /* trackId= */ 1,
-            /* trackDurationVu= */ 5_000_000,
-            /* modificationTimestampSeconds= */ 1_000_000_000,
+            /* trackDurationUs= */ 500_000_000,
+            /* creationTimestampSeconds= */ 1_000_000_000,
+            /* modificationTimestampSeconds= */ 2_000_000_000,
             /* orientation= */ 90,
-            videoFormat);
+            FAKE_VIDEO_FORMAT);
 
     DumpableMp4Box dumpableBox = new DumpableMp4Box(tkhdBox);
     DumpFileAsserts.assertOutput(
@@ -74,15 +81,14 @@ public class BoxesTest {
 
   @Test
   public void createTkhdBox_forAudioTrack_matchesExpected() throws IOException {
-    Format audioFormat = MuxerTestUtil.getFakeAudioFormat();
-
     ByteBuffer tkhdBox =
         Boxes.tkhd(
             /* trackId= */ 1,
-            /* trackDurationVu= */ 5_000_000,
-            /* modificationTimestampSeconds= */ 1_000_000_000,
+            /* trackDurationUs= */ 500_000_000,
+            /* creationTimestampSeconds= */ 1_000_000_000,
+            /* modificationTimestampSeconds= */ 2_000_000_000,
             /* orientation= */ 90,
-            audioFormat);
+            FAKE_AUDIO_FORMAT);
 
     DumpableMp4Box dumpableBox = new DumpableMp4Box(tkhdBox);
     DumpFileAsserts.assertOutput(
@@ -90,11 +96,55 @@ public class BoxesTest {
   }
 
   @Test
+  public void createEdtsBox_forZeroStartTimeTrack_matchesExpected() throws IOException {
+    ByteBuffer edtsBox =
+        Boxes.edts(
+            /* firstInputPtsUs= */ 0L,
+            /* minInputPtsUs= */ 0L,
+            /* trackDurationUs= */ 1_000_000L,
+            /* mvhdTimescale= */ 10_000L,
+            /* trackTimescale= */ 90_000L);
+
+    assertThat(edtsBox.limit()).isEqualTo(0);
+  }
+
+  @Test
+  public void createEdtsBox_forPositiveStartTimeTrack_matchesExpected() throws IOException {
+    ByteBuffer edtsBox =
+        Boxes.edts(
+            /* firstInputPtsUs= */ 10_000L,
+            /* minInputPtsUs= */ 0L,
+            /* trackDurationUs= */ 1_000_000L,
+            /* mvhdTimescale= */ 10_000L,
+            /* trackTimescale= */ 90_000L);
+
+    DumpableMp4Box dumpableBox = new DumpableMp4Box(edtsBox);
+    DumpFileAsserts.assertOutput(
+        context, dumpableBox, getExpectedDumpFilePath("positive_start_time_edts_box"));
+  }
+
+  @Test
+  public void createEdtsBox_forNegativeStartTimeTrack_matchesExpected() throws IOException {
+    ByteBuffer edtsBox =
+        Boxes.edts(
+            /* firstInputPtsUs= */ -10_000L,
+            /* minInputPtsUs= */ -20_000L,
+            /* trackDurationUs= */ 1_000_000L,
+            /* mvhdTimescale= */ 10_000L,
+            /* trackTimescale= */ 90_000L);
+
+    DumpableMp4Box dumpableBox = new DumpableMp4Box(edtsBox);
+    DumpFileAsserts.assertOutput(
+        context, dumpableBox, getExpectedDumpFilePath("negative_start_time_edts_box"));
+  }
+
+  @Test
   public void createMvhdBox_matchesExpected() throws IOException {
     ByteBuffer mvhdBox =
         Boxes.mvhd(
             /* nextEmptyTrackId= */ 3,
-            /* modificationTimestampSeconds= */ 1_000_000_000,
+            /* creationTimestampSeconds= */ 1_000_000_000,
+            /* modificationTimestampSeconds= */ 2_000_000_000,
             /* videoDurationUs= */ 5_000_000);
 
     DumpableMp4Box dumpableBox = new DumpableMp4Box(mvhdBox);
@@ -107,7 +157,8 @@ public class BoxesTest {
         Boxes.mdhd(
             /* trackDurationVu= */ 5_000_000,
             VU_TIMEBASE,
-            /* modificationTimestampSeconds= */ 1_000_000_000,
+            /* creationTimestampSeconds= */ 1_000_000_000,
+            /* modificationTimestampSeconds= */ 2_000_000_000,
             /* languageCode= */ "und");
 
     DumpableMp4Box dumpableBox = new DumpableMp4Box(mdhdBox);
@@ -157,7 +208,7 @@ public class BoxesTest {
 
   @Test
   public void createUdtaBox_matchesExpected() throws IOException {
-    Mp4Location mp4Location = new Mp4Location(33.0f, -120f);
+    Mp4LocationData mp4Location = new Mp4LocationData(33.0f, -120f);
 
     ByteBuffer udtaBox = Boxes.udta(mp4Location);
 
@@ -167,9 +218,19 @@ public class BoxesTest {
 
   @Test
   public void createKeysBox_matchesExpected() throws Exception {
-    List<String> keyNames = ImmutableList.of("com.android.version", "com.android.capture.fps");
+    List<MdtaMetadataEntry> metadataEntries = new ArrayList<>();
+    metadataEntries.add(
+        new MdtaMetadataEntry(
+            "com.android.version",
+            Util.getUtf8Bytes("11"),
+            MdtaMetadataEntry.TYPE_INDICATOR_STRING));
+    metadataEntries.add(
+        new MdtaMetadataEntry(
+            "com.android.capture.fps",
+            Util.toByteArray(120.0f),
+            MdtaMetadataEntry.TYPE_INDICATOR_FLOAT32));
 
-    ByteBuffer keysBox = Boxes.keys(keyNames);
+    ByteBuffer keysBox = Boxes.keys(metadataEntries);
 
     DumpableMp4Box dumpableBox = new DumpableMp4Box(keysBox);
     DumpFileAsserts.assertOutput(context, dumpableBox, getExpectedDumpFilePath("keys_box"));
@@ -177,9 +238,19 @@ public class BoxesTest {
 
   @Test
   public void createIlstBox_matchesExpected() throws Exception {
-    List<Object> values = ImmutableList.of("11", 120.0f);
+    List<MdtaMetadataEntry> metadataEntries = new ArrayList<>();
+    metadataEntries.add(
+        new MdtaMetadataEntry(
+            "com.android.version",
+            Util.getUtf8Bytes("11"),
+            MdtaMetadataEntry.TYPE_INDICATOR_STRING));
+    metadataEntries.add(
+        new MdtaMetadataEntry(
+            "com.android.capture.fps",
+            Util.toByteArray(120.0f),
+            MdtaMetadataEntry.TYPE_INDICATOR_FLOAT32));
 
-    ByteBuffer ilstBox = Boxes.ilst(values);
+    ByteBuffer ilstBox = Boxes.ilst(metadataEntries);
 
     DumpableMp4Box dumpableBox = new DumpableMp4Box(ilstBox);
     DumpFileAsserts.assertOutput(context, dumpableBox, getExpectedDumpFilePath("ilst_box"));
@@ -204,42 +275,87 @@ public class BoxesTest {
   }
 
   @Test
-  public void createAudioSampleEntryBox_forMp4a_matchesExpected() throws Exception {
+  public void createAudioSampleEntryBox_forAac_matchesExpected() throws Exception {
     Format format =
-        new Format.Builder()
-            .setPeakBitrate(128000)
-            .setSampleRate(48000)
-            .setId(3)
-            .setSampleMimeType("audio/mp4a-latm")
-            .setChannelCount(2)
-            .setAverageBitrate(128000)
-            .setLanguage("```")
-            .setMaxInputSize(502)
-            .setInitializationData(ImmutableList.of(BaseEncoding.base16().decode("1190")))
+        FAKE_AUDIO_FORMAT
+            .buildUpon()
+            .setSampleMimeType(MimeTypes.AUDIO_AAC)
+            .setInitializationData(ImmutableList.of(FAKE_CSD_0))
             .build();
 
     ByteBuffer audioSampleEntryBox = Boxes.audioSampleEntry(format);
 
     DumpableMp4Box dumpableBox = new DumpableMp4Box(audioSampleEntryBox);
     DumpFileAsserts.assertOutput(
-        context, dumpableBox, getExpectedDumpFilePath("audio_sample_entry_box_mp4a"));
+        context, dumpableBox, getExpectedDumpFilePath("audio_sample_entry_box_aac"));
+  }
+
+  @Test
+  public void createAudioSampleEntryBox_forAmrNb_matchesExpected() throws Exception {
+    Format format = FAKE_AUDIO_FORMAT.buildUpon().setSampleMimeType(MimeTypes.AUDIO_AMR_NB).build();
+
+    ByteBuffer audioSampleEntryBox = Boxes.audioSampleEntry(format);
+
+    DumpableMp4Box dumpableBox = new DumpableMp4Box(audioSampleEntryBox);
+    DumpFileAsserts.assertOutput(
+        context, dumpableBox, getExpectedDumpFilePath("audio_sample_entry_box_amrnb"));
+  }
+
+  @Test
+  public void createAudioSampleEntryBox_forAmrWb_matchesExpected() throws Exception {
+    Format format = FAKE_AUDIO_FORMAT.buildUpon().setSampleMimeType(MimeTypes.AUDIO_AMR_WB).build();
+
+    ByteBuffer audioSampleEntryBox = Boxes.audioSampleEntry(format);
+
+    DumpableMp4Box dumpableBox = new DumpableMp4Box(audioSampleEntryBox);
+    DumpFileAsserts.assertOutput(
+        context, dumpableBox, getExpectedDumpFilePath("audio_sample_entry_box_amrwb"));
+  }
+
+  @Test
+  public void createAudioSampleEntryBox_forOpus_matchesExpected() throws Exception {
+    Format format =
+        FAKE_AUDIO_FORMAT
+            .buildUpon()
+            .setSampleMimeType(MimeTypes.AUDIO_OPUS)
+            .setInitializationData(
+                ImmutableList.of(
+                    BaseEncoding.base16()
+                        .decode("4F7075734865616401063801401F00000000010402000401020305")))
+            .build();
+
+    ByteBuffer audioSampleEntryBox = Boxes.audioSampleEntry(format);
+
+    DumpableMp4Box dumpableBox = new DumpableMp4Box(audioSampleEntryBox);
+    DumpFileAsserts.assertOutput(
+        context, dumpableBox, getExpectedDumpFilePath("audio_sample_entry_box_opus"));
+  }
+
+  @Test
+  public void createAudioSampleEntryBox_forVorbis_matchesExpected() throws Exception {
+    Format format =
+        FAKE_AUDIO_FORMAT
+            .buildUpon()
+            .setSampleMimeType(MimeTypes.AUDIO_VORBIS)
+            .setInitializationData(
+                ImmutableList.of(
+                    BaseEncoding.base16()
+                        .decode("01766F726269730000000001803E0000000000009886010000000000A901"),
+                    BaseEncoding.base16()
+                        .decode("05766F726269732442435601004000001842102A05AD638E3A01")))
+            .build();
+
+    ByteBuffer audioSampleEntryBox = Boxes.audioSampleEntry(format);
+
+    DumpableMp4Box dumpableBox = new DumpableMp4Box(audioSampleEntryBox);
+    DumpFileAsserts.assertOutput(
+        context, dumpableBox, getExpectedDumpFilePath("audio_sample_entry_box_vorbis"));
   }
 
   @Test
   public void createAudioSampleEntryBox_withUnknownAudioFormat_throws() {
     // The audio format contains an unknown MIME type.
-    Format format =
-        new Format.Builder()
-            .setPeakBitrate(128000)
-            .setSampleRate(48000)
-            .setId(3)
-            .setSampleMimeType("audio/mp4a-unknown")
-            .setChannelCount(2)
-            .setAverageBitrate(128000)
-            .setLanguage("```")
-            .setMaxInputSize(502)
-            .setInitializationData(ImmutableList.of(BaseEncoding.base16().decode("1190")))
-            .build();
+    Format format = FAKE_AUDIO_FORMAT.buildUpon().setSampleMimeType("audio/mp4a-unknown").build();
 
     assertThrows(IllegalArgumentException.class, () -> Boxes.audioSampleEntry(format));
   }
@@ -247,14 +363,9 @@ public class BoxesTest {
   @Test
   public void createVideoSampleEntryBox_forH265_matchesExpected() throws Exception {
     Format format =
-        new Format.Builder()
-            .setId(1)
-            .setSampleMimeType("video/hevc")
-            .setWidth(48)
-            .setLanguage("und")
-            .setMaxInputSize(114)
-            .setFrameRate(25)
-            .setHeight(32)
+        FAKE_VIDEO_FORMAT
+            .buildUpon()
+            .setSampleMimeType(MimeTypes.VIDEO_H265)
             .setInitializationData(
                 ImmutableList.of(
                     BaseEncoding.base16()
@@ -272,16 +383,9 @@ public class BoxesTest {
   @Test
   public void createVideoSampleEntryBox_forH265_hdr10_matchesExpected() throws Exception {
     Format format =
-        new Format.Builder()
-            .setPeakBitrate(9200)
-            .setId(1)
-            .setSampleMimeType("video/hevc")
-            .setAverageBitrate(9200)
-            .setLanguage("und")
-            .setWidth(256)
-            .setMaxInputSize(66)
-            .setFrameRate(25)
-            .setHeight(256)
+        FAKE_VIDEO_FORMAT
+            .buildUpon()
+            .setSampleMimeType(MimeTypes.VIDEO_H265)
             .setColorInfo(
                 new ColorInfo.Builder()
                     .setColorSpace(C.COLOR_SPACE_BT2020)
@@ -305,22 +409,24 @@ public class BoxesTest {
   }
 
   @Test
-  public void createVideoSampleEntryBox_forH264_matchesExpected() throws Exception {
+  public void createVideoSampleEntryBox_forH263_matchesExpected() throws Exception {
     Format format =
-        new Format.Builder()
-            .setId(1)
-            .setSampleMimeType("video/avc")
-            .setLanguage("und")
-            .setWidth(10)
-            .setMaxInputSize(39)
-            .setFrameRate(25)
-            .setHeight(12)
-            .setInitializationData(
-                ImmutableList.of(
-                    BaseEncoding.base16()
-                        .decode("0000000167F4000A919B2BF3CB3640000003004000000C83C4896580"),
-                    BaseEncoding.base16().decode("0000000168EBE3C448")))
+        FAKE_VIDEO_FORMAT
+            .buildUpon()
+            .setSampleMimeType(MimeTypes.VIDEO_H263)
+            .setCodecs("s263.1.10")
             .build();
+
+    ByteBuffer videoSampleEntryBox = Boxes.videoSampleEntry(format);
+
+    DumpableMp4Box dumpableBox = new DumpableMp4Box(videoSampleEntryBox);
+    DumpFileAsserts.assertOutput(
+        context, dumpableBox, MuxerTestUtil.getExpectedDumpFilePath("video_sample_entry_box_h263"));
+  }
+
+  @Test
+  public void createVideoSampleEntryBox_forH264_matchesExpected() throws Exception {
+    Format format = FAKE_VIDEO_FORMAT.buildUpon().setSampleMimeType(MimeTypes.VIDEO_H264).build();
 
     ByteBuffer videoSampleEntryBox = Boxes.videoSampleEntry(format);
 
@@ -331,18 +437,7 @@ public class BoxesTest {
 
   @Test
   public void createVideoSampleEntryBox_forAv1_matchesExpected() throws IOException {
-    Format format =
-        new Format.Builder()
-            .setId(1)
-            .setSampleMimeType("video/av01")
-            .setLanguage("und")
-            .setWidth(10)
-            .setMaxInputSize(49)
-            .setFrameRate(25)
-            .setHeight(12)
-            .setInitializationData(
-                ImmutableList.of(BaseEncoding.base16().decode("812000000A09200000019CDBFFF304")))
-            .build();
+    Format format = FAKE_VIDEO_FORMAT.buildUpon().setSampleMimeType(MimeTypes.VIDEO_AV1).build();
 
     ByteBuffer videoSampleEntryBox = Boxes.videoSampleEntry(format);
 
@@ -352,126 +447,172 @@ public class BoxesTest {
   }
 
   @Test
+  public void createVideoSampleEntryBox_forMPEG4_matchesExpected() throws IOException {
+    Format format = FAKE_VIDEO_FORMAT.buildUpon().setSampleMimeType(MimeTypes.VIDEO_MP4V).build();
+
+    ByteBuffer videoSampleEntryBox = Boxes.videoSampleEntry(format);
+
+    DumpableMp4Box dumpableBox = new DumpableMp4Box(videoSampleEntryBox);
+    DumpFileAsserts.assertOutput(
+        context,
+        dumpableBox,
+        MuxerTestUtil.getExpectedDumpFilePath("video_sample_entry_box_mpeg4"));
+  }
+
+  @Test
+  public void createVideoSampleEntryBox_forVp09WithCodecPrivate_matchesExpected()
+      throws IOException {
+    Format format =
+        FAKE_VIDEO_FORMAT
+            .buildUpon()
+            .setSampleMimeType(MimeTypes.VIDEO_VP9)
+            .setColorInfo(
+                new ColorInfo.Builder()
+                    .setColorSpace(C.COLOR_SPACE_BT2020)
+                    .setColorTransfer(C.COLOR_TRANSFER_ST2084)
+                    .setColorRange(C.COLOR_RANGE_FULL)
+                    .build())
+            .setInitializationData(
+                ImmutableList.of(BaseEncoding.base16().decode("01010102010A030108040100")))
+            .build();
+
+    ByteBuffer videoSampleEntryBox = Boxes.videoSampleEntry(format);
+
+    DumpableMp4Box dumpableBox = new DumpableMp4Box(videoSampleEntryBox);
+    DumpFileAsserts.assertOutput(
+        context,
+        dumpableBox,
+        MuxerTestUtil.getExpectedDumpFilePath("video_sample_entry_box_vp09_codec_private_as_csd"));
+  }
+
+  @Test
+  public void createVideoSampleEntryBox_forVp09WithVpcBoxAsCsd_matchesExpected()
+      throws IOException {
+    Format format =
+        FAKE_VIDEO_FORMAT
+            .buildUpon()
+            .setSampleMimeType(MimeTypes.VIDEO_VP9)
+            .setInitializationData(
+                ImmutableList.of(BaseEncoding.base16().decode("01000000010A810510060000")))
+            .build();
+
+    ByteBuffer videoSampleEntryBox = Boxes.videoSampleEntry(format);
+
+    DumpableMp4Box dumpableBox = new DumpableMp4Box(videoSampleEntryBox);
+    DumpFileAsserts.assertOutput(
+        context,
+        dumpableBox,
+        MuxerTestUtil.getExpectedDumpFilePath("video_sample_entry_box_vp09_vpc_as_csd"));
+  }
+
+  @Test
   public void createVideoSampleEntryBox_withUnknownVideoFormat_throws() {
     // The video format contains an unknown MIME type.
     Format format =
-        new Format.Builder()
-            .setId(1)
-            .setSampleMimeType("video/someweirdvideoformat")
-            .setWidth(48)
-            .setLanguage("und")
-            .setMaxInputSize(114)
-            .setFrameRate(25)
-            .setHeight(32)
-            .setInitializationData(
-                ImmutableList.of(
-                    BaseEncoding.base16()
-                        .decode(
-                            "0000000140010C01FFFF0408000003009FC800000300001E959809000000014201010408000003009FC800000300001EC1882165959AE4CAE68080000003008000000C84000000014401C173D089")))
-            .build();
+        FAKE_VIDEO_FORMAT.buildUpon().setSampleMimeType("video/someweirdvideoformat").build();
 
     assertThrows(IllegalArgumentException.class, () -> Boxes.videoSampleEntry(format));
   }
 
   @Test
   public void
-      getDurationsVuForStts_singleSampleAtZeroTimestamp_lastFrameDurationShort_returnsSingleZeroLengthSample() {
+      convertPresentationTimestampsToDurationsVu_singleSampleAtZeroTimestamp_returnsSampleLengthEqualsZero() {
     List<MediaCodec.BufferInfo> sampleBufferInfos =
         createBufferInfoListWithSamplePresentationTimestamps(0L);
 
-    List<Long> durationsVu =
-        Boxes.durationsVuForStts(
+    List<Integer> durationsVu =
+        Boxes.convertPresentationTimestampsToDurationsVu(
             sampleBufferInfos,
-            /* minInputPresentationTimestampUs= */ 0L,
             VU_TIMEBASE,
-            LAST_FRAME_DURATION_BEHAVIOR_INSERT_SHORT_FRAME);
+            LAST_SAMPLE_DURATION_BEHAVIOR_SET_TO_ZERO,
+            C.TIME_UNSET);
 
-    assertThat(durationsVu).containsExactly(0L);
+    assertThat(durationsVu).containsExactly(0);
   }
 
   @Test
   public void
-      getDurationsVuForStts_singleSampleAtZeroTimestamp_lastFrameDurationDuplicate_returnsSingleZeroLengthSample() {
-    List<MediaCodec.BufferInfo> sampleBufferInfos =
-        createBufferInfoListWithSamplePresentationTimestamps(0L);
-
-    List<Long> durationsVu =
-        Boxes.durationsVuForStts(
-            sampleBufferInfos,
-            /* minInputPresentationTimestampUs= */ 0L,
-            VU_TIMEBASE,
-            LAST_FRAME_DURATION_BEHAVIOR_DUPLICATE_PREV_DURATION);
-
-    assertThat(durationsVu).containsExactly(0L);
-  }
-
-  @Test
-  public void
-      getDurationsVuForStts_singleSampleAtNonZeroTimestamp_lastFrameDurationShort_returnsSampleLengthEqualsTimestamp() {
+      convertPresentationTimestampsToDurationsVu_singleSampleAtNonZeroTimestamp_returnsSampleLengthEqualsZero() {
     List<MediaCodec.BufferInfo> sampleBufferInfos =
         createBufferInfoListWithSamplePresentationTimestamps(5_000L);
 
-    List<Long> durationsVu =
-        Boxes.durationsVuForStts(
+    List<Integer> durationsVu =
+        Boxes.convertPresentationTimestampsToDurationsVu(
             sampleBufferInfos,
-            /* minInputPresentationTimestampUs= */ 0L,
             VU_TIMEBASE,
-            LAST_FRAME_DURATION_BEHAVIOR_INSERT_SHORT_FRAME);
+            LAST_SAMPLE_DURATION_BEHAVIOR_SET_TO_ZERO,
+            C.TIME_UNSET);
 
-    assertThat(durationsVu).containsExactly(500L);
+    assertThat(durationsVu).containsExactly(0);
   }
 
   @Test
   public void
-      getDurationsVuForStts_singleSampleAtNonZeroTimestamp_lastFrameDurationDuplicate_returnsSampleLengthEqualsTimestamp() {
-    List<MediaCodec.BufferInfo> sampleBufferInfos =
-        createBufferInfoListWithSamplePresentationTimestamps(5_000L);
-
-    List<Long> durationsVu =
-        Boxes.durationsVuForStts(
-            sampleBufferInfos,
-            /* minInputPresentationTimestampUs= */ 0L,
-            VU_TIMEBASE,
-            LAST_FRAME_DURATION_BEHAVIOR_DUPLICATE_PREV_DURATION);
-
-    assertThat(durationsVu).containsExactly(500L);
-  }
-
-  @Test
-  public void
-      getDurationsVuForStts_differentSampleDurations_lastFrameDurationShort_returnsLastSampleOfZeroDuration() {
+      convertPresentationTimestampsToDurationsVu_differentSampleDurations_lastFrameDurationShort_returnsLastSampleOfZeroDuration() {
     List<MediaCodec.BufferInfo> sampleBufferInfos =
         createBufferInfoListWithSamplePresentationTimestamps(0L, 30_000L, 80_000L);
 
-    List<Long> durationsVu =
-        Boxes.durationsVuForStts(
+    List<Integer> durationsVu =
+        Boxes.convertPresentationTimestampsToDurationsVu(
             sampleBufferInfos,
-            /* minInputPresentationTimestampUs= */ 0L,
             VU_TIMEBASE,
-            LAST_FRAME_DURATION_BEHAVIOR_INSERT_SHORT_FRAME);
+            LAST_SAMPLE_DURATION_BEHAVIOR_SET_TO_ZERO,
+            C.TIME_UNSET);
 
-    assertThat(durationsVu).containsExactly(3_000L, 5_000L, 0L);
+    assertThat(durationsVu).containsExactly(3_000, 5_000, 0);
   }
 
   @Test
   public void
-      getDurationsVuForStts_differentSampleDurations_lastFrameDurationDuplicate_returnsLastSampleOfDuplicateDuration() {
+      convertPresentationTimestampsToDurationsVu_differentSampleDurations_lastFrameDurationDuplicate_returnsLastSampleOfDuplicateDuration() {
     List<MediaCodec.BufferInfo> sampleBufferInfos =
         createBufferInfoListWithSamplePresentationTimestamps(0L, 30_000L, 80_000L);
 
-    List<Long> durationsVu =
-        Boxes.durationsVuForStts(
+    List<Integer> durationsVu =
+        Boxes.convertPresentationTimestampsToDurationsVu(
             sampleBufferInfos,
-            /* minInputPresentationTimestampUs= */ 0L,
             VU_TIMEBASE,
-            LAST_FRAME_DURATION_BEHAVIOR_DUPLICATE_PREV_DURATION);
+            LAST_SAMPLE_DURATION_BEHAVIOR_SET_FROM_END_OF_STREAM_BUFFER_OR_DUPLICATE_PREVIOUS,
+            C.TIME_UNSET);
 
-    assertThat(durationsVu).containsExactly(3_000L, 5_000L, 5_000L);
+    assertThat(durationsVu).containsExactly(3_000, 5_000, 5_000);
+  }
+
+  @Test
+  public void
+      convertPresentationTimestampsToDurationsVu_withOutOfOrderSampleTimestamps_returnsExpectedDurations() {
+    List<MediaCodec.BufferInfo> sampleBufferInfos =
+        createBufferInfoListWithSamplePresentationTimestamps(0L, 10_000L, 1_000L, 2_000L, 11_000L);
+
+    List<Integer> durationsVu =
+        Boxes.convertPresentationTimestampsToDurationsVu(
+            sampleBufferInfos,
+            VU_TIMEBASE,
+            LAST_SAMPLE_DURATION_BEHAVIOR_SET_TO_ZERO,
+            C.TIME_UNSET);
+
+    assertThat(durationsVu).containsExactly(100, 100, 800, 100, 0);
+  }
+
+  @Test
+  public void
+      convertPresentationTimestampsToDurationsVu_withLastSampleDurationBehaviorUsingEndOfStreamFlag_returnsExpectedDurations() {
+    List<MediaCodec.BufferInfo> sampleBufferInfos =
+        createBufferInfoListWithSamplePresentationTimestamps(0L, 1_000L, 2_000L, 3_000L, 4_000L);
+
+    List<Integer> durationsVu =
+        Boxes.convertPresentationTimestampsToDurationsVu(
+            sampleBufferInfos,
+            VU_TIMEBASE,
+            LAST_SAMPLE_DURATION_BEHAVIOR_SET_FROM_END_OF_STREAM_BUFFER_OR_DUPLICATE_PREVIOUS,
+            /* endOfStreamTimestampUs= */ 10_000);
+
+    assertThat(durationsVu).containsExactly(100, 100, 100, 100, 600);
   }
 
   @Test
   public void createSttsBox_withSingleSampleDuration_matchesExpected() throws IOException {
-    ImmutableList<Long> sampleDurations = ImmutableList.of(500L);
+    ImmutableList<Integer> sampleDurations = ImmutableList.of(500);
 
     ByteBuffer sttsBox = Boxes.stts(sampleDurations);
 
@@ -484,7 +625,7 @@ public class BoxesTest {
 
   @Test
   public void createSttsBox_withAllDifferentSampleDurations_matchesExpected() throws IOException {
-    ImmutableList<Long> sampleDurations = ImmutableList.of(1_000L, 2_000L, 3_000L, 5_000L);
+    ImmutableList<Integer> sampleDurations = ImmutableList.of(1_000, 2_000, 3_000, 5_000);
 
     ByteBuffer sttsBox = Boxes.stts(sampleDurations);
 
@@ -498,7 +639,7 @@ public class BoxesTest {
   @Test
   public void createSttsBox_withFewConsecutiveSameSampleDurations_matchesExpected()
       throws IOException {
-    ImmutableList<Long> sampleDurations = ImmutableList.of(1_000L, 2_000L, 2_000L, 2_000L);
+    ImmutableList<Integer> sampleDurations = ImmutableList.of(1_000, 2_000, 2_000, 2_000);
 
     ByteBuffer sttsBox = Boxes.stts(sampleDurations);
 
@@ -507,6 +648,78 @@ public class BoxesTest {
         context,
         dumpableBox,
         MuxerTestUtil.getExpectedDumpFilePath("stts_box_few_same_sample_durations"));
+  }
+
+  @Test
+  public void createCttsBox_withSingleSampleTimestamp_returnsEmptyBox() {
+    List<MediaCodec.BufferInfo> sampleBufferInfos =
+        createBufferInfoListWithSamplePresentationTimestamps(400);
+    List<Integer> durationsVu =
+        Boxes.convertPresentationTimestampsToDurationsVu(
+            sampleBufferInfos,
+            VU_TIMEBASE,
+            LAST_SAMPLE_DURATION_BEHAVIOR_SET_TO_ZERO,
+            C.TIME_UNSET);
+
+    ByteBuffer cttsBox = Boxes.ctts(sampleBufferInfos, durationsVu, VU_TIMEBASE);
+
+    // Create empty box in case of 1 sample.
+    assertThat(cttsBox.hasRemaining()).isFalse();
+  }
+
+  @Test
+  public void createCttsBox_withNoBframesSampleTimestamps_returnsEmptyBox() throws IOException {
+    List<MediaCodec.BufferInfo> sampleBufferInfos =
+        createBufferInfoListWithSamplePresentationTimestamps(0L, 1000L, 2000L);
+    List<Integer> durationsVu =
+        Boxes.convertPresentationTimestampsToDurationsVu(
+            sampleBufferInfos,
+            VU_TIMEBASE,
+            LAST_SAMPLE_DURATION_BEHAVIOR_SET_TO_ZERO,
+            C.TIME_UNSET);
+
+    ByteBuffer cttsBox = Boxes.ctts(sampleBufferInfos, durationsVu, VU_TIMEBASE);
+
+    // Create empty ctts box in case samples does not contain B-frames.
+    assertThat(cttsBox.hasRemaining()).isFalse();
+  }
+
+  @Test
+  public void createCttsBox_withBFramesSampleTimestamps_matchesExpected() throws IOException {
+    List<MediaCodec.BufferInfo> sampleBufferInfos =
+        createBufferInfoListWithSamplePresentationTimestamps(
+            0, 400, 200, 100, 300, 800, 600, 500, 700);
+
+    List<Integer> durationsVu =
+        Boxes.convertPresentationTimestampsToDurationsVu(
+            sampleBufferInfos,
+            VU_TIMEBASE,
+            LAST_SAMPLE_DURATION_BEHAVIOR_SET_TO_ZERO,
+            C.TIME_UNSET);
+
+    ByteBuffer cttsBox = Boxes.ctts(sampleBufferInfos, durationsVu, VU_TIMEBASE);
+
+    DumpableMp4Box dumpableBox = new DumpableMp4Box(cttsBox);
+    DumpFileAsserts.assertOutput(
+        context, dumpableBox, MuxerTestUtil.getExpectedDumpFilePath("ctts_box"));
+  }
+
+  @Test
+  public void createCttsBox_withLargeSampleTimestamps_matchesExpected() throws IOException {
+    List<MediaCodec.BufferInfo> sampleBufferInfos =
+        createBufferInfoListWithSamplePresentationTimestamps(
+            23698215060L, 23698248252L, 23698347988L, 23698488968L, 23698547416L);
+
+    List<Integer> durationsVu =
+        Boxes.convertPresentationTimestampsToDurationsVu(
+            sampleBufferInfos,
+            VU_TIMEBASE,
+            LAST_SAMPLE_DURATION_BEHAVIOR_SET_TO_ZERO,
+            C.TIME_UNSET);
+
+    ByteBuffer cttsBox = Boxes.ctts(sampleBufferInfos, durationsVu, VU_TIMEBASE);
+
+    assertThat(cttsBox.hasRemaining()).isFalse();
   }
 
   @Test
@@ -530,6 +743,17 @@ public class BoxesTest {
     DumpableMp4Box dumpableBox = new DumpableMp4Box(stscBox);
     DumpFileAsserts.assertOutput(
         context, dumpableBox, MuxerTestUtil.getExpectedDumpFilePath("stsc_box"));
+  }
+
+  @Test
+  public void createStcoBox_matchesExpected() throws IOException {
+    ImmutableList<Long> chunkOffsets = ImmutableList.of(1_000L, 5_000L, 7_000L, 10_000L);
+
+    ByteBuffer stcoBox = Boxes.stco(chunkOffsets);
+
+    DumpableMp4Box dumpableBox = new DumpableMp4Box(stcoBox);
+    DumpFileAsserts.assertOutput(
+        context, dumpableBox, MuxerTestUtil.getExpectedDumpFilePath("stco_box"));
   }
 
   @Test
@@ -561,6 +785,75 @@ public class BoxesTest {
     DumpableMp4Box dumpableBox = new DumpableMp4Box(ftypBox);
     DumpFileAsserts.assertOutput(
         context, dumpableBox, MuxerTestUtil.getExpectedDumpFilePath("ftyp_box"));
+  }
+
+  @Test
+  public void createMfhdBox_matchesExpected() throws IOException {
+    ByteBuffer mfhdBox = Boxes.mfhd(/* sequenceNumber= */ 5);
+
+    DumpableMp4Box dumpableBox = new DumpableMp4Box(mfhdBox);
+    DumpFileAsserts.assertOutput(
+        context, dumpableBox, MuxerTestUtil.getExpectedDumpFilePath("mfhd_box"));
+  }
+
+  @Test
+  public void createTfhdBox_matchesExpected() throws IOException {
+    ByteBuffer tfhdBox = Boxes.tfhd(/* trackId= */ 1, /* baseDataOffset= */ 1_000L);
+
+    DumpableMp4Box dumpableBox = new DumpableMp4Box(tfhdBox);
+    DumpFileAsserts.assertOutput(
+        context, dumpableBox, MuxerTestUtil.getExpectedDumpFilePath("tfhd_box"));
+  }
+
+  @Test
+  public void createTrunBox_matchesExpected() throws IOException {
+    int sampleCount = 5;
+    List<SampleMetadata> samplesMetadata = new ArrayList<>(sampleCount);
+    for (int i = 0; i < sampleCount; i++) {
+      samplesMetadata.add(
+          new SampleMetadata(
+              /* durationsVu= */ 2_000,
+              /* size= */ 5_000,
+              /* flags= */ i == 0 ? MediaCodec.BUFFER_FLAG_KEY_FRAME : 0,
+              /* compositionTimeOffsetVu= */ 0));
+    }
+
+    ByteBuffer trunBox =
+        Boxes.trun(samplesMetadata, /* dataOffset= */ 1_000, /* hasBFrame= */ false);
+
+    DumpableMp4Box dumpableBox = new DumpableMp4Box(trunBox);
+    DumpFileAsserts.assertOutput(
+        context, dumpableBox, MuxerTestUtil.getExpectedDumpFilePath("trun_box"));
+  }
+
+  @Test
+  public void createTrunBox_withBFrame_matchesExpected() throws IOException {
+    int sampleCount = 5;
+    List<SampleMetadata> samplesMetadata = new ArrayList<>(sampleCount);
+    for (int i = 0; i < sampleCount; i++) {
+      samplesMetadata.add(
+          new SampleMetadata(
+              /* durationsVu= */ 2_000,
+              /* size= */ 5_000,
+              /* flags= */ i == 0 ? MediaCodec.BUFFER_FLAG_KEY_FRAME : 0,
+              /* compositionTimeOffsetVu= */ 100));
+    }
+
+    ByteBuffer trunBox =
+        Boxes.trun(samplesMetadata, /* dataOffset= */ 1_000, /* hasBFrame= */ true);
+
+    DumpableMp4Box dumpableBox = new DumpableMp4Box(trunBox);
+    DumpFileAsserts.assertOutput(
+        context, dumpableBox, MuxerTestUtil.getExpectedDumpFilePath("trun_box_with_b_frame"));
+  }
+
+  @Test
+  public void createTrexBox_matchesExpected() throws IOException {
+    ByteBuffer trexBox = Boxes.trex(/* trackId= */ 2);
+
+    DumpableMp4Box dumpableBox = new DumpableMp4Box(trexBox);
+    DumpFileAsserts.assertOutput(
+        context, dumpableBox, MuxerTestUtil.getExpectedDumpFilePath("trex_box"));
   }
 
   private static List<MediaCodec.BufferInfo> createBufferInfoListWithSamplePresentationTimestamps(

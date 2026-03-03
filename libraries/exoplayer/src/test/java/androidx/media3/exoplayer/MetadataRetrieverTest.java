@@ -17,6 +17,8 @@
 package androidx.media3.exoplayer;
 
 import static androidx.media3.container.MdtaMetadataEntry.KEY_ANDROID_CAPTURE_FPS;
+import static androidx.media3.container.MdtaMetadataEntry.TYPE_INDICATOR_FLOAT32;
+import static androidx.media3.container.MdtaMetadataEntry.TYPE_INDICATOR_STRING;
 import static androidx.media3.exoplayer.MetadataRetriever.retrieveMetadata;
 import static com.google.common.truth.Truth.assertThat;
 import static org.junit.Assert.assertThrows;
@@ -25,6 +27,7 @@ import android.content.Context;
 import android.net.Uri;
 import androidx.media3.common.C;
 import androidx.media3.common.MediaItem;
+import androidx.media3.common.Metadata;
 import androidx.media3.common.MimeTypes;
 import androidx.media3.common.util.Util;
 import androidx.media3.container.MdtaMetadataEntry;
@@ -36,6 +39,8 @@ import androidx.media3.extractor.metadata.mp4.SmtaMetadataEntry;
 import androidx.media3.test.utils.FakeClock;
 import androidx.test.core.app.ApplicationProvider;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
+import com.google.common.collect.ImmutableList;
+import com.google.common.primitives.Ints;
 import com.google.common.util.concurrent.ListenableFuture;
 import java.util.ArrayList;
 import java.util.List;
@@ -151,20 +156,18 @@ public class MetadataRetrieverTest {
   }
 
   @Test
-  public void retrieveMetadata_sefSlowMotion_outputsExpectedMetadata() throws Exception {
+  public void retrieveMetadata_sefSlowMotionAvc_outputsExpectedMetadata() throws Exception {
     MediaItem mediaItem =
         MediaItem.fromUri(Uri.parse("asset://android_asset/media/mp4/sample_sef_slow_motion.mp4"));
     MdtaMetadataEntry expectedAndroidVersionMetadata =
         new MdtaMetadataEntry(
             /* key= */ "com.android.version",
             /* value= */ Util.getUtf8Bytes("10"),
-            /* localeIndicator= */ 0,
-            MdtaMetadataEntry.TYPE_INDICATOR_STRING);
+            TYPE_INDICATOR_STRING);
     MdtaMetadataEntry expectedTemporalLayersCountMetdata =
         new MdtaMetadataEntry(
             /* key= */ "com.android.video.temporal_layers_count",
-            /* value= */ Util.toByteArray(4),
-            /* localeIndicator= */ 0,
+            /* value= */ Ints.toByteArray(4),
             MdtaMetadataEntry.TYPE_INDICATOR_INT32);
     SmtaMetadataEntry expectedSmtaEntry =
         new SmtaMetadataEntry(/* captureFrameRate= */ 240, /* svcTemporalLayerCount= */ 4);
@@ -183,10 +186,7 @@ public class MetadataRetrieverTest {
             /* timescale= */ 1000);
     MdtaMetadataEntry expectedMdtaEntry =
         new MdtaMetadataEntry(
-            KEY_ANDROID_CAPTURE_FPS,
-            /* value= */ new byte[] {67, 112, 0, 0},
-            /* localeIndicator= */ 0,
-            /* typeIndicator= */ 23);
+            KEY_ANDROID_CAPTURE_FPS, /* value= */ Util.toByteArray(240.0f), TYPE_INDICATOR_FLOAT32);
 
     ListenableFuture<TrackGroupArray> trackGroupsFuture =
         retrieveMetadata(context, mediaItem, clock);
@@ -214,6 +214,55 @@ public class MetadataRetrieverTest {
     assertThat(trackGroups.get(1).getFormat(0).metadata.get(3)).isEqualTo(expectedSlowMotionData);
     assertThat(trackGroups.get(1).getFormat(0).metadata.get(4)).isEqualTo(expectedSmtaEntry);
     assertThat(trackGroups.get(1).getFormat(0).metadata.get(5)).isEqualTo(expectedMp4TimestampData);
+  }
+
+  @Test
+  public void retrieveMetadata_sefSlowMotionHevc_outputsExpectedMetadata() throws Exception {
+    MediaItem mediaItem =
+        MediaItem.fromUri(
+            Uri.parse("asset://android_asset/media/mp4/sample_sef_slow_motion_hevc.mp4"));
+    MdtaMetadataEntry expectedAndroidVersionMetadata =
+        new MdtaMetadataEntry(
+            /* key= */ "com.android.version",
+            /* value= */ Util.getUtf8Bytes("13"),
+            TYPE_INDICATOR_STRING);
+    SmtaMetadataEntry expectedSmtaEntry =
+        new SmtaMetadataEntry(/* captureFrameRate= */ 240, /* svcTemporalLayerCount= */ 4);
+    SlowMotionData expectedSlowMotionData =
+        new SlowMotionData(
+            ImmutableList.of(
+                new SlowMotionData.Segment(
+                    /* startTimeMs= */ 2128, /* endTimeMs= */ 9856, /* speedDivisor= */ 8)));
+    MdtaMetadataEntry expectedCaptureFpsMdtaEntry =
+        new MdtaMetadataEntry(
+            KEY_ANDROID_CAPTURE_FPS, /* value= */ Util.toByteArray(240.0f), TYPE_INDICATOR_FLOAT32);
+    ListenableFuture<TrackGroupArray> trackGroupsFuture =
+        retrieveMetadata(context, mediaItem, clock);
+    ShadowLooper.idleMainLooper();
+    TrackGroupArray trackGroups = trackGroupsFuture.get(TEST_TIMEOUT_SEC, TimeUnit.SECONDS);
+
+    assertThat(trackGroups.length).isEqualTo(2); // Video and audio
+
+    // Video
+    Metadata videoFormatMetadata = trackGroups.get(0).getFormat(0).metadata;
+    List<Metadata.Entry> videoMetadataEntries = new ArrayList<>();
+    for (int i = 0; i < videoFormatMetadata.length(); i++) {
+      videoMetadataEntries.add(videoFormatMetadata.get(i));
+    }
+    assertThat(videoMetadataEntries).contains(expectedAndroidVersionMetadata);
+    assertThat(videoMetadataEntries).contains(expectedSlowMotionData);
+    assertThat(videoMetadataEntries).contains(expectedSmtaEntry);
+    assertThat(videoMetadataEntries).contains(expectedCaptureFpsMdtaEntry);
+
+    // Audio
+    Metadata audioFormatMetadata = trackGroups.get(1).getFormat(0).metadata;
+    List<Metadata.Entry> audioMetadataEntries = new ArrayList<>();
+    for (int i = 0; i < audioFormatMetadata.length(); i++) {
+      audioMetadataEntries.add(audioFormatMetadata.get(i));
+    }
+    assertThat(audioMetadataEntries).contains(expectedAndroidVersionMetadata);
+    assertThat(audioMetadataEntries).contains(expectedSlowMotionData);
+    assertThat(audioMetadataEntries).contains(expectedSmtaEntry);
   }
 
   @Test

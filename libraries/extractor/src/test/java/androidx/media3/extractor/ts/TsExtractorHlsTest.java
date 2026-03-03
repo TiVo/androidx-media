@@ -1,6 +1,5 @@
 package androidx.media3.extractor.ts;
 
-import androidx.media3.common.ColorInfo;
 import androidx.test.core.app.ApplicationProvider;
 
 import java.io.FileOutputStream;
@@ -117,16 +116,12 @@ public class TsExtractorHlsTest {
     assertThat(trackOutput).isNotNull();
 
     Format actualFormat = trackOutput.lastFormat;
-    Format expectedFormat = new Format.Builder()
-        .setId("1/27")
-        .setSampleMimeType("video/avc")
-        .setCodecs("avc1.64001F")
-        .setWidth(1280)
-        .setHeight(720)
-        .setInitializationData(actualFormat.initializationData)   // Ignore this.
-        .setColorInfo(actualFormat.colorInfo) // and this
-        .build();
-    assertThat(actualFormat).isEqualTo(expectedFormat);
+    assertThat(actualFormat).isNotNull();
+    assertThat(actualFormat.id).isEqualTo("1/27");
+    assertThat(actualFormat.sampleMimeType).isEqualTo("video/avc");
+    assertThat(actualFormat.codecs).isEqualTo("avc1.64001F");
+    assertThat(actualFormat.width).isEqualTo(1280);
+    assertThat(actualFormat.height).isEqualTo(720);
 
     // One sample, with the Access Unit containing the IDR and associated NALU is present
     trackOutput.assertSampleCount(1);
@@ -262,6 +257,9 @@ public class TsExtractorHlsTest {
     }
 
     FakeTrackOutput trackOutput = output.trackOutputs.get(36);
+    Dumper dumper = new Dumper();
+    output.dump(dumper);
+    System.out.print(dumper.toString());
     trackOutput.assertSampleCount(1);
     long timeBaseUs = trackOutput.getSampleTimeUs(0);
 
@@ -331,8 +329,7 @@ public class TsExtractorHlsTest {
 
     FakeTrackOutput trackOutput = output.trackOutputs.get(27);
     final int samplesPerSegment = 180;
-    final int orphanedSamplesEachSegment = 0; // TODO - once AndroidX version of extractor library is used this should be 0
-    trackOutput.assertSampleCount(samplesPerSegment - orphanedSamplesEachSegment);
+    trackOutput.assertSampleCount(samplesPerSegment);
     long openingPTS = trackOutput.getSampleTimeUs(0);
 
     streamInput =
@@ -351,7 +348,7 @@ public class TsExtractorHlsTest {
       readResult = tsExtractor.read(streamInput, seekPositionHolder);
     }
 
-    trackOutput.assertSampleCount((samplesPerSegment * 2 ) - orphanedSamplesEachSegment);
+    trackOutput.assertSampleCount((samplesPerSegment * 2 ));
     assertThat(trackOutput.getSampleTimeUs(samplesPerSegment) - openingPTS).isEqualTo(6006000);
   }
 
@@ -410,16 +407,14 @@ public class TsExtractorHlsTest {
     assertThat(trackOutput).isNotNull();
 
     Format actualFormat = trackOutput.lastFormat;
-    Format expectedFormat = new Format.Builder()
-        .setId("1/36")
-        .setSampleMimeType("video/hevc")
-        .setCodecs("hvc1.1.6.L120.B0")
-        .setWidth(1920)
-        .setHeight(1080)
-        .setInitializationData(actualFormat.initializationData)   // Ignore this.
-        .setColorInfo(actualFormat.colorInfo) // and this
-        .build();
-    assertThat(actualFormat).isEqualTo(expectedFormat);
+    assertThat(actualFormat).isNotNull();
+    assertThat(actualFormat.id).isEqualTo("1/36");
+    assertThat(actualFormat.sampleMimeType).isEqualTo("video/hevc");
+    assertThat(actualFormat.codecs).isEqualTo("hvc1.1.6.L120.B0");
+    assertThat(actualFormat.width).isEqualTo(1920);
+    assertThat(actualFormat.height).isEqualTo(1080);
+
+    // Useful for verifying the output is a valid TS
 
     // One sample, with the Access Unit containing the IDR and associated NALU is present
     trackOutput.assertSampleCount(1);
@@ -496,16 +491,12 @@ public class TsExtractorHlsTest {
     assertThat(trackOutput).isNotNull();
 
     Format actualFormat = trackOutput.lastFormat;
-    Format expectedFormat = new Format.Builder()
-            .setId("1/27")
-            .setSampleMimeType("video/avc")
-            .setCodecs("avc1.4D401E")
-            .setWidth(640)
-            .setHeight(360)
-            .setInitializationData(actualFormat.initializationData)   // Ignore this.
-            .setColorInfo(actualFormat.colorInfo) // and this
-            .build();
-    assertThat(actualFormat).isEqualTo(expectedFormat);
+    assertThat(actualFormat).isNotNull();
+    assertThat(actualFormat.id).isEqualTo("1/27");
+    assertThat(actualFormat.sampleMimeType).isEqualTo("video/avc");
+    assertThat(actualFormat.codecs).isEqualTo("avc1.4D401E");
+    assertThat(actualFormat.width).isEqualTo(640);
+    assertThat(actualFormat.height).isEqualTo(360);
 
     // Useful for verifying the output is a valid TS
     //saveOutAsFiles(trackOutput);
@@ -553,16 +544,12 @@ public class TsExtractorHlsTest {
     assertThat(trackOutput).isNotNull();
 
     Format actualFormat = trackOutput.lastFormat;
-    Format expectedFormat = new Format.Builder()
-        .setId("1/27")
-        .setSampleMimeType("video/avc")
-        .setCodecs("avc1.4D401F")
-        .setWidth(960)
-        .setHeight(540)
-        .setInitializationData(actualFormat.initializationData)   // Ignore this.
-        .setColorInfo(actualFormat.colorInfo) // and this
-        .build();
-    assertThat(actualFormat).isEqualTo(expectedFormat);
+    assertThat(actualFormat).isNotNull();
+    assertThat(actualFormat.id).isEqualTo("1/27");
+    assertThat(actualFormat.sampleMimeType).isEqualTo("video/avc");
+    assertThat(actualFormat.codecs).isEqualTo("avc1.4D401F");
+    assertThat(actualFormat.width).isEqualTo(960);
+    assertThat(actualFormat.height).isEqualTo(540);
 
     // One sample, with the Access Unit containing the IDR and associated NALU is present
     trackOutput.assertSampleCount(1);

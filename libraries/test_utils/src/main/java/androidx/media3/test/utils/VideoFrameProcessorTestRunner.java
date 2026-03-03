@@ -24,7 +24,6 @@ import static androidx.media3.common.util.Assertions.checkStateNotNull;
 import static androidx.media3.test.utils.BitmapPixelTestUtil.createArgb8888BitmapFromRgba8888Image;
 import static androidx.media3.test.utils.BitmapPixelTestUtil.maybeSaveTestBitmap;
 import static androidx.test.core.app.ApplicationProvider.getApplicationContext;
-import static com.google.common.truth.Truth.assertThat;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
 import android.annotation.SuppressLint;
@@ -36,7 +35,6 @@ import android.media.MediaFormat;
 import android.util.Pair;
 import android.view.Surface;
 import androidx.annotation.Nullable;
-import androidx.annotation.RequiresApi;
 import androidx.media3.common.ColorInfo;
 import androidx.media3.common.DebugViewProvider;
 import androidx.media3.common.Effect;
@@ -48,6 +46,7 @@ import androidx.media3.common.VideoFrameProcessor;
 import androidx.media3.common.util.ConditionVariable;
 import androidx.media3.common.util.ConstantRateTimestampIterator;
 import androidx.media3.common.util.GlUtil;
+import androidx.media3.common.util.MediaFormatUtil;
 import androidx.media3.common.util.TimestampIterator;
 import androidx.media3.common.util.UnstableApi;
 import com.google.common.collect.ImmutableList;
@@ -61,7 +60,6 @@ import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
 
 /** A test runner for {@link VideoFrameProcessor} tests. */
 @UnstableApi
-@RequiresApi(19)
 public final class VideoFrameProcessorTestRunner {
 
   /** A builder for {@link VideoFrameProcessorTestRunner} instances. */
@@ -76,7 +74,6 @@ public final class VideoFrameProcessorTestRunner {
     private @MonotonicNonNull String outputFileLabel;
     private @MonotonicNonNull ImmutableList<Effect> effects;
     private float pixelWidthHeightRatio;
-    private @MonotonicNonNull ColorInfo inputColorInfo;
     private @MonotonicNonNull ColorInfo outputColorInfo;
     private OnOutputFrameAvailableForRenderingListener onOutputFrameAvailableListener;
     private OnVideoFrameProcessingEndedListener onEndedListener;
@@ -180,17 +177,6 @@ public final class VideoFrameProcessorTestRunner {
     }
 
     /**
-     * Sets the input {@link ColorInfo}.
-     *
-     * <p>The default value is {@link ColorInfo#SDR_BT709_LIMITED}.
-     */
-    @CanIgnoreReturnValue
-    public Builder setInputColorInfo(ColorInfo inputColorInfo) {
-      this.inputColorInfo = inputColorInfo;
-      return this;
-    }
-
-    /**
      * Sets the output {@link ColorInfo}.
      *
      * <p>The default value is {@link ColorInfo#SDR_BT709_LIMITED}.
@@ -204,6 +190,9 @@ public final class VideoFrameProcessorTestRunner {
     /**
      * Sets the method to be called in {@link
      * VideoFrameProcessor.Listener#onOutputFrameAvailableForRendering}.
+     *
+     * <p>The method will be called on the thread the {@link VideoFrameProcessorTestRunner} is
+     * created on.
      *
      * <p>The default value is a no-op.
      */
@@ -232,12 +221,13 @@ public final class VideoFrameProcessorTestRunner {
       return new VideoFrameProcessorTestRunner(
           testId,
           videoFrameProcessorFactory,
-          bitmapReader == null ? new SurfaceBitmapReader() : bitmapReader,
+          bitmapReader == null
+              ? new SurfaceBitmapReader(/* releaseOutputSurface= */ false)
+              : bitmapReader,
           videoAssetPath,
           outputFileLabel == null ? "" : outputFileLabel,
           effects == null ? ImmutableList.of() : effects,
           pixelWidthHeightRatio,
-          inputColorInfo == null ? ColorInfo.SDR_BT709_LIMITED : inputColorInfo,
           outputColorInfo == null ? ColorInfo.SDR_BT709_LIMITED : outputColorInfo,
           onOutputFrameAvailableListener,
           onEndedListener);
@@ -251,15 +241,15 @@ public final class VideoFrameProcessorTestRunner {
   public static final int VIDEO_FRAME_PROCESSING_WAIT_MS = 5_000;
 
   private final String testId;
-  private final @MonotonicNonNull String videoAssetPath;
+  @Nullable private final String videoAssetPath;
   private final String outputFileLabel;
   private final float pixelWidthHeightRatio;
   private final ConditionVariable videoFrameProcessorReadyCondition;
-  private final @MonotonicNonNull CountDownLatch videoFrameProcessingEndedLatch;
+  @Nullable private final CountDownLatch videoFrameProcessingEndedLatch;
   private final AtomicReference<VideoFrameProcessingException> videoFrameProcessingException;
   private final VideoFrameProcessor videoFrameProcessor;
   private final ImmutableList<Effect> effects;
-  private final @MonotonicNonNull BitmapReader bitmapReader;
+  @Nullable private final BitmapReader bitmapReader;
 
   private VideoFrameProcessorTestRunner(
       String testId,
@@ -269,7 +259,6 @@ public final class VideoFrameProcessorTestRunner {
       String outputFileLabel,
       ImmutableList<Effect> effects,
       float pixelWidthHeightRatio,
-      ColorInfo inputColorInfo,
       ColorInfo outputColorInfo,
       OnOutputFrameAvailableForRenderingListener onOutputFrameAvailableForRenderingListener,
       OnVideoFrameProcessingEndedListener onEndedListener)
@@ -287,10 +276,9 @@ public final class VideoFrameProcessorTestRunner {
         videoFrameProcessorFactory.create(
             getApplicationContext(),
             DebugViewProvider.NONE,
-            inputColorInfo,
             outputColorInfo,
             /* renderFramesAutomatically= */ true,
-            MoreExecutors.directExecutor(),
+            /* listenerExecutor= */ MoreExecutors.directExecutor(),
             new VideoFrameProcessor.Listener() {
               @Override
               public void onInputStreamRegistered(
@@ -303,6 +291,11 @@ public final class VideoFrameProcessorTestRunner {
               @Override
               public void onOutputSizeChanged(int width, int height) {
                 boolean useHighPrecisionColorComponents = ColorInfo.isTransferHdr(outputColorInfo);
+                if (bitmapReader instanceof SurfaceBitmapReader) {
+                  if (((SurfaceBitmapReader) bitmapReader).releaseOutputSurface) {
+                    checkNotNull(videoFrameProcessor).setOutputSurfaceInfo(null);
+                  }
+                }
                 @Nullable
                 Surface outputSurface =
                     bitmapReader.getSurface(width, height, useHighPrecisionColorComponents);
@@ -323,6 +316,7 @@ public final class VideoFrameProcessorTestRunner {
               public void onError(VideoFrameProcessingException exception) {
                 videoFrameProcessingException.set(exception);
                 checkNotNull(videoFrameProcessingEndedLatch).countDown();
+                videoFrameProcessorReadyCondition.open();
               }
 
               @Override
@@ -341,18 +335,19 @@ public final class VideoFrameProcessorTestRunner {
           @Override
           public void onContainerExtracted(MediaFormat mediaFormat) {
             videoFrameProcessorReadyCondition.close();
+            @Nullable ColorInfo colorInfo = MediaFormatUtil.getColorInfo(mediaFormat);
             videoFrameProcessor.registerInputStream(
                 INPUT_TYPE_SURFACE,
                 effects,
                 new FrameInfo.Builder(
+                        colorInfo == null ? ColorInfo.SDR_BT709_LIMITED : colorInfo,
                         mediaFormat.getInteger(MediaFormat.KEY_WIDTH),
                         mediaFormat.getInteger(MediaFormat.KEY_HEIGHT))
                     .setPixelWidthHeightRatio(pixelWidthHeightRatio)
                     .build());
             try {
-              videoFrameProcessorReadyCondition.block();
-            } catch (InterruptedException e) {
-              Thread.currentThread().interrupt();
+              awaitVideoFrameProcessorReady();
+            } catch (VideoFrameProcessingException e) {
               throw new IllegalStateException(e);
             }
             checkState(videoFrameProcessor.registerInputFrame());
@@ -369,41 +364,54 @@ public final class VideoFrameProcessorTestRunner {
 
   public void queueInputBitmap(
       Bitmap inputBitmap, long durationUs, long offsetToAddUs, float frameRate)
-      throws InterruptedException {
+      throws VideoFrameProcessingException {
+    queueInputBitmap(inputBitmap, durationUs, offsetToAddUs, frameRate, ColorInfo.SRGB_BT709_FULL);
+  }
+
+  public void queueInputBitmap(
+      Bitmap inputBitmap, long durationUs, long offsetToAddUs, float frameRate, ColorInfo colorInfo)
+      throws VideoFrameProcessingException {
     videoFrameProcessorReadyCondition.close();
     videoFrameProcessor.registerInputStream(
         INPUT_TYPE_BITMAP,
         effects,
-        new FrameInfo.Builder(inputBitmap.getWidth(), inputBitmap.getHeight())
+        new FrameInfo.Builder(colorInfo, inputBitmap.getWidth(), inputBitmap.getHeight())
             .setPixelWidthHeightRatio(pixelWidthHeightRatio)
             .setOffsetToAddUs(offsetToAddUs)
             .build());
-    videoFrameProcessorReadyCondition.block();
+    awaitVideoFrameProcessorReady();
     checkState(
         videoFrameProcessor.queueInputBitmap(
             inputBitmap, new ConstantRateTimestampIterator(durationUs, frameRate)));
   }
 
   public void queueInputBitmaps(int width, int height, Pair<Bitmap, TimestampIterator>... frames)
-      throws InterruptedException {
+      throws VideoFrameProcessingException {
+    queueInputBitmaps(width, height, ColorInfo.SRGB_BT709_FULL, frames);
+  }
+
+  public void queueInputBitmaps(
+      int width, int height, ColorInfo colorInfo, Pair<Bitmap, TimestampIterator>... frames)
+      throws VideoFrameProcessingException {
     videoFrameProcessorReadyCondition.close();
     videoFrameProcessor.registerInputStream(
         INPUT_TYPE_BITMAP,
         effects,
-        new FrameInfo.Builder(width, height)
+        new FrameInfo.Builder(colorInfo, width, height)
             .setPixelWidthHeightRatio(pixelWidthHeightRatio)
             .build());
-    videoFrameProcessorReadyCondition.block();
+    awaitVideoFrameProcessorReady();
     for (Pair<Bitmap, TimestampIterator> frame : frames) {
       videoFrameProcessor.queueInputBitmap(frame.first, frame.second);
     }
   }
 
-  public void queueInputTexture(GlTextureInfo inputTexture, long pts) throws InterruptedException {
+  public void queueInputTexture(GlTextureInfo inputTexture, long pts, ColorInfo colorInfo)
+      throws VideoFrameProcessingException {
     videoFrameProcessor.registerInputStream(
         INPUT_TYPE_TEXTURE_ID,
         effects,
-        new FrameInfo.Builder(inputTexture.width, inputTexture.height)
+        new FrameInfo.Builder(colorInfo, inputTexture.width, inputTexture.height)
             .setPixelWidthHeightRatio(pixelWidthHeightRatio)
             .build());
     videoFrameProcessor.setOnInputFrameProcessedListener(
@@ -415,23 +423,23 @@ public final class VideoFrameProcessorTestRunner {
             throw new VideoFrameProcessingException(e);
           }
         });
-    videoFrameProcessorReadyCondition.block();
+    awaitVideoFrameProcessorReady();
     checkState(videoFrameProcessor.queueInputTexture(inputTexture.texId, pts));
   }
 
   /** {@link #endFrameProcessing(long)} with {@link #VIDEO_FRAME_PROCESSING_WAIT_MS} applied. */
-  public void endFrameProcessing() {
+  public void endFrameProcessing() throws Exception {
     endFrameProcessing(VIDEO_FRAME_PROCESSING_WAIT_MS);
   }
 
   /**
    * Ends {@link VideoFrameProcessor} frame processing.
    *
-   * <p>Waits for frame processing to end, for {@code videoFrameProcessingWaitTimeMs}.
+   * <p>Waits for frame processing to end, for {@code videoFrameProcessingWaitMs}.
    */
-  public void endFrameProcessing(long videoFrameProcessingWaitTimeMs) {
+  public void endFrameProcessing(long videoFrameProcessingWaitMs) throws Exception {
     signalEndOfInput();
-    awaitFrameProcessingEnd(videoFrameProcessingWaitTimeMs);
+    awaitFrameProcessingEnd(videoFrameProcessingWaitMs);
   }
 
   /**
@@ -444,12 +452,17 @@ public final class VideoFrameProcessorTestRunner {
     videoFrameProcessor.signalEndOfInput();
   }
 
+  /** Calls {@link VideoFrameProcessor#flush}. */
+  public void flush() {
+    videoFrameProcessor.flush();
+  }
+
   /** After {@link #signalEndOfInput}, is called, wait for this instance to end. */
-  public void awaitFrameProcessingEnd(long videoFrameProcessingWaitTimeMs) {
+  public void awaitFrameProcessingEnd(long videoFrameProcessingWaitMs) throws Exception {
     @Nullable Exception endFrameProcessingException = null;
     try {
       if (!checkNotNull(videoFrameProcessingEndedLatch)
-          .await(videoFrameProcessingWaitTimeMs, MILLISECONDS)) {
+          .await(videoFrameProcessingWaitMs, MILLISECONDS)) {
         endFrameProcessingException =
             new IllegalStateException("Video frame processing timed out.");
       }
@@ -457,8 +470,12 @@ public final class VideoFrameProcessorTestRunner {
       Thread.currentThread().interrupt();
       endFrameProcessingException = e;
     }
-    assertThat(videoFrameProcessingException.get()).isNull();
-    assertThat(endFrameProcessingException).isNull();
+    if (videoFrameProcessingException.get() != null) {
+      throw videoFrameProcessingException.get();
+    }
+    if (endFrameProcessingException != null) {
+      throw endFrameProcessingException;
+    }
   }
 
   /**
@@ -505,6 +522,18 @@ public final class VideoFrameProcessorTestRunner {
   public static final class SurfaceBitmapReader
       implements VideoFrameProcessorTestRunner.BitmapReader {
 
+    public final boolean releaseOutputSurface;
+
+    /**
+     * Creates an instance.
+     *
+     * @param releaseOutputSurface Whether the {@link VideoFrameProcessor} output Surface must be
+     *     released at calls to {@link #getSurface(int, int, boolean)}.
+     */
+    public SurfaceBitmapReader(boolean releaseOutputSurface) {
+      this.releaseOutputSurface = releaseOutputSurface;
+    }
+
     // ImageReader only supports SDR input.
     private @MonotonicNonNull ImageReader imageReader;
 
@@ -512,6 +541,9 @@ public final class VideoFrameProcessorTestRunner {
     @SuppressLint("WrongConstant")
     @Nullable
     public Surface getSurface(int width, int height, boolean useHighPrecisionColorComponents) {
+      if (imageReader != null && releaseOutputSurface) {
+        imageReader.close();
+      }
       imageReader =
           ImageReader.newInstance(width, height, PixelFormat.RGBA_8888, /* maxImages= */ 1);
       return imageReader.getSurface();
@@ -547,5 +579,17 @@ public final class VideoFrameProcessorTestRunner {
         throw new UnsupportedOperationException();
       }
     };
+  }
+
+  private void awaitVideoFrameProcessorReady() throws VideoFrameProcessingException {
+    try {
+      videoFrameProcessorReadyCondition.block();
+      if (videoFrameProcessingException.get() != null) {
+        throw videoFrameProcessingException.get();
+      }
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      throw new IllegalStateException(e);
+    }
   }
 }

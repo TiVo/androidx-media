@@ -15,12 +15,25 @@
  */
 package androidx.media3.muxer;
 
+import static androidx.media3.container.MdtaMetadataEntry.KEY_ANDROID_CAPTURE_FPS;
+import static androidx.media3.container.MdtaMetadataEntry.TYPE_INDICATOR_FLOAT32;
+import static androidx.media3.container.MdtaMetadataEntry.TYPE_INDICATOR_STRING;
+import static androidx.media3.muxer.MuxerTestUtil.FAKE_VIDEO_FORMAT;
+import static androidx.media3.muxer.MuxerTestUtil.XMP_SAMPLE_DATA;
+import static com.google.common.truth.Truth.assertThat;
+
 import android.content.Context;
 import android.media.MediaCodec.BufferInfo;
 import android.util.Pair;
-import androidx.media3.common.Format;
+import androidx.media3.common.util.Util;
+import androidx.media3.container.MdtaMetadataEntry;
+import androidx.media3.container.Mp4LocationData;
+import androidx.media3.container.Mp4OrientationData;
+import androidx.media3.container.Mp4TimestampData;
+import androidx.media3.container.XmpData;
 import androidx.media3.extractor.mp4.Mp4Extractor;
-import androidx.media3.muxer.Mp4Muxer.TrackToken;
+import androidx.media3.extractor.text.DefaultSubtitleParserFactory;
+import androidx.media3.muxer.Muxer.TrackToken;
 import androidx.media3.test.utils.DumpFileAsserts;
 import androidx.media3.test.utils.DumpableMp4Box;
 import androidx.media3.test.utils.FakeExtractorOutput;
@@ -29,7 +42,6 @@ import androidx.test.core.app.ApplicationProvider;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import java.io.FileOutputStream;
 import java.nio.ByteBuffer;
-import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -40,40 +52,29 @@ import org.junit.runner.RunWith;
 public class Mp4MuxerMetadataTest {
   @Rule public final TemporaryFolder temporaryFolder = new TemporaryFolder();
 
-  // Input files.
-  private static final String XMP_SAMPLE_DATA = "media/xmp/sample_datetime_xmp.xmp";
-
-  private Context context;
-  private String outputFilePath;
-  private FileOutputStream outputFileStream;
-  private Format format;
-  private Pair<ByteBuffer, BufferInfo> sampleAndSampleInfo;
-
-  @Before
-  public void setUp() throws Exception {
-    context = ApplicationProvider.getApplicationContext();
-
-    outputFilePath = temporaryFolder.newFile("output.mp4").getPath();
-    outputFileStream = new FileOutputStream(outputFilePath);
-
-    format = MuxerTestUtil.getFakeVideoFormat();
-    sampleAndSampleInfo = MuxerTestUtil.getFakeSampleAndSampleInfo(/* presentationTimeUs= */ 0L);
-  }
+  private final Context context = ApplicationProvider.getApplicationContext();
+  private final Pair<ByteBuffer, BufferInfo> sampleAndSampleInfo =
+      MuxerTestUtil.getFakeSampleAndSampleInfo(/* presentationTimeUs= */ 0L);
 
   @Test
   public void writeMp4File_orientationNotSet_setsOrientationTo0() throws Exception {
-    Mp4Muxer muxer = new Mp4Muxer.Builder(outputFileStream).build();
+    String outputFilePath = temporaryFolder.newFile().getPath();
+    Mp4Muxer muxer = new Mp4Muxer.Builder(new FileOutputStream(outputFilePath)).build();
 
     try {
-      muxer.setModificationTime(/* timestampMs= */ 5_000_000L);
-      TrackToken token = muxer.addTrack(/* sortKey= */ 0, format);
+      muxer.addMetadataEntry(
+          new Mp4TimestampData(
+              /* creationTimestampSeconds= */ 1_000_000L,
+              /* modificationTimestampSeconds= */ 5_000_000L));
+      TrackToken token = muxer.addTrack(/* sortKey= */ 0, FAKE_VIDEO_FORMAT);
       muxer.writeSampleData(token, sampleAndSampleInfo.first, sampleAndSampleInfo.second);
     } finally {
       muxer.close();
     }
 
     FakeExtractorOutput fakeExtractorOutput =
-        TestUtil.extractAllSamplesFromFilePath(new Mp4Extractor(), outputFilePath);
+        TestUtil.extractAllSamplesFromFilePath(
+            new Mp4Extractor(new DefaultSubtitleParserFactory()), outputFilePath);
     // No rotationDegrees field in output dump.
     DumpFileAsserts.assertOutput(
         context,
@@ -83,20 +84,25 @@ public class Mp4MuxerMetadataTest {
 
   @Test
   public void writeMp4File_setOrientationTo90_setsOrientationTo90() throws Exception {
-    Mp4Muxer muxer = new Mp4Muxer.Builder(outputFileStream).build();
+    String outputFilePath = temporaryFolder.newFile().getPath();
+    Mp4Muxer muxer = new Mp4Muxer.Builder(new FileOutputStream(outputFilePath)).build();
 
     try {
-      muxer.setModificationTime(/* timestampMs= */ 5_000_000L);
-      TrackToken token = muxer.addTrack(/* sortKey= */ 0, format);
+      muxer.addMetadataEntry(
+          new Mp4TimestampData(
+              /* creationTimestampSeconds= */ 1_000_000L,
+              /* modificationTimestampSeconds= */ 5_000_000L));
+      TrackToken token = muxer.addTrack(/* sortKey= */ 0, FAKE_VIDEO_FORMAT);
       muxer.writeSampleData(token, sampleAndSampleInfo.first, sampleAndSampleInfo.second);
 
-      muxer.setOrientation(90);
+      muxer.addMetadataEntry(new Mp4OrientationData(/* orientation= */ 90));
     } finally {
       muxer.close();
     }
 
     FakeExtractorOutput fakeExtractorOutput =
-        TestUtil.extractAllSamplesFromFilePath(new Mp4Extractor(), outputFilePath);
+        TestUtil.extractAllSamplesFromFilePath(
+            new Mp4Extractor(new DefaultSubtitleParserFactory()), outputFilePath);
     // rotationDegrees = 90 in the output dump.
     DumpFileAsserts.assertOutput(
         context,
@@ -106,20 +112,25 @@ public class Mp4MuxerMetadataTest {
 
   @Test
   public void writeMp4File_setOrientationTo180_setsOrientationTo180() throws Exception {
-    Mp4Muxer muxer = new Mp4Muxer.Builder(outputFileStream).build();
+    String outputFilePath = temporaryFolder.newFile().getPath();
+    Mp4Muxer muxer = new Mp4Muxer.Builder(new FileOutputStream(outputFilePath)).build();
 
     try {
-      muxer.setModificationTime(/* timestampMs= */ 5_000_000L);
-      TrackToken token = muxer.addTrack(/* sortKey= */ 0, format);
+      muxer.addMetadataEntry(
+          new Mp4TimestampData(
+              /* creationTimestampSeconds= */ 1_000_000L,
+              /* modificationTimestampSeconds= */ 5_000_000L));
+      TrackToken token = muxer.addTrack(/* sortKey= */ 0, FAKE_VIDEO_FORMAT);
       muxer.writeSampleData(token, sampleAndSampleInfo.first, sampleAndSampleInfo.second);
 
-      muxer.setOrientation(180);
+      muxer.addMetadataEntry(new Mp4OrientationData(/* orientation= */ 180));
     } finally {
       muxer.close();
     }
 
     FakeExtractorOutput fakeExtractorOutput =
-        TestUtil.extractAllSamplesFromFilePath(new Mp4Extractor(), outputFilePath);
+        TestUtil.extractAllSamplesFromFilePath(
+            new Mp4Extractor(new DefaultSubtitleParserFactory()), outputFilePath);
     // rotationDegrees = 180 in the output dump.
     DumpFileAsserts.assertOutput(
         context,
@@ -129,20 +140,25 @@ public class Mp4MuxerMetadataTest {
 
   @Test
   public void writeMp4File_setOrientationTo270_setsOrientationTo270() throws Exception {
-    Mp4Muxer muxer = new Mp4Muxer.Builder(outputFileStream).build();
+    String outputFilePath = temporaryFolder.newFile().getPath();
+    Mp4Muxer muxer = new Mp4Muxer.Builder(new FileOutputStream(outputFilePath)).build();
 
     try {
-      muxer.setModificationTime(/* timestampMs= */ 5_000_000L);
-      TrackToken token = muxer.addTrack(/* sortKey= */ 0, format);
+      muxer.addMetadataEntry(
+          new Mp4TimestampData(
+              /* creationTimestampSeconds= */ 1_000_000L,
+              /* modificationTimestampSeconds= */ 5_000_000L));
+      TrackToken token = muxer.addTrack(/* sortKey= */ 0, FAKE_VIDEO_FORMAT);
       muxer.writeSampleData(token, sampleAndSampleInfo.first, sampleAndSampleInfo.second);
 
-      muxer.setOrientation(270);
+      muxer.addMetadataEntry(new Mp4OrientationData(/* orientation= */ 270));
     } finally {
       muxer.close();
     }
 
     FakeExtractorOutput fakeExtractorOutput =
-        TestUtil.extractAllSamplesFromFilePath(new Mp4Extractor(), outputFilePath);
+        TestUtil.extractAllSamplesFromFilePath(
+            new Mp4Extractor(new DefaultSubtitleParserFactory()), outputFilePath);
     // rotationDegrees = 270 in the output dump.
     DumpFileAsserts.assertOutput(
         context,
@@ -152,19 +168,24 @@ public class Mp4MuxerMetadataTest {
 
   @Test
   public void writeMp4File_setLocation_setsSameLocation() throws Exception {
-    Mp4Muxer muxer = new Mp4Muxer.Builder(outputFileStream).build();
+    String outputFilePath = temporaryFolder.newFile().getPath();
+    Mp4Muxer muxer = new Mp4Muxer.Builder(new FileOutputStream(outputFilePath)).build();
 
     try {
-      muxer.setModificationTime(/* timestampMs= */ 5_000_000L);
-      TrackToken token = muxer.addTrack(/* sortKey= */ 0, format);
+      muxer.addMetadataEntry(
+          new Mp4TimestampData(
+              /* creationTimestampSeconds= */ 1_000_000L,
+              /* modificationTimestampSeconds= */ 5_000_000L));
+      TrackToken token = muxer.addTrack(/* sortKey= */ 0, FAKE_VIDEO_FORMAT);
       muxer.writeSampleData(token, sampleAndSampleInfo.first, sampleAndSampleInfo.second);
-      muxer.setLocation(33.0f, -120f);
+      muxer.addMetadataEntry(new Mp4LocationData(/* latitude= */ 33.0f, /* longitude= */ -120f));
     } finally {
       muxer.close();
     }
 
     FakeExtractorOutput fakeExtractorOutput =
-        TestUtil.extractAllSamplesFromFilePath(new Mp4Extractor(), outputFilePath);
+        TestUtil.extractAllSamplesFromFilePath(
+            new Mp4Extractor(new DefaultSubtitleParserFactory()), outputFilePath);
     // Xyz data in track metadata dump.
     DumpFileAsserts.assertOutput(
         context,
@@ -174,18 +195,23 @@ public class Mp4MuxerMetadataTest {
 
   @Test
   public void writeMp4File_locationNotSet_setsLocationToNull() throws Exception {
-    Mp4Muxer muxer = new Mp4Muxer.Builder(outputFileStream).build();
+    String outputFilePath = temporaryFolder.newFile().getPath();
+    Mp4Muxer muxer = new Mp4Muxer.Builder(new FileOutputStream(outputFilePath)).build();
 
     try {
-      muxer.setModificationTime(/* timestampMs= */ 5_000_000L);
-      TrackToken token = muxer.addTrack(/* sortKey= */ 0, format);
+      muxer.addMetadataEntry(
+          new Mp4TimestampData(
+              /* creationTimestampSeconds= */ 1_000_000L,
+              /* modificationTimestampSeconds= */ 5_000_000L));
+      TrackToken token = muxer.addTrack(/* sortKey= */ 0, FAKE_VIDEO_FORMAT);
       muxer.writeSampleData(token, sampleAndSampleInfo.first, sampleAndSampleInfo.second);
     } finally {
       muxer.close();
     }
 
     FakeExtractorOutput fakeExtractorOutput =
-        TestUtil.extractAllSamplesFromFilePath(new Mp4Extractor(), outputFilePath);
+        TestUtil.extractAllSamplesFromFilePath(
+            new Mp4Extractor(new DefaultSubtitleParserFactory()), outputFilePath);
     // No xyz data in track metadata dump.
     DumpFileAsserts.assertOutput(
         context,
@@ -195,19 +221,27 @@ public class Mp4MuxerMetadataTest {
 
   @Test
   public void writeMp4File_setFrameRate_setsSameFrameRate() throws Exception {
-    Mp4Muxer muxer = new Mp4Muxer.Builder(outputFileStream).build();
+    String outputFilePath = temporaryFolder.newFile().getPath();
+    Mp4Muxer muxer = new Mp4Muxer.Builder(new FileOutputStream(outputFilePath)).build();
 
     try {
-      muxer.setModificationTime(/* timestampMs= */ 5_000_000L);
-      muxer.setCaptureFps(120.0f);
-      TrackToken token = muxer.addTrack(/* sortKey= */ 0, format);
+      muxer.addMetadataEntry(
+          new Mp4TimestampData(
+              /* creationTimestampSeconds= */ 1_000_000L,
+              /* modificationTimestampSeconds= */ 5_000_000L));
+      float captureFps = 120.0f;
+      muxer.addMetadataEntry(
+          new MdtaMetadataEntry(
+              KEY_ANDROID_CAPTURE_FPS, Util.toByteArray(captureFps), TYPE_INDICATOR_FLOAT32));
+      TrackToken token = muxer.addTrack(/* sortKey= */ 0, FAKE_VIDEO_FORMAT);
       muxer.writeSampleData(token, sampleAndSampleInfo.first, sampleAndSampleInfo.second);
     } finally {
       muxer.close();
     }
 
     FakeExtractorOutput fakeExtractorOutput =
-        TestUtil.extractAllSamplesFromFilePath(new Mp4Extractor(), outputFilePath);
+        TestUtil.extractAllSamplesFromFilePath(
+            new Mp4Extractor(new DefaultSubtitleParserFactory()), outputFilePath);
     // android.capture.fps data in the track metadata dump.
     DumpFileAsserts.assertOutput(
         context,
@@ -217,19 +251,26 @@ public class Mp4MuxerMetadataTest {
 
   @Test
   public void writeMp4File_addStringMetadata_matchesExpected() throws Exception {
-    Mp4Muxer muxer = new Mp4Muxer.Builder(outputFileStream).build();
+    String outputFilePath = temporaryFolder.newFile().getPath();
+    Mp4Muxer muxer = new Mp4Muxer.Builder(new FileOutputStream(outputFilePath)).build();
 
     try {
-      muxer.setModificationTime(/* timestampMs= */ 5_000_000L);
-      muxer.addMetadata("SomeStringKey", "Some Random String");
-      TrackToken token = muxer.addTrack(/* sortKey= */ 0, format);
+      muxer.addMetadataEntry(
+          new Mp4TimestampData(
+              /* creationTimestampSeconds= */ 1_000_000L,
+              /* modificationTimestampSeconds= */ 5_000_000L));
+      muxer.addMetadataEntry(
+          new MdtaMetadataEntry(
+              "SomeStringKey", Util.getUtf8Bytes("Some Random String"), TYPE_INDICATOR_STRING));
+      TrackToken token = muxer.addTrack(/* sortKey= */ 0, FAKE_VIDEO_FORMAT);
       muxer.writeSampleData(token, sampleAndSampleInfo.first, sampleAndSampleInfo.second);
     } finally {
       muxer.close();
     }
 
     FakeExtractorOutput fakeExtractorOutput =
-        TestUtil.extractAllSamplesFromFilePath(new Mp4Extractor(), outputFilePath);
+        TestUtil.extractAllSamplesFromFilePath(
+            new Mp4Extractor(new DefaultSubtitleParserFactory()), outputFilePath);
     // Added string metadata should be present in the track metadata dump.
     DumpFileAsserts.assertOutput(
         context,
@@ -238,20 +279,49 @@ public class Mp4MuxerMetadataTest {
   }
 
   @Test
-  public void writeMp4File_addFloatMetadata_matchesExpected() throws Exception {
-    Mp4Muxer muxer = new Mp4Muxer.Builder(outputFileStream).build();
+  public void writeMp4File_addManyLargeStringMetadata_doesNotThrow() throws Exception {
+    String outputFilePath = temporaryFolder.newFile().getPath();
+    Mp4Muxer muxer = new Mp4Muxer.Builder(new FileOutputStream(outputFilePath)).build();
+
+    String metadataKey = "SomeStringKey";
+    byte[] metadataValue = Util.getUtf8Bytes("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA");
+    for (int i = 0; i < 100; i++) {
+      muxer.addMetadataEntry(
+          new MdtaMetadataEntry(metadataKey, metadataValue, TYPE_INDICATOR_STRING));
+    }
+    TrackToken token = muxer.addTrack(FAKE_VIDEO_FORMAT);
 
     try {
-      muxer.setModificationTime(/* timestampMs= */ 5_000_000L);
-      muxer.addMetadata("SomeStringKey", 10.0f);
-      TrackToken token = muxer.addTrack(/* sortKey= */ 0, format);
+      muxer.writeSampleData(token, sampleAndSampleInfo.first, sampleAndSampleInfo.second);
+      assertThat(sampleAndSampleInfo.first.remaining()).isEqualTo(0);
+    } finally {
+      muxer.close();
+    }
+  }
+
+  @Test
+  public void writeMp4File_addFloatMetadata_matchesExpected() throws Exception {
+    String outputFilePath = temporaryFolder.newFile().getPath();
+    Mp4Muxer muxer = new Mp4Muxer.Builder(new FileOutputStream(outputFilePath)).build();
+
+    try {
+      muxer.addMetadataEntry(
+          new Mp4TimestampData(
+              /* creationTimestampSeconds= */ 1_000_000L,
+              /* modificationTimestampSeconds= */ 5_000_000L));
+      float floatValue = 10.0f;
+      muxer.addMetadataEntry(
+          new MdtaMetadataEntry(
+              "SomeStringKey", Util.toByteArray(floatValue), TYPE_INDICATOR_FLOAT32));
+      TrackToken token = muxer.addTrack(/* sortKey= */ 0, FAKE_VIDEO_FORMAT);
       muxer.writeSampleData(token, sampleAndSampleInfo.first, sampleAndSampleInfo.second);
     } finally {
       muxer.close();
     }
 
     FakeExtractorOutput fakeExtractorOutput =
-        TestUtil.extractAllSamplesFromFilePath(new Mp4Extractor(), outputFilePath);
+        TestUtil.extractAllSamplesFromFilePath(
+            new Mp4Extractor(new DefaultSubtitleParserFactory()), outputFilePath);
     // Added float metadata should be present in the track metadata dump.
     DumpFileAsserts.assertOutput(
         context,
@@ -261,16 +331,18 @@ public class Mp4MuxerMetadataTest {
 
   @Test
   public void writeMp4File_addXmp_matchesExpected() throws Exception {
-    Mp4Muxer muxer = new Mp4Muxer.Builder(outputFileStream).build();
+    String outputFilePath = temporaryFolder.newFile().getPath();
+    Mp4Muxer muxer = new Mp4Muxer.Builder(new FileOutputStream(outputFilePath)).build();
 
     try {
-      muxer.setModificationTime(/* timestampMs= */ 5_000_000L);
+      muxer.addMetadataEntry(
+          new Mp4TimestampData(
+              /* creationTimestampSeconds= */ 1_000_000L,
+              /* modificationTimestampSeconds= */ 5_000_000L));
       Context context = ApplicationProvider.getApplicationContext();
       byte[] xmpBytes = TestUtil.getByteArray(context, XMP_SAMPLE_DATA);
-      ByteBuffer xmp = ByteBuffer.wrap(xmpBytes);
-      muxer.addXmp(xmp);
-      xmp.rewind();
-      TrackToken token = muxer.addTrack(0, format);
+      muxer.addMetadataEntry(new XmpData(xmpBytes));
+      TrackToken token = muxer.addTrack(0, FAKE_VIDEO_FORMAT);
       muxer.writeSampleData(token, sampleAndSampleInfo.first, sampleAndSampleInfo.second);
     } finally {
       muxer.close();
